@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.fs;
+package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ImmutableDate;
@@ -72,11 +72,11 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  */
 
 @Slf4j
-public class FSStorage implements Storage {
+public class FileSystemStorage implements Storage {
 
     //region members
 
-    private final FSStorageConfig config;
+    private final FileSystemStorageConfig config;
     private final ExecutorService executor;
 
     //endregion
@@ -84,12 +84,12 @@ public class FSStorage implements Storage {
     //region constructor
 
     /**
-     * Creates a new instance of the FSStorage class.
+     * Creates a new instance of the FileSystemStorage class.
      *
      * @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
      */
-    public FSStorage(FSStorageConfig config, ExecutorService executor) {
+    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -179,22 +179,22 @@ public class FSStorage implements Storage {
 
     @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenRead(String streamSegmentName) {
-        Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
+        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
 
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         }
 
-        return FSSegmentHandle.getReadHandle(streamSegmentName);
+        return FileSystemSegmentHandle.getReadHandle(streamSegmentName);
     }
 
     @SneakyThrows
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
-        Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
+        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
-            return FSSegmentHandle.getWriteHandle(streamSegmentName);
+            return FileSystemSegmentHandle.getWriteHandle(streamSegmentName);
         } else {
                 return openRead(streamSegmentName).get();
         }
@@ -203,7 +203,7 @@ public class FSStorage implements Storage {
     @SneakyThrows(IOException.class)
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
 
-        Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
+        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
             if (Files.size(path) < offset) {
                 log.warn("Read called on segment {} at offset {}. The offset is beyond the current size of the file.",
@@ -219,7 +219,7 @@ public class FSStorage implements Storage {
 
     @SneakyThrows(IOException.class)
     private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) {
-            PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getNfsRoot(), streamSegmentName),
+            PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getFilesystemRoot(), streamSegmentName),
                     PosixFileAttributes.class);
             StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
                     !(attrs.permissions().contains(OWNER_WRITE)), false,
@@ -229,7 +229,7 @@ public class FSStorage implements Storage {
     }
 
     private boolean syncExists(String streamSegmentName) {
-        boolean exists = Files.exists(Paths.get(config.getNfsRoot(), streamSegmentName));
+        boolean exists = Files.exists(Paths.get(config.getFilesystemRoot(), streamSegmentName));
         return exists;
     }
 
@@ -244,7 +244,7 @@ public class FSStorage implements Storage {
             perms.add(PosixFilePermission.OTHERS_READ);
             FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
 
-            Path path = Paths.get(config.getNfsRoot(), streamSegmentName);
+            Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
             Files.createDirectories(path.getParent());
             Files.createFile(path, fileAttributes);
             log.info("Created Segment {}", streamSegmentName);
@@ -254,7 +254,7 @@ public class FSStorage implements Storage {
     @SneakyThrows
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
-        Path path = Paths.get(config.getNfsRoot(), handle.getSegmentName());
+        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
         if (handle.isReadOnly()) {
             log.warn("Write called on a readonly handle of segment {}", handle.getSegmentName());
@@ -296,7 +296,7 @@ public class FSStorage implements Storage {
             perms.add(PosixFilePermission.OWNER_READ);
             perms.add(PosixFilePermission.GROUP_READ);
             perms.add(PosixFilePermission.OTHERS_READ);
-            Files.setPosixFilePermissions(Paths.get(config.getNfsRoot(), handle.getSegmentName()), perms);
+            Files.setPosixFilePermissions(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()), perms);
             log.info("Successfully sealed segment {}", handle.getSegmentName());
             return null;
     }
@@ -304,8 +304,8 @@ public class FSStorage implements Storage {
     @SneakyThrows(IOException.class)
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
 
-        Path sourcePath = Paths.get(config.getNfsRoot(), sourceSegment);
-        Path targetPath = Paths.get(config.getNfsRoot(), targetHandle.getSegmentName());
+        Path sourcePath = Paths.get(config.getFilesystemRoot(), sourceSegment);
+        Path targetPath = Paths.get(config.getFilesystemRoot(), targetHandle.getSegmentName());
 
         try (FileChannel targetChannel = (FileChannel) Files.newByteChannel(targetPath, EnumSet.of(StandardOpenOption.APPEND));
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
@@ -314,14 +314,14 @@ public class FSStorage implements Storage {
             }
 
             targetChannel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
-            Files.delete(Paths.get(config.getNfsRoot(), sourceSegment));
+            Files.delete(Paths.get(config.getFilesystemRoot(), sourceSegment));
             return null;
         }
     }
 
     @SneakyThrows(IOException.class)
     private Void syncDelete(SegmentHandle handle) {
-            Files.delete(Paths.get(config.getNfsRoot(), handle.getSegmentName()));
+            Files.delete(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()));
             return null;
     }
 
