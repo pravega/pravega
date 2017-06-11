@@ -206,7 +206,7 @@ public class ECSStorage implements Storage {
         if ( info.isSealed() == true) {
             retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
         } else {
-             retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+             retHandle = ECSSegmentHandle.getWriteHandle(streamSegmentName);
         }
 
         log.trace("Created read handle for segment {} ", streamSegmentName);
@@ -289,7 +289,11 @@ public class ECSStorage implements Storage {
 
     private boolean syncExists(String streamSegmentName) {
         GetObjectResult<InputStream> result = null;
-        result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        try {
+            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        } catch (Exception e) {
+            log.warn("Exception {} observed while getting segment info {}", e.getMessage(), streamSegmentName);
+        }
         return result != null;
     }
 
@@ -396,7 +400,7 @@ public class ECSStorage implements Storage {
             SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
 
             if ( !si.isSealed()) {
-                throw new CompletionException(new IllegalStateException());
+                throw new IllegalStateException(sourceSegment);
             }
 
             //Upload the first part
@@ -477,15 +481,17 @@ public class ECSStorage implements Storage {
 
     private Exception translateException(String segmentName, Exception e) {
         Exception retVal = e;
-        if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
-            retVal = new StreamSegmentNotExistsException(segmentName);
+
+        if ( e instanceof S3Exception) {
+            if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
+                retVal = new StreamSegmentNotExistsException(segmentName);
+            }
+            if (((S3Exception) e).getErrorCode().equals("InvalidRange")) {
+                retVal = new IllegalArgumentException(segmentName, e);
+            }
         }
 
-        if ( e instanceof FileAlreadyExistsException) {
-            retVal = new StreamSegmentExistsException(segmentName);
-        }
-
-        if ( e instanceof IndexOutOfBoundsException) {
+        if ( e instanceof IndexOutOfBoundsException || e instanceof ArrayIndexOutOfBoundsException) {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 
