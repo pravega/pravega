@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
@@ -21,14 +20,12 @@ import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
-import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -40,20 +37,14 @@ import io.pravega.segmentstore.storage.Storage;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.AccessDeniedException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
@@ -177,33 +168,20 @@ public class ECSStorage implements Storage {
     //endregion
 
     //region private sync implementation
-
-    @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenRead(String streamSegmentName) {
         log.trace("Opening {} for read.", streamSegmentName);
 
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        if ( info == null ) {
-            log.info("Did not find segment {} ", streamSegmentName);
-            throw new StreamSegmentNotExistsException(streamSegmentName);
-        }
-
         ECSSegmentHandle retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
         log.trace("Created read handle for segment {} ", streamSegmentName);
         return retHandle;
     }
 
-    @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
         log.trace("Opening {} for write.", streamSegmentName);
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        if ( info == null ) {
-            log.info("Did not find segment {} ", streamSegmentName);
-            throw new StreamSegmentNotExistsException(streamSegmentName);
-        }
-
         ECSSegmentHandle retHandle;
-        if ( info.isSealed() == true) {
+        if ( info.isSealed()) {
             retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
         } else {
              retHandle = ECSSegmentHandle.getWriteHandle(streamSegmentName);
@@ -277,14 +255,6 @@ public class ECSStorage implements Storage {
                     result.getContentLength(), !canWrite, false,
                     new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
             return information;
-        /*} catch (Exception e) {
-            if ( e instanceof S3Exception) {
-                if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
-                    throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-                }
-            }
-            throw new CompletionException(e);
-        }*/
     }
 
     private boolean syncExists(String streamSegmentName) {
@@ -325,14 +295,6 @@ public class ECSStorage implements Storage {
 
             log.info("Created Segment {}", streamSegmentName);
             return syncGetStreamSegmentInfo(streamSegmentName);
-       /* } *catch (Exception e) {
-            log.info("Exception {} while creating a segment {}", e, streamSegmentName);
-            if (e instanceof FileAlreadyExistsException) {
-                throw new CompletionException(new StreamSegmentExistsException(streamSegmentName, e));
-            } else {
-                throw new CompletionException(e);
-            }
-        }*/
     }
 
     @SneakyThrows
@@ -376,29 +338,18 @@ public class ECSStorage implements Storage {
 
         log.info("Successfully sealed segment {}", handle.getSegmentName());
         return null;
-       /* } catch (Exception e) {
-            log.info("Seal failed with {} for segment {}", e, handle.getSegmentName());
-            if ( e instanceof S3Exception) {
-                throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
-            }
-            throw new CompletionException(e);
-        }*/
     }
 
 
 
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
 
-
             SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-
             String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
-
             String uploadId = client.initiateMultipartUpload(config.getEcsBucket(), targetPath);
 
             // check whether the source is sealed
             SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
-
             if ( !si.isSealed()) {
                 throw new IllegalStateException(sourceSegment);
             }
@@ -439,15 +390,6 @@ public class ECSStorage implements Storage {
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + sourceSegment);
 
             return null;
-     /*   } catch (RuntimeException e) {
-            log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
-            if ( e instanceof S3Exception) {
-                throw new CompletionException(new StreamSegmentNotExistsException(e.getMessage()));
-            }
-            throw new CompletionException(e);
-        } catch (InterruptedException | ExecutionException e) {
-            throw new CompletionException(e);
-        }*/
     }
 
 

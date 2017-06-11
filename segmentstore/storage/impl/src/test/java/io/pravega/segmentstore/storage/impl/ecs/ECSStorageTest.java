@@ -49,11 +49,9 @@ public class ECSStorageTest extends StorageTestBase {
     public void setUp() throws Exception {
         S3Config ecsConfig = null;
 
-      /*  api = new S3Mock.Builder().withPort(9020).withInMemoryBackend().
+        /*  api = new S3Mock.Builder().withPort(9020).withInMemoryBackend().
                 build();
-        api.start();*/
-
-
+            api.start();*/
         this.adapterConfig = ECSStorageConfig.builder()
                 .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
                 .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "user2")
@@ -253,13 +251,13 @@ public class ECSStorageTest extends StorageTestBase {
         S3Config ecsConfig = null;
         try {
             ecsConfig = new S3Config(new URI("http://172.16.39.136:9020"));
-        if ( adapterConfig == null ) {
+            if (adapterConfig == null) {
                 setUp();
-        }
-        ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
+            }
+            ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
-        client = new S3JerseyClient(ecsConfig);
-//        client.createBucket("kanpravegatest");
+            client = new S3JerseyClient(ecsConfig);
+            //        client.createBucket("kanpravegatest");
             return new ECSStorage(client, this.adapterConfig, executorService());
         } catch (Exception e) {
             e.printStackTrace();
