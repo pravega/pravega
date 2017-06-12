@@ -217,7 +217,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
@@ -267,7 +267,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
