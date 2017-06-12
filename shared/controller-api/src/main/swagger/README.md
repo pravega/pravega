@@ -36,3 +36,6 @@ Copy these API descriptions into interfaces in .../server/rest/v1/ApiV1.java. Al
 ## Update generated/model/RetentionConfig.java
 Swagger codegen truncates common enum prefixes. So until https://github.com/swagger-api/swagger-codegen/issues/4261 is fixed we need to perform the following manual step.
 In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED_SIZE_MB.
+
+## Generate documentation
+Use http://editor.swagger.io/ to generate html2 documentation from the Controller.yaml specification and overwrite .../swagger/restapis.html
