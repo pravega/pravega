@@ -27,7 +27,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
@@ -219,6 +221,38 @@ public class FSStorageTest extends StorageTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
+
+    //region synchronization unit tests
+    @Test
+    public void testWriteTwoHosts() {
+        String segmentName = "foo_write";
+        int appendCount = 5;
+
+        try (Storage s1 = createStorage();
+            Storage s2 = createStorage()) {
+            s1.initialize(DEFAULT_EPOCH);
+            s1.create(segmentName, TIMEOUT).join();
+            SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
+            SegmentHandle writeHandle2 = s1.openWrite(segmentName).join();
+            long offset = 0;
+            for (int j = 0; j < appendCount; j++) {
+                byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
+                ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
+                ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
+                CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
+                CompletableFuture f2 = s2.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+                assertMayThrow("Write expected to complete OR throw BadOffsetException." +
+                                "threw an unexpected exception.",
+                        () -> CompletableFuture.allOf(f1, f2),
+                        ex -> ex instanceof BadOffsetException);
+                offset += writeData.length;
+            }
+            Assert.assertTrue(s1.getStreamSegmentInfo(segmentName,TIMEOUT).join().getLength() == offset);
+            s1.delete(writeHandle1, TIMEOUT);
+        }
+    }
+
+    //endregion
 
     //endregion
 
