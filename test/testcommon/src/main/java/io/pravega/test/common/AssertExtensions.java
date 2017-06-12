@@ -343,6 +343,7 @@ public class AssertExtensions {
             return true;
         }
     }
+
     private static Throwable getRealException(Throwable ex) {
         if (ex instanceof CompletionException) {
             return getRealException(ex.getCause());
