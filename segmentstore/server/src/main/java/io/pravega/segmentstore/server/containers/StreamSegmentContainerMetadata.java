@@ -170,7 +170,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
-            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Stream Id.");
+            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id.");
             Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction.");
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
