@@ -88,13 +88,14 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPools (Q/T/S): %s, %s, %s.",
+                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
                 this.testState.getSuccessfulOperationCount(),
                 this.testConfig.getOperationCount(),
                 toMB(this.testState.getProducedLength()),
                 toMB(this.testState.getVerifiedTailLength()),
                 toMB(this.testState.getVerifiedCatchupLength()),
                 toMB(this.testState.getVerifiedStorageLength()),
+                toMB(this.testState.getThroughput()),
                 formatSnapshot(storePoolSnapshot, "Store"),
                 formatSnapshot(testPoolSnapshot, "Test"),
                 formatSnapshot(joinPoolSnapshot, "ForkJoin"));
@@ -138,7 +139,7 @@ class Reporter extends AbstractScheduledService {
         return list.get((int) (list.size() * percentile));
     }
 
-    private double toMB(long bytes) {
+    private double toMB(double bytes) {
         return bytes / (double) ONE_MB;
     }
 }

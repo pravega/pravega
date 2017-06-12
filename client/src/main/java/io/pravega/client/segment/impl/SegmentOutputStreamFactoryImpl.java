@@ -9,27 +9,24 @@
  */
 package io.pravega.client.segment.impl;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-
-import io.pravega.common.util.RetriesExhaustedException;
-import io.pravega.shared.protocol.netty.FailingReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommands;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.client.stream.impl.Controller;
-import com.google.common.annotations.VisibleForTesting;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @Slf4j
 @VisibleForTesting
@@ -40,9 +37,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
-                                                                Consumer<Segment> segmentSealedCallback) {
-
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -66,27 +61,30 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 name.completeExceptionally(error);
             }
         };
-        controller.getEndpointForSegment(segment.getScopedName()).thenCompose((PravegaNodeUri endpointForSegment) -> {
-            return cf.establishConnection(endpointForSegment, replyProcessor);
-        }).thenAccept((ClientConnection connection) -> {
+        val connectionFuture = controller.getEndpointForSegment(segment.getScopedName())
+                                         .thenCompose((PravegaNodeUri endpointForSegment) -> {
+                                             return cf.establishConnection(endpointForSegment, replyProcessor);
+                                         });
+        connectionFuture.thenAccept((ClientConnection connection) -> {
             try {
                 connection.send(new WireCommands.GetTransactionInfo(1, segment.getScopedName(), txId));
             } catch (ConnectionFailedException e) {
                 throw new RuntimeException(e);
-            } 
-        }).exceptionally((Throwable t) -> {
+            }
+        }).exceptionally(t -> {
             name.completeExceptionally(t);
             return null;
         });
-        return new SegmentOutputStreamImpl( getAndHandleExceptions(name, RuntimeException::new), controller, cf, UUID
-                .randomUUID(), segmentSealedCallback);
+        name.whenComplete((s, e) -> {
+            getAndHandleExceptions(connectionFuture, RuntimeException::new).close();
+        });
+        return new SegmentOutputStreamImpl(getAndHandleExceptions(name, RuntimeException::new), controller, cf,
+                UUID.randomUUID());
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback) {
-
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID
-                .randomUUID(), segmentSealedCallback);
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException e) {

@@ -76,6 +76,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     protected void process(AbortEvent event, Position position) {
         String scope = event.getScope();
         String stream = event.getStream();
+        int epoch = event.getEpoch();
         UUID txId = event.getTxid();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
@@ -87,7 +88,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
                                         .parallel()
                                         .map(segment -> notifyAbortToHost(scope, stream, segment.getNumber(), txId))
                                         .collect(Collectors.toList())))
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),

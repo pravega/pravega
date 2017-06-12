@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.CreateMode;
@@ -111,7 +112,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Starting Bookie(s) ...");
         // Create Bookie Servers (B1, B2, B3)
         for (int bkPort : this.bookiePorts) {
-            val tmpDir = File.createTempFile("bookie_" + bkPort, "test");
+            val tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
+            tmpDir.deleteOnExit();
+            this.tempDirs.add(tmpDir);
             log.info("Created " + tmpDir);
             if (!tmpDir.delete() || !tmpDir.mkdir()) {
                 throw new IOException("Couldn't create bookie dir " + tmpDir);
