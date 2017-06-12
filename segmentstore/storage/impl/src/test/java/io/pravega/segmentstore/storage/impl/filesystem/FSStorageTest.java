@@ -247,7 +247,7 @@ public class FSStorageTest extends StorageTestBase {
                         ex -> ex instanceof BadOffsetException);
                 offset += writeData.length;
             }
-            Assert.assertTrue(s1.getStreamSegmentInfo(segmentName,TIMEOUT).join().getLength() == offset);
+            Assert.assertTrue(s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
             s1.delete(writeHandle1, TIMEOUT);
         }
     }
