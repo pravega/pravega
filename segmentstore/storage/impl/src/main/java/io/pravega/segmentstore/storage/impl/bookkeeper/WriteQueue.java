@@ -133,7 +133,7 @@ class WriteQueue {
 
         // Collect all remaining writes, as long as they are not currently in-progress and have the same ledger id
         // as the first item in the ledger.
-        long firstLedgerId = this.writes.peekFirst().getLedgerMetadata().getLedgerId();
+        long firstLedgerId = this.writes.peekFirst().getWriteLedger().metadata.getLedgerId();
         boolean canSkip = true;
 
         List<Write> result = new ArrayList<>();
@@ -155,7 +155,7 @@ class WriteQueue {
                     // with their updating their status. Try again next time (when that write completes).
                     return Collections.emptyList();
                 }
-            } else if (write.getLedgerMetadata().getLedgerId() != firstLedgerId) {
+            } else if (write.getWriteLedger().metadata.getLedgerId() != firstLedgerId) {
                 // We cannot initiate writes in a new ledger until all writes in the previous ledger completed.
                 break;
             } else if (!write.isDone()) {

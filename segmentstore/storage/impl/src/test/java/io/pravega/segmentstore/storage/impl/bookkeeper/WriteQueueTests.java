@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -113,7 +112,8 @@ public class WriteQueueTests {
             val w = new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(i), new CompletableFuture<>());
             if (i % 2 == 0) {
                 // Complete 1 out of two writes.
-                w.complete(new TestLogAddress(i));
+                w.setEntryId(i);
+                w.complete();
             }
 
             q.add(w);
@@ -129,7 +129,8 @@ public class WriteQueueTests {
                 Assert.assertEquals("Unexpected size after removeFinishedWrites with no effect.", writes.size() + 1, stats1.getSize());
 
                 // Complete this write.
-                write.complete(new TestLogAddress(time.get()));
+                write.setEntryId(time.get());
+                write.complete();
             }
 
             // Estimate the Expected elapsed time based on the removals.
@@ -190,7 +191,8 @@ public class WriteQueueTests {
                 expectedMaxSizeResult, maxSizeResult, Object::equals);
 
         //3. Complete a few writes, then mark a few as in progress.
-        writes.get(0).complete(new TestLogAddress(0));
+        writes.get(0).setEntryId(0);
+        writes.get(0).complete();
         writes.get(1).beginAttempt();
         val result1 = q.getWritesToExecute(Long.MAX_VALUE);
 
@@ -207,7 +209,8 @@ public class WriteQueueTests {
         //5. LedgerChange.
         int beginIndex = ledgerChangeIndex - MAX_PARALLELISM / 2;
         for (int i = 0; i < beginIndex; i++) {
-            writes.get(i).complete(new TestLogAddress(i));
+            writes.get(i).setEntryId(i);
+            writes.get(i).complete();
         }
 
         q.removeFinishedWrites();
@@ -215,17 +218,12 @@ public class WriteQueueTests {
         AssertExtensions.assertListEquals("Unexpected writes fetched when ledger changed.",
                 writes.subList(beginIndex, ledgerChangeIndex), result3, Object::equals);
 
-        result3.forEach(w -> w.complete(new TestLogAddress(0)));
+        result3.forEach(w -> w.setEntryId(0));
+        result3.forEach(Write::complete);
         q.removeFinishedWrites();
         val result4 = q.getWritesToExecute(Long.MAX_VALUE);
         AssertExtensions.assertListEquals("Unexpected writes fetched from the end, after ledger changed.",
                 writes.subList(ledgerChangeIndex, writes.size()), result4, Object::equals);
-    }
-
-    private static class TestLogAddress extends LogAddress {
-        TestLogAddress(long sequence) {
-            super(sequence);
-        }
     }
 
     private static class TestWriteLedger extends WriteLedger {
