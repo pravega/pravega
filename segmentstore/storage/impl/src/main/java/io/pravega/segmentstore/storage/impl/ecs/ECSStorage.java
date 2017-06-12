@@ -37,12 +37,17 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -50,6 +55,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 /**
  * Storage adapter for extended S3 based Tier2.
@@ -92,123 +98,71 @@ public class ECSStorage implements Storage {
     //endregion
 
     //region Storage implementation
+
+    /**
+     * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
+     * @param containerEpoch The Container Epoch to initialize with (ignored here).
+     */
     @Override
     public void initialize(long containerEpoch) {
-        if ( client == null ) {
-            S3Config ecsConfig = null;
-            try {
-                ecsConfig = new S3Config(new URI(config.getEcsUrl()));
-                ecsConfig.withIdentity(config.getEcsAccessKey()).withSecretKey(config.getEcsSecretKey());
-
-                if (!Strings.isNullOrEmpty(config.getEcsNamespace())) {
-                    ecsConfig.withNamespace(config.getEcsNamespace());
-                }
-                client = new S3JerseyClient(ecsConfig);
-            } catch (URISyntaxException e) {
-                log.error("Wrong ECS URI {}. Can not continue.", config.getEcsUrl());
-            }
-        }
 
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-
-        return CompletableFuture.supplyAsync( () -> syncOpenRead(streamSegmentName),
-                executor);
-
+        return supplyAsync( streamSegmentName, () -> syncOpenRead(streamSegmentName));
     }
 
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int
             length, Duration timeout) {
-
-        return CompletableFuture.supplyAsync( () -> syncRead(handle, offset, buffer, bufferOffset, length, timeout),
-                executor);
+        return supplyAsync( handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return CompletableFuture.supplyAsync( () -> syncGetStreamSegmentInfo(streamSegmentName, timeout), executor);
+        return supplyAsync(streamSegmentName, () -> syncGetStreamSegmentInfo(streamSegmentName));
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return CompletableFuture.supplyAsync(() -> syncExists(streamSegmentName, timeout), executor);
-
+        return supplyAsync(streamSegmentName, () -> syncExists(streamSegmentName));
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-
-        return CompletableFuture.supplyAsync( () -> {
-            if ( !checkExists(streamSegmentName)) {
-                throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-            }
-
-            AccessControlList acls = client.getObjectAcl(config.getEcsBucket(),
-                    config.getEcsRoot() + streamSegmentName);
-
-            boolean canWrite = false;
-            canWrite = acls.getGrants().stream().filter((grant) -> {
-                        return grant.getPermission().compareTo(Permission.WRITE) >= 0;
-            }).count() > 0;
-
-            ECSSegmentHandle retHandle = null;
-            if (!canWrite) {
-                retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
-            } else {
-                retHandle = ECSSegmentHandle.getWriteHandle(streamSegmentName);
-            }
-            return retHandle;
-        }, executor);
-
+        return supplyAsync(streamSegmentName, () -> syncOpenWrite(streamSegmentName));
     }
 
-    private boolean checkExists(String streamSegmentName) {
-        boolean result = false;
-        try {
-            result = exists(streamSegmentName, Duration.ZERO).get();
-        } catch (Exception e) {
-            throw new CompletionException(e);
-        }
-        return result;
-    }
+
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-
-        return CompletableFuture.supplyAsync( () -> syncCreate(streamSegmentName, timeout), executor);
-
+        return supplyAsync( streamSegmentName, () -> syncCreate(streamSegmentName));
     }
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration
             timeout) {
-       return CompletableFuture.supplyAsync( () ->  syncWrite(handle, offset, data, length, timeout), executor);
+        return supplyAsync(handle.getSegmentName(), () -> syncWrite(handle, offset, data, length));
     }
 
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-
-        return CompletableFuture.supplyAsync( () -> syncSeal( handle, timeout), executor);
-
+        return supplyAsync(handle.getSegmentName(), () -> syncSeal(handle));
     }
 
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration
             timeout) {
-
-        return CompletableFuture.supplyAsync( () ->  syncConcat(targetHandle, offset, sourceSegment, timeout), executor);
-
+        return supplyAsync(targetHandle.getSegmentName(),
+                () -> syncConcat(targetHandle, offset, sourceSegment));
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-
-        return CompletableFuture.supplyAsync( () ->  syncDelete( handle, timeout), executor);
-
+        return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
     }
 
     //endregion
@@ -224,19 +178,14 @@ public class ECSStorage implements Storage {
 
     //region private sync implementation
 
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenRead(String streamSegmentName) {
         log.trace("Opening {} for read.", streamSegmentName);
 
-        GetObjectResult<InputStream> result = null;
-        try {
-            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
-        } catch (S3Exception e) {
-            log.info("Exception {} while getting segment {}", e, streamSegmentName);
-        }
-
-        if ( result == null ) {
+        StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
+        if ( info == null ) {
             log.info("Did not find segment {} ", streamSegmentName);
-            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+            throw new StreamSegmentNotExistsException(streamSegmentName);
         }
 
         ECSSegmentHandle retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
@@ -244,9 +193,29 @@ public class ECSStorage implements Storage {
         return retHandle;
     }
 
+    @SneakyThrows(StreamSegmentNotExistsException.class)
+    private SegmentHandle syncOpenWrite(String streamSegmentName) {
+        log.trace("Opening {} for write.", streamSegmentName);
+        StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
+        if ( info == null ) {
+            log.info("Did not find segment {} ", streamSegmentName);
+            throw new StreamSegmentNotExistsException(streamSegmentName);
+        }
 
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length,
-                         Duration timeout) {
+        ECSSegmentHandle retHandle;
+        if ( info.isSealed() == true) {
+            retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+        } else {
+             retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+        }
+
+        log.trace("Created read handle for segment {} ", streamSegmentName);
+        return retHandle;
+    }
+
+
+    @SneakyThrows(IOException.class)
+    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
         log.info("Creating a inputstream at offset {} for stream {}", offset, handle.getSegmentName());
 
         if ( offset < 0 || bufferOffset < 0 || length < 0 ) {
@@ -275,7 +244,7 @@ public class ECSStorage implements Storage {
 
             }
             return originalLength;
-        } catch (Exception e) {
+        } /*catch (Exception e) {
             if (e instanceof S3Exception) {
                 if ( ((S3Exception) e).getErrorCode().equals("InvalidRange")) {
                     throw new CompletionException(new ArrayIndexOutOfBoundsException());
@@ -287,13 +256,12 @@ public class ECSStorage implements Storage {
                 throw new CompletionException(new ArrayIndexOutOfBoundsException());
             }
             throw new CompletionException(e);
-        }
+        }*/
 
     }
 
 
-    private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        try {
+    private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName) {
             S3ObjectMetadata result = client.getObjectMetadata(config.getEcsBucket(),
                     config.getEcsRoot() + streamSegmentName);
 
@@ -309,31 +277,26 @@ public class ECSStorage implements Storage {
                     result.getContentLength(), !canWrite, false,
                     new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
             return information;
-        } catch (Exception e) {
+        /*} catch (Exception e) {
             if ( e instanceof S3Exception) {
                 if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
                     throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
                 }
             }
             throw new CompletionException(e);
-        }
+        }*/
     }
 
-    private boolean syncExists(String streamSegmentName, Duration timeout) {
-
+    private boolean syncExists(String streamSegmentName) {
         GetObjectResult<InputStream> result = null;
-        try {
-            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
-        } catch (S3Exception e) {
-            log.info("Stream segment {} does not exist", streamSegmentName);
-        }
-        return  result != null;
+        result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        return result != null;
     }
 
 
-    private SegmentProperties syncCreate(String streamSegmentName, Duration timeout) {
+    private SegmentProperties syncCreate(String streamSegmentName) {
         log.info("Creating Segment {}", streamSegmentName);
-        try {
+
             if ( client.listObjects(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName)
                     .getObjects().size() != 0) {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
@@ -357,81 +320,72 @@ public class ECSStorage implements Storage {
             client.putObject(request);
 
             log.info("Created Segment {}", streamSegmentName);
-            return this.getStreamSegmentInfo(streamSegmentName, timeout).get();
-        } catch (Exception e) {
+            return syncGetStreamSegmentInfo(streamSegmentName);
+       /* } *catch (Exception e) {
             log.info("Exception {} while creating a segment {}", e, streamSegmentName);
             if (e instanceof FileAlreadyExistsException) {
                 throw new CompletionException(new StreamSegmentExistsException(streamSegmentName, e));
             } else {
                 throw new CompletionException(e);
             }
-        }
+        }*/
     }
 
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
+    @SneakyThrows
+    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
 
-        if ( handle.isReadOnly()) {
-            throw new CompletionException(new IllegalArgumentException(handle.getSegmentName()));
+        if (handle.isReadOnly()) {
+            throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        if (!checkExists(handle.getSegmentName())) {
-            throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
+        SegmentProperties si = syncGetStreamSegmentInfo(handle.getSegmentName());
+
+        if (si.isSealed()) {
+            throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
-        try {
-            SegmentProperties si = getStreamSegmentInfo(handle.getSegmentName(), Duration.ZERO).get();
-
-            if ( si.isSealed()) {
-                throw new CompletionException(new StreamSegmentSealedException(handle.getSegmentName()));
-            }
-
-            client.putObject(this.config.getEcsBucket(), this.config.getEcsRoot() + handle.getSegmentName(),
-                    Range.fromOffsetLength(offset, length), data);
-            return null;
-        } catch (Exception exc) {
-            log.info("Write to segment {} at offset {} failed with exception {} ", handle.getSegmentName(), offset,
-                    exc.getMessage());
-            throw new CompletionException(exc);
-        }
+        client.putObject(this.config.getEcsBucket(), this.config.getEcsRoot() + handle.getSegmentName(),
+                Range.fromOffsetLength(offset, length), data);
+        return null;
    }
 
 
-    private Void syncSeal(SegmentHandle handle, Duration timeout) {
+
+
+    private Void syncSeal(SegmentHandle handle) {
 
         if (handle.isReadOnly()) {
             log.info("Seal called on a read handle for segment {}", handle.getSegmentName());
-            throw new CompletionException(new IllegalArgumentException(handle.getSegmentName()));
+            throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        try {
-            AccessControlList acl = client.getObjectAcl(config.getEcsBucket(),
-                    config.getEcsRoot() + handle.getSegmentName());
-            acl.getGrants().clear();
-            acl.addGrants(new Grant[] {
-                    new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
-                            Permission.READ)
-            });
+        AccessControlList acl = client.getObjectAcl(config.getEcsBucket(),
+                config.getEcsRoot() + handle.getSegmentName());
+        acl.getGrants().clear();
+        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
+                Permission.READ)});
 
-         client.setObjectAcl(new SetObjectAclRequest( config.getEcsBucket(),
-                 config.getEcsRoot() + handle.getSegmentName())
-                            .withAcl(acl));
+        client.setObjectAcl(
+                new SetObjectAclRequest(config.getEcsBucket(), config.getEcsRoot() + handle.getSegmentName()).withAcl(
+                        acl));
 
-            log.info("Successfully sealed segment {}", handle.getSegmentName());
-            return null;
-        } catch (Exception e) {
+        log.info("Successfully sealed segment {}", handle.getSegmentName());
+        return null;
+       /* } catch (Exception e) {
             log.info("Seal failed with {} for segment {}", e, handle.getSegmentName());
             if ( e instanceof S3Exception) {
                 throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
             }
             throw new CompletionException(e);
-        }
+        }*/
     }
 
 
-    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
 
-        try {
+    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
+
+
             SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
 
             String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
@@ -439,7 +393,7 @@ public class ECSStorage implements Storage {
             String uploadId = client.initiateMultipartUpload(config.getEcsBucket(), targetPath);
 
             // check whether the source is sealed
-            SegmentProperties si = getStreamSegmentInfo(sourceSegment, Duration.ZERO).get();
+            SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
 
             if ( !si.isSealed()) {
                 throw new CompletionException(new IllegalStateException());
@@ -475,13 +429,13 @@ public class ECSStorage implements Storage {
             client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getEcsBucket(),
                     targetPath, uploadId).withParts(partEtags));
 
-            si = getStreamSegmentInfo(targetHandle.getSegmentName(), Duration.ZERO).get();
+            si = syncGetStreamSegmentInfo(targetHandle.getSegmentName());
             log.trace("Properties after concat completion : length is {} ", si.getLength());
 
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + sourceSegment);
 
             return null;
-        } catch (RuntimeException e) {
+     /*   } catch (RuntimeException e) {
             log.info("Concat of {} on {} failed with {}", sourceSegment, targetHandle.getSegmentName(), e);
             if ( e instanceof S3Exception) {
                 throw new CompletionException(new StreamSegmentNotExistsException(e.getMessage()));
@@ -489,19 +443,58 @@ public class ECSStorage implements Storage {
             throw new CompletionException(e);
         } catch (InterruptedException | ExecutionException e) {
             throw new CompletionException(e);
-        }
+        }*/
     }
 
 
-    private Void syncDelete(SegmentHandle handle, Duration timeout) {
-        try {
+    private Void syncDelete(SegmentHandle handle) {
+
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + handle.getSegmentName());
             return null;
-        } catch (Exception e) {
-            throw new CompletionException(e);
-        }
+
     }
 
+
+    /**
+     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     */
+    private <R> CompletableFuture<R> supplyAsync(String segmentName, Supplier<R> operation) {
+        CompletableFuture<R> result = new CompletableFuture<>();
+        this.executor.execute(() -> {
+            try {
+                result.complete(operation.get());
+            } catch (Exception e) {
+                handleException(e, segmentName, result);
+            }
+        });
+
+        return result;
+    }
+
+    private <R> void handleException(Exception e, String segmentName, CompletableFuture<R> result) {
+        result.completeExceptionally( translateException(segmentName, e));
+    }
+
+    private Exception translateException(String segmentName, Exception e) {
+        Exception retVal = e;
+        if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
+            retVal = new StreamSegmentNotExistsException(segmentName);
+        }
+
+        if ( e instanceof FileAlreadyExistsException) {
+            retVal = new StreamSegmentExistsException(segmentName);
+        }
+
+        if ( e instanceof IndexOutOfBoundsException) {
+            retVal = new IllegalArgumentException(e.getMessage());
+        }
+
+        if (e instanceof AccessDeniedException) {
+            retVal = new StreamSegmentSealedException(segmentName, e);
+        }
+
+        return retVal;
+    }
     //endregion
 
 }
