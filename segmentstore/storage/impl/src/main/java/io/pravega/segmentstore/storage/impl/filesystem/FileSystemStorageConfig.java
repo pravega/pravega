@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.fs;
+package io.pravega.segmentstore.storage.impl.filesystem;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
@@ -20,34 +20,34 @@ import lombok.extern.slf4j.Slf4j;
  * Configuration for the NFS Storage component.
  */
 @Slf4j
-public class FSStorageConfig {
+public class FileSystemStorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("nfsRoot", "/nfs/");
-    private static final String COMPONENT_CODE = "nfs";
+    public static final Property<String> ROOT = Property.named("filesystemRoot", "/fs/");
+    private static final String COMPONENT_CODE = "filesystem";
 
     //endregion
 
     //region Members
 
     /**
-     * Root of the Pravega owned NFS path. All the directories/files under this path will be exclusively
+     * Root of the Pravega owned filesystem path. All the directories/files under this path will be exclusively
      * owned by Pravega.
      */
     @Getter
-    private final String nfsRoot;
+    private final String filesystemRoot;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the FSStorageConfig class.
+     * Creates a new instance of the FileSystemStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
      */
-    private FSStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.nfsRoot = properties.get(ROOT);
+    private FileSystemStorageConfig(TypedProperties properties) throws ConfigurationException {
+        this.filesystemRoot = properties.get(ROOT);
     }
 
     /**
@@ -55,8 +55,8 @@ public class FSStorageConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<FSStorageConfig> builder() {
-        return new ConfigBuilder<>(COMPONENT_CODE, FSStorageConfig::new);
+    public static ConfigBuilder<FileSystemStorageConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, FileSystemStorageConfig::new);
     }
 
     //endregion

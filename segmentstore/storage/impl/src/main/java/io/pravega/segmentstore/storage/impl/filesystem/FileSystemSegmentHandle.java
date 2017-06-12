@@ -7,15 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.fs;
+package io.pravega.segmentstore.storage.impl.filesystem;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 
-public class FSSegmentHandle implements SegmentHandle {
+public class FileSystemSegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
-    public FSSegmentHandle(String streamSegmentName, boolean isReadOnly) {
+    public FileSystemSegmentHandle(String streamSegmentName, boolean isReadOnly) {
         this.segmentName = streamSegmentName;
         this.isReadOnly = isReadOnly;
     }
@@ -30,11 +30,11 @@ public class FSSegmentHandle implements SegmentHandle {
         return isReadOnly;
     }
 
-    public static FSSegmentHandle getReadHandle(String streamSegmentName) {
-        return new FSSegmentHandle(streamSegmentName, true);
+    public static FileSystemSegmentHandle getReadHandle(String streamSegmentName) {
+        return new FileSystemSegmentHandle(streamSegmentName, true);
     }
 
-    public static FSSegmentHandle getWriteHandle(String streamSegmentName) {
-        return new FSSegmentHandle(streamSegmentName, false);
+    public static FileSystemSegmentHandle getWriteHandle(String streamSegmentName) {
+        return new FileSystemSegmentHandle(streamSegmentName, false);
     }
 }

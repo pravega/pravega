@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.fs;
+package io.pravega.segmentstore.storage.impl.filesystem;
 
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -21,29 +21,30 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
- * Unit tests for FSStorage.
+ * Unit tests for FileSystemStorage.
  */
-public class NFSStorageTest extends StorageTestBase {
+public class FSStorageTest extends StorageTestBase {
     private File baseDir = null;
-    private FSStorageConfig adapterConfig;
+    private FileSystemStorageConfig adapterConfig;
 
     @Before
     public void setUp() throws Exception {
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
-        this.adapterConfig = FSStorageConfig
+        this.adapterConfig = FileSystemStorageConfig
                 .builder()
-                .with(FSStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
     }
 
@@ -61,12 +62,12 @@ public class NFSStorageTest extends StorageTestBase {
      * * We create the Segment on Storage1:
      * ** We verify that Storage1 can execute all operations.
      * ** We verify that Storage2 can execute only read-only operations.
-     * * We open the Segment on Storage2:
+     * ** We open the Segment on Storage2:
      * ** We verify that Storage1 can execute only read-only operations.
      * ** We verify that Storage2 can execute all operations.
      */
-    @Ignore
     @Override
+    @Test
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -176,6 +177,7 @@ public class NFSStorageTest extends StorageTestBase {
      *
      * @throws Exception if an unexpected error occurred.
      */
+    @Override
     @Test
     public void testWrite() throws Exception {
         String segmentName = "foo_write";
@@ -220,20 +222,52 @@ public class NFSStorageTest extends StorageTestBase {
         }
     }
 
+    //region synchronization unit tests
+    @Test
+    public void testWriteTwoHosts() {
+        String segmentName = "foo_write";
+        int appendCount = 5;
+
+        try (Storage s1 = createStorage();
+            Storage s2 = createStorage()) {
+            s1.initialize(DEFAULT_EPOCH);
+            s1.create(segmentName, TIMEOUT).join();
+            SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
+            SegmentHandle writeHandle2 = s1.openWrite(segmentName).join();
+            long offset = 0;
+            for (int j = 0; j < appendCount; j++) {
+                byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
+                ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
+                ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
+                CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
+                CompletableFuture f2 = s2.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+                assertMayThrow("Write expected to complete OR throw BadOffsetException." +
+                                "threw an unexpected exception.",
+                        () -> CompletableFuture.allOf(f1, f2),
+                        ex -> ex instanceof BadOffsetException);
+                offset += writeData.length;
+            }
+            Assert.assertTrue(s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
+            s1.delete(writeHandle1, TIMEOUT);
+        }
+    }
+
+    //endregion
+
     //endregion
 
     @Override
     protected Storage createStorage() {
-        return new FSStorage(this.adapterConfig, executorService());
+        return new FileSystemStorage(this.adapterConfig, executorService());
     }
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return FSSegmentHandle.getReadHandle(segmentName);
+            return FileSystemSegmentHandle.getReadHandle(segmentName);
         } else {
-            return FSSegmentHandle.getWriteHandle(segmentName);
+            return FileSystemSegmentHandle.getWriteHandle(segmentName);
         }
     }
 

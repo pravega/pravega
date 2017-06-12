@@ -19,13 +19,12 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.impl.Tier2Config;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
-import io.pravega.segmentstore.storage.impl.fs.FSStorageConfig;
-import io.pravega.segmentstore.storage.impl.fs.FSStorageFactory;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -162,13 +161,18 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                Tier2Config tier2Config = setup.getConfig(Tier2Config::builder);
-                if ( tier2Config.isEnableHdfs()) {
-                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
-                } else {
-                    FSStorageConfig fsConfig = setup.getConfig(FSStorageConfig::builder);
-                    return new FSStorageFactory(fsConfig, setup.getExecutor());
+                String storageChoice = this.serviceConfig.getStorageImplementation();
+                switch (storageChoice) {
+                    case "HDFS":
+                        HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+
+                    case "FS":
+                        FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+
+                    default:
+                        throw new IllegalStateException("Undefined storage implementation");
                 }
             } catch (Exception ex) {
                 throw new CompletionException(ex);
@@ -213,7 +217,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                                                                 .bookKeeper(true).tier2(true).rocksDb(true)
+                    .bookKeeper(true).tier2(true).rocksDb(true)
                     .zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);

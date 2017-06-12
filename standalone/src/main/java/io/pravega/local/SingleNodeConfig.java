@@ -19,6 +19,7 @@ public class SingleNodeConfig {
     public final static Property<Integer> ZK_PORT = Property.named("zkPort", 4000);
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentstorePort", 6000);
     public final static Property<Integer> CONTROLLER_PORT = Property.named("controllerPort", 9090);
+    public final static Property<Integer> REST_SERVER_PORT = Property.named("restServerPort", 9091);
     private static final String COMPONENT_CODE = "singlenode";
     //end region
 
@@ -42,6 +43,12 @@ public class SingleNodeConfig {
     @Getter
     private final int controllerPort;
 
+    /**
+     * The REST server port for singlenode
+     */
+    @Getter
+    private final int restServerPort;
+
     //end region
 
     //region constructor
@@ -49,6 +56,7 @@ public class SingleNodeConfig {
         this.zkPort = properties.getInt(ZK_PORT);
         this.segmentStorePort = properties.getInt(SEGMENTSTORE_PORT);
         this.controllerPort = properties.getInt(CONTROLLER_PORT);
+        this.restServerPort = properties.getInt(REST_SERVER_PORT);
     }
 
     /**

@@ -75,6 +75,7 @@ project('common') {
     }
 }
 
+def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
 
 project ('shared') {
     dependencies {
@@ -145,7 +146,7 @@ project('test:testcommon') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLog4j
     }
 }
 
@@ -167,18 +168,16 @@ project('segmentstore:storage') {
 
 project('segmentstore:storage:impl') {
     dependencies {
-        compile (group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion) {
-            exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-        }
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLog4j
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion, withoutLog4j
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLog4j
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         //For ECS
@@ -231,7 +230,7 @@ project('segmentstore:server:host') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
     }
 }
@@ -400,14 +399,19 @@ project('standalone') {
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLog4j
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLog4j
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
+    }
+
+    configurations {
+        runtime.exclude group: "com.sun.jersey", module: "jersey-core"
+        runtime.exclude group: "com.sun.jersey", module: "jersey-server"
     }
 
     task startStandalone(type: JavaExec) {

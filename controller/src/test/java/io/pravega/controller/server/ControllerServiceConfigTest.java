@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
-import io.pravega.controller.fault.impl.ControllerClusterListenerConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -25,7 +23,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for ControllerServiceConfig.
@@ -143,11 +140,7 @@ public class ControllerServiceConfigTest {
         // If eventProcessor config is enabled, it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .serviceThreadPoolSize(3)
-                        .taskThreadPoolSize(3)
-                        .storeThreadPoolSize(3)
-                        .eventProcThreadPoolSize(3)
-                        .requestHandlerThreadPoolSize(3)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -159,11 +152,7 @@ public class ControllerServiceConfigTest {
         // If grpcServerConfig is present it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .serviceThreadPoolSize(3)
-                        .taskThreadPoolSize(3)
-                        .storeThreadPoolSize(3)
-                        .eventProcThreadPoolSize(3)
-                        .requestHandlerThreadPoolSize(3)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -175,11 +164,7 @@ public class ControllerServiceConfigTest {
         // If restServerConfig is present it should be non-null
         AssertExtensions.assertThrows(NullPointerException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .serviceThreadPoolSize(3)
-                        .taskThreadPoolSize(3)
-                        .storeThreadPoolSize(3)
-                        .eventProcThreadPoolSize(3)
-                        .requestHandlerThreadPoolSize(3)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
                         .timeoutServiceConfig(timeoutServiceConfig)
@@ -188,21 +173,12 @@ public class ControllerServiceConfigTest {
                         .restServerConfig(Optional.of(null))
                         .build());
 
-        // If ControllerClusterListener is present, storeClient should be ZK.
-        ControllerClusterListenerConfig clusterListenerConfig =
-                ControllerClusterListenerConfigImpl.builder()
-                        .minThreads(1).maxThreads(1).idleTime(10).idleTimeUnit(TimeUnit.SECONDS).maxQueueSize(8).build();
-
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> ControllerServiceConfigImpl.builder()
-                        .serviceThreadPoolSize(3)
-                        .taskThreadPoolSize(3)
-                        .storeThreadPoolSize(3)
-                        .eventProcThreadPoolSize(3)
-                        .requestHandlerThreadPoolSize(3)
+                        .threadPoolSize(15)
                         .storeClientConfig(storeClientConfig)
                         .hostMonitorConfig(hostMonitorConfig)
-                        .controllerClusterListenerConfig(Optional.of(clusterListenerConfig))
+                        .controllerClusterListenerEnabled(true)
                         .timeoutServiceConfig(timeoutServiceConfig)
                         .eventProcessorConfig(Optional.empty())
                         .grpcServerConfig(Optional.empty())

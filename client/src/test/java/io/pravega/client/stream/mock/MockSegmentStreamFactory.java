@@ -12,13 +12,15 @@ package io.pravega.client.stream.mock;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory {
+public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, SegmentMetadataClientFactory {
 
     private final Map<Segment, MockSegmentIoStreams> segments = new ConcurrentHashMap<>();
 
@@ -26,12 +28,16 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
+    
+    private MockSegmentIoStreams getMockStream(Segment segment) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
+    }
+
+    @Override
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
+        return getMockStream(segment);
     }
 
     @Override
@@ -41,8 +47,11 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment) {
-        MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
-        segments.putIfAbsent(segment, streams);
-        return segments.get(segment);
+        return getMockStream(segment);
+    }
+
+    @Override
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment) {
+        return getMockStream(segment);
     }
 }

@@ -35,6 +35,9 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
+                                                        "HDFS");
+
     private static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
@@ -108,6 +111,12 @@ public class ServiceConfig {
     @Getter
     private final String clusterName;
 
+    /**
+     * The Tier 2 storage
+     */
+    @Getter
+    private final String storageImplementation;
+
     //endregion
 
     //region Constructor
@@ -147,6 +156,7 @@ public class ServiceConfig {
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.clusterName = properties.get(CLUSTER_NAME);
+        storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
     }
 
     /**
@@ -164,4 +174,5 @@ public class ServiceConfig {
     private static String getHostAddress() {
         return Inet4Address.getLocalHost().getHostAddress();
     }
+
 }

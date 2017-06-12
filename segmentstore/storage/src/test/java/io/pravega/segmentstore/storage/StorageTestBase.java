@@ -273,7 +273,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, "foo2", TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentName, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",

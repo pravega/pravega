@@ -10,7 +10,6 @@
 package io.pravega.controller.server.impl;
 
 import io.pravega.common.Exceptions;
-import io.pravega.controller.fault.ControllerClusterListenerConfig;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.rest.RESTServerConfig;
@@ -31,14 +30,10 @@ import java.util.Optional;
 @Getter
 public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
-    private final int serviceThreadPoolSize;
-    private final int taskThreadPoolSize;
-    private final int storeThreadPoolSize;
-    private final int eventProcThreadPoolSize;
-    private final int requestHandlerThreadPoolSize;
+    private final int threadPoolSize;
     private final StoreClientConfig storeClientConfig;
     private final HostMonitorConfig hostMonitorConfig;
-    private final Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig;
+    private final boolean controllerClusterListenerEnabled;
     private final TimeoutServiceConfig timeoutServiceConfig;
 
     private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
@@ -48,30 +43,21 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final Optional<RESTServerConfig> restServerConfig;
 
     @Builder
-    ControllerServiceConfigImpl(final int serviceThreadPoolSize,
-                            final int taskThreadPoolSize,
-                            final int storeThreadPoolSize,
-                            final int eventProcThreadPoolSize,
-                            final int requestHandlerThreadPoolSize,
-                            final StoreClientConfig storeClientConfig,
-                            final HostMonitorConfig hostMonitorConfig,
-                            final Optional<ControllerClusterListenerConfig> controllerClusterListenerConfig,
-                            final TimeoutServiceConfig timeoutServiceConfig,
-                            final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
-                            final Optional<GRPCServerConfig> grpcServerConfig,
-                            final Optional<RESTServerConfig> restServerConfig) {
-        Exceptions.checkArgument(serviceThreadPoolSize > 0, "serviceThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(taskThreadPoolSize > 0, "taskThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(storeThreadPoolSize > 0, "storeThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(eventProcThreadPoolSize > 0, "eventProcThreadPoolSize", "Should be positive integer");
-        Exceptions.checkArgument(requestHandlerThreadPoolSize > 0, "requestHandlerThreadPoolSize", "Should be positive integer");
+    ControllerServiceConfigImpl(final int threadPoolSize,
+                                final StoreClientConfig storeClientConfig,
+                                final HostMonitorConfig hostMonitorConfig,
+                                final boolean controllerClusterListenerEnabled,
+                                final TimeoutServiceConfig timeoutServiceConfig,
+                                final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
+                                final Optional<GRPCServerConfig> grpcServerConfig,
+                                final Optional<RESTServerConfig> restServerConfig) {
+        Exceptions.checkArgument(threadPoolSize > 0, "threadPoolSize", "Should be positive integer");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        Preconditions.checkNotNull(controllerClusterListenerConfig, "controllerClusterListenerConfig");
         Preconditions.checkNotNull(timeoutServiceConfig, "timeoutServiceConfig");
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
-        if (controllerClusterListenerConfig.isPresent()) {
+        if (controllerClusterListenerEnabled) {
             Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
@@ -85,14 +71,10 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
             Preconditions.checkNotNull(restServerConfig.get());
         }
 
-        this.serviceThreadPoolSize = serviceThreadPoolSize;
-        this.taskThreadPoolSize = taskThreadPoolSize;
-        this.storeThreadPoolSize = storeThreadPoolSize;
-        this.eventProcThreadPoolSize = eventProcThreadPoolSize;
-        this.requestHandlerThreadPoolSize = requestHandlerThreadPoolSize;
+        this.threadPoolSize = threadPoolSize;
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
-        this.controllerClusterListenerConfig = controllerClusterListenerConfig;
+        this.controllerClusterListenerEnabled = controllerClusterListenerEnabled;
         this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;
