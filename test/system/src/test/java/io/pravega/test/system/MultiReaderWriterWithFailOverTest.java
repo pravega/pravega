@@ -23,6 +23,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -32,7 +33,6 @@ import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,30 +42,26 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
-
+public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 10;
     private static final int NUM_READERS = 10;
-    private static final long NUM_EVENTS = 10000;
-    private static final long NUM_EVENTS_BY_WRITER = 1000;
+    private static final long NUM_EVENTS = 1000;
+    private static final long NUM_EVENTS_BY_WRITER = 100;
     private AtomicBoolean stopReadFlag;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
@@ -74,7 +70,6 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
     private Service segmentStoreInstance = null;
     private ReaderGroupManager readerGroupManager;
     private URI controllerURIDirect = null;
-    private URI controllerURIDiscover = null;
     private ClientFactory clientFactory;
 
     @Environment
@@ -121,7 +116,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         }
         segService.scaleService(3, true);
         List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service  details: {}", segUris);
+        log.debug("Pravega Segmentstore service  details: {}", segUris);
     }
 
     @Before
@@ -153,7 +148,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         // Verify segment store is running.
         segmentStoreInstance = new PravegaSegmentStoreService("segmentstoreFailover1", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
-        log.info("Pravega segment store instance details: {}", segmentStoreInstance.getServiceDetails());
+        log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
     }
 
     @After
@@ -173,12 +168,12 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
-        Controller controller = getController(controllerUri);
+        Controller controller = new ControllerImpl(controllerUri);
 
         //create a scope
         StreamManager streamManager = new StreamManagerImpl(controllerUri);
         Boolean createScopeStatus = streamManager.createScope(scope);
-        log.info(" creating scope with scope name {}", scope);
+        log.info("Creating scope with scope name {}", scope);
         log.debug("Create scope status {}", createScopeStatus);
         //create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
@@ -190,15 +185,15 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         //get ClientFactory instance
-        log.info("scope passed to client factory {}", scope);
+        log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
-        log.info(" client factory details {}", clientFactory.toString());
+        log.info("Client factory details {}", clientFactory.toString());
         //create writers
-        log.info("creating {} writers", NUM_WRITERS);
+        log.info("Creating {} writers", NUM_WRITERS);
         List<EventStreamWriter<Long>> writerList = new ArrayList<>();
-        log.info("writers writing in the scope {}", scope);
+        log.info("Writers writing in the scope {}", scope);
         for (int i = 0; i < NUM_WRITERS; i++) {
-            log.info("starting writer{}", i);
+            log.info("Starting writer{}", i);
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
@@ -207,23 +202,23 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
 
         //create a reader group
         log.info("Creating Reader group : {}", readerGroupName);
-        log.info(" scope passed to readergroup manager {}", scope);
+        log.info("Scope passed to readergroup manager {}", scope);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(STREAM_NAME));
-        log.info(" reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-        log.info(" reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-        log.info(" online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
+        log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
+        log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+        log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
 
         //create readers
-        log.info("creating {} readers", NUM_READERS);
+        log.info("Creating {} readers", NUM_READERS);
         List<EventStreamReader<Long>> readerList = new ArrayList<>();
         String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
-        log.info("scope that is seen by readers {}", scope);
+        log.info("Scope that is seen by readers {}", scope);
         //start reading events
         for (int i = 0; i < NUM_READERS; i++) {
-            log.info("starting reader{}", i);
-            log.info("creating reader with id {}", readerName + i);
+            log.info("Starting reader{}", i);
+            log.info("Creating reader with id {}", readerName + i);
             final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
                     readerGroupName,
                     new JavaSerializer<Long>(),
@@ -254,7 +249,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
                 "Count: {}", eventData.get(), eventsReadFromPravega.size());
         assertEquals(eventData.get(), eventsReadFromPravega.size());
         assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
-        log.debug("{} with 2 controller, 2 SSS instnaces succeeds", "multiReaderWriterTest");
+        log.debug("{} with 2 controller, 2 SSS instances succeeds", "multiReaderWriterTest");
 
         //scale down 1 SSS instance
         segmentStoreInstance.scaleService(2, true);
@@ -299,7 +294,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         Thread.sleep(60000);
-        log.info("Test with 1 controller instance down");
+        log.info("Test with controller failover");
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag.set(false);
@@ -378,34 +373,30 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
         readerList.forEach(reader -> reader.close());
         //seal all streams
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
-        log.info("sealing stream {}", STREAM_NAME);
+        log.info("Sealing stream {}", STREAM_NAME);
         assertTrue(sealStreamStatus.get());
-        CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG" + readerGroupName);
-        log.info("sealing stream {}", "_RG" + readerGroupName);
-        assertTrue(sealStreamStatus1.get());
         //delete all streams
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
-        log.info("deleting stream {}", STREAM_NAME);
+        log.info("Deleting stream {}", STREAM_NAME);
         assertTrue(deleteStreamStatus.get());
-        CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG" + readerGroupName);
-        log.info("deleting stream {}", "_RG" + readerGroupName);
-        assertTrue(deleteStreamStatus1.get());
+        //delete readergroup
+        log.info("Deleting readergroup {}", readerGroupName);
+        readerGroupManager.deleteReaderGroup(readerGroupName);
         //delete scope
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
-        log.info("deleting scope {}", scope);
+        log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
-        log.info("test {} succeeds ", "MultiReaderWriterWithFailOver");
+        log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
     private void startWriting(final AtomicLong data, final EventStreamWriter<Long> writer) {
         for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
             try {
                 long value = data.incrementAndGet();
-                log.debug("writing event {}", value);
+                log.debug("Writing event {}", value);
                 writer.writeEvent(String.valueOf(value), value);
-                writer.flush();
             } catch (Throwable e) {
-                log.warn("test exception writing events: {}", e);
+                log.warn("Test exception writing events: {}", e);
                 break;
             }
         }
@@ -417,7 +408,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractScaleTests {
             // exit only if exitFlag is true  and read Count equals write count.
             try {
                 final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-                log.debug("reading event {}", longEvent);
+                log.debug("Reading event {}", longEvent);
                 if (longEvent != null) {
                     //update if event read is not null.
                     readResult.add(longEvent);
