@@ -185,28 +185,19 @@ public class AutoScaleProcessor {
         }
 
         CompletableFuture<Void> result = new CompletableFuture<>();
-        CompletableFuture<Void> writeComplete = new CompletableFuture<>();
         try {
             AckFuture ackFuture = writer.get().writeEvent(event.getKey(), event);
-            ackFuture.addListener(() -> writeComplete.complete(null), executor);
-
-            writeComplete.thenAcceptAsync((Void v) -> {
+            ackFuture.addListener(() -> {
                 FutureHelpers.getAndHandleExceptions(ackFuture, e -> {
                     log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
                     result.completeExceptionally(ExceptionHelpers.getRealException(e));
 
                     return new RuntimeException(e);
                 });
-            }).whenComplete((r, e) -> {
-                if (e != null) {
-                    log.error("Sending scale event failed {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
-                    result.completeExceptionally(e);
-                } else {
-                    log.info("Sending scale event succeeded {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
+                log.info("Sending scale event succeeded {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
 
-                    result.complete(null);
-                }
-            });
+                result.complete(null);
+            }, executor);
 
         } catch (Exception e) {
             log.error("Exception while trying to write scale event {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
