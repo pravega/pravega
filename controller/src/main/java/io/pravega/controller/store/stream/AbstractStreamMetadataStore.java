@@ -469,6 +469,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name,
+                                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getScaleMetadata(), executor);
+    }
+
     public CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch(final String scope,
                                                                                  final String stream,
                                                                                  final OperationContext context,

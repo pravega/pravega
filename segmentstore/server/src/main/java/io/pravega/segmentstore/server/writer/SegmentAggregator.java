@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
@@ -19,21 +20,19 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.SerializationException;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import com.google.common.base.Preconditions;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -49,7 +48,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -681,7 +679,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private CompletableFuture<FlushResult> mergeIfNecessary(FlushResult flushResult, TimeoutTimer timer, Executor executor) {
         ensureInitializedAndNotClosed();
-        assert this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID : "Cannot merge into a Transaction StreamSegment.";
+        assert !this.metadata.isTransaction() : "Cannot merge into a Transaction StreamSegment.";
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeIfNecessary");
 
         StorageOperation first = this.operations.getFirst();
@@ -1060,7 +1058,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // of bad code (objects got routed to wrong SegmentAggregators) and not data corruption.
         if (operation instanceof MergeTransactionOperation) {
             Preconditions.checkArgument(
-                    this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                    !this.metadata.isTransaction(),
                     "MergeTransactionOperations can only be added to the parent StreamSegment; received '%s'.", operation);
 
             // Since we are a stand-alone StreamSegment; verify that the Operation has us as a parent (target).

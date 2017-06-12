@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
@@ -47,6 +48,20 @@ import static org.junit.Assert.assertTrue;
 public class ReaderGroupStateManagerTest {
     private static final int SERVICE_PORT = 12345;
 
+    private static class MockControllerWithSuccessors extends MockController {
+        private StreamSegmentsWithPredecessors successors;
+
+        public MockControllerWithSuccessors(String endpoint, int port, ConnectionFactory connectionFactory, StreamSegmentsWithPredecessors successors) {
+            super(endpoint, port, connectionFactory);
+            this.successors = successors;
+        }
+
+        @Override
+        public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
+            return completedFuture(successors);
+        }
+    }
+    
     @Test(timeout = 20000)
     public void testSegmentSplit() throws ReinitializationRequiredException {
         String scope = "scope";
@@ -56,15 +71,11 @@ public class ReaderGroupStateManagerTest {
         Segment initialSegment = new Segment(scope, stream, 0);
         Segment successorA = new Segment(scope, stream, 1);
         Segment successorB = new Segment(scope, stream, 2);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
-            @Override
-            public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-                assertEquals(initialSegment, segment);
-                return completedFuture(new StreamSegmentsWithPredecessors(
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory,
+                new StreamSegmentsWithPredecessors(
                         ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                                new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
-            }
-        };
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
@@ -104,18 +115,9 @@ public class ReaderGroupStateManagerTest {
         Segment initialSegmentA = new Segment(scope, stream, 0);
         Segment initialSegmentB = new Segment(scope, stream, 1);
         Segment successor = new Segment(scope, stream, 2);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
-            @Override
-            public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-                if (segment.getSegmentNumber() == 0) {
-                    assertEquals(initialSegmentA, segment);
-                } else {
-                    assertEquals(initialSegmentB, segment);
-                }
-                return completedFuture(new StreamSegmentsWithPredecessors(Collections.singletonMap(new
-                        SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1))));
-            }
-        };
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory, new StreamSegmentsWithPredecessors(
+                        Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0, 1))));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
@@ -266,19 +268,13 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 1), 1L);
         segments.put(new Segment(scope, stream, 2), 2L);
         segments.put(new Segment(scope, stream, 3), 3L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ReaderGroupConfig.builder().build(),
-                                                      segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);
 
-        ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
-                stateSynchronizer,
-                controller,
+        ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
                 clock::get);
         reader1.initializeReader(0);
 
-        ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2",
-                stateSynchronizer,
-                controller,
+        ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", stateSynchronizer, controller,
                 clock::get);
         reader2.initializeReader(0);
 
@@ -348,21 +344,15 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 3), 3L);
         segments.put(new Segment(scope, stream, 4), 4L);
         segments.put(new Segment(scope, stream, 5), 5L);
-        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer,
-                                                      ReaderGroupConfig.builder().build(),
-                                                      segments);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);
 
-        ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1",
-                stateSynchronizer,
-                controller,
+        ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller,
                 clock::get);
         reader1.initializeReader(0);
         Map<Segment, Long> segments1 = reader1.acquireNewSegmentsIfNeeded(0);
         assertEquals(6, segments1.size());
 
-        ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2",
-                stateSynchronizer,
-                controller,
+        ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", stateSynchronizer, controller,
                 clock::get);
         reader2.initializeReader(0);
         assertTrue(reader2.acquireNewSegmentsIfNeeded(0).isEmpty());
@@ -397,9 +387,7 @@ public class ReaderGroupStateManagerTest {
         Map<Segment, Long> segments2 = reader2.acquireNewSegmentsIfNeeded(0);
         assertEquals(3, segments2.size());
 
-        ReaderGroupStateManager reader3 = new ReaderGroupStateManager("reader3",
-                stateSynchronizer,
-                controller,
+        ReaderGroupStateManager reader3 = new ReaderGroupStateManager("reader3", stateSynchronizer, controller,
                 clock::get);
         reader3.initializeReader(0);
         assertTrue(reader3.acquireNewSegmentsIfNeeded(0).isEmpty());
@@ -432,15 +420,11 @@ public class ReaderGroupStateManagerTest {
         Segment initialSegment = new Segment(scope, stream, 0);
         Segment successorA = new Segment(scope, stream, 1);
         Segment successorB = new Segment(scope, stream, 2);
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory) {
-            @Override
-            public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
-                assertEquals(initialSegment, segment);
-                return completedFuture(new StreamSegmentsWithPredecessors(ImmutableMap.of(
-                        new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
-                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
-            }
-        };
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory,
+                new StreamSegmentsWithPredecessors(
+                        ImmutableMap.of(new SegmentWithRange(successorA, 0.0, 0.5), singletonList(0),
+                                        new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0))));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
