@@ -261,20 +261,26 @@ public class FileSystemStorage implements Storage {
             throw new IllegalArgumentException("Write called on a readonly handle of segment "
                     + handle.getSegmentName());
         }
-            long fileSize = path.toFile().length();
-            if (fileSize < offset) {
-                throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
-            } else {
-                try (FileChannel channel = FileChannel.open(path,
-                        StandardOpenOption.WRITE); ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
-                    while ( length != 0) {
-                        long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
-                        offset += bytesWritten;
-                        length -= bytesWritten;
-                    }
+
+        //Fix for Jenkins as Jenkins runs as super user privileges.
+        if ( !isWritableFile(path)) {
+            throw new StreamSegmentSealedException(handle.getSegmentName());
+        }
+
+        long fileSize = path.toFile().length();
+        if (fileSize < offset) {
+            throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
+        } else {
+            try (FileChannel channel = FileChannel.open(path,
+                    StandardOpenOption.WRITE); ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+                while (length != 0) {
+                    long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                    offset += bytesWritten;
+                    length -= bytesWritten;
                 }
-                return null;
             }
+            return null;
+        }
     }
 
     private boolean isWritableFile(Path path) throws IOException {
