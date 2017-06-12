@@ -140,10 +140,10 @@ public class ReadWriteTest {
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         //start writing events to the stream
-        log.info("creating {} writers", NUM_WRITERS);
+        log.info("Creating {} writers", NUM_WRITERS);
         List<CompletableFuture<Void>> writerList = new ArrayList<>();
         for (i = 0; i < NUM_WRITERS; i++) {
-            log.info("starting writer{}", i);
+            log.info("Starting writer{}", i);
             writerList.add(startNewWriter(eventData, clientFactory));
         }
 
@@ -152,20 +152,20 @@ public class ReadWriteTest {
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(STREAM_NAME));
-        log.info(" reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-        log.info(" reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+        log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
+        log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
 
         //create readers
-        log.info("creating {} readers", NUM_READERS);
+        log.info("Creating {} readers", NUM_READERS);
         List<CompletableFuture<Void>> readerList = new ArrayList<>();
         String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
         //start reading events
         for (i = 0; i < NUM_READERS; i++) {
-            log.info("starting reader{}", i);
+            log.info("Starting reader{}", i);
             readerList.add(startNewReader(readerName + i, clientFactory, readerGroupName,
                     eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
         }
-        log.info("online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
+        log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
 
         //wait for writers completion
         FutureHelpers.allOf(writerList);
@@ -183,23 +183,20 @@ public class ReadWriteTest {
         assertEquals(TOTAL_NUM_EVENTS, new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
         //seal all streams
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
-        log.info("sealing stream {}", STREAM_NAME);
+        log.info("Sealing stream {}", STREAM_NAME);
         assertTrue(sealStreamStatus.get());
-        CompletableFuture<Boolean> sealStreamStatus1 = controller.sealStream(scope, "_RG" + readerGroupName);
-        log.info("sealing stream {}", "_RG" + readerGroupName);
-        assertTrue(sealStreamStatus1.get());
         //delete all streams
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
-        log.info("deleting stream {}", STREAM_NAME);
+        log.info("Deleting stream {}", STREAM_NAME);
         assertTrue(deleteStreamStatus.get());
-        CompletableFuture<Boolean> deleteStreamStatus1 = controller.deleteStream(scope, "_RG" + readerGroupName);
-        log.info("deleting stream {}", "_RG" + readerGroupName);
-        assertTrue(deleteStreamStatus1.get());
+        //delete readergroup
+        log.info("Deleting readergroup {}", readerGroupName);
+        readerGroupManager.deleteReaderGroup(readerGroupName);
         //delete scope
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
-        log.info("deleting scope {}", scope);
+        log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
-        log.info("read write test succeeds");
+        log.info("Read write test succeeds");
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
@@ -211,15 +208,15 @@ public class ReadWriteTest {
             for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
                 try {
                     long value = data.incrementAndGet();
-                    log.info("writing event {}", value);
+                    log.info("Writing event {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     writer.flush();
                 } catch (Throwable e) {
-                    log.warn("test exception writing events: {}", e);
+                    log.warn("Test exception writing events: {}", e);
                     break;
                 }
             }
-            log.info("closing writer {}", writer);
+            log.info("Closing writer {}", writer);
             writer.close();
 
         });
@@ -237,7 +234,7 @@ public class ReadWriteTest {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-                    log.info("reading event {}", longEvent);
+                    log.info("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
@@ -248,7 +245,7 @@ public class ReadWriteTest {
                     break;
                 }
             }
-            log.info("closing reader {}", reader);
+            log.info("Closing reader {}", reader);
             reader.close();
         });
     }
