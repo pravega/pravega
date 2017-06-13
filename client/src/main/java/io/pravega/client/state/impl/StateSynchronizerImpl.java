@@ -28,7 +28,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@ToString(of={"segment", "currentState"})
+@ToString(of = { "segment", "currentState" })
 public class StateSynchronizerImpl<StateT extends Revisioned>
         implements StateSynchronizer<StateT> {
 
