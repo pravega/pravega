@@ -78,6 +78,7 @@ class Write {
      */
     void setWriteLedger(WriteLedger writeLedger) {
         this.writeLedger.set(writeLedger);
+        this.entryId.set(Long.MIN_VALUE);
     }
 
     /**

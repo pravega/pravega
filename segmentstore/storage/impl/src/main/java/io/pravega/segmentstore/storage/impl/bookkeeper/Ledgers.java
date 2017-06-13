@@ -90,8 +90,8 @@ final class Ledgers {
     }
 
     /**
-     * Reliably retrieves the LastAddConfirmed for the Ledger with given LedgerId, by opening the Ledger in read-only mode
-     * and getting the value.
+     * Reliably retrieves the LastAddConfirmed for the Ledger with given LedgerId, by opening the Ledger in fencing mode
+     * and getting the value. NOTE: this open-fences the Ledger which will effectively stop any writing action on it.
      *
      * @param ledgerId   The Id of the Ledger to query.
      * @param bookKeeper A references to the BookKeeper client to use.
@@ -102,7 +102,10 @@ final class Ledgers {
     static long readLastAddConfirmed(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         LedgerHandle h = null;
         try {
-            h = Ledgers.openRead(ledgerId, bookKeeper, config);
+            // Here we open the Ledger WITH recovery, to force BookKeeper to reconcile any appends that may have been
+            // interrupted and not properly acked. Otherwise there is no guarantee we can get an accurate value for
+            // LastAddConfirmed.
+            h = openFence(ledgerId, bookKeeper, config);
             return h.getLastAddConfirmed();
         } finally {
             if (h != null) {

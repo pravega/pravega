@@ -300,7 +300,11 @@ class BookKeeperLog implements DurableDataLog {
 
         // Check to see if any writes executed on closed ledgers, in which case they either need to be failed (if deemed
         // appropriate, or retried).
-        handleClosedLedgers(toExecute);
+        if (handleClosedLedgers(toExecute)) {
+            // If any changes were made to the Writes in the list, re-do the search to get a more accurate list of Writes
+            // to execute (since some may have changed Ledgers, more writes may not be eligible for execution).
+            toExecute = this.writes.getWritesToExecute(maxTotalSize);
+        }
 
         // Execute the writes.
         for (int i = 0; i < toExecute.size(); i++) {
@@ -336,18 +340,21 @@ class BookKeeperLog implements DurableDataLog {
      * Checks each Write in the given list if it is pointing to a closed WriteLedger. If so, it verifies if the write has
      * actually been committed (in case we hadn't been able to determine its outcome) and updates the Ledger, if needed.
      *
-     * @param toExecute An ordered list of Writes to inspect and update.
+     * @param writes An ordered list of Writes to inspect and update.
+     * @return True if any of the Writes in the given list has been modified (either completed or had its WriteLedger
+     * changed).
      */
-    private void handleClosedLedgers(List<Write> toExecute) {
-        if (toExecute.size() == 0 || !toExecute.get(0).getWriteLedger().ledger.isClosed()) {
+    private boolean handleClosedLedgers(List<Write> writes) {
+        if (writes.size() == 0 || !writes.get(0).getWriteLedger().ledger.isClosed()) {
             // Nothing to do. We only need to check the first write since, if a Write failed with LedgerClosed, then the
             // first write must have failed for that reason (a Ledger is closed implies all ledgers before it are closed too).
-            return;
+            return false;
         }
 
         WriteLedger currentLedger = getWriteLedger();
         Map<Long, Long> lastAddsConfirmed = new HashMap<>();
-        for (Write w : toExecute) {
+        boolean anythingChanged = false;
+        for (Write w : writes) {
             if (w.isDone() || !w.getWriteLedger().ledger.isClosed()) {
                 continue;
             }
@@ -358,11 +365,15 @@ class BookKeeperLog implements DurableDataLog {
             if (w.getEntryId() >= 0 && w.getEntryId() <= lac) {
                 // Write was actually successful. Complete it and move on.
                 w.complete();
+                anythingChanged = true;
             } else if (currentLedger.ledger.getId() != w.getWriteLedger().ledger.getId()) {
                 // Current ledger has changed; attempt to write to the new one.
                 w.setWriteLedger(currentLedger);
+                anythingChanged = true;
             }
         }
+
+        return anythingChanged;
     }
 
     /**
