@@ -76,6 +76,7 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
     boolean compareAndSetMark(Revision expected, Revision newLocation);
     
     /**
+     * Closes the client and frees any resources associated with it. (It may no longer be used)
      * @see java.lang.AutoCloseable#close()
      */
     @Override

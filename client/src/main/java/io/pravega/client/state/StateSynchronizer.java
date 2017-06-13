@@ -100,6 +100,7 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     
     
     /**
+     * Closes the StateSynchronizer and frees any resources associated with it. (It may no longer be used)
      * @see java.lang.AutoCloseable#close()
      */
     @Override
