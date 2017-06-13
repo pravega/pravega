@@ -38,4 +38,10 @@ Swagger codegen truncates common enum prefixes. So until https://github.com/swag
 In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED_SIZE_MB.
 
 ## Generate documentation
-Use http://editor.swagger.io/ to generate html2 documentation from the Controller.yaml specification and overwrite .../swagger/restapis.html
+### Download Swagger2Markup CLI
+https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.1/swagger2markup-cli-1.3.1.jar
+
+### Generate and save the markup documentation
+```
+java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i Controller.yaml -f restapis
+```
