@@ -500,7 +500,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // The ContainerMetadata.SequenceNumber is always guaranteed to be unique (it's monotonically strict increasing).
         // It can be safely used as a new unique Segment Id. If any clashes occur, just keep searching up until we find
         // a non-used one.
-        long segmentId = Math.max(this.realMetadata.getOperationSequenceNumber(), ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER);
+        long segmentId = this.realMetadata.getOperationSequenceNumber();
         while (this.newSegments.containsKey(segmentId) || this.baseMetadata.getStreamSegmentMetadata(segmentId) != null) {
             segmentId++;
         }
