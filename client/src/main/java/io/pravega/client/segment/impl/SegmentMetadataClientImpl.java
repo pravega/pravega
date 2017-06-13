@@ -9,9 +9,11 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -43,7 +46,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private final Segment segmentId;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
-    
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object lock = new Object();
     @GuardedBy("lock")
     private CompletableFuture<ClientConnection> connection = null;
@@ -234,6 +237,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     
     @Override
     public long fetchCurrentStreamLength() {
+        Preconditions.checkArgument(!closed.get(), "Already closed");
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
@@ -244,6 +248,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
+        Preconditions.checkArgument(!closed.get(), "Already closed");
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(InvalidStreamException.class)
                 .run(() -> {
@@ -253,11 +258,20 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
+        Preconditions.checkArgument(!closed.get(), "Already closed");
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(InvalidStreamException.class)
                 .run(() -> {
                     return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)).isSuccess();
                 });
+    }
+
+    @Override
+    public void close() {
+        log.info("Closing segment metadata conncetion for {}", segmentId);
+        if (closed.compareAndSet(false, true)) {
+            closeConnection(new ConnectionClosedException());
+        }
     }
 
 }
