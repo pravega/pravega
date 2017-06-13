@@ -129,6 +129,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     @Override
     public long getOperationSequenceNumber() {
+        Preconditions.checkState(!isRecoveryMode(), "GetOperationSequenceNumber cannot be invoked in recovery mode.");
         return this.realMetadata.getOperationSequenceNumber();
     }
 
