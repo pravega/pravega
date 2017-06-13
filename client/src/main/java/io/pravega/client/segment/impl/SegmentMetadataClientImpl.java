@@ -15,6 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -237,7 +238,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     
     @Override
     public long fetchCurrentStreamLength() {
-        Preconditions.checkArgument(!closed.get(), "Already closed");
+        Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
@@ -268,7 +269,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public void close() {
-        log.info("Closing segment metadata conncetion for {}", segmentId);
+        log.info("Closing segment metadata connection for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
