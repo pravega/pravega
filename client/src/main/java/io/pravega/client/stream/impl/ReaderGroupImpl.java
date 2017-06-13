@@ -103,7 +103,6 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
-        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
@@ -113,12 +112,13 @@ public class ReaderGroupImpl implements ReaderGroup {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 if (checkpointPending.get()) {
-                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());                    
+                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
-        }, backgroundExecutor).thenApply(v ->  completeCheckpoint(checkpointName, synchronizer)
-        );
+        }, backgroundExecutor)
+                            .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
+                            .whenComplete((v, t) -> synchronizer.close());
     }
 
     @SneakyThrows(CheckpointFailedException.class)
