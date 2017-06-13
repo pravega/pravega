@@ -19,7 +19,7 @@ import java.util.Map.Entry;
  * A specific location can also be marked, which can also be updated with strong consistency. 
  * @param <T> The type of data written.
  */
-public interface RevisionedStreamClient<T> {
+public interface RevisionedStreamClient<T> extends AutoCloseable {
     
     /**
      * Returns the oldest revision than can be read.
@@ -74,5 +74,12 @@ public interface RevisionedStreamClient<T> {
      * @return true if it was successful. False if the mark was not the expected value.
      */
     boolean compareAndSetMark(Revision expected, Revision newLocation);
+    
+    /**
+     * Closes the client and frees any resources associated with it. (It may no longer be used)
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    abstract void close();
 
 }

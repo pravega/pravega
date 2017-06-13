@@ -213,6 +213,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     reader.close();
                 }
                 readers.clear();
+                groupState.close();
             }
         }
     }
