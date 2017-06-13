@@ -19,14 +19,14 @@ public final class MetricsNames {
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment_write_bytes";          // Dynamic Counter
 
     //hdfs stats
-    public static final String HDFS_READ_LATENCY = "hdfs_read_latency_ms";   // Timer
-    public static final String HDFS_WRITE_LATENCY = "hdfs_write_latency_ms"; // Timer
-    public static final String HDFS_READ_BYTES = "hdfs_read_bytes";          // Counter
-    public static final String HDFS_WRITE_BYTES = "hdfs_write_bytes";        // Counter
+    public static final String HDFS_READ_LATENCY = "tier2_read_latency_ms";   // Timer
+    public static final String HDFS_WRITE_LATENCY = "tier2_write_latency_ms"; // Timer
+    public static final String HDFS_READ_BYTES = "tier2_read_bytes";          // Counter
+    public static final String HDFS_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
     //DurableLog stats
-    public static final String DURABLE_DATALOG_WRITE_LATENCY = "durable_datalog_write_latency"; // Timer
-    public static final String DURABLE_DATALOG_WRITE_BYTES = "durable_datalog_write_bytes";     // Counter
+    public static final String TIER1_WRITE_LATENCY = "tier1_write_latency"; // Timer
+    public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";     // Counter
 
     // Metrics in Controller
     // Stream request counts (Static)
