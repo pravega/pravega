@@ -9,7 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
@@ -249,7 +248,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
-        Preconditions.checkArgument(!closed.get(), "Already closed");
+        Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(InvalidStreamException.class)
                 .run(() -> {
@@ -259,7 +258,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
-        Preconditions.checkArgument(!closed.get(), "Already closed");
+        Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(InvalidStreamException.class)
                 .run(() -> {
