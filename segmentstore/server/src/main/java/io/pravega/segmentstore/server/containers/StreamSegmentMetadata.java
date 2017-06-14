@@ -99,7 +99,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.storageLength = -1;
         this.durableLogLength = -1;
         this.attributes = new HashMap<>();
-        this.lastModified = new ImmutableDate(); // TODO: figure out what is the best way to represent this, while taking into account PermanentStorage timestamps, timezones, etc.
+        this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
     }
@@ -121,11 +121,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isDeleted() {
         return this.deleted;
-    }
-
-    @Override
-    public synchronized long getLength() {
-        return this.durableLogLength; // ReadableLength is essentially DurableLogLength.
     }
 
     @Override

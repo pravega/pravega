@@ -67,22 +67,26 @@ public class ErrorInjector<T extends Throwable> {
 
     /**
      * Returns a CompletableFuture that, if the given injector generates a non-null exception, will be completed exceptionally.
-     * If the given injector is null or does not generate an exception (null), this method returns a normally completed Future with no result.
+     * If the given injector is null or does not generate an exception (null), this method returns the future generated
+     * byt the given supplier.
      *
-     * @param injector The Error Injector to use.
-     * @param <T>      The type of exception to throw.
+     * @param injector      The Error Injector to use.
+     * @param successFuture A Supplier that generates the future to return if no exception happened.
+     * @param <ExceptionT>  The type of exception to throw.
+     * @param <ReturnT> The type of the return value.
      */
-    public static <T extends Throwable> CompletableFuture<Void> throwAsyncExceptionIfNeeded(ErrorInjector<T> injector) {
-        CompletableFuture<Void> result = null;
+    public static <ReturnT, ExceptionT extends Throwable> CompletableFuture<ReturnT> throwAsyncExceptionIfNeeded(
+            ErrorInjector<ExceptionT> injector, Supplier<CompletableFuture<ReturnT>> successFuture) {
+        CompletableFuture<ReturnT> result = null;
         if (injector != null) {
-            T ex = injector.generateExceptionIfNecessary();
+            ExceptionT ex = injector.generateExceptionIfNecessary();
             if (ex != null) {
                 result = new CompletableFuture<>();
                 result.completeExceptionally(ex);
             }
         }
 
-        return result != null ? result : CompletableFuture.completedFuture(null);
+        return result != null ? result : successFuture.get();
     }
 
     /**
@@ -91,25 +95,6 @@ public class ErrorInjector<T extends Throwable> {
      */
     public T getLastCycleException() {
         return this.lastCycleException;
-    }
-
-    /**
-     * Gets a value indicating the Exception (T) that was thrown during the last call to throwIfNecessary() for any of
-     * the given ErrorInjectors (inspected in the order in which they were provided). If no exception was thrown, null is returned.
-     *
-     * @param injectors The injectors to inspect.
-     * @param <T>       The type of exception to throw.
-     */
-    @SafeVarargs
-    public static <T extends Throwable> T getLastCycleException(ErrorInjector<T>... injectors) {
-        for (ErrorInjector<T> injector : injectors) {
-            T ex = injector.getLastCycleException();
-            if (ex != null) {
-                return ex;
-            }
-        }
-
-        return null;
     }
 
     /**

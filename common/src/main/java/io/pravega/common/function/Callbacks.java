@@ -10,8 +10,16 @@
 package io.pravega.common.function;
 
 /**
- * Defines a Consumer that takes in one argument and may throw an exception.
+ * Misc methods that can be used as callbacks.
  */
-public interface ConsumerWithException<T, TEx extends Throwable> {
-    void accept(T var1) throws TEx;
+public final class Callbacks {
+    /**
+     * Empty consumer. Does nothing.
+     *
+     * @param ignored Ignored argument.
+     * @param <T>     Return type. Ignored.
+     */
+    public static <T> void doNothing(T ignored) {
+        // This method intentionally left blank.
+    }
 }

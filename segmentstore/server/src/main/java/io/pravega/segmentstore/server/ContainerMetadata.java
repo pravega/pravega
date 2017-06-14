@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server;
 
+import java.util.Collection;
+
 /**
  * Defines an immutable Stream Segment Container Metadata.
  */
@@ -70,4 +72,23 @@ public interface ContainerMetadata {
      * @return The mapped StreamSegmentMetadata, or null if none is.
      */
     SegmentMetadata getStreamSegmentMetadata(long streamSegmentId);
+
+    /**
+     * Gets a collection containing all StreamSegmentIds currently mapped.
+     */
+    Collection<Long> getAllStreamSegmentIds();
+
+    /**
+     * Gets a value indicating the maximum number of segments that can be registered in this metadata at any given time.
+     *
+     * @return The maximum number of segments.
+     */
+    int getMaximumActiveSegmentCount();
+
+    /**
+     * Gets a value indicating the current number of registered segments.
+     *
+     * @return The count.
+     */
+    int getActiveSegmentCount();
 }

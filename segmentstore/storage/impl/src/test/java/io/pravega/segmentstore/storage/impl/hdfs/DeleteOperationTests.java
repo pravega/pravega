@@ -16,7 +16,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the DeleteOperation class.
@@ -24,11 +26,13 @@ import org.junit.Test;
 public class DeleteOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
     private static final int FILE_COUNT = 10;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests the ability to delete segments without outside interference.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNormalDelete() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -49,7 +53,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the ability to delete segment when an outside interference happens.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentDelete() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

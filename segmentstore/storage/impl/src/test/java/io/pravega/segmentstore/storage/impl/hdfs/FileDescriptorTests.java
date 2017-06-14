@@ -12,16 +12,21 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the FileDescriptor class.
  */
 public class FileDescriptorTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(30);
+
     /**
      * Tests the ability to change read-only status and lengths.
      */
-    @Test(timeout = 10000)
+    @Test
     public void testMutators() {
         FileDescriptor fd = new FileDescriptor(new Path("foo"), 1, 2, 3, false);
 

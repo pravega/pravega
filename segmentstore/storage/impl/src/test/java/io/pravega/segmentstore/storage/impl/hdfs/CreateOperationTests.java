@@ -16,19 +16,23 @@ import lombok.val;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the CreateOperation class.
  */
 public class CreateOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests CreateOperation with no fencing involved. Verifies basic segment creation works, as well as rejection in
      * case the segment already exists.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNormalCall() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -53,7 +57,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests CreateOperation with fencing resolution for lower-epoch creation.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testLowerEpochFencedOut() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -73,7 +77,7 @@ public class CreateOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests CreateOperation with fencing resolution for concurrent operations.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentFencedOut() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

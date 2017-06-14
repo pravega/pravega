@@ -11,20 +11,24 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.DurableDataLog;
-import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
+import io.pravega.segmentstore.storage.LogAddress;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for InMemoryDurableDataLog.
  */
 public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
-    private static final int WRITE_COUNT = 250;
+    private static final int WRITE_COUNT = 1000;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private final Supplier<Integer> nextContainerId = new AtomicInteger()::incrementAndGet;
     private InMemoryDurableDataLogFactory factory;
 

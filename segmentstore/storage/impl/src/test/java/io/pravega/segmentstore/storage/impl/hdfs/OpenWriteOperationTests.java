@@ -17,19 +17,23 @@ import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the OpenWriteOperation class
  */
 public class OpenWriteOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests the case when the last file has en epoch larger than ours.
      * Expected outcome: StorageNotPrimaryException and no side effects.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testLargerEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -51,7 +55,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is read-only and sealed.
      * Expected outcome: Return a read-only handle and no side effects.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testReadOnlySealed() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -74,7 +78,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is read only but not sealed.
      * Expected outcome: Create new read-write file; don't touch other files.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testReadOnlyNotSealed() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -96,7 +100,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is not read only, but it has the same epoch as us.
      * Expected outcome: reuse last file and no side effects.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNotReadOnlySameEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -116,7 +120,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is not read-only, and it has lower epoch than us.
      * Expected outcome: Make last file read-only and create new one.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNotReadOnlySmallerEpoch() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -131,7 +135,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * it was beaten to it by a higher epoch instance.
      * Expected outcome: StorageNotPrimaryException and no side effects (it should back off).
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentFenceOutLower() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -159,7 +163,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * that a lower-epoch file was also created.
      * Expected outcome: succeed and delete the file.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentFenceOutHigher() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -182,7 +186,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the OpenWriteOperation needs to consolidate multiple files of the same segment into fewer by
      * means of concatenation.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testMultiFileCoalescing() throws Exception {
         final int iterations = Byte.MAX_VALUE;
         final int emptyFileEvery = 10;

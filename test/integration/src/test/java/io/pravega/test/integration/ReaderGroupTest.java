@@ -108,6 +108,7 @@ public class ReaderGroupTest {
         if (r2.exception.get() != null) {
             throw r2.exception.get();
         }
+        streamManager.deleteReaderGroup(READER_GROUP);
     }
     
     @Test
@@ -138,6 +139,7 @@ public class ReaderGroupTest {
 
         writeEvents(100, clientFactory);
         new ReaderThread(100, "Reader", clientFactory).run();
+        streamManager.deleteReaderGroup(READER_GROUP);
     }
     
     public void writeEvents(int eventsToWrite, ClientFactory clientFactory) {
