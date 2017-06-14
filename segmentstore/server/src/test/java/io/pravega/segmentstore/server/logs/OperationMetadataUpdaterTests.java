@@ -15,8 +15,8 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -161,7 +161,7 @@ public class OperationMetadataUpdaterTests {
      */
     @Test
     public void testRollback() throws Exception {
-        // 2 out of 3 transactions are failed (to verify multi-failure).
+        // 2 out of 3 UpdateTransactions are failed (to verify multi-failure).
         // Commit the rest and verify final metadata is as it should.
         final int failEvery = 3;
         Predicate<Integer> isIgnored = index -> index % failEvery > 0;
@@ -267,10 +267,11 @@ public class OperationMetadataUpdaterTests {
             // Seal&Merge the transaction created in the previous UpdateTransaction
             sealSegment(lastSegmentTxnId.get(), updater, referenceMetadata);
             mergeTransaction(lastSegmentTxnId.get(), updater, referenceMetadata);
+            lastSegmentTxnId.set(-1); // Txn has been merged - so it doesn't exist anymore.
         }
 
         if (referenceMetadata != null) {
-            // Don't remember these segment ids if we're going to be tossing them away.
+            // Don't remember any of these changes if we're going to be tossing them away.
             lastSegmentId.set(segmentId);
             lastSegmentTxnId.set(txnId);
         }
@@ -282,28 +283,18 @@ public class OperationMetadataUpdaterTests {
 
     private UpdateableContainerMetadata clone(ContainerMetadata base) {
         val metadata = createBlankMetadata();
-        for (long segmentId : base.getAllStreamSegmentIds()) {
-            val bsm = base.getStreamSegmentMetadata(segmentId);
-            UpdateableSegmentMetadata nsm;
-            if (bsm.isTransaction()) {
-                nsm = metadata.mapStreamSegmentId(bsm.getName(), bsm.getId(), bsm.getParentId());
-            } else {
-                nsm = metadata.mapStreamSegmentId(bsm.getName(), bsm.getId());
-            }
 
-            nsm.setDurableLogLength(bsm.getDurableLogLength());
-            nsm.setStorageLength(bsm.getStorageLength());
-            nsm.updateAttributes(bsm.getAttributes());
-            if (bsm.isSealed()) {
-                nsm.markSealed();
-            }
-            if (bsm.isMerged()) {
-                nsm.markMerged();
-            }
-            if (bsm.isSealedInStorage()) {
-                nsm.markSealedInStorage();
-            }
-        }
+        // First clone stand-alone (parent) Segments (since there may be Transactions mapped to them).
+        base.getAllStreamSegmentIds().stream()
+            .map(base::getStreamSegmentMetadata)
+            .filter(sm -> !sm.isTransaction())
+            .forEach(bsm -> metadata.mapStreamSegmentId(bsm.getName(), bsm.getId()).copyFrom(bsm));
+
+        // Then clone transactions.
+        base.getAllStreamSegmentIds().stream()
+            .map(base::getStreamSegmentMetadata)
+            .filter(SegmentMetadata::isTransaction)
+            .forEach(bsm -> metadata.mapStreamSegmentId(bsm.getName(), bsm.getId(), bsm.getParentId()).copyFrom(bsm));
 
         return metadata;
     }
