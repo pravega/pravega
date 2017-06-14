@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -50,7 +49,7 @@ public class OperationMetadataUpdaterTests {
     private static final int MAX_ACTIVE_SEGMENT_COUNT = TRANSACTION_COUNT * 100;
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = Timeout.seconds(30);
     private final Supplier<Integer> nextAppendLength = () -> Math.max(1, (int) System.nanoTime() % 1000);
 
     /**

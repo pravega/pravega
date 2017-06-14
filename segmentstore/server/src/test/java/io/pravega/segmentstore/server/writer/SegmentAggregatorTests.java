@@ -14,12 +14,11 @@ import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.server.MetadataBuilder;
-import io.pravega.segmentstore.server.TestStorage;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ManualTimer;
+import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -27,6 +26,7 @@ import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
@@ -55,13 +55,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the SegmentAggregator class.
@@ -81,6 +82,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             .with(WriterConfig.MAX_FLUSH_SIZE_BYTES, 150)
             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
             .build();
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @Override
     protected int getThreadPoolSize() {
