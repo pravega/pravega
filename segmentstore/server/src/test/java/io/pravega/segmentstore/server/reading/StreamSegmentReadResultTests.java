@@ -14,12 +14,12 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
-
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
-
-import java.util.concurrent.atomic.AtomicReference;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for StreamSegmentReadResult class.
@@ -28,6 +28,8 @@ public class StreamSegmentReadResultTests {
     private static final int START_OFFSET = 123456;
     private static final int MAX_RESULT_LENGTH = 1024;
     private static final int READ_ITEM_LENGTH = 1;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the next() method which ends when the result is fully consumed (via offsets).

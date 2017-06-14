@@ -112,7 +112,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private boolean canRun() {
-        return isRunning() && !hasStopException();
+        return isRunning() && getStopException() == null;
     }
 
     private void beginIteration() {

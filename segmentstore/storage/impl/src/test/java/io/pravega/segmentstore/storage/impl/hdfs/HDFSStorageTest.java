@@ -14,8 +14,8 @@ import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.concurrent.Executor;
-
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -38,13 +37,17 @@ import org.apache.hadoop.util.Progressable;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.slf4j.LoggerFactory;
 
 /**
  * Unit tests for HDFSStorage.
  */
 public class HDFSStorageTest extends StorageTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private HDFSStorageConfig adapterConfig;

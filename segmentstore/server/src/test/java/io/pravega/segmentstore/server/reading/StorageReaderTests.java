@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -20,22 +20,22 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.util.concurrent.TimeUnit;
-
-import lombok.Cleanup;
-import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import lombok.Cleanup;
+import lombok.val;
+import org.apache.commons.lang.NotImplementedException;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the StorageReader class.
@@ -45,6 +45,8 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     private static final int MAX_SEGMENT_LENGTH = MIN_SEGMENT_LENGTH * 100;
     private static final SegmentMetadata SEGMENT_METADATA = new StreamSegmentMetadata("Segment1", 0, 0);
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @Override
     protected int getThreadPoolSize() {

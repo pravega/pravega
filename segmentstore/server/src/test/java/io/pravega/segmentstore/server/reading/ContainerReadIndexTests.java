@@ -72,10 +72,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                                                     .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 0) // Default: Off (we have a special test for this).
                                                     .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .build();
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @Override
     protected int getThreadPoolSize() {

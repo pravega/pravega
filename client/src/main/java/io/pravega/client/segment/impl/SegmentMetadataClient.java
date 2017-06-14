@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 /**
  * A client for looking at and editing the metadata related to a specific segment.
  */
-public interface SegmentMetadataClient {
+public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
      * Returns the length of the current segment. i.e. the total length of all data written to the segment.
@@ -37,5 +37,8 @@ public interface SegmentMetadataClient {
      * @return If the replacement occurred. (False if the attribute was not expectedValue)
      */
     abstract boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue);
+    
+    @Override
+    abstract void close();
     
 }

@@ -36,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +63,7 @@ public class ReaderGroupImpl implements ReaderGroup {
      */
     @VisibleForTesting
     public void initializeGroup(ReaderGroupConfig config, Set<String> streams) {
+        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streams);
         ReaderGroupStateManager.initializeReaderGroup(synchronizer, config, segments);
@@ -81,6 +83,7 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public void readerOffline(String readerId, Position lastPosition) {
+        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         ReaderGroupStateManager.readerShutdown(readerId, lastPosition, synchronizer);
     }
@@ -92,6 +95,7 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public Set<String> getOnlineReaders() {
+        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
         return synchronizer.getState().getOnlineReaders();
@@ -108,12 +112,13 @@ public class ReaderGroupImpl implements ReaderGroup {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 if (checkpointPending.get()) {
-                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());                    
+                    log.debug("Waiting on checkpoint: {} currentState is: {}", checkpointName, synchronizer.getState());
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
-        }, backgroundExecutor).thenApply(v ->  completeCheckpoint(checkpointName, synchronizer)
-        );
+        }, backgroundExecutor)
+                            .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
+                            .whenComplete((v, t) -> synchronizer.close());
     }
 
     @SneakyThrows(CheckpointFailedException.class)
@@ -128,6 +133,7 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
+        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
@@ -137,6 +143,7 @@ public class ReaderGroupImpl implements ReaderGroup {
 
     @Override
     public void alterConfig(ReaderGroupConfig config, Set<String> streamNames) {
+        @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
