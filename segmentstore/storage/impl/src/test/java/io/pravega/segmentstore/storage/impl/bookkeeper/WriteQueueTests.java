@@ -10,10 +10,13 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.AbstractTimer;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,10 +72,10 @@ public class WriteQueueTests {
     }
 
     /**
-     * Tests the clear() method.
+     * Tests the close() method.
      */
     @Test
-    public void testClear() {
+    public void testClose() {
         val q = new WriteQueue(MAX_PARALLELISM);
 
         val expectedWrites = new ArrayList<Write>();
@@ -82,7 +85,7 @@ public class WriteQueueTests {
             expectedWrites.add(w);
         }
 
-        val removedWrites = q.clear();
+        val removedWrites = q.close();
         AssertExtensions.assertListEquals("Unexpected writes removed.", expectedWrites, removedWrites, Object::equals);
 
         val clearStats = q.getStatistics();
@@ -91,10 +94,18 @@ public class WriteQueueTests {
         Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", 0, clearStats.getExpectedProcessingTimeMillis());
         Assert.assertEquals("Unexpected getMaxParallelism after clear.", MAX_PARALLELISM, clearStats.getMaxParallelism());
 
-        q.add(new Write(new ByteArraySegment(new byte[BookKeeperConfig.MAX_APPEND_LENGTH]), new TestWriteLedger(0), CompletableFuture.completedFuture(null)));
-        val addStats = q.getStatistics();
-        Assert.assertEquals("Unexpected getSize after clear+add.", 1, addStats.getSize());
-        Assert.assertEquals("Unexpected getAverageFillRate after clear+add.", 1, addStats.getAverageItemFillRate(), 0);
+        AssertExtensions.assertThrows(
+                "add() worked after close().",
+                () -> q.add(new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), CompletableFuture.completedFuture(null))),
+                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertThrows(
+                "getWritesToExecute() worked after close().",
+                () -> q.getWritesToExecute(1),
+                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertThrows(
+                "removeFinishedWrites() worked after close().",
+                q::removeFinishedWrites,
+                ex -> ex instanceof ObjectClosedException);
     }
 
     /**
@@ -123,8 +134,9 @@ public class WriteQueueTests {
         while (!writes.isEmpty()) {
             val write = writes.pollFirst();
             if (!write.isDone()) {
-                boolean result1 = q.removeFinishedWrites();
-                Assert.assertTrue("Unexpected value from removeFinishedWrites when there were writes left in the queue.", result1);
+                val result1 = q.removeFinishedWrites();
+                AssertExtensions.assertContainsSameElements("Unexpected value from removeFinishedWrites when there were writes left in the queue.",
+                        EnumSet.of(WriteQueue.CleanupStatus.QueueNotEmpty), result1);
                 val stats1 = q.getStatistics();
                 Assert.assertEquals("Unexpected size after removeFinishedWrites with no effect.", writes.size() + 1, stats1.getSize());
 
@@ -142,12 +154,22 @@ public class WriteQueueTests {
             }
             expectedElapsed = (time.get() * removed - expectedElapsed) / AbstractTimer.NANOS_TO_MILLIS / removed;
 
-            boolean result2 = q.removeFinishedWrites();
-            Assert.assertEquals("Unexpected result from removeFinishedWrites.", !writes.isEmpty(), result2);
+            val result2 = q.removeFinishedWrites();
+            val expectedResult = EnumSet.of(writes.isEmpty() ? WriteQueue.CleanupStatus.QueueEmpty : WriteQueue.CleanupStatus.QueueNotEmpty);
+            AssertExtensions.assertContainsSameElements("Unexpected result from removeFinishedWrites.", expectedResult, result2);
             val stats2 = q.getStatistics();
             Assert.assertEquals("Unexpected size after removeFinishedWrites.", writes.size(), stats2.getSize());
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", expectedElapsed, stats2.getExpectedProcessingTimeMillis());
         }
+
+        // Verify that it does report failed writes when encountered.
+        val w3 = new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), new CompletableFuture<>());
+        q.add(w3);
+        w3.fail(new IntentionalException(), true);
+        val result3 = q.removeFinishedWrites();
+        AssertExtensions.assertContainsSameElements("Unexpected value from removeFinishedWrites when there were failed writes.",
+                EnumSet.of(WriteQueue.CleanupStatus.QueueEmpty, WriteQueue.CleanupStatus.WriteFailed), result3);
+
     }
 
     /**

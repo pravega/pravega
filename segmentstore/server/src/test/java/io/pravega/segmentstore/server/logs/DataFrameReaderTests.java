@@ -80,6 +80,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
                         failedIndices.add(i);
                     }
                 }
+                b.flush();
             }
 
             TestLogItemFactory logItemFactory = new TestLogItemFactory();
@@ -108,6 +109,8 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
                 for (TestLogItem r : records) {
                     b.append(r);
                 }
+
+                b.flush();
             }
 
             // Delete the first entry in the DataLog.

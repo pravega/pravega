@@ -113,7 +113,7 @@ class Write {
     /**
      * Records the fact that an attempt to execute this write has ended.
      */
-    void endAttempt() {
+    private void endAttempt() {
         this.inProgress.set(false);
     }
 

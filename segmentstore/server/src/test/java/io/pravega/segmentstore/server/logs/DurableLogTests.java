@@ -364,12 +364,14 @@ public class DurableLogTests extends OperationLogTestBase {
                 OperationWithCompletion.allOf(completionFutures)::join,
                 super::isExpectedExceptionForNonDataCorruption);
 
-        performLogOperationChecks(completionFutures, durableLog);
+        // Wait for the DurableLog to shutdown with failure.
+        ServiceShutdownListener.awaitShutdown(durableLog, TIMEOUT, false);
+        Assert.assertEquals("Expected the DurableLog to fail after DurableDataLogException encountered.",
+                Service.State.FAILED, durableLog.state());
+
+        // We can't really check the DurableLog or the DurableDataLog contents since they are both closed.
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, setup.metadata, false, false);
         performReadIndexChecks(completionFutures, setup.readIndex);
-
-        // Stop the processor.
-        durableLog.stopAsync().awaitTerminated();
     }
 
     /**

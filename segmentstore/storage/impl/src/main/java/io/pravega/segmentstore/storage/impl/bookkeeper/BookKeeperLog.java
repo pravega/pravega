@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,7 +70,6 @@ import org.apache.zookeeper.data.Stat;
  * * The Log Reader is designed to work well immediately after recovery. Due to BookKeeper behavior, reading while writing
  * may not immediately provide access to the last written entry, even if it was acknowledged by BookKeeper.
  * * See the LogReader class for more details.
- * TODO: improved error handling (https://github.com/pravega/pravega/issues/1414).
  */
 @Slf4j
 @ThreadSafe
@@ -138,9 +138,8 @@ class BookKeeperLog implements DurableDataLog {
                 this.logMetadata = null;
             }
 
-            // Cancel pending writes.
-            List<Write> toCancel = this.writes.clear();
-            toCancel.forEach(w -> w.fail(new ObjectClosedException(this), true));
+            // Close the write queue and cancel the pending writes.
+            this.writes.close().forEach(w -> w.fail(new CancellationException("BookKeeperLog has been closed."), true));
 
             if (writeLedger != null) {
                 try {
@@ -287,8 +286,13 @@ class BookKeeperLog implements DurableDataLog {
      */
     private boolean processPendingWrites() {
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
-        if (!this.writes.removeFinishedWrites()) {
-            // Nothing left to process.
+        val cs = this.writes.removeFinishedWrites();
+        if (cs.contains(WriteQueue.CleanupStatus.WriteFailed)) {
+            // We encountered a failed write. As such, we must close immediately and not process anything else.
+            // Closing will automatically cancel all pending writes.
+            close();
+            return false;
+        } else if (cs.contains(WriteQueue.CleanupStatus.QueueEmpty)) {
             return true;
         }
 
