@@ -13,7 +13,7 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
-import io.findify.s3mock.S3Mock;
+
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -43,21 +43,19 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class ECSStorageTest extends StorageTestBase {
     private ECSStorageConfig adapterConfig;
     private S3JerseyClient client = null;
-    private S3Mock api = null;
+    //private S3Mock api = null;
 
     @Before
     public void setUp() throws Exception {
         S3Config ecsConfig = null;
 
-        api = new S3Mock.Builder().withPort(9020).withInMemoryBackend().
+        /*  api = new S3Mock.Builder().withPort(9020).withInMemoryBackend().
                 build();
-        api.start();
-
-
+            api.start();*/
         this.adapterConfig = ECSStorageConfig.builder()
                 .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
-                .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "user1")
-                .with(ECSStorageConfig.ECS_SECRET_KEY, "Kph6HD4lFlexKyYp9FYMpg38iXSxTxlizbWm1fUN")
+                .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "user2")
+                .with(ECSStorageConfig.ECS_SECRET_KEY, "rAauUWaZmT2ST0Os3Gsmxin3bh9ew32oD5/03QBv")
                 .build();
         if (client == null) {
             try {
@@ -76,7 +74,7 @@ public class ECSStorageTest extends StorageTestBase {
 
     @After
     public void tearDown() {
-        api.stop();
+        //api.stop();
     }
 
     //region Fencing tests
@@ -252,14 +250,14 @@ public class ECSStorageTest extends StorageTestBase {
     protected Storage createStorage() {
         S3Config ecsConfig = null;
         try {
-            ecsConfig = new S3Config(new URI("http://localhost:9020"));
-        if ( adapterConfig == null ) {
+            ecsConfig = new S3Config(new URI("http://172.16.39.136:9020"));
+            if (adapterConfig == null) {
                 setUp();
-        }
-        ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
+            }
+            ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
-        client = new S3JerseyClient(ecsConfig);
-        client.createBucket("kanpravegatest");
+            client = new S3JerseyClient(ecsConfig);
+            //        client.createBucket("kanpravegatest");
             return new ECSStorage(client, this.adapterConfig, executorService());
         } catch (Exception e) {
             e.printStackTrace();
