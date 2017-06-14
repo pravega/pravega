@@ -440,7 +440,13 @@ class BookKeeperLog implements DurableDataLog {
         } finally {
             // Process all the appends in the queue after any change. This finalizes the completion, does retries (if needed)
             // and triggers more appends.
-            this.writeProcessor.runAsync();
+            try {
+                this.writeProcessor.runAsync();
+            } catch (ObjectClosedException ex) {
+                // In case of failures, the WriteProcessor may already be closed. We don't want the exception to propagate
+                // to BookKeeper.
+                log.warn("{}: Not running WriteProcessor as part of callback due to BookKeeperLog being closed.", this.traceObjectId, ex);
+            }
         }
     }
 

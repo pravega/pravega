@@ -118,12 +118,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         Throwable ex = new CancellationException("OperationProcessor is shutting down.");
         closeQueue(ex);
 
+        // Close the DataFrameBuilder and cancel any operations caught in limbo.
         synchronized (this.stateLock) {
-            // Close the DataFrameBuilder and cancel any operations caught in limbo.
             this.dataFrameBuilder.close();
-            this.state.fail(ex, null);
         }
 
+        this.state.fail(ex, null);
         super.doStop();
     }
 
