@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -21,7 +22,6 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import com.google.common.util.concurrent.AbstractService;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,16 +30,19 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.Cleanup;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the StreamSegmentContainerRegistry class.
  */
 public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     /**
      * Tests the getContainer method for registered and unregistered containers.

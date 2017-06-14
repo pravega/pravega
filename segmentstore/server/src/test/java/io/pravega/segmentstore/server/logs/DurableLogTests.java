@@ -98,7 +98,7 @@ public class DurableLogTests extends OperationLogTestBase {
             .build();
 
     @Rule
-    public Timeout globalTimeout = new Timeout(TEST_TIMEOUT_MILLIS, TimeUnit.SECONDS);
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     //region Adding operations
 

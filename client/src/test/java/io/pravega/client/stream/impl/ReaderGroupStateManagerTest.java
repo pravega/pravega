@@ -81,6 +81,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                 streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                 new JavaSerializer<>(),
                 new JavaSerializer<>(),
@@ -122,6 +123,7 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -164,6 +166,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -199,6 +202,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -258,6 +262,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -332,6 +337,7 @@ public class ReaderGroupStateManagerTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),
@@ -430,6 +436,7 @@ public class ReaderGroupStateManagerTest {
         ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                                                             streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
                                                                                                       new JavaSerializer<>(),
                                                                                                       new JavaSerializer<>(),

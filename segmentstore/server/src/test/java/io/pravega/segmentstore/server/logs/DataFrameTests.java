@@ -15,13 +15,17 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.List;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the DataFrame class.
  */
 public class DataFrameTests {
     private static final int ENTRY_HEADER_SIZE = 5; // This is a copy of DataFrame.EntryHeader.HeaderSize, but that's not accessible from here.
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the ability to append a set of records to a DataFrame and then read them back, without using serialization.

@@ -22,8 +22,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
  * Base class for all tests for derived classes from FileSystemOperation.
  */
 abstract class FileSystemOperationTestBase {
-    protected static final int TEST_TIMEOUT_MILLIS = 30 * 1000;
-
+    protected static final int TIMEOUT_SECONDS = 30;
     static TestContext newContext(long epoch, MockFileSystem fileSystem) {
         return new TestContext(epoch, fileSystem);
     }

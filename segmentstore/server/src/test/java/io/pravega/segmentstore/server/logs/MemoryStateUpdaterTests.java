@@ -15,17 +15,16 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
-import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
-import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import java.io.InputStream;
 import java.time.Duration;
@@ -37,15 +36,18 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-
-import lombok.Cleanup;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for MemoryStateUpdater class.
  */
 public class MemoryStateUpdaterTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     /**
      * Tests the functionality of the process() method.
      */
@@ -58,8 +60,6 @@ public class MemoryStateUpdaterTests {
         SequencedItemList<Operation> opLog = new SequencedItemList<>();
         ArrayList<TestReadIndex.MethodInvocation> methodInvocations = new ArrayList<>();
         TestReadIndex readIndex = new TestReadIndex(methodInvocations::add);
-        @Cleanup
-        InMemoryCache cache = new InMemoryCache("0");
         MemoryStateUpdater updater = new MemoryStateUpdater(opLog, readIndex);
         ArrayList<Operation> operations = populate(updater, segmentCount, operationCountPerType);
 

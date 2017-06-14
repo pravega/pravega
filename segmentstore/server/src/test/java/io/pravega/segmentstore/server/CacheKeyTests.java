@@ -10,7 +10,9 @@
 package io.pravega.segmentstore.server;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the CacheKey class.
@@ -19,6 +21,8 @@ public class CacheKeyTests {
     private static final int SEGMENT_COUNT = 1000;
     private static final int OFFSET_COUNT = 10000;
     private static final long OFFSET_MULTIPLIER = 1024 * 1024;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the Serialization of CacheKey.

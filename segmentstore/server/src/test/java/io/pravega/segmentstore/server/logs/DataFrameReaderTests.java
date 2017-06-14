@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import lombok.val;
@@ -48,7 +47,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
     private static final int FRAME_SIZE = 512;
 
     @Rule
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     /**
      * Tests the happy case: DataFrameReader can read from a DataLog when the are no exceptions.
