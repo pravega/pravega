@@ -81,8 +81,6 @@ services:
     command: segmentstore
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
-      ENABLE_HDFS: "true"
-      ENABLE_NFS: "false"
       HDFS_REPLICATION: 1
       HDFS_URL: ${HOST_IP}:8020
       ZK_URL: zookeeper:2181
