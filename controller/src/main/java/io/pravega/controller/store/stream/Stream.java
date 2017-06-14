@@ -135,6 +135,13 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
+     * Returns the currently active stream epoch.
+     * @param epoch epoch number
+     * @return currently active stream epoch.
+     */
+    CompletableFuture<List<Integer>> getActiveSegments(int epoch);
+
+    /**
      * Called to start metadata updates to stream store wrt new scale event.
      *
      * @param newRanges      key ranges of new segments to be created
@@ -296,13 +303,6 @@ interface Stream {
      * @return latest stream epoch.
      */
     CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
-
-    /**
-     * Returns the currently active stream epoch.
-     * @param epoch epoch number
-     * @return currently active stream epoch.
-     */
-    CompletableFuture<List<Integer>> getSegmentsInEpoch(int epoch);
 
     /**
      * Returns the currently active stream epoch.

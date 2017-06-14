@@ -293,6 +293,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         historyTable.getData())));
     }
 
+    @Override
+    public CompletableFuture<List<Integer>> getActiveSegments(final int epoch) {
+        return getHistoryTable().thenApply(table -> TableHelper.getSegmentsInEpoch(table.getData(), epoch));
+    }
+
     /**
      * Scale and create are two tasks where we update the table. For scale to be legitimate, it has to be
      * preceded by create. Which means all appropriate tables exist.
@@ -693,11 +698,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch() {
         return getHistoryTable().thenApply(table -> TableHelper.getLatestEpoch(table.getData()));
-    }
-
-    @Override
-    public CompletableFuture<List<Integer>> getSegmentsInEpoch(int epoch) {
-        return getHistoryTable().thenApply(table -> TableHelper.getSegmentsInEpoch(table.getData(), epoch));
     }
 
     @Override

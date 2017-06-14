@@ -297,6 +297,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<List<Integer>> getActiveSegments(final String scope,
+                                                              final String stream,
+                                                              final int epoch,
+                                                              final OperationContext context,
+                                                              final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getActiveSegments(epoch), executor);
+    }
+
+    @Override
     public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
                                                                         final int segmentNumber, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
@@ -505,15 +514,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name,
                                                                    final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).getScaleMetadata(), executor);
-    }
-
-    @Override
-    public CompletableFuture<List<Integer>> getSegmentsInEpoch(final String scope,
-                                                               final String stream,
-                                                               final int epoch,
-                                                               final OperationContext context,
-                                                               final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getSegmentsInEpoch(epoch), executor);
     }
 
     @Override

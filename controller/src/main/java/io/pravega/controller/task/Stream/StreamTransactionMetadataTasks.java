@@ -224,7 +224,7 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         UUID txnId = UUID.randomUUID();
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                 scaleGracePeriod, ctx, executor)
-                .thenComposeAsync(txData -> streamMetadataStore.getSegmentsInEpoch(scope, stream, txData.getEpoch(), ctx, executor)
+                .thenComposeAsync(txData -> streamMetadataStore.getActiveSegments(scope, stream, txData.getEpoch(), ctx, executor)
                         .thenComposeAsync(segmentNumbers -> notifyTxnCreation(scope, stream, segmentNumbers, txnId)
                                 .thenComposeAsync(v -> FutureHelpers.allOfWithResults(segmentNumbers.stream()
                                         .map(s -> streamMetadataStore.getSegment(scope, stream, s, ctx, executor))

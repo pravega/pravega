@@ -234,6 +234,23 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
+     * Returns the segments in the epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param epoch    epoch.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     */
+    CompletableFuture<List<Integer>> getActiveSegments(final String scope,
+                                                       final String stream,
+                                                       final int epoch,
+                                                       final OperationContext context,
+                                                       final Executor executor);
+
+
+    /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
      * mapped to a list of the segments they succeed.
      *
@@ -452,22 +469,6 @@ public interface StreamMetadataStore {
      * @return map of txId to TxRecord
      */
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
-
-    /**
-     * Returns the segments in the epoch of the specified stream.
-     *
-     * @param scope    scope.
-     * @param stream   stream.
-     * @param epoch    epoch.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
-     */
-    CompletableFuture<List<Integer>> getSegmentsInEpoch(final String scope,
-                                                        final String stream,
-                                                        final int epoch,
-                                                        final OperationContext context,
-                                                        final Executor executor);
 
     /**
      * Returns the currently active epoch of the specified stream.
