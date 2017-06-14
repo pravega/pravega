@@ -60,16 +60,12 @@ public class TxnSweeper {
         this.executor = executor;
     }
 
-    public boolean isReady() {
-        return transactionMetadataTasks.isReady();
-    }
-
     public void awaitInitialization() throws InterruptedException {
         transactionMetadataTasks.awaitInitialization();
     }
 
     public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {
-        if (!isReady()) {
+        if (!transactionMetadataTasks.isReady()) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         CompletableFuture<Set<String>> hostsOwningTxns = withRetriesAsync(streamMetadataStore::listHostsOwningTxn,
@@ -82,7 +78,7 @@ public class TxnSweeper {
     }
 
     public CompletableFuture<Void> sweepOrphanedTxns(String failedHost) {
-        if (!isReady()) {
+        if (!transactionMetadataTasks.isReady()) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         log.info("Host={}, sweeping orphaned transactions", failedHost);

@@ -130,7 +130,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         readyLatch.countDown();
     }
 
-    public boolean isReady() {
+    boolean isReady() {
         return ready;
     }
 
