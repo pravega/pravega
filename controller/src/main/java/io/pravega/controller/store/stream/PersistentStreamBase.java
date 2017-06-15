@@ -486,67 +486,51 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) {
-        CompletableFuture<TxnStatus> future = verifyLegalState(checkTransactionStatus(epoch, txId).thenApply(x -> {
-                    switch (x) {
-                        // Only sealed transactions can be committed
-                        case COMMITTED:
-                        case COMMITTING:
-                            return x;
-                        case OPEN:
-                        case ABORTING:
-                        case ABORTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
-                        case UNKNOWN:
-                        default:
-                            throw new TransactionNotFoundException(txId.toString());
-                    }
-                })
-                .thenCompose(x -> {
-                    if (x.equals(TxnStatus.COMMITTING)) {
-                        return createCompletedTxEntry(txId, TxnStatus.COMMITTED, System.currentTimeMillis());
-                    } else {
-                        return CompletableFuture.completedFuture(null); // already committed, do nothing
-                    }
-                })
-                .thenCompose(x -> removeActiveTxEntry(epoch, txId))
-                .thenApply(x -> TxnStatus.COMMITTED))
-                .exceptionally(this::handleDataNotFoundException);
-
-        return future.thenCompose(status -> status == TxnStatus.UNKNOWN ?
-                validateCompletedTxn(txId, true, "commit") :
-                CompletableFuture.completedFuture(status));
+        return verifyLegalState(checkTransactionStatus(epoch, txId).thenApply(x -> {
+            switch (x) {
+                // Only sealed transactions can be committed
+                case COMMITTED:
+                case COMMITTING:
+                    return x;
+                case OPEN:
+                case ABORTING:
+                case ABORTED:
+                    throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
+                case UNKNOWN:
+                default:
+                    throw new TransactionNotFoundException(txId.toString());
+            }
+        }).thenCompose(x -> {
+            if (x.equals(TxnStatus.COMMITTING)) {
+                return createCompletedTxEntry(txId, TxnStatus.COMMITTED, System.currentTimeMillis());
+            } else {
+                return CompletableFuture.completedFuture(null); // already committed, do nothing
+            }
+        }).thenCompose(x -> removeActiveTxEntry(epoch, txId)).thenApply(x -> TxnStatus.COMMITTED));
     }
 
     @Override
     public CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) {
-        CompletableFuture<TxnStatus> future = verifyLegalState(checkTransactionStatus(txId).thenApply(x -> {
-                    switch (x) {
-                        case ABORTING:
-                        case ABORTED:
-                            return x;
-                        case OPEN:
-                        case COMMITTING:
-                        case COMMITTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "abort");
-                        case UNKNOWN:
-                        default:
-                            throw new TransactionNotFoundException(txId.toString());
-                    }
-                })
-                .thenCompose(x -> {
-                    if (x.equals(TxnStatus.ABORTING)) {
-                        return createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis());
-                    } else {
-                        return CompletableFuture.completedFuture(null); // already aborted, do nothing
-                    }
-                })
-                .thenCompose(y -> removeActiveTxEntry(epoch, txId))
-                .thenApply(y -> TxnStatus.ABORTED))
-                .exceptionally(this::handleDataNotFoundException);
-
-        return future.thenCompose(status -> status == TxnStatus.UNKNOWN ?
-                validateCompletedTxn(txId, false, "abort") :
-                CompletableFuture.completedFuture(status));
+        return verifyLegalState(checkTransactionStatus(txId).thenApply(x -> {
+            switch (x) {
+                case ABORTING:
+                case ABORTED:
+                    return x;
+                case OPEN:
+                case COMMITTING:
+                case COMMITTED:
+                    throw new OperationOnTxNotAllowedException(txId.toString(), "abort");
+                case UNKNOWN:
+                default:
+                    throw new TransactionNotFoundException(txId.toString());
+            }
+        }).thenCompose(x -> {
+            if (x.equals(TxnStatus.ABORTING)) {
+                return createCompletedTxEntry(txId, TxnStatus.ABORTED, System.currentTimeMillis());
+            } else {
+                return CompletableFuture.completedFuture(null); // already aborted, do nothing
+            }
+        }).thenCompose(y -> removeActiveTxEntry(epoch, txId)).thenApply(y -> TxnStatus.ABORTED));
     }
 
     @SneakyThrows

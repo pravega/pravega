@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * cluster, it does the following things.
  * 1. Try to complete the orphaned tasks running on the failed controller instance,
  * 2. Try to notify the commit and abort reader group about the loss of readers from failed controller instance, and
- * 2. Try to sweep transactions being tracked by the failed controller instance.
+ * 3. Try to sweep transactions being tracked by the failed controller instance.
  *
  */
 @Slf4j
