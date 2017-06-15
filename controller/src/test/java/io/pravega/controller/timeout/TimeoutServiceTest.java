@@ -322,6 +322,7 @@ public class TimeoutServiceTest {
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
+        // 3 * LEASE > MAX_EXECUTION_TIME
         PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), 3 * LEASE);
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
@@ -338,6 +339,7 @@ public class TimeoutServiceTest {
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
 
+        // 3 * LEASE > MAX_EXECUTION_TIME
         PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, 3 * LEASE).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
