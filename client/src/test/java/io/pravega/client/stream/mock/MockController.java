@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -409,6 +410,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    public CompletableFuture<Long> getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+        throw new NotImplementedException();
     }
 
 }

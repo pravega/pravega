@@ -19,7 +19,9 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupMetrics;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
@@ -31,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,7 +49,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @Slf4j
 @Data
-public class ReaderGroupImpl implements ReaderGroup {
+public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private final String scope;
     private final String groupName;
@@ -147,6 +150,24 @@ public class ReaderGroupImpl implements ReaderGroup {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
+    }
+
+    @Override
+    public ReaderGroupMetrics getMetrics() {
+        return this;
+    }
+
+    @Override
+    public long unreadBytes() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
+        long totalLength = 0;
+        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
+            Checkpoint checkpoint = new CheckpointImpl(streamPosition.getKey().getScopedName(), streamPosition.getValue());
+            totalLength += FutureHelpers.getThrowingException(controller.getRemainingBytes(streamPosition.getKey(), checkpoint));
+        }
+        return totalLength;
     }
 
 }

@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -34,6 +35,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.commons.lang.NotImplementedException;
 
 public class LocalController implements Controller {
 
@@ -268,5 +270,10 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+    }
+
+    @Override
+    public CompletableFuture<Long> getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+        throw new NotImplementedException();
     }
 }

@@ -14,7 +14,12 @@ import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
@@ -50,14 +55,18 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
+import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -613,5 +622,34 @@ public class ControllerImpl implements Controller {
         public CompletableFuture<T> getFuture() {
             return future;
         }
+    }
+
+    @Override
+    public CompletableFuture<Long> getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+        CheckpointImpl cp = checkpoint.asImpl();
+        HashSet<Segment> unread = new HashSet<>(cp.getPositions().keySet());
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cp.getPositions().keySet());
+        CompletableFuture<StreamSegments> currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());            
+        unread.addAll(FutureHelpers.getThrowingException(currentSegments).getSegments());    
+        while (!toFetchSuccessors.isEmpty()) {
+            Segment segment = toFetchSuccessors.remove();
+            Set<Segment> successors = FutureHelpers.getThrowingException(getSuccessors(segment)).getSegmentToPredecessor().keySet();
+            for (Segment successor : successors) {
+                if (!unread.contains(successor)) {
+                    unread.add(successor);
+                    toFetchSuccessors.add(successor);
+                }
+            }
+        }
+        @Cleanup
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(this, connectionFactory);
+        long totalLength = 0;
+        for (Segment s : unread) {
+            @Cleanup
+            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
+            totalLength += metadataClient.fetchCurrentStreamLength();
+        }
+        return CompletableFuture.completedFuture(totalLength);
     }
 }
