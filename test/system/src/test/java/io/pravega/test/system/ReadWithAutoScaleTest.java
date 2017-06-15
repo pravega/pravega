@@ -207,6 +207,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 .whenComplete((r, e) -> {
                     recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
                 }), RuntimeException::new);
+        readerGroupManager.deleteReaderGroup(READER_GROUP_NAME);
     }
 
     //Helper methods

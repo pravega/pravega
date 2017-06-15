@@ -15,6 +15,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -299,10 +300,10 @@ public class ControllerImpl implements Controller {
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
             case SCOPE_NOT_FOUND:
                 log.warn("Scope not found: {}", scope);
-                throw new IllegalArgumentException("Scope does not exist: " + scope);
+                throw new InvalidStreamException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
                 log.warn("Stream does not exist: {}", streamName);
-                throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                throw new InvalidStreamException("Stream does not exist: " + streamName);
             case SUCCESS:
                 log.info("Successfully sealed stream: {}", streamName);
                 return true;

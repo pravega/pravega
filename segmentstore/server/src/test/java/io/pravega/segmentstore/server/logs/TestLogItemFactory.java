@@ -17,10 +17,10 @@ import java.io.InputStream;
 /**
  * LogItemFactory for TestLogItem.
  */
-public class TestLogItemFactory implements LogItemFactory<TestLogItem> {
+class TestLogItemFactory implements LogItemFactory<TestLogItem> {
     private ErrorInjector<SerializationException> deserializationErrorInjector;
 
-    public void setDeserializationErrorInjector(ErrorInjector<SerializationException> injector) {
+    void setDeserializationErrorInjector(ErrorInjector<SerializationException> injector) {
         this.deserializationErrorInjector = injector;
     }
 

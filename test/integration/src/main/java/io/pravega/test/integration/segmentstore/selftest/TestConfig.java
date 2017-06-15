@@ -14,7 +14,6 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -34,6 +33,9 @@ class TestConfig {
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<Boolean> VERBOSE_LOGGING = Property.named("verboseLogging", false);
     static final Property<Integer> DATA_LOG_APPEND_DELAY = Property.named("dataLogAppendDelayMillis", 0);
+    static final Property<Boolean> USE_BOOKKEEPER = Property.named("useBk", false);
+    static final Property<Integer> ZK_PORT = Property.named("zkPort", 9001);
+    static final Property<Integer> BK_PORT = Property.named("bkPort", 9002);
     static final Property<Boolean> USE_CLIENT = Property.named("useClient", false);
     static final Property<Integer> CLIENT_PORT = Property.named("clientPort", 9876);
     static final Property<Boolean> CLIENT_AUTO_FLUSH = Property.named("clientAutoFlush", true);
@@ -67,6 +69,12 @@ class TestConfig {
     @Getter
     private Duration dataLogAppendDelay;
     @Getter
+    private boolean useBookKeeper;
+    @Getter
+    private int bkPort;
+    @Getter
+    private int zkPort;
+    @Getter
     private boolean useClient;
     @Getter
     private int clientPort;
@@ -96,6 +104,9 @@ class TestConfig {
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.verboseLoggingEnabled = properties.getBoolean(VERBOSE_LOGGING);
         this.dataLogAppendDelay = Duration.ofMillis(properties.getInt(DATA_LOG_APPEND_DELAY));
+        this.useBookKeeper = properties.getBoolean(USE_BOOKKEEPER);
+        this.bkPort = properties.getInt(BK_PORT);
+        this.zkPort = properties.getInt(ZK_PORT);
         this.useClient = properties.getBoolean(USE_CLIENT);
         this.clientPort = properties.getInt(CLIENT_PORT);
         this.clientAutoFlush = properties.getBoolean(CLIENT_AUTO_FLUSH);

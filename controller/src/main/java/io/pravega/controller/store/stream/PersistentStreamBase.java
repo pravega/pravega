@@ -409,14 +409,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
             }
             return ActiveTxnRecord.parse(ok.getData()).getTxnStatus();
         });
-
-        return verifyLegalState(activeTx.thenCompose(x -> {
+        val result = activeTx.thenCompose(x -> {
             if (x.equals(TxnStatus.UNKNOWN)) {
                 return getCompletedTxnStatus(txId);
             } else {
                 return CompletableFuture.completedFuture(x);
             }
-        }));
+        });
+        return verifyLegalState(result);
     }
 
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId) {

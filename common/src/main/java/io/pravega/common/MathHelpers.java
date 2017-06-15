@@ -30,4 +30,9 @@ public class MathHelpers {
         Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
         return Math.max(Math.min(value, max), min);
     }
+
+    public static double minMax(double value, double min, double max) {
+        Preconditions.checkArgument(min <= max, "min must be less than or equal to max");
+        return Math.max(Math.min(value, max), min);
+    }
 }

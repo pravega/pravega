@@ -14,11 +14,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.util.Random;
-
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ReadOperation class.
@@ -28,11 +29,13 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
     private static final int FILE_COUNT = 10;
     private static final int WRITES_PER_FILE = 10;
     private static final int WRITE_SIZE = 100;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests a read scenario with no issues or failures.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testNormalRead() throws Exception {
         // Write data.
         val rnd = new Random(0);
@@ -73,7 +76,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the handle has become stale and needs refreshing (triggered by call to offset+length beyond
      * current known limits).
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testRefreshHandleOffset() throws Exception {
         val rnd = new Random(0);
         @Cleanup
@@ -115,7 +118,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the handle has become stale due to the segment having been compacted externally. The read operation
      * should refresh the handle and continue working as expected.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testRefreshHandleMissingFile() throws Exception {
         val rnd = new Random(0);
         @Cleanup

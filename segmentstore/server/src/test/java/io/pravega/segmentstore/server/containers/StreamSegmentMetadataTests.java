@@ -10,8 +10,8 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.ImmutableDate;
-import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Map;
@@ -19,7 +19,9 @@ import java.util.Random;
 import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for StreamSegmentMetadata class.
@@ -30,6 +32,8 @@ public class StreamSegmentMetadataTests {
     private static final long PARENT_SEGMENT_ID = 2;
     private static final int CONTAINER_ID = 1234567;
     private static final int ATTRIBUTE_COUNT = 100;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests that Attributes are properly recorded and updated
