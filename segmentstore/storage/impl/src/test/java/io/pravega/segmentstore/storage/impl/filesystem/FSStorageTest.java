@@ -265,9 +265,9 @@ public class FSStorageTest extends StorageTestBase {
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return FileSystemSegmentHandle.getReadHandle(segmentName);
+            return FileSystemSegmentHandle.readHandle(segmentName);
         } else {
-            return FileSystemSegmentHandle.getWriteHandle(segmentName);
+            return FileSystemSegmentHandle.writeHandle(segmentName);
         }
     }
 

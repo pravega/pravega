@@ -70,7 +70,6 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * current owner. Once the earlier owner received this notification from Tier 1, it stops writing to the segment.
  *
  */
-
 @Slf4j
 public class FileSystemStorage implements Storage {
 
@@ -185,7 +184,7 @@ public class FileSystemStorage implements Storage {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         }
 
-        return FileSystemSegmentHandle.getReadHandle(streamSegmentName);
+        return FileSystemSegmentHandle.readHandle(streamSegmentName);
     }
 
     @SneakyThrows
@@ -194,9 +193,9 @@ public class FileSystemStorage implements Storage {
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
-            return FileSystemSegmentHandle.getWriteHandle(streamSegmentName);
+            return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
-                return openRead(streamSegmentName).get();
+            return openRead(streamSegmentName).get();
         }
     }
 
@@ -205,11 +204,11 @@ public class FileSystemStorage implements Storage {
 
         Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
-            if (Files.size(path) < offset) {
-                log.warn("Read called on segment {} at offset {}. The offset is beyond the current size of the file.",
-                        handle.getSegmentName(), offset);
-                throw new IllegalArgumentException( "Reading beyond the current size of segment");
-            }
+        long fileSize = Files.size(path);
+        if (fileSize < offset) {
+            throw new IllegalArgumentException( String.format( "Reading at offset (%d) which is beyond the " +
+                    "current size of segment (%d).", offset, fileSize));
+        }
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
@@ -219,50 +218,49 @@ public class FileSystemStorage implements Storage {
 
     @SneakyThrows(IOException.class)
     private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) {
-            PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getFilesystemRoot(), streamSegmentName),
-                    PosixFileAttributes.class);
-            StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
-                    !(attrs.permissions().contains(OWNER_WRITE)), false,
-                    new ImmutableDate(attrs.creationTime().toMillis()));
+        PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getFilesystemRoot(), streamSegmentName),
+                PosixFileAttributes.class);
+        StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
+                !(attrs.permissions().contains(OWNER_WRITE)), false,
+                new ImmutableDate(attrs.creationTime().toMillis()));
 
-            return information;
+        return information;
     }
 
     private boolean syncExists(String streamSegmentName) {
-        boolean exists = Files.exists(Paths.get(config.getFilesystemRoot(), streamSegmentName));
-        return exists;
+        return Files.exists(Paths.get(config.getFilesystemRoot(), streamSegmentName));
     }
 
     @SneakyThrows
     private SegmentProperties syncCreate(String streamSegmentName) {
         log.info("Creating Segment {}", streamSegmentName);
-            Set<PosixFilePermission> perms = new HashSet<>();
-            // add permission as rw-r--r-- 644
-            perms.add(PosixFilePermission.OWNER_WRITE);
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
+        Set<PosixFilePermission> perms = new HashSet<>();
+        // add permission as rw-r--r-- 644
+        perms.add(PosixFilePermission.OWNER_WRITE);
+        perms.add(PosixFilePermission.OWNER_READ);
+        perms.add(PosixFilePermission.GROUP_READ);
+        perms.add(PosixFilePermission.OTHERS_READ);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
 
-            Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
-            Files.createDirectories(path.getParent());
-            Files.createFile(path, fileAttributes);
-            log.info("Created Segment {}", streamSegmentName);
-            return this.getStreamSegmentInfo(streamSegmentName, null).get();
+        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
+        Files.createDirectories(path.getParent());
+        Files.createFile(path, fileAttributes);
+        log.info("Created Segment {}", streamSegmentName);
+        return this.syncGetStreamSegmentInfo(streamSegmentName);
     }
 
     @SneakyThrows
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
-        log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
-        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
         if (handle.isReadOnly()) {
-            log.warn("Write called on a readonly handle of segment {}", handle.getSegmentName());
             throw new IllegalArgumentException("Write called on a readonly handle of segment "
                     + handle.getSegmentName());
         }
 
-        //Fix for Jenkins as Jenkins runs as super user privileges.
+        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
+
+        //Fix for Jenkins as Jenkins runs as super user privileges. Jenkins runs with root privileges which means
+        // that writes to readonly files also succeed. We need to explicitly check permissions in this case.
         if ( !isWritableFile(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
@@ -271,8 +269,8 @@ public class FileSystemStorage implements Storage {
         if (fileSize < offset) {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
-            try (FileChannel channel = FileChannel.open(path,
-                    StandardOpenOption.WRITE); ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
+                 ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
                 while (length != 0) {
                     long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
                     offset += bytesWritten;
@@ -284,27 +282,23 @@ public class FileSystemStorage implements Storage {
     }
 
     private boolean isWritableFile(Path path) throws IOException {
-        PosixFileAttributes attrs = null;
-            attrs = Files.readAttributes(path,
-                    PosixFileAttributes.class);
-            return attrs.permissions().contains(OWNER_WRITE);
+        PosixFileAttributes attrs = Files.readAttributes(path, PosixFileAttributes.class);
+        return attrs.permissions().contains(OWNER_WRITE);
     }
 
     @SneakyThrows
     private Void syncSeal(SegmentHandle handle) {
-
         if (handle.isReadOnly()) {
-            log.info("Seal called on a read handle for segment {}", handle.getSegmentName());
             throw new IllegalArgumentException(handle.getSegmentName());
         }
-            Set<PosixFilePermission> perms = new HashSet<>();
-            // add permission as r--r--r-- 444
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            Files.setPosixFilePermissions(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()), perms);
-            log.info("Successfully sealed segment {}", handle.getSegmentName());
-            return null;
+
+        Set<PosixFilePermission> perms = new HashSet<>();
+        // add permission as r--r--r-- 444
+        perms.add(PosixFilePermission.OWNER_READ);
+        perms.add(PosixFilePermission.GROUP_READ);
+        perms.add(PosixFilePermission.OTHERS_READ);
+        Files.setPosixFilePermissions(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()), perms);
+        return null;
     }
 
     @SneakyThrows(IOException.class)
@@ -316,19 +310,24 @@ public class FileSystemStorage implements Storage {
         try (FileChannel targetChannel = (FileChannel) Files.newByteChannel(targetPath, EnumSet.of(StandardOpenOption.APPEND));
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
             if (isWritableFile(sourcePath)) {
-                throw new IllegalStateException(sourceSegment);
+                throw new IllegalStateException( String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
-
-            targetChannel.transferFrom(sourceFile.getChannel(), offset, sourceFile.length());
-            Files.delete(Paths.get(config.getFilesystemRoot(), sourceSegment));
+            long length = sourceFile.length();
+            while ( length > 0 ) {
+                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(),
+                        offset, length);
+                offset += bytesTransferred;
+                length -= bytesTransferred;
+            }
+            Files.delete(sourcePath);
             return null;
         }
     }
 
     @SneakyThrows(IOException.class)
     private Void syncDelete(SegmentHandle handle) {
-            Files.delete(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()));
-            return null;
+        Files.delete(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()));
+        return null;
     }
 
     /**
@@ -339,7 +338,7 @@ public class FileSystemStorage implements Storage {
         this.executor.execute(() -> {
             try {
                 result.complete(operation.get());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 handleException(e, segmentName, result);
             }
         });
@@ -347,21 +346,21 @@ public class FileSystemStorage implements Storage {
         return result;
     }
 
-    private <R> void handleException(Exception e, String segmentName, CompletableFuture<R> result) {
-        result.completeExceptionally( translateException(segmentName, e));
+    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
+        result.completeExceptionally(translateException(segmentName, e));
     }
 
-    private Exception translateException(String segmentName, Exception e) {
-        Exception retVal = e;
+    private Throwable translateException(String segmentName, Throwable e) {
+        Throwable retVal = e;
         if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
-                retVal = new StreamSegmentNotExistsException(segmentName);
+            retVal = new StreamSegmentNotExistsException(segmentName);
         }
 
-        if ( e instanceof FileAlreadyExistsException) {
+        if (e instanceof FileAlreadyExistsException) {
             retVal = new StreamSegmentExistsException(segmentName);
         }
 
-        if ( e instanceof IndexOutOfBoundsException) {
+        if (e instanceof IndexOutOfBoundsException) {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 

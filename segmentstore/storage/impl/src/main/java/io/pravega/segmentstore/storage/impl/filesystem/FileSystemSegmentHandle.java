@@ -9,14 +9,23 @@
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.SegmentHandle;
 
+/**
+ * Handle for FileSystem.
+ */
 public class FileSystemSegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
+    /**
+     * Creates a new instance of FileSystem segment handle.
+     * @param streamSegmentName Name of the segment.
+     * @param isReadOnly  Whether the segment is read only or not.
+     */
     public FileSystemSegmentHandle(String streamSegmentName, boolean isReadOnly) {
-        this.segmentName = streamSegmentName;
+        this.segmentName = Preconditions.checkNotNull(streamSegmentName, "segmentName");
         this.isReadOnly = isReadOnly;
     }
 
@@ -30,11 +39,11 @@ public class FileSystemSegmentHandle implements SegmentHandle {
         return isReadOnly;
     }
 
-    public static FileSystemSegmentHandle getReadHandle(String streamSegmentName) {
+    public static FileSystemSegmentHandle readHandle(String streamSegmentName) {
         return new FileSystemSegmentHandle(streamSegmentName, true);
     }
 
-    public static FileSystemSegmentHandle getWriteHandle(String streamSegmentName) {
+    public static FileSystemSegmentHandle writeHandle(String streamSegmentName) {
         return new FileSystemSegmentHandle(streamSegmentName, false);
     }
 }

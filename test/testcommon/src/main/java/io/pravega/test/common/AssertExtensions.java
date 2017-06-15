@@ -330,7 +330,6 @@ public class AssertExtensions {
             return false;
         } catch (CompletionException ex) {
             if (!tester.test(getRealException(ex))) {
-                ex.printStackTrace();
                 Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
             }
             return true;
