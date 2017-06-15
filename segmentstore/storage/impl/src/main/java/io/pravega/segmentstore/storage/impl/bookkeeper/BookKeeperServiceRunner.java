@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -54,15 +53,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     public void close() throws Exception {
         try {
             for (BookieServer bs : this.servers) {
-                try {
-                    bs.shutdown();
-                } catch (Throwable ex) {
-                    if (ExceptionHelpers.mustRethrow(ex)) {
-                        throw ex;
-                    }
-
-                    log.warn("Could not properly shut down a BookieServer. ", ex);
-                }
+                bs.shutdown();
             }
 
             if (this.zkServer.get() != null) {
