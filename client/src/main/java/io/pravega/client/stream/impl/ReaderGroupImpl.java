@@ -163,9 +163,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
         long totalLength = 0;
+        
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             Checkpoint checkpoint = new CheckpointImpl(streamPosition.getKey().getScopedName(), streamPosition.getValue());
-            totalLength += FutureHelpers.getThrowingException(controller.getRemainingBytes(streamPosition.getKey(), checkpoint));
+            totalLength += controller.getRemainingBytes(streamPosition.getKey(), checkpoint);
         }
         return totalLength;
     }

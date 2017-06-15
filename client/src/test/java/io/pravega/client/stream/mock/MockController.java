@@ -413,7 +413,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Long> getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+    public long getRemainingBytes(Stream stream, Checkpoint checkpoint) {
         throw new NotImplementedException();
     }
 

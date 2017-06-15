@@ -223,6 +223,7 @@ public interface Controller {
     
     /**
      * Returns the total number of bytes from the provided positions until the stream.
+     * TODO: Make this API asynchronous.
      * 
      * @param stream The stream being queried.  
      * @param checkpoint A set of segment/offset pairs for a single stream that represent a
@@ -231,6 +232,6 @@ public interface Controller {
      *            then other segments covering the range 0.5-1.0 will also be included.)
      * @return The total number of bytes beyond the provided positions.
      */
-    CompletableFuture<Long> getRemainingBytes(Stream stream, final Checkpoint checkpoint);
+    long getRemainingBytes(Stream stream, final Checkpoint checkpoint);
 
 }

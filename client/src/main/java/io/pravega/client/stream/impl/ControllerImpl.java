@@ -624,13 +624,17 @@ public class ControllerImpl implements Controller {
         }
     }
 
+    /**
+     * TODO: This method is both synchronous and very inefficient.
+     * https://github.com/pravega/pravega/issues/1436 would fix this.
+     */
     @Override
-    public CompletableFuture<Long> getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+    public long getRemainingBytes(Stream stream, Checkpoint checkpoint) {
         CheckpointImpl cp = checkpoint.asImpl();
         HashSet<Segment> unread = new HashSet<>(cp.getPositions().keySet());
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cp.getPositions().keySet());
         CompletableFuture<StreamSegments> currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());            
-        unread.addAll(FutureHelpers.getThrowingException(currentSegments).getSegments());    
+        unread.addAll(FutureHelpers.getThrowingException(currentSegments).getSegments());
         while (!toFetchSuccessors.isEmpty()) {
             Segment segment = toFetchSuccessors.remove();
             Set<Segment> successors = FutureHelpers.getThrowingException(getSuccessors(segment)).getSegmentToPredecessor().keySet();
@@ -650,6 +654,6 @@ public class ControllerImpl implements Controller {
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
             totalLength += metadataClient.fetchCurrentStreamLength();
         }
-        return CompletableFuture.completedFuture(totalLength);
+        return totalLength;
     }
 }
