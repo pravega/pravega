@@ -190,9 +190,10 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
-                        "First write did not fail with the appropriate exception.",
+                        "Second write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof ObjectClosedException);
+                        ex -> ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
             } finally {
                 // Don't forget to resume the bookie.
                 resumeFirstBookie();
