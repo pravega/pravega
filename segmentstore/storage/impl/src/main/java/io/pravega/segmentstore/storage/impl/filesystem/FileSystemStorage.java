@@ -53,22 +53,25 @@ import java.util.function.Supplier;
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 /**
- * Storage adapter for file system based Tier 2.
+ * Storage adapter for file system based storage.
  *
  * Each segment is represented as a single file on the underlying storage.
  *
  * Approach to locking:
  *
- * This implementation works on the assumption is data written to Tier 2 is always written in append only fashion.
- * Once a piece of data is written it is never overwritten. With this assumption the only flow when a write call is
- * made to the same offset twice is when ownership of the segment changes from one host to another and both the hosts
- * are writing to it.
+ * This implementation works on the assumption is data written to the storage is always written in append only
+ * fashion. Once a piece of data is written it is never overwritten. Each block of data has an offset assigned to it
+ * and Pravega always tries to write the same data to the same offset.
+ *
+ * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
+ * segment changes from one host to another and both the hosts are writing to it.
+ *
  * As write to an offset to a file is idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), locking is not required.
  *
  * In the absence of locking this is the expected behavior in case of ownership change: both the hosts will keep
  * writing the same data at the same offset till the time the earlier owner gets a notification that it is not the
- * current owner. Once the earlier owner received this notification from Tier 1, it stops writing to the segment.
+ * current owner. Once the earlier owner received this notification, it stops writing to the segment.
  *
  */
 @Slf4j
