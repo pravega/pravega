@@ -34,25 +34,22 @@ public interface SegmentOutputStream extends AutoCloseable {
      * The associated callback will be invoked when the operation is complete.
      * 
      * @param event The event to be added to the segment.
-     * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    public abstract void write(PendingEvent event) throws SegmentSealedException;
+    public abstract void write(PendingEvent event);
 
     /**
      * Flushes and then closes the output stream.
      * Frees any resources associated with it.
      *
-     * @throws SegmentSealedException If the segment is closed for modifications.
      */
     @Override
-    public abstract void close() throws SegmentSealedException;
+    public abstract void close();
 
     /**
      * Block on all writes that have not yet completed.
      *
-     * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    public abstract void flush() throws SegmentSealedException;
+    public abstract void flush();
 
     /**
      * Returns a collection of all the events that have been passed to write but have not yet been

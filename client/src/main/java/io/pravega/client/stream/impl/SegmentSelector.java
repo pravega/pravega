@@ -12,7 +12,6 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
-import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.FutureHelpers;
 import java.util.ArrayList;
@@ -111,11 +110,7 @@ public class SegmentSelector {
             if (!currentSegments.getSegments().contains(entry.getKey())) {
                 SegmentOutputStream writer = entry.getValue();
                 iter.remove();
-                try {
-                    writer.close();
-                } catch (SegmentSealedException e) {
-                    log.info("Caught segment sealed while refreshing on segment {}", entry.getKey());
-                }
+                writer.close();
                 toResend.addAll(writer.getUnackedEvents());
             }
         }

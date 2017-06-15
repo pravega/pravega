@@ -91,7 +91,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 UUID.randomUUID(), segmentSealedCallback);
         try {
             result.getConnection();
-        } catch (RetriesExhaustedException | SegmentSealedException e) {
+        } catch (RetriesExhaustedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;

@@ -14,7 +14,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
@@ -55,15 +54,12 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long offset = latestRevision.asImpl().getOffsetInSegment();
         ByteBuffer serialized = serializer.serialize(value);
         int size = serialized.remaining();
-        try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
-            synchronized (lock) {
-                out.write(event);
-                out.flush();
-            }
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
+        PendingEvent event = new PendingEvent(null, serialized, wasWritten, offset);
+        synchronized (lock) {
+            out.write(event);
+            out.flush();
         }
+
         if (FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
             long newOffset = getNewOffset(offset, size);
             log.trace("Wrote from {} to {}", offset, newOffset);
@@ -82,16 +78,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public void writeUnconditionally(T value) {
         CompletableFuture<Boolean> wasWritten = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
-        try {
-            PendingEvent event = new PendingEvent(null, serialized, wasWritten);
-            log.trace("Unconditionally writing: {}", value);
-            synchronized (lock) {
-                out.write(event);
-                out.flush();
-            }
-        } catch (SegmentSealedException e) {
-            throw new CorruptedStateException("Unexpected end of segment ", e);
+        PendingEvent event = new PendingEvent(null, serialized, wasWritten);
+        log.trace("Unconditionally writing: {}", value);
+        synchronized (lock) {
+            out.write(event);
+            out.flush();
         }
+
         FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
     }
 
