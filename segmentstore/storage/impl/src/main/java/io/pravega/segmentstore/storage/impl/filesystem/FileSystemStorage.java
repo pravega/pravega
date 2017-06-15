@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -178,29 +179,35 @@ public class FileSystemStorage implements Storage {
 
     @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenRead(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
 
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         }
 
+        LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
         return FileSystemSegmentHandle.readHandle(streamSegmentName);
     }
 
     @SneakyThrows
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
+            LoggerHelpers.traceLeave(log, "openRead", traceId);
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
+            LoggerHelpers.traceLeave(log, "openWrite", traceId);
             return openRead(streamSegmentName).get();
         }
     }
 
     @SneakyThrows(IOException.class)
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
+        long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
         Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
@@ -212,18 +219,21 @@ public class FileSystemStorage implements Storage {
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
+            LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
     }
 
     @SneakyThrows(IOException.class)
     private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getFilesystemRoot(), streamSegmentName),
                 PosixFileAttributes.class);
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
                 !(attrs.permissions().contains(OWNER_WRITE)), false,
                 new ImmutableDate(attrs.creationTime().toMillis()));
 
+        LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return information;
     }
 
@@ -233,6 +243,7 @@ public class FileSystemStorage implements Storage {
 
     @SneakyThrows
     private SegmentProperties syncCreate(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         log.info("Creating Segment {}", streamSegmentName);
         Set<PosixFilePermission> perms = new HashSet<>();
         // add permission as rw-r--r-- 644
@@ -245,12 +256,13 @@ public class FileSystemStorage implements Storage {
         Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
         Files.createDirectories(path.getParent());
         Files.createFile(path, fileAttributes);
-        log.info("Created Segment {}", streamSegmentName);
+        LoggerHelpers.traceLeave(log, "create", traceId);
         return this.syncGetStreamSegmentInfo(streamSegmentName);
     }
 
     @SneakyThrows
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
+        long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException("Write called on a readonly handle of segment "
@@ -277,6 +289,7 @@ public class FileSystemStorage implements Storage {
                     length -= bytesWritten;
                 }
             }
+            LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }
     }
@@ -288,6 +301,7 @@ public class FileSystemStorage implements Storage {
 
     @SneakyThrows
     private Void syncSeal(SegmentHandle handle) {
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
@@ -298,11 +312,14 @@ public class FileSystemStorage implements Storage {
         perms.add(PosixFilePermission.GROUP_READ);
         perms.add(PosixFilePermission.OTHERS_READ);
         Files.setPosixFilePermissions(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()), perms);
+        LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     @SneakyThrows(IOException.class)
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
+        long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
+                offset, sourceSegment);
 
         Path sourcePath = Paths.get(config.getFilesystemRoot(), sourceSegment);
         Path targetPath = Paths.get(config.getFilesystemRoot(), targetHandle.getSegmentName());
@@ -320,6 +337,7 @@ public class FileSystemStorage implements Storage {
                 length -= bytesTransferred;
             }
             Files.delete(sourcePath);
+            LoggerHelpers.traceLeave(log, "concat", traceId);
             return null;
         }
     }
