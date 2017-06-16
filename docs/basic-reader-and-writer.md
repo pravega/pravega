@@ -95,14 +95,14 @@ related to Scopes and Streams:
 |                 |                                                                   | A StreamConfiguration is built using a builder pattern                                                                                                               |
 |                 |                                                                   | Returns true if the Stream is created, returns false if the Stream already exists.                                                                                                               |
 |                 |                                                                   | You can call this method even if the Stream already exists, it won't harm anything.                                                                                                               |
-| alterStream     | (String scopeName, String streamName, StreamConfiguration config) | Swap out the Stream's configuration.                                                                           |
-|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you alter a nonexistent stream.                                                                                                               |
+| updateStream    | (String scopeName, String streamName, StreamConfiguration config) | Swap out the Stream's configuration.                                                                           |
+|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you update a nonexistent stream.                                                                                                              |
 |                 |                                                                   | Returns true if the Stream was changed                                                                                                               |
 | sealStream      | (String scopeName, String streamName)                             | Prevent any further writes to a Stream                                                                         |
-|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you alter a nonexistent stream.                                                                                                               |
+|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you seal a nonexistent stream.                                                                                                                |
 |                 |                                                                   | Returns true if the Stream is successfully sealed                                                                                                               |
 | deleteStream    | (String scopeName, String streamName)                             | Remove the Stream from Pravega and recover any resources used by that Stream                                   |
-|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you alter a nonexistent stream.                                                                                                               |
+|                 |                                                                   | Note the Stream must already exist, an exception is thrown if you delete a nonexistent stream.                                                                                                              |
 |                 |                                                                   | Returns true if the stream was deleted.                                                                                                               |
 
 After line 3 in the code is finished, we have established that the Scope exists,
@@ -142,7 +142,7 @@ Events or Kilobytes) is exceeded.  The minimum number of Segments is a factor
 that sets the minimum degree of read parallelism to be maintained; if this value
 is set at 3, for example, there will always be 3 Stream Segments available on
 the Stream.  Currently, this property is effective only when the stream is
-created; at some point in the future, alter stream will allow this factor to be
+created; at some point in the future, update stream will allow this factor to be
 used to change the minimum degree of read parallelism on an existing Stream.
 
 Once the StreamConfiguration object is created, creating the Stream is straight

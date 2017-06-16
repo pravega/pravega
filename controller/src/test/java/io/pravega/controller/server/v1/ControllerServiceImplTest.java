@@ -229,21 +229,21 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void alterStreamTests() {
+    public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1)
                 .scalingPolicy(ScalingPolicy.fixed(3)).build();
         ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.alterStream(ModelHelper.decode(configuration2), result2);
+        this.controllerService.updateStream(ModelHelper.decode(configuration2), result2);
         UpdateStreamStatus updateStreamStatus = result2.get();
         Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
 
-        // Alter stream for non-existent stream.
+        // Update stream for non-existent stream.
         ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(SCOPE1)
                 .streamName("unknownstream").scalingPolicy(ScalingPolicy.fixed(1)).build();
-        this.controllerService.alterStream(ModelHelper.decode(configuration3), result3);
+        this.controllerService.updateStream(ModelHelper.decode(configuration3), result3);
         updateStreamStatus = result3.get();
         Assert.assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
     }
