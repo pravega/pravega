@@ -195,15 +195,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         QueueStats stats = this.durableDataLog.getQueueStatistics();
 
         // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
-        // fill rates we don't want to wait too long.
-        double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
+        // fill ratios we don't want to wait too long.
+        double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
 
         // If the queue is below (or very close to) the max degree of parallelism, do our best to fill it up. Otherwise
         // the Fill Rate and the ExpectedProcessingTime will account for queue size as well.
-        double countRateAdj = stats.getSize() < stats.getMaxParallelism() ? 0.1 : 1;
+        double countRateAdj = stats.getSize() < stats.getEstimatedParallelism() ? 0.1 : 1;
 
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
+        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRatioAdj * countRateAdj);
         delayMillis = Math.min(delayMillis, 1000);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }

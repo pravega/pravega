@@ -33,7 +33,8 @@ class WriteQueue {
     //region Members
 
     private final Supplier<Long> timeSupplier;
-    private final int maxParallelism;
+    private final int baseParallelism;
+    private final int parallelismSpan;
     @GuardedBy("this")
     private final Deque<Write> writes;
     @GuardedBy("this")
@@ -50,22 +51,26 @@ class WriteQueue {
     /**
      * Creates a new instance of the WriteQueue class.
      *
+     * @param minParallelism The minimum number of items that can be processed at once.
      * @param maxParallelism The maximum number of items that can be processed at once.
      */
-    WriteQueue(int maxParallelism) {
-        this(maxParallelism, System::nanoTime);
+    WriteQueue(int minParallelism, int maxParallelism) {
+        this(minParallelism, maxParallelism, System::nanoTime);
     }
 
     /**
      * Creates a new instance of the WriteQueue class.
      *
+     * @param minParallelism The minimum number of items that can be processed at once.
      * @param maxParallelism The maximum number of items that can be processed at once.
      * @param timeSupplier   A Supplier that returns the current time, in nanoseconds.
      */
     @VisibleForTesting
-    WriteQueue(int maxParallelism, Supplier<Long> timeSupplier) {
+    WriteQueue(int minParallelism, int maxParallelism, Supplier<Long> timeSupplier) {
         this.timeSupplier = Preconditions.checkNotNull(timeSupplier, "timeSupplier");
-        this.maxParallelism = maxParallelism;
+        Preconditions.checkArgument(minParallelism <= maxParallelism, "minParallelism must be <= maxParallelism.");
+        this.baseParallelism = minParallelism;
+        this.parallelismSpan = maxParallelism - minParallelism;
         this.writes = new ArrayDeque<>();
     }
 
@@ -80,11 +85,7 @@ class WriteQueue {
      */
     synchronized QueueStats getStatistics() {
         int size = this.writes.size();
-        double fillRate = 0;
-        if (size > 0) {
-            fillRate = Math.min(1, (double) this.totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
-        }
-
+        double fillRatio = getFillRatio();
         int processingTime = this.lastDurationMillis;
         if (processingTime == 0 && size > 0) {
             // We get in here when this method is invoked prior to any operation being completed. Since lastDurationMillis
@@ -93,7 +94,8 @@ class WriteQueue {
             processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return new QueueStats(this.maxParallelism, size, fillRate, processingTime);
+        int parallelism = calculateParallelism(getFillRatio(), this.baseParallelism, this.parallelismSpan);
+        return new QueueStats(parallelism, size, fillRatio, processingTime);
     }
 
     /**
@@ -144,8 +146,9 @@ class WriteQueue {
         boolean canSkip = true;
 
         List<Write> result = new ArrayList<>();
+        final int maxParallelism = calculateParallelism(getFillRatio(), this.baseParallelism, this.parallelismSpan);
         for (Write write : this.writes) {
-            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= this.maxParallelism) {
+            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= maxParallelism) {
                 // Either reached the throttling limit or ledger max size limit.
                 // If we try to send too many writes to this ledger, the writes are likely to be rejected with
                 // LedgerClosedException and simply be retried again.
@@ -206,6 +209,38 @@ class WriteQueue {
     @Override
     public String toString() {
         return getStatistics().toString();
+    }
+
+    /**
+     * Calculates the WriteQueue's FillRatio, which is a number between [0, 1] that represents the average fill of each
+     * write with respect to the maximum BookKeeper write allowance.
+     */
+    @GuardedBy("this")
+    private double getFillRatio() {
+        int size = this.writes.size();
+        if (size > 0) {
+            return Math.min(1, (double) this.totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * Calculates the degree of parallelism.
+     *
+     * @param fillRatio       The Queue Fill Ratio.
+     * @param baseParallelism The minimum degree of parallelism.
+     * @param parallelismSpan The difference between the maximum degree of parallelism and minimum degree of parallelism.
+     */
+    @VisibleForTesting
+    static int calculateParallelism(double fillRatio, int baseParallelism, int parallelismSpan) {
+        double parallelism;
+        if (fillRatio < 0.01) {
+            parallelism = parallelismSpan;
+        } else {
+            parallelism = Math.min(parallelismSpan, -1 / Math.log(1 - fillRatio));
+        }
+        return (int) parallelism + baseParallelism;
     }
 
     //endregion

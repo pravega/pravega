@@ -30,7 +30,8 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
     public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
-    public static final Property<Integer> MAX_CONCURRENT_WRITES = Property.named("maxConcurrentWrites", 5);
+    public static final Property<Integer> MIN_WRITE_PARALLELISM = Property.named("minWriteParallelism", 4);
+    public static final Property<Integer> MAX_WRITE_PARALLELISM = Property.named("maxWriteParallelism", 100);
     public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
@@ -81,10 +82,16 @@ public class BookKeeperConfig {
     private final int zkHierarchyDepth;
 
     /**
-     * Maximum number of concurrent writes.
+     * The lower bound of the degree of parallelism for BookKeeper writes.
      */
     @Getter
-    private final int maxConcurrentWrites;
+    private final int minWriteParallelism;
+
+    /**
+     * The upper bound of the degree of parallelism for BookKeeper writes.
+     */
+    @Getter
+    private final int maxWriteParallelism;
 
     /**
      * The maximum number of times to attempt a write.
@@ -151,7 +158,13 @@ public class BookKeeperConfig {
                     ZK_HIERARCHY_DEPTH, this.zkHierarchyDepth));
         }
 
-        this.maxConcurrentWrites = properties.getInt(MAX_CONCURRENT_WRITES);
+        this.minWriteParallelism = properties.getInt(MIN_WRITE_PARALLELISM);
+        this.maxWriteParallelism = properties.getInt(MAX_WRITE_PARALLELISM);
+        if (this.minWriteParallelism > this.maxWriteParallelism) {
+            throw new InvalidPropertyValueException(String.format("Property %s (%d) must be smaller than or equal to Property %s (%d).",
+                    MIN_WRITE_PARALLELISM, this.minWriteParallelism, MAX_WRITE_PARALLELISM, this.maxWriteParallelism));
+        }
+
         this.maxWriteAttempts = properties.getInt(MAX_WRITE_ATTEMPTS);
         this.bkLedgerPath = properties.get(BK_LEDGER_PATH);
         this.bkEnsembleSize = properties.getInt(BK_ENSEMBLE_SIZE);

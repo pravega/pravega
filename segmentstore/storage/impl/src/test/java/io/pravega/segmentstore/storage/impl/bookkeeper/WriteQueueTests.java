@@ -30,6 +30,7 @@ import org.junit.rules.Timeout;
  * Unit tests for the WriteQueue class.
  */
 public class WriteQueueTests {
+    private static final int MIN_PARALLELISM = 1;
     private static final int MAX_PARALLELISM = 10;
     private static final int ITEM_COUNT = MAX_PARALLELISM * 10;
 
@@ -43,12 +44,12 @@ public class WriteQueueTests {
     public void testAdd() {
         final int timeIncrement = 1234 * 1000; // Just over 1ms.
         AtomicLong time = new AtomicLong();
-        val q = new WriteQueue(MAX_PARALLELISM, time::get);
+        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM, time::get);
         val initialStats = q.getStatistics();
         Assert.assertEquals("Unexpected getSize on empty queue.", 0, initialStats.getSize());
-        Assert.assertEquals("Unexpected getAverageFillRate on empty queue.", 0, initialStats.getAverageItemFillRate(), 0);
+        Assert.assertEquals("Unexpected getAverageFillRate on empty queue.", 0, initialStats.getAverageItemFillRatio(), 0);
         Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis on empty queue.", 0, initialStats.getExpectedProcessingTimeMillis());
-        Assert.assertEquals("Unexpected getMaxParallelism on empty queue.", MAX_PARALLELISM, initialStats.getMaxParallelism());
+        Assert.assertEquals("Unexpected getEstimatedParallelism on empty queue.", MAX_PARALLELISM, initialStats.getEstimatedParallelism());
 
         int expectedSize = 0;
         long firstItemTime = 0;
@@ -58,16 +59,19 @@ public class WriteQueueTests {
                 firstItemTime = time.get();
             }
 
-            q.add(new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(i), CompletableFuture.completedFuture(null)));
-            expectedSize += i;
+            int writeSize = i * 10000;
+            q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), CompletableFuture.completedFuture(null)));
+            expectedSize += writeSize;
 
             val stats = q.getStatistics();
-            val expectedFillRate = (double) expectedSize / stats.getSize() / BookKeeperConfig.MAX_APPEND_LENGTH;
+            val expectedFillRatio = (double) expectedSize / stats.getSize() / BookKeeperConfig.MAX_APPEND_LENGTH;
             val expectedProcTime = (time.get() - firstItemTime) / AbstractTimer.NANOS_TO_MILLIS;
+            val expectedParallelism = WriteQueue.calculateParallelism(expectedFillRatio, MIN_PARALLELISM, MAX_PARALLELISM - MIN_PARALLELISM);
             Assert.assertEquals("Unexpected getSize.", i + 1, stats.getSize());
-            Assert.assertEquals("Unexpected getAverageFillRate.", expectedFillRate, stats.getAverageItemFillRate(), 0.01);
+            Assert.assertEquals("Unexpected getAverageFillRate.", expectedFillRatio, stats.getAverageItemFillRatio(), 0.01);
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis.", expectedProcTime, stats.getExpectedProcessingTimeMillis());
-            Assert.assertEquals("Unexpected getMaxParallelism", MAX_PARALLELISM, stats.getMaxParallelism());
+            Assert.assertEquals("Unexpected getEstimatedParallelism", expectedParallelism, stats.getEstimatedParallelism());
+            System.out.println(stats);
         }
     }
 
@@ -76,7 +80,7 @@ public class WriteQueueTests {
      */
     @Test
     public void testClose() {
-        val q = new WriteQueue(MAX_PARALLELISM);
+        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM);
 
         val expectedWrites = new ArrayList<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -90,9 +94,9 @@ public class WriteQueueTests {
 
         val clearStats = q.getStatistics();
         Assert.assertEquals("Unexpected getSize after clear.", 0, clearStats.getSize());
-        Assert.assertEquals("Unexpected getAverageFillRate after clear.", 0, clearStats.getAverageItemFillRate(), 0);
+        Assert.assertEquals("Unexpected getAverageFillRate after clear.", 0, clearStats.getAverageItemFillRatio(), 0);
         Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", 0, clearStats.getExpectedProcessingTimeMillis());
-        Assert.assertEquals("Unexpected getMaxParallelism after clear.", MAX_PARALLELISM, clearStats.getMaxParallelism());
+        Assert.assertEquals("Unexpected getEstimatedParallelism after clear.", MAX_PARALLELISM, clearStats.getEstimatedParallelism());
 
         AssertExtensions.assertThrows(
                 "add() worked after close().",
@@ -115,7 +119,7 @@ public class WriteQueueTests {
     public void testRemoveFinishedWrites() {
         final int timeIncrement = 1234 * 1000; // Just over 1ms.
         AtomicLong time = new AtomicLong();
-        val q = new WriteQueue(MAX_PARALLELISM, time::get);
+        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM, time::get);
 
         val writes = new ArrayDeque<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -178,7 +182,7 @@ public class WriteQueueTests {
     @Test
     public void testGetWritesToExecute() {
         final int ledgerChangeIndex = ITEM_COUNT - MAX_PARALLELISM / 2;
-        val q = new WriteQueue(MAX_PARALLELISM);
+        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM);
 
         val writes = new ArrayList<Write>();
         int ledgerId = 0;

@@ -115,7 +115,7 @@ class BookKeeperLog implements DurableDataLog {
         this.closed = new AtomicBoolean();
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", logId);
-        this.writes = new WriteQueue(this.config.getMaxConcurrentWrites());
+        this.writes = new WriteQueue(this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
     }

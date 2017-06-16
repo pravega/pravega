@@ -11,19 +11,20 @@ package io.pravega.test.integration.segmentstore.selftest;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import java.util.UUID;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Represents an Operation Producer for the Self Tester.
@@ -31,10 +32,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 class Producer extends Actor {
     //region Members
 
+    private static final Supplier<Long> TIME_PROVIDER = System::nanoTime;
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
-    private final UUID clientId = UUID.randomUUID();
 
     //endregion
 
@@ -94,13 +95,13 @@ class Producer extends Actor {
         }
 
         this.iterationCount.incrementAndGet();
-        final Timer timer = new Timer();
+        final AtomicLong startTime = new AtomicLong(TIME_PROVIDER.get());
         CompletableFuture<Void> result;
         try {
-            result = executeOperation(op);
+            result = executeOperation(op, startTime);
         } catch (Throwable ex) {
             // Catch and handle sync errors.
-            op.completed(timer.getElapsed());
+            complete(op, startTime);
             if (handleOperationError(ex, op)) {
                 // Exception handled; skip this iteration since there's nothing more we can do.
                 return CompletableFuture.completedFuture(null);
@@ -110,13 +111,17 @@ class Producer extends Actor {
         }
 
         return result.whenCompleteAsync((r, ex) -> {
-            op.completed(timer.getElapsed());
+            complete(op, startTime);
 
             // Catch and handle async errors.
             if (ex != null && !handleOperationError(ex, op)) {
                 throw new CompletionException(ex);
             }
         }, this.executorService);
+    }
+
+    private void complete(ProducerOperation op, AtomicLong startTime){
+        op.completed(Duration.ofNanos(TIME_PROVIDER.get()-startTime.get()));
     }
 
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
@@ -144,7 +149,7 @@ class Producer extends Actor {
     /**
      * Executes the given operation.
      */
-    private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
+    private CompletableFuture<Void> executeOperation(ProducerOperation operation, AtomicLong startTime) {
         TimeoutTimer timer = new TimeoutTimer(this.config.getTimeout());
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
@@ -162,6 +167,7 @@ class Producer extends Actor {
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append to segment");
             byte[] appendContent = this.dataSource.generateAppendContent(operation.getTarget());
             operation.setLength(appendContent.length);
+            startTime.set(TIME_PROVIDER.get());
             return this.store.append(operation.getTarget(), appendContent, null, timer.getRemaining())
                              .exceptionally(ex -> attemptReconcile(ex, operation, timer));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
