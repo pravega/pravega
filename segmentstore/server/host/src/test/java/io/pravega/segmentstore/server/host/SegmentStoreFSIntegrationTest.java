@@ -98,7 +98,7 @@ public class SegmentStoreFSIntegrationTest extends StreamSegmentStoreTestBase {
     }
 
     /**
-     * Shuts down BookKeeper and HDFS MiniCluster.
+     * Shuts down BookKeeper and cleans up file system directory
      */
     @After
     public void tearDown() throws Exception {
