@@ -120,7 +120,7 @@ class Producer extends Actor {
         }, this.executorService);
     }
 
-    private void complete(ProducerOperation op, AtomicLong startTime){
+    private void complete(ProducerOperation op, AtomicLong startTime) {
         op.completed(Duration.ofNanos(TIME_PROVIDER.get()-startTime.get()));
     }
 

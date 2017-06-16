@@ -41,7 +41,7 @@ public class QueueStats {
 
     @Override
     public String toString() {
-        return String.format("Size = %d, Fill = %.2f, ProcTime = %d, Parallel = %d"
-                , this.size, this.averageItemFillRatio, this.expectedProcessingTimeMillis, this.estimatedParallelism);
+        return String.format("Size = %d, Fill = %.2f, ProcTime = %d, Parallel = %d",
+                this.size, this.averageItemFillRatio, this.expectedProcessingTimeMillis, this.estimatedParallelism);
     }
 }
