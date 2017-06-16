@@ -60,18 +60,25 @@ import java.util.stream.Collectors;
 @RunWith(SystemTestRunner.class)
 public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
-    private static final int NUM_WRITERS = 10;
-    private static final int NUM_READERS = 10;
-    private static final long NUM_EVENTS_BY_WRITER = 100;
+    private static final int NUM_WRITERS = 20;
+    private static final int NUM_READERS = 20;
     private AtomicBoolean stopReadFlag;
+    private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
+    private AtomicLong eventWriteCount1;
+    private AtomicLong eventWriteCount2;
+    private AtomicLong eventWriteCount3;
+    private AtomicLong eventWriteCount4;
+    private AtomicLong eventReadCount1;
+    private AtomicLong eventReadCount2;
+    private AtomicLong eventReadCount3;
+    private AtomicLong eventReadCount4;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
-    private ReaderGroupManager readerGroupManager;
     private URI controllerURIDirect = null;
-    private ClientFactory clientFactory;
+    private final Object waitCondition = new Object();
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -175,79 +182,121 @@ public class MultiReaderWriterWithFailOverTest {
         URI controllerUri = controllerURIDirect;
         Controller controller = new ControllerImpl(controllerUri);
 
-        //create a scope
-        StreamManager streamManager = new StreamManagerImpl(controllerUri);
-        Boolean createScopeStatus = streamManager.createScope(scope);
-        log.info("Creating scope with scope name {}", scope);
-        log.debug("Create scope status {}", createScopeStatus);
-        //create a stream
-        Boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
-        log.debug("Create stream status {}", createStreamStatus);
-
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
+        stopWriteFlag = new AtomicBoolean(false);
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
+        //create a scope
+        try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
+            Boolean createScopeStatus = streamManager.createScope(scope);
+            log.info("Creating scope with scope name {}", scope);
+            log.debug("Create scope status {}", createScopeStatus);
+            //create a stream
+            Boolean createStreamStatus = streamManager.createStream(scope, STREAM_NAME, config);
+            log.debug("Create stream status {}", createStreamStatus);
+        }
+
         //get ClientFactory instance
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller);
-        log.info("Client factory details {}", clientFactory.toString());
-        //create writers
-        log.info("Creating {} writers", NUM_WRITERS);
-        List<EventStreamWriter<Long>> writerList = new ArrayList<>();
-        log.info("Writers writing in the scope {}", scope);
-        for (int i = 0; i < NUM_WRITERS; i++) {
-            log.info("Starting writer{}", i);
-            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<Long>(),
-                    EventWriterConfig.builder().build());
-            writerList.add(writer);
+        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
+
+            log.info("Client factory details {}", clientFactory.toString());
+            //create writers
+            log.info("Creating {} writers", NUM_WRITERS);
+            List<EventStreamWriter<Long>> writerList = new ArrayList<>();
+            log.info("Writers writing in the scope {}", scope);
+            for (int i = 0; i < NUM_WRITERS; i++) {
+                log.info("Starting writer{}", i);
+                final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
+                        new JavaSerializer<Long>(),
+                        EventWriterConfig.builder().build());
+                writerList.add(writer);
+            }
+
+            //create a reader group
+            log.info("Creating Reader group : {}", readerGroupName);
+            log.info("Scope passed to readergroup manager {}", scope);
+
+            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
+                    Collections.singleton(STREAM_NAME));
+            log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
+            log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+            log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
+
+            //create readers
+            log.info("Creating {} readers", NUM_READERS);
+            List<EventStreamReader<Long>> readerList = new ArrayList<>();
+            String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
+            log.info("Scope that is seen by readers {}", scope);
+            //start reading events
+            for (int i = 0; i < NUM_READERS; i++) {
+                log.info("Starting reader{}", i);
+                log.info("Creating reader with id {}", readerName + i);
+                final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
+                        readerGroupName,
+                        new JavaSerializer<Long>(),
+                        ReaderConfig.builder().build());
+                readerList.add(reader);
+            }
+            readWriteTest(writerList, readerList, stopWriteFlag);
+
+            //close all the writers
+            writerList.forEach(writer -> writer.close());
+            //close all readers
+            readerList.forEach(reader -> reader.close());
+            //delete readergroup
+            log.info("Deleting readergroup {}", readerGroupName);
+            readerGroupManager.deleteReaderGroup(readerGroupName);
+        }
+            //seal the stream
+            CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+            log.info("Sealing stream {}", STREAM_NAME);
+            assertTrue(sealStreamStatus.get());
+            //delete the stream
+            CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+            log.info("Deleting stream {}", STREAM_NAME);
+            assertTrue(deleteStreamStatus.get());
+
+            //delete the scope
+            CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+            log.info("Deleting scope {}", scope);
+            assertTrue(deleteScopeStatus.get());
+            log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
         }
 
-        //create a reader group
-        log.info("Creating Reader group : {}", readerGroupName);
-        log.info("Scope passed to readergroup manager {}", scope);
-        readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri);
-        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
-                Collections.singleton(STREAM_NAME));
-        log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-        log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-        log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
+    private void readWriteTest(final List<EventStreamWriter<Long>> writerList,
+                               List<EventStreamReader<Long>> readerList, final AtomicBoolean stopWriteFlag) throws InterruptedException, ExecutionException {
+        // start writing asynchronously
+        List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
+        writerList.forEach(writer -> {
+            CompletableFuture<Void> writerFuture = startWriting(eventData, writer, stopWriteFlag);
+            writerFutureList.add(writerFuture);
+        });
 
-        //create readers
-        log.info("Creating {} readers", NUM_READERS);
-        List<EventStreamReader<Long>> readerList = new ArrayList<>();
-        String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
-        log.info("Scope that is seen by readers {}", scope);
-        //start reading events
-        for (int i = 0; i < NUM_READERS; i++) {
-            log.info("Starting reader{}", i);
-            log.info("Creating reader with id {}", readerName + i);
-            final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
-                    readerGroupName,
-                    new JavaSerializer<Long>(),
-                    ReaderConfig.builder().build());
-            readerList.add(reader);
-        }
+        //start reading asynchronously
+        List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
+        readerList.forEach(reader -> {
+            CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
+            writerFutureList.add(readerFuture);
+        });
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
-        readWriteTest(writerList, readerList);
-        log.debug("{} with 2 controller, 2 SSS instances succeeds", "multiReaderWriterTest");
+        eventWriteCount1 = eventData;
+        eventReadCount1 =  eventReadCount;
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         Thread.sleep(60000);
         log.info("Scaling down SSS instances from 3 to 2");
-
-        eventsReadFromPravega = new ConcurrentLinkedQueue<>();
-        stopReadFlag.set(false);
-        eventData = new AtomicLong(); //data used by each of the writers.
-        eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
-
-        log.info("Test with SSS failover");
-        readWriteTest(writerList, readerList);
-        log.debug("{} with SSS failover succeeds", "multiReaderWriterTest");
+        eventWriteCount2 = eventData;
+        eventReadCount2 =  eventReadCount;
+        //ensure reads are happening
+        assertTrue(eventReadCount2.get() > eventReadCount1.get());
+        //ensure writes are happening
+        assertTrue(eventWriteCount2.get() > eventWriteCount1.get());
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
@@ -259,15 +308,12 @@ public class MultiReaderWriterWithFailOverTest {
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         Thread.sleep(60000);
-        log.info("Test with controller failover");
-
-        eventsReadFromPravega = new ConcurrentLinkedQueue<>();
-        stopReadFlag.set(false);
-        eventData = new AtomicLong(); //data used by each of the writers.
-        eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
-
-        readWriteTest(writerList, readerList);
-        log.debug("{} with controller failover succeeds", "multiReaderWriterTest");
+        eventWriteCount3 = eventData;
+        eventReadCount3 =  eventReadCount;
+        //ensure reads are happening
+        assertTrue(eventReadCount3.get() > eventReadCount2.get());
+        //ensure writes are happening
+        assertTrue(eventWriteCount3.get() > eventWriteCount2.get());
 
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
@@ -281,64 +327,28 @@ public class MultiReaderWriterWithFailOverTest {
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris1));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         Thread.sleep(60000);
-        log.info("Test with 1 controller  and 1 SSS instance down");
+        eventWriteCount4 = eventData;
+        eventReadCount4 =  eventReadCount;
+        //ensure reads are happening
+        assertTrue(eventReadCount4.get() > eventReadCount3.get());
+        //ensure writes are happening
+        assertTrue(eventWriteCount4.get() > eventWriteCount3.get());
 
-        eventsReadFromPravega = new ConcurrentLinkedQueue<>();
-        stopReadFlag.set(false);
-        eventData = new AtomicLong(); //data used by each of the writers.
-        eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
-        readWriteTest(writerList, readerList);
-
-        log.debug("{} with  SSS, controller failover succeeds", "multiReaderWriterTest");
-
-        //close all the writers
-        writerList.forEach(writer -> writer.close());
-        //close all readers
-        readerList.forEach(reader -> reader.close());
-        //seal all streams
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
-        log.info("Sealing stream {}", STREAM_NAME);
-        assertTrue(sealStreamStatus.get());
-        //delete all streams
-        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
-        log.info("Deleting stream {}", STREAM_NAME);
-        assertTrue(deleteStreamStatus.get());
-        //delete readergroup
-        log.info("Deleting readergroup {}", readerGroupName);
-        readerGroupManager.deleteReaderGroup(readerGroupName);
-        //delete scope
-        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
-        log.info("Deleting scope {}", scope);
-        assertTrue(deleteScopeStatus.get());
-        log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
-    }
-
-    private void readWriteTest(final  List<EventStreamWriter<Long>> writerList,
-                               List<EventStreamReader<Long>> readerList) throws InterruptedException, ExecutionException {
-        // start writing asynchronously
-        List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
-        writerList.forEach(writer -> {
-                CompletableFuture<Void> writerFuture = startWriting(eventData, writer);
-                 writerFutureList.add(writerFuture);
-        });
-
-        //start reading asynchronously
-        List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
-        readerList.forEach(reader -> {
-            CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
-            writerFutureList.add(readerFuture);
-        });
+        //set the stop write flag to true
+        stopWriteFlag.set(true);
 
         //wait for writers completion
         FutureHelpers.allOf(writerFutureList);
 
-        // wait for reads = writes
-        while (eventData.get() != eventsReadFromPravega.size()) {
-            Thread.sleep(5);
-        }
-
-        //stop reading when no. of reads= no. of writes
+        //set the stop read flag to true
         stopReadFlag.set(true);
+
+        // wait for reads = writes
+        synchronized (waitCondition) {
+            while (!(eventsReadFromPravega.size() == eventData.get())) {
+                waitCondition.wait();
+            }
+        }
 
         //wait for readers completion
         FutureHelpers.allOf(readerFutureList);
@@ -348,9 +358,9 @@ public class MultiReaderWriterWithFailOverTest {
         assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
     }
 
-    private CompletableFuture<Void> startWriting(final AtomicLong data, final EventStreamWriter<Long> writer) {
+    private CompletableFuture<Void> startWriting(final AtomicLong data, final EventStreamWriter<Long> writer, final AtomicBoolean stopWriteFlag) {
         return CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
+            while (!stopWriteFlag.get()) {
                 try {
                     long value = data.incrementAndGet();
                     log.debug("Writing event {}", value);
@@ -380,6 +390,12 @@ public class MultiReaderWriterWithFailOverTest {
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                     break;
+                }
+            }
+            //notify if num. of reads = num. of writes
+            if (writeCount == readCount) {
+                synchronized (waitCondition) {
+                    waitCondition.notify();
                 }
             }
         });
