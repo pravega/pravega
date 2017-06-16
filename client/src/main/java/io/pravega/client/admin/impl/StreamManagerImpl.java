@@ -48,8 +48,8 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
-        return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
+    public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
+        return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                         .scope(scopeName)
                         .streamName(streamName)
                         .scalingPolicy(config.getScalingPolicy())

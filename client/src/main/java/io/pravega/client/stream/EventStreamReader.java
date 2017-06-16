@@ -30,7 +30,7 @@ public interface EventStreamReader<T> extends AutoCloseable {
      *         is reached, {@link EventRead#getEvent()} returns null.
      * @throws ReinitializationRequiredException Is throw in the event that
      *         {@link ReaderGroup#resetReadersToCheckpoint(Checkpoint)} or
-     *         {@link ReaderGroup#alterConfig(ReaderGroupConfig, java.util.Set)} was called
+     *         {@link ReaderGroup#updateConfig(ReaderGroupConfig, java.util.Set)} was called
      *         which requires readers to be reinitialized.
      */
     EventRead<T> readNextEvent(long timeout) throws ReinitializationRequiredException;
