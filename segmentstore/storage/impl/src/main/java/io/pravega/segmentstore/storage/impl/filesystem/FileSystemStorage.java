@@ -61,14 +61,13 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  *
  * Approach to locking:
  *
- * This implementation works on the assumption is data written to the storage is always written in append only
- * fashion. Once a piece of data is written it is never overwritten. Each block of data has an offset assigned to it
- * and Pravega always tries to write the same data to the same offset.
+ * This implementation works under the assumption that data is only appended and never modified.
+ * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
  *
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
- * As write to an offset to a file is idempotent (any attempt to re-write data with the same file offset does not
+ * As write to same offset to a file is idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), locking is not required.
  *
  * In the absence of locking this is the expected behavior in case of ownership change: both the hosts will keep
@@ -123,8 +122,12 @@ public class FileSystemStorage implements Storage {
 
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int
-            length, Duration timeout) {
+    public CompletableFuture<Integer> read( SegmentHandle handle,
+                                            long offset,
+                                            byte[] buffer,
+                                            int bufferOffset,
+                                            int length,
+                                            Duration timeout) {
         return supplyAsync( handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
     }
 
@@ -149,8 +152,11 @@ public class FileSystemStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration
-            timeout) {
+    public CompletableFuture<Void> write(SegmentHandle handle,
+                                         long offset,
+                                         InputStream data,
+                                         int length,
+                                         Duration timeout) {
         return supplyAsync(handle.getSegmentName(), () -> syncWrite(handle, offset, data, length));
     }
 
@@ -278,8 +284,8 @@ public class FileSystemStorage implements Storage {
 
         Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
 
-        //Fix for Jenkins as Jenkins runs as super user privileges. Jenkins runs with root privileges which means
-        // that writes to readonly files also succeed. We need to explicitly check permissions in this case.
+        //Fix for the case where Pravega runs as super user privileges.
+        // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
         if ( !isWritableFile(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
