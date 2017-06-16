@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -48,6 +49,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -81,6 +83,7 @@ public class FileSystemStorage implements Storage {
 
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -95,6 +98,7 @@ public class FileSystemStorage implements Storage {
     public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
+        this.closed = new AtomicBoolean(false);
         this.config = config;
         this.executor = executor;
     }
@@ -109,7 +113,7 @@ public class FileSystemStorage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
-
+        this.ensureInitializedAndNotClosed();
     }
 
     @Override
@@ -173,7 +177,7 @@ public class FileSystemStorage implements Storage {
 
     @Override
     public void close() {
-
+        this.closed.getAndSet(true);
     }
 
     //endregion
@@ -355,6 +359,8 @@ public class FileSystemStorage implements Storage {
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
      */
     private <R> CompletableFuture<R> supplyAsync(String segmentName, Supplier<R> operation) {
+        this.ensureInitializedAndNotClosed();
+
         CompletableFuture<R> result = new CompletableFuture<>();
         this.executor.execute(() -> {
             try {
@@ -390,6 +396,10 @@ public class FileSystemStorage implements Storage {
         }
 
         return retVal;
+    }
+
+    private void ensureInitializedAndNotClosed() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
     }
 
     //endregion
