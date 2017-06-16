@@ -19,23 +19,21 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSClusterHelpers;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.test.common.TestUtils;
-import java.io.File;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -49,7 +47,7 @@ public class SegmentStoreFSIntegrationTest extends StreamSegmentStoreTestBase {
     private CuratorFramework zkClient;
 
     /**
-     * Starts BookKeeper and HDFS MiniCluster.
+     * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
@@ -89,7 +87,6 @@ public class SegmentStoreFSIntegrationTest extends StreamSegmentStoreTestBase {
                 .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers"));
 
-        // HDFS
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();
 
         this.configBuilder.include(FileSystemStorageConfig
@@ -123,15 +120,18 @@ public class SegmentStoreFSIntegrationTest extends StreamSegmentStoreTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
+    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig,
+                                                        AtomicReference<Storage> storage) {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
-                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
+                    StorageFactory f = new FileSystemStorageFactory(
+                            setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor());
                     return new ListenableStorageFactory(f, storage::set);
                 })
-                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
+                                                            this.zkClient, setup.getExecutor()));
     }
 
     //endregion
