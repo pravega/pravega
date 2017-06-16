@@ -177,7 +177,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 .collect(Collectors.toList());
 
         synchronized (segmentTableLock) {
-            segmentTable.set(new Data<>(TableHelper.updateSegmentTable(startingSegmentNumber,
+            segmentTable.compareAndSet(null, new Data<>(TableHelper.updateSegmentTable(startingSegmentNumber,
                     new byte[0],
                     newRanges,
                     create.getCreationTime()), 0));
@@ -226,7 +226,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> createIndexTable(Data<Integer> data) {
         synchronized (indexTableLock) {
-            indexTable.set(new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
+            indexTable.compareAndSet(null, new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -259,7 +259,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> createHistoryTable(Data<Integer> data) {
         synchronized (historyTableLock) {
-            historyTable.set(new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
+            historyTable.compareAndSet(null, new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
         }
         return CompletableFuture.completedFuture(null);
     }

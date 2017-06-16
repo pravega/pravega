@@ -52,10 +52,20 @@ public class CancellationToken {
             return;
         }
 
+        boolean autoCancel = false;
         synchronized (this.futures) {
             Preconditions.checkNotNull(future, "future");
-            Preconditions.checkState(!this.cancellationRequested, "CancellationToken is already cancelled; cannot register new futures.");
-            this.futures.add(future);
+            if (this.cancellationRequested) {
+                autoCancel = true;
+            } else {
+                this.futures.add(future);
+            }
+        }
+
+        if (autoCancel) {
+            // CancellationToken is already cancelled. Don't register anything, yet cancel the future we're given.
+            future.cancel(true);
+            return;
         }
 
         // Cleanup once the future is completed.

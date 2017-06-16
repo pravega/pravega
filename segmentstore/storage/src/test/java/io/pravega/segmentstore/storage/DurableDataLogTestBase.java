@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
@@ -18,9 +19,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -30,8 +34,7 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final int TIMEOUT_MILLIS = 60 * 1000;
-    protected static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MILLIS);
+    protected static final Duration TIMEOUT = Duration.ofMillis(60 * 1000);
     protected static final int WRITE_MIN_LENGTH = 20;
     protected static final int WRITE_MAX_LENGTH = 200;
     private final Random random = new Random(0);
@@ -39,12 +42,12 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     //region General DurableDataLog Tests
 
     /**
-     * Tests the ability to append to a DurableDataLog.
+     * Tests the ability to append to a DurableDataLog in sequence.
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
-    public void testAppend() throws Exception {
+    @Test
+    public void testAppendSequence() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
             AssertExtensions.assertThrows(
@@ -70,11 +73,40 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to append to a DurableDataLog using parallel writes.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public void testAppendParallel() throws Exception {
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+
+            // Only verify sequence number monotonicity. We'll verify reads in its own test.
+            List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
+            int writeCount = getWriteCount();
+            for (int i = 0; i < writeCount; i++) {
+                appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
+            }
+
+            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            for (int i = 0; i < results.size(); i++) {
+                LogAddress address = results.get(i);
+                Assert.assertNotNull("No address returned from append() for index " + i, address);
+                if (i > 0) {
+                    AssertExtensions.assertGreaterThan("Sequence Number is not monotonically increasing.",
+                            results.get(i - 1).getSequence(), address.getSequence());
+                }
+            }
+        }
+    }
+
+    /**
      * Tests the ability to read from a DurableDataLog.
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testRead() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         Object context = createSharedContext();
@@ -101,7 +133,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testTruncate() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         ArrayList<LogAddress> addresses;
@@ -114,7 +146,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                     ex -> ex instanceof IllegalStateException);
 
             log.initialize(TIMEOUT);
-            writeData = populate(log, getWriteCount());
+            writeData = populate(log, getTruncateWriteCount());
             addresses = new ArrayList<>(writeData.keySet());
         }
 
@@ -134,7 +166,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -161,7 +193,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -266,6 +298,13 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      */
     protected abstract int getWriteCount();
 
+    /**
+     * Gets a value indicating how many writes to perform in a truncate test..
+     */
+    protected int getTruncateWriteCount() {
+        return getWriteCount() / 4;
+    }
+
     //endregion
 
     //region Helpers
@@ -279,10 +318,17 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     protected TreeMap<LogAddress, byte[]> populate(DurableDataLog log, int writeCount) {
         TreeMap<LogAddress, byte[]> writtenData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        val data = new ArrayList<byte[]>();
+        val futures = new ArrayList<CompletableFuture<LogAddress>>();
         for (int i = 0; i < writeCount; i++) {
             byte[] writeData = getWriteData();
-            LogAddress address = log.append(new ByteArraySegment(writeData), TIMEOUT).join();
-            writtenData.put(address, writeData);
+            futures.add(log.append(new ByteArraySegment(writeData), TIMEOUT));
+            data.add(writeData);
+        }
+
+        val addresses = FutureHelpers.allOfWithResults(futures).join();
+        for (int i = 0; i < data.size(); i++) {
+            writtenData.put(addresses.get(i), data.get(i));
         }
 
         return writtenData;

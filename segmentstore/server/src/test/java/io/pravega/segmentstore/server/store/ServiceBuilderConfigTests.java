@@ -10,33 +10,33 @@
 package io.pravega.segmentstore.server.store;
 
 import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.Property;
+import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.test.common.AssertExtensions;
 import java.io.File;
 import java.io.FileWriter;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-
-import io.pravega.common.util.Property;
-import io.pravega.segmentstore.server.logs.DurableLogConfig;
-import lombok.Cleanup;
-import lombok.val;
-import io.pravega.shared.metrics.MetricsConfig;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ServiceBuilderConfig class.
@@ -47,6 +47,8 @@ public class ServiceBuilderConfigTests {
             .of(Integer.class.getName(), Long.class.getName(), String.class.getName(), Boolean.class.getName())
             .map(s -> Property.class.getSimpleName() + "<" + s + ">")
             .collect(Collectors.toList());
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the Builder for ServiceBuilderConfig.

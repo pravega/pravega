@@ -515,6 +515,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<TxnStatus> checkTransactionStatus(final int epoch, final UUID txId) {
+
         return verifyLegalState(() -> getActiveTx(epoch, txId).handle((ok, ex) -> {
             if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;

@@ -10,6 +10,7 @@
 package io.pravega.controller.timeout;
 
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import io.pravega.controller.server.ControllerService;
@@ -40,7 +41,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -319,29 +319,15 @@ public class TimeoutServiceTest {
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion(), LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
-
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
 
-        PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), LEASE);
-        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
+        // 3 * LEASE > MAX_EXECUTION_TIME
+        PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), 3 * LEASE);
+        Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
         status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
-
-        pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), LEASE + 1);
-        Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNotNull(result);
-
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     @Test
@@ -350,29 +336,15 @@ public class TimeoutServiceTest {
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
-        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
-
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
 
-        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
-        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
+        // 3 * LEASE > MAX_EXECUTION_TIME
+        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, 3 * LEASE).join();
+        Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
-
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE + 1).join();
-        Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNotNull(result);
-
-        txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
-        Assert.assertEquals(TxnState.State.ABORTED, txnState.getState());
     }
 
     @Test
@@ -507,11 +479,6 @@ public class TimeoutServiceTest {
     }
 
     private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {
-        try {
-            future.join();
-            Assert.assertTrue(false);
-        } catch (CompletionException ce) {
-            Assert.assertEquals(expectedException, ce.getCause().getClass());
-        }
+        AssertExtensions.assertThrows("Failed future", future, e -> e.getClass().equals(expectedException));
     }
 }

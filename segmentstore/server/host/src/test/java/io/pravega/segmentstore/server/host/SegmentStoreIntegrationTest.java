@@ -76,6 +76,8 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                 .connectString("localhost:" + zkPort)
                 .namespace(baseNamespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                .connectionTimeoutMs(5000)
+                .sessionTimeoutMs(5000)
                 .build();
         this.zkClient.start();
 

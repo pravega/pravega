@@ -23,7 +23,6 @@ import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheKey;
-import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
@@ -352,7 +351,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(this.metadata.getParentId() == ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a StreamSegment into a child StreamSegment.");
+        Preconditions.checkState(!this.metadata.isTransaction(), "Cannot merge a StreamSegment into a Transaction.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
