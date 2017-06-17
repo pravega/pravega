@@ -9,6 +9,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
@@ -28,6 +29,7 @@ public abstract class ScopesApiService {
     public abstract Response createStream(String scopeName,CreateStreamRequest createStreamRequest,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response deleteStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
+    public abstract Response getScalingEvents(String scopeName,String streamName,Long from,Long to,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getScope(String scopeName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response getStream(String scopeName,String streamName,SecurityContext securityContext) throws NotFoundException;
     public abstract Response listScopes(SecurityContext securityContext) throws NotFoundException;

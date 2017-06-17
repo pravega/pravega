@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rest.resources;
 
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.server.rest.ModelHelper;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -35,6 +36,10 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 
@@ -406,5 +411,52 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStreamState", traceId));
+    }
+
+    /**
+     * Implementation of getScalingEvents REST API.
+     *
+     * @param scopeName         The scope name of stream.
+     * @param streamName        The name of stream.
+     * @param from              DateTime from which scaling events should be displayed.
+     * @param to                DateTime until which scaling events should be displayed.
+     * @param securityContext   The security for API access.
+     * @param asyncResponse     AsyncResponse provides means for asynchronous server side response processing.
+     */
+    @Override
+    public void getScalingEvents(final String scopeName, final String streamName, final Long from, final Long to,
+                                 final SecurityContext securityContext, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getScalingEvents");
+
+        controllerService.getScaleRecords(scopeName, streamName).thenApply(listScaleMetadata -> {
+            Iterator<ScaleMetadata> metadataIterator = listScaleMetadata.iterator();
+            List<ScaleMetadata> finalScaleMetadataList = new ArrayList<ScaleMetadata>();
+            ScaleMetadata referenceEvent = null;
+            while (metadataIterator.hasNext()) {
+                ScaleMetadata scaleMetadata = metadataIterator.next();
+                if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
+                    finalScaleMetadataList.add(scaleMetadata);
+                } else if (scaleMetadata.getTimestamp() < from && scaleMetadata.getTimestamp() < to) {
+                    referenceEvent = scaleMetadata;
+                } else {
+                    break;
+                }
+            }
+            finalScaleMetadataList.add(0, referenceEvent);
+            log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
+            return Response.status(Status.OK).entity(finalScaleMetadataList).build();
+        }).exceptionally(exception -> {
+            if (exception.getCause() instanceof DataNotFoundException
+                    || exception instanceof DataNotFoundException
+                    || exception.getCause() instanceof StoreException.NodeNotFoundException
+                    || exception instanceof StoreException.NodeNotFoundException) {
+                log.warn("Stream/Scope name: {}/{} not found", scopeName, streamName);
+                return Response.status(Status.NOT_FOUND).build();
+            } else {
+                log.warn("getScalingEvents for {} failed with exception: {}", scopeName, exception);
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScalingEvents", traceId));
     }
 }

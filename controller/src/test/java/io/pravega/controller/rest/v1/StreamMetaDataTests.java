@@ -12,6 +12,8 @@ package io.pravega.controller.rest.v1;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -640,6 +642,52 @@ public class StreamMetaDataTests {
         response = client.target(resourceURI).request().buildPut(Entity.json(streamState)).invoke();
         assertEquals("Update Stream State response code", 500, response.getStatus());
         response.close();
+    }
+
+    /**
+     * Test for getScalingEvents REST API.
+     */
+    @Test
+    public void testGetScalingEvents() throws Exception {
+        final String resourceURI = getURI() + "v1/scopes/scope1/streams/stream1/scaling-events";
+
+        long fromDateTime = System.currentTimeMillis();
+        // test to get scaling events
+        Segment segment1 = new Segment(0, System.currentTimeMillis(), 0.00, 0.50);
+        Segment segment2 = new Segment(1, System.currentTimeMillis(), 0.50, 1.00);
+        List<Segment> segmentList1 = Arrays.asList(segment1, segment2);
+
+        Segment segment3 = new Segment(0, System.currentTimeMillis(), 0.00, 0.25);
+        Segment segment4 = new Segment(1, System.currentTimeMillis(), 0.25, 1.00);
+        List<Segment> segmentList2 = Arrays.asList(segment3, segment4);
+
+        ScaleMetadata scaleMetadata1 = new ScaleMetadata(System.currentTimeMillis(), segmentList1);
+        ScaleMetadata scaleMetadata2 = new ScaleMetadata(System.currentTimeMillis(), segmentList2);
+        List<ScaleMetadata> scaleMetadataList = Arrays.asList(scaleMetadata1, scaleMetadata2);
+        long toDateTime = System.currentTimeMillis();
+
+        when(mockControllerService.getScaleRecords(scope1, stream1)).
+                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        Response response = client.target(resourceURI).queryParam("from", fromDateTime).
+                queryParam("to", toDateTime).request().buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 200, response.getStatus());
+        final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(List.class);
+        assertEquals("List Size", 3, scaleMetadataListResponse.size());
+
+        // Test for getScalingEvents for invalid scope.
+        final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
+        completableFuture1.completeExceptionally(new DataNotFoundException(""));
+        when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture1);
+        response = client.target(resourceURI).queryParam("from", fromDateTime).
+                queryParam("to", toDateTime).request().buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 404, response.getStatus());
+
+        // Test for getScalingEvents failure.
+        final CompletableFuture<List<ScaleMetadata>> completableFuture = new CompletableFuture<>();
+        completableFuture.completeExceptionally(new Exception());
+        when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture);
+        response = client.target(resourceURI).request().buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 500, response.getStatus());
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {

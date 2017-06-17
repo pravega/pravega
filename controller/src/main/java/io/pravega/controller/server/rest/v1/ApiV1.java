@@ -11,6 +11,7 @@ package io.pravega.controller.server.rest.v1;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
@@ -242,5 +243,29 @@ public final class ApiV1 {
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @ApiParam(value = "The state info to be updated", required = true) StreamState updateStreamStateRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
+        @Path("/{scopeName}/streams/{streamName}/scaling-events")
+        @Produces({ "application/json" })
+        @io.swagger.annotations.ApiOperation(value = "", notes = "Get scaling events for a given datetime period.",
+                response = ScalingEventList.class, tags = {  })
+        @io.swagger.annotations.ApiResponses(value = {
+                @io.swagger.annotations.ApiResponse(code = 200, message = "List of scaling events",
+                        response = ScalingEventList.class),
+
+                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope/Stream not found",
+                        response = ScalingEventList.class),
+
+                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error",
+                        response = ScalingEventList.class) })
+        void getScalingEvents(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                              @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                              @ApiParam(value = "Parameter to display scaling events from that particular datetime. " +
+                "Input should be milliseconds from Jan 1 1970.", required = true)
+                              @QueryParam("from") Long from,
+                              @ApiParam(value = "Parameter to display scaling events to that particular datetime. " +
+                "Input should be milliseconds from Jan 1 1970.", required = true)
+                              @QueryParam("to") Long to,
+                              @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
     }
 }
