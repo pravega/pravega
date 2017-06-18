@@ -84,7 +84,7 @@ public interface ReaderGroup {
      * @param config The configuration for the new ReaderGroup.
      * @param streamNames The name of the streams the reader will read from.
      */
-    void alterConfig(ReaderGroupConfig config, Set<String> streamNames);
+    void updateConfig(ReaderGroupConfig config, Set<String> streamNames);
     
     /**
      * Invoked when a reader that was added to the group is no longer consuming events. This will

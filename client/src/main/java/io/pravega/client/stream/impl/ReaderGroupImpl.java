@@ -142,7 +142,7 @@ public class ReaderGroupImpl implements ReaderGroup {
     }
 
     @Override
-    public void alterConfig(ReaderGroupConfig config, Set<String> streamNames) {
+    public void updateConfig(ReaderGroupConfig config, Set<String> streamNames) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streamNames);

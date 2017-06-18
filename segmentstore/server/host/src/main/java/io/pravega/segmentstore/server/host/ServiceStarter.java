@@ -27,6 +27,7 @@ import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -74,9 +75,7 @@ public final class ServiceStarter {
             attachRocksDB(builder);
         }
 
-        if (options.tier2) {
-            attachStorage(builder);
-        }
+        attachStorage(builder);
 
         if (options.zkSegmentManager) {
             attachZKSegmentManager(builder);
@@ -171,6 +170,9 @@ public final class ServiceStarter {
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
                         return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
 
+                    case "INMEMORY":
+                        return new InMemoryStorageFactory(setup.getExecutor());
+
                     default:
                         throw new IllegalStateException("Undefined storage implementation");
                 }
@@ -217,7 +219,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                    .bookKeeper(true).tier2(true).rocksDb(true)
+                    .bookKeeper(true).rocksDb(true)
                     .zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
@@ -252,7 +254,6 @@ public final class ServiceStarter {
     @Builder
     public static class Options {
         final boolean bookKeeper;
-        final boolean tier2;
         final boolean rocksDb;
         final boolean zkSegmentManager;
     }

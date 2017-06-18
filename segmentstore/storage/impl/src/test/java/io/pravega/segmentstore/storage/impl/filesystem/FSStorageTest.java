@@ -38,6 +38,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public class FSStorageTest extends StorageTestBase {
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
+    private FileSystemStorageFactory storageFactory;
 
     @Before
     public void setUp() throws Exception {
@@ -46,6 +47,7 @@ public class FSStorageTest extends StorageTestBase {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
+        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService());
     }
 
     @After
@@ -258,16 +260,16 @@ public class FSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new FileSystemStorage(this.adapterConfig, executorService());
+        return this.storageFactory.createStorageAdapter();
     }
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return FileSystemSegmentHandle.getReadHandle(segmentName);
+            return FileSystemSegmentHandle.readHandle(segmentName);
         } else {
-            return FileSystemSegmentHandle.getWriteHandle(segmentName);
+            return FileSystemSegmentHandle.writeHandle(segmentName);
         }
     }
 

@@ -112,7 +112,7 @@ public class ServiceConfig {
     private final String clusterName;
 
     /**
-     * The Tier 2 storage
+     * The Storage Implementation to use.
      */
     @Getter
     private final String storageImplementation;
@@ -156,7 +156,7 @@ public class ServiceConfig {
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.clusterName = properties.get(CLUSTER_NAME);
-        storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
+        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
     }
 
     /**
@@ -174,5 +174,4 @@ public class ServiceConfig {
     private static String getHostAddress() {
         return Inet4Address.getLocalHost().getHostAddress();
     }
-
 }
