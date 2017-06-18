@@ -28,6 +28,11 @@ public class DynamicLoggerProxy implements DynamicLogger {
     }
 
     @Override
+    public long getCounterValue(String name) {
+        return this.instance.get().getCounterValue(name);
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         this.instance.get().reportGaugeValue(name, value);
     }

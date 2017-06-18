@@ -334,14 +334,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
         future.thenAccept(result -> {
-            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
                     newSegments.size() - sealedSegments.size());
             getSealedRanges(scope, name, sealedSegments, context, executor)
                     .thenAccept(sealedRanges -> {
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
-                                findSplits(sealedRanges, newRanges));
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
-                                findSplits(newRanges, sealedRanges));
+                        long oldNumSplits = DYNAMIC_LOGGER.getCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name));
+                        long newNumSplits = findSplits(sealedRanges, newRanges);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
+                                    (newNumSplits > oldNumSplits) ? (newNumSplits - oldNumSplits) : newNumSplits );
+
+                        long oldNumMerges = DYNAMIC_LOGGER.getCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name));
+                        long newNumMerges = findSplits(newRanges, sealedRanges);
+                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name),
+                                    (newNumMerges > oldNumMerges) ?  (newNumMerges - oldNumMerges) : newNumMerges);
                     });
         });
 
