@@ -16,7 +16,9 @@ import java.io.FileNotFoundException;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests the GetInfoOperation class.
@@ -24,11 +26,13 @@ import org.junit.Test;
 public class GetInfoOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
     private static final int WRITE_COUNT = 10;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests general GetInfoOperation behavior.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testGetInfo() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -64,7 +68,7 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests the behavior of the GetInfoOperation on a segment that is missing the first file.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testCorruptedSegment() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();

@@ -9,19 +9,19 @@
  */
 package io.pravega.segmentstore.server.writer;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.ErrorInjector;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -39,7 +39,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.val;
 
 /**
@@ -203,8 +202,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector)
-                .thenRunAsync(() -> {
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> CompletableFuture.runAsync(() -> {
                     if (this.ackEffective.get()) {
                         // ackEffective determines whether the ack operation has any effect or not.
                         this.log.truncate(upToSequenceNumber);
@@ -225,7 +223,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
                     if (callback != null) {
                         callback.complete(null);
                     }
-                }, this.executor);
+                }, this.executor));
     }
 
     @Override
@@ -238,8 +236,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         return ErrorInjector
-                .throwAsyncExceptionIfNeeded(asyncErrorInjector)
-                .thenCompose(v -> {
+                .throwAsyncExceptionIfNeeded(asyncErrorInjector, () -> {
                     Iterator<Operation> logReadResult = this.log.read(afterSequenceNumber, maxCount);
                     if (logReadResult.hasNext()) {
                         // Result is readily available; return it.

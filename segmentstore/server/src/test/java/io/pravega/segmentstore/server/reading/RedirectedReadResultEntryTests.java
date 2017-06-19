@@ -17,20 +17,23 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.val;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.val;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for RedirectedReadResultEntry.
  */
 public class RedirectedReadResultEntryTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the ability of the ReadResultEntry base class to adjust offsets when instructed so.

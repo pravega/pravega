@@ -18,10 +18,6 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -34,13 +30,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for AsyncReadResultProcessor.
  */
 public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
     private static final int ENTRY_COUNT = 10000;
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @Override
     protected int getThreadPoolSize() {

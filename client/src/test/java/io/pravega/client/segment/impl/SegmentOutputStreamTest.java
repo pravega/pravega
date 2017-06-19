@@ -24,10 +24,10 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -145,7 +145,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testClose() throws ConnectionFailedException, SegmentSealedException, InterruptedException {
+    public void testClose() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
@@ -169,12 +169,6 @@ public class SegmentOutputStreamTest {
         verify(connection).send(new WireCommands.KeepAlive());
         verify(connection).close();
         verifyNoMoreInteractions(connection);
-    }
-
-    @Test
-    @Ignore
-    public void testConnectionFailure() {
-        fail();
     }
 
     @Test(timeout = 10000)
@@ -213,21 +207,105 @@ public class SegmentOutputStreamTest {
     }
 
     @Test
-    @Ignore
-    public void testAutoClose() {
-        fail();
+    public void testConnectionFailure() throws ConnectionFailedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        InOrder inOrder = Mockito.inOrder(connection);
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                cf.getProcessor(uri).connectionDropped();
+                throw new ConnectionFailedException();
+            }
+        }).when(connection).send(append);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
+                callback.complete(null);
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
+        
+        Async.testBlocking(() -> {            
+            output.write(new PendingEvent(null, data, acked, null));
+        }, () -> {            
+            cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(2, SEGMENT, cid, 0));
+        });
+        inOrder.verify(connection).send(append);
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+        inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
+        assertEquals(false, acked.isDone());
+        inOrder.verifyNoMoreInteractions();
     }
 
+    
+    /**
+     * Verifies that if a exception is encountered while flushing data inside of close, the
+     * connection is reestablished and the data is retransmitted before close returns.
+     */
     @Test
-    @Ignore
-    public void testFailOnAutoClose() {
-        fail();
-    }
-
-    @Test
-    @Ignore
-    public void testOutOfOrderAcks() {
-        fail();
+    public void testFailOnClose() throws ConnectionFailedException, SegmentSealedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        output.setupConnection();
+        InOrder inOrder = Mockito.inOrder(connection);
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+        
+        //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
+        CompletableFuture<Boolean> acked = new CompletableFuture<>();
+        Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                cf.getProcessor(uri).connectionDropped();
+                throw new ConnectionFailedException();
+            }
+        }).doNothing().when(connection).send(new WireCommands.KeepAlive());
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
+                callback.complete(null);
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any()); 
+        //Queue up event.
+        output.write(new PendingEvent(null, data, acked, null));
+        inOrder.verify(connection).send(append);
+        //Verify behavior
+        Async.testBlocking(() -> {
+            output.close();
+        }, () -> {            
+            cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(2, SEGMENT, cid, 0));
+            cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1));
+        });
+        inOrder.verify(connection).send(new WireCommands.KeepAlive());
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+        inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
+        inOrder.verify(connection).send(new WireCommands.KeepAlive());
+        inOrder.verify(connection).close();
+        assertEquals(true, acked.isDone());
+        inOrder.verifyNoMoreInteractions();
     }
 
     @Test

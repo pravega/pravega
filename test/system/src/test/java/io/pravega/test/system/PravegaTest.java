@@ -160,9 +160,9 @@ public class PravegaTest {
             Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
-        ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri)
-                .createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
-                        Collections.singleton(STREAM_NAME));
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri);
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
+                                       Collections.singleton(STREAM_NAME));
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,
                 new JavaSerializer<>(),
@@ -179,6 +179,7 @@ public class PravegaTest {
             }
         }
         reader.close();
+        groupManager.deleteReaderGroup(READER_GROUP);
     }
 
 }

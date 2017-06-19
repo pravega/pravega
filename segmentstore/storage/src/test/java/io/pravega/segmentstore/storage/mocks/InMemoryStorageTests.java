@@ -13,9 +13,9 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.TruncateableStorage;
 import io.pravega.segmentstore.storage.TruncateableStorageTestBase;
-import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -27,12 +27,16 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for InMemoryStorage
  */
 public class InMemoryStorageTests extends TruncateableStorageTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private InMemoryStorageFactory factory;
 
     @Before

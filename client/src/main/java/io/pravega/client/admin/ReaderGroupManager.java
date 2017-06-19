@@ -53,6 +53,15 @@ public interface ReaderGroupManager extends AutoCloseable {
     ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streamNames);
     
     /**
+     * Deletes a reader group, removing any state associated with it. There should be no reader left
+     * on the group when this is called. If there are any, the group will be deleted from underneath
+     * them and they will encounter exceptions.
+     * 
+     * @param groupName The group to be deleted.
+     */
+    void deleteReaderGroup(String groupName);
+    
+    /**
      * Returns the requested reader group.
      * 
      * @param groupName The name of the group

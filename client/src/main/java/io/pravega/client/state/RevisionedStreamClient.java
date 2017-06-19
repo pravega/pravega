@@ -16,16 +16,24 @@ import java.util.Map.Entry;
  * Provides a stream that can be read and written to with strong consistency.
  * Each item read from the stream is accompanied by a Revision.
  * These can be provided on write to guarantee that the writer is aware of all data in the stream.
+ * A specific location can also be marked, which can also be updated with strong consistency. 
+ * @param <T> The type of data written.
  */
-public interface RevisionedStreamClient<T> {
+public interface RevisionedStreamClient<T> extends AutoCloseable {
+    
+    /**
+     * Returns the oldest revision than can be read.
+     *
+     * @return The oldest readable revision.
+     */
+    Revision fetchOldestRevision();
     
     /**
      * Returns the latest revision.
      *
      * @return Latest revision.
-     *
      */
-    Revision fetchRevision();
+    Revision fetchLatestRevision();
     
     /**
      * Read from a specified revision to the end of the stream.
@@ -51,5 +59,27 @@ public interface RevisionedStreamClient<T> {
      * @param value The value to be written.
      */
     void writeUnconditionally(T value);
+    
+    /**
+     * Returns a location previously set by {@link #compareAndSetMark(Revision, Revision)}.
+     * @return The marked location. (null if setMark was never been called)
+     */
+    Revision getMark();
+    
+    /**
+     * Records a provided location that can later be obtained by calling {@link #getMark()}.
+     * Atomically set the mark to newLocation if it is the expected value.
+     * @param expected The expected value (May be null to indicate the mark is expected to be null)
+     * @param newLocation The new value 
+     * @return true if it was successful. False if the mark was not the expected value.
+     */
+    boolean compareAndSetMark(Revision expected, Revision newLocation);
+    
+    /**
+     * Closes the client and frees any resources associated with it. (It may no longer be used)
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    abstract void close();
 
 }

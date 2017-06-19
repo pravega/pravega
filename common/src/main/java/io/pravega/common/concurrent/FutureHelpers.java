@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -44,7 +45,7 @@ import lombok.val;
 public final class FutureHelpers {
 
     /**
-     * Waits for the provided future to be complete, and returns if it was successful, false otherwise.
+     * Waits for the provided future to be complete, and returns true if it was successful, false otherwise.
      *
      * @param f   The future to wait for.
      * @param <T> The Type of the future's result.
@@ -113,14 +114,14 @@ public final class FutureHelpers {
      * Gets a future returning its result, or the exception that caused it to fail. (Unlike a normal
      * future the cause does not need to be extracted.) Because some of these exceptions are
      * checked, and the future does not allow expressing this, the compile time information is lost.
-     * 
+     *
      * To get around this this method is generically typed with up to 3 exception types, that can be
      * used to re-introduce the exception types that could cause the future to fail into to the
      * compiler so they can be tracked. Note that nothing restricts or ensures that the exceptions
      * thrown from the future are of this type. The exception will always be throw as it was set on
      * the future, these types are purely for the benefit of the compiler. It is up to the caller to
      * ensure that this type matches the exception type that can fail the future.
-     * 
+     *
      * @param future The future to call get() on.
      * @param <ResultT> The result type of the provided future
      * @param <E1> A type of exception that may cause the future to fail.
@@ -131,7 +132,7 @@ public final class FutureHelpers {
      * @throws E2 If exception E2 occurs.
      * @throws E3 If exception E3 occurs.
      */
-    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThowingException(Future<ResultT> future) throws E1, E2, E3 {
+    public static <ResultT, E1 extends Exception, E2 extends Exception, E3 extends Exception> ResultT getThrowingException(Future<ResultT> future) throws E1, E2, E3 {
         Preconditions.checkNotNull(future);
         try {
             return future.get();
@@ -142,7 +143,7 @@ public final class FutureHelpers {
             throw Lombok.sneakyThrow(ExceptionHelpers.unwrapIfRequired(e));
         }
     }
-    
+
     /**
      * Calls get on the provided future, handling interrupted, and transforming the executionException into an exception
      * of the type whose constructor is provided.
@@ -259,7 +260,7 @@ public final class FutureHelpers {
      * this future.
      */
     public static <T> CompletableFuture<Void> toVoid(CompletableFuture<T> future) {
-        return future.thenAccept(FutureHelpers::doNothing);
+        return future.thenAccept(Callbacks::doNothing);
     }
 
     /**
@@ -286,10 +287,6 @@ public final class FutureHelpers {
             throw exceptionConstructor.get();
         }
         return null;
-    }
-
-    private static <T> void doNothing(T ignored) {
-        // This method intentionally left blank.
     }
 
     //endregion

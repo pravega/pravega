@@ -112,7 +112,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @return update status.
      */
     @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus.Status> alterStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
+    public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
         return execute(
                 new Resource(scope, stream),
                 new Serializable[]{scope, stream, config, null},
@@ -465,10 +465,10 @@ public class StreamMetadataTasks extends TaskBase {
         Throwable cause = ExceptionHelpers.getRealException(ex);
         if (cause instanceof DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_NOT_FOUND) {
+        } else if (cause instanceof StoreException && ((StoreException) cause).getType() == NODE_NOT_FOUND) {
             return UpdateStreamStatus.Status.SCOPE_NOT_FOUND;
         } else {
-            log.warn("Update stream failed due to ", ex);
+            log.warn("Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
         }
     }

@@ -269,7 +269,7 @@ public class StreamMetaDataTests {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/" + stream1;
 
         // Test to update an existing stream
-        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus);
+        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus);
         Response response = client.target(resourceURI).request().buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 200, response.getStatus());
         StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
@@ -284,13 +284,13 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to update an non-existing stream
-        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus2);
+        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus2);
         response = client.target(resourceURI).request().buildPut(Entity.json(updateStreamRequest2)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
         response.close();
 
         // Test for validation of request object
-        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus3);
+        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus3);
         response = client.target(resourceURI).request().buildPut(Entity.json(updateStreamRequest3)).invoke();
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
@@ -298,7 +298,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to update stream for non-existent scope
-        when(mockControllerService.alterStream(any())).thenReturn(updateStreamStatus4);
+        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus4);
         response = client.target(resourceURI).request().buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
         response.close();

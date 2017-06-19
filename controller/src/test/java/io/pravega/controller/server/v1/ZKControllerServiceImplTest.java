@@ -54,7 +54,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * Zookeeper stream store configuration.
  */
-public class ZKControllerServiceAsyncImplTest extends ControllerServiceImplTest {
+public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
     private TestingServer zkServer;
     private CuratorFramework zkClient;
