@@ -272,6 +272,4 @@ public class FSStorageTest extends StorageTestBase {
             return FileSystemSegmentHandle.writeHandle(segmentName);
         }
     }
-
-
 }
