@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -118,6 +119,7 @@ class BookKeeperLog implements DurableDataLog {
         this.writes = new WriteQueue(this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
+        this.executorService.scheduleWithFixedDelay(this.writes::updateParallelism,1000,1000, TimeUnit.MILLISECONDS);
     }
 
     //endregion

@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A specialized queue for BookKeeper writes. Provides methods for adding new items, determining the next items to execute,
@@ -72,6 +74,8 @@ class WriteQueue {
         this.baseParallelism = minParallelism;
         this.parallelismSpan = maxParallelism - minParallelism;
         this.writes = new ArrayDeque<>();
+        this.lastParallelismUpdate = this.timeSupplier.get() / AbstractTimer.NANOS_TO_MILLIS;
+        this.currentParallelism = minParallelism;
     }
 
     //endregion
@@ -194,6 +198,7 @@ class WriteQueue {
             Write w = this.writes.removeFirst();
             this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
             removedCount++;
+            this.completedWritesLength += w.data.getLength();
             totalElapsed += currentTime - w.getTimestamp();
             failedWrite |= w.getFailureCause() != null;
         }
@@ -243,7 +248,74 @@ class WriteQueue {
         return (int) parallelism + baseParallelism;
     }
 
+    @GuardedBy("this")
+    private long lastParallelismUpdate;
+    @GuardedBy("this")
+    private long completedWritesLength;
+    @GuardedBy("this")
+    private PerformanceStats lastPerfStats;
+    @GuardedBy("this")
+    private int currentParallelism;
+
+    synchronized void updateParallelism() {
+        long time = this.timeSupplier.get() / AbstractTimer.NANOS_TO_MILLIS;
+        long elapsed = time - this.lastParallelismUpdate;
+        int delta = 0; // 0: No change, +1: Increase, -1: Decrease.
+
+        // TODO 1: Review this method.
+        // TODO 2: Integrate this method with the rest of the class
+        // TODO 3: Update MinMaxParallelism in SelfTester with 1 and 100, respectively.
+        if (this.lastPerfStats != null) {
+            // Only bother to change something if we have something to compare against.
+            // If TPUT UP, then perform the same action we did last time.
+            // If TPUT DOWN, then perform the opposite action we did last time.
+            // If TPUT SAME, then increase or decrease parallelism based on current queue size change.
+
+            // TPut is measured in Bytes/Millis
+            double oldTPut = (double) this.completedWritesLength / elapsed;
+            double tPutDiff = oldTPut - (double) this.lastPerfStats.bytes / this.lastPerfStats.elapsedMillis;
+            if (Math.abs(tPutDiff / oldTPut) < 0.01) {
+                // Insignificant change: use queue size to determine.
+                delta = this.writes.size() - this.lastPerfStats.queueSize;
+            } else if (this.lastPerfStats.delta == 0) {
+                // We didn't do anything last time. Pick a change based off whether throughput went up or down.
+                delta = tPutDiff < 0 ? -1 : 1;
+            } else {
+                // Somewhat of a significant change: use throughput direction to determine.
+                delta = this.lastPerfStats.delta;
+                if (tPutDiff < 0) {
+                    // Throughput decreased: do the opposite of what we did last time.
+                    delta = Math.min(-1, -delta); // But also decrease parallelism if we did no change.
+                }
+            }
+
+            delta = MathHelpers.minMax(delta, -1, 1);
+            this.currentParallelism = MathHelpers.minMax(this.currentParallelism + delta,
+                    this.baseParallelism, this.baseParallelism + this.parallelismSpan);
+        }
+
+        this.lastPerfStats = new PerformanceStats(elapsed, this.completedWritesLength, this.writes.size(), delta);
+        System.out.println(String.format("Elapsed: %s, Bytes: %s, Stats: %s, NewP: %s",
+                elapsed, this.completedWritesLength, this.lastPerfStats, this.currentParallelism));
+        this.lastParallelismUpdate = time;
+        this.completedWritesLength = 0;
+    }
+
     //endregion
+
+    @RequiredArgsConstructor
+    private static class PerformanceStats {
+        final long elapsedMillis;
+        final long bytes;
+        final int queueSize;
+        final int delta;
+
+        @Override
+        public String toString() {
+            return String.format("Bytes = %d, Elapsed = %d, Queue = %d, Delta = %d",
+                    this.bytes, this.elapsedMillis, this.queueSize, this.delta);
+        }
+    }
 
     //region CleanupStatus
 
