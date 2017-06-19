@@ -141,10 +141,11 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 hostsChange.acquire();
                 log.info("Received rebalance event");
 
-                //Wait here so we can club multiple rebalance events into one.
+                // Wait here until rebalance can be performed.
                 waitForRebalance();
 
-                //Clear all events that has been received until this point.
+                // Clear all events that has been received until this point since this will be included in the current
+                // rebalance operation.
                 hostsChange.drainPermits();
                 triggerRebalance();
             } catch (InterruptedException e) {
