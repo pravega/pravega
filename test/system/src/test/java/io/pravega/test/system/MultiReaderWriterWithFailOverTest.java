@@ -65,14 +65,14 @@ public class MultiReaderWriterWithFailOverTest {
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
-    private AtomicLong eventWriteCount1;
-    private AtomicLong eventWriteCount2;
-    private AtomicLong eventWriteCount3;
-    private AtomicLong eventWriteCount4;
-    private AtomicLong eventReadCount1;
-    private AtomicLong eventReadCount2;
-    private AtomicLong eventReadCount3;
-    private AtomicLong eventReadCount4;
+    private Long eventWriteCount1;
+    private Long eventWriteCount2;
+    private Long eventWriteCount3;
+    private Long eventWriteCount4;
+    private Long eventReadCount1;
+    private Long eventReadCount2;
+    private Long eventReadCount3;
+    private Long eventReadCount4;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
@@ -129,11 +129,8 @@ public class MultiReaderWriterWithFailOverTest {
     @Before
     public void setup() {
 
-        //Start 1 instance of zookeeper
+        // Get zk details to verify if controller, SSS are running
         Service zkService = new ZookeeperService("zookeeper");
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
@@ -259,9 +256,11 @@ public class MultiReaderWriterWithFailOverTest {
             performScaling();
 
             //set the stop write flag to true
+            log.info(" stop write flag {}", stopWriteFlag);
             stopWriteFlag.set(true);
 
             //wait for writers completion
+            log.info("wait for writers exceution to complete");
             FutureHelpers.allOf(writerFutureList);
 
             //set the stop read flag to true
@@ -308,31 +307,31 @@ public class MultiReaderWriterWithFailOverTest {
     private void performScaling() throws InterruptedException {
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
-        eventWriteCount1 = eventData;
-        eventReadCount1 = eventReadCount;
+        eventWriteCount1 = eventData.get();
+        eventReadCount1 = eventReadCount.get();
 
-        log.info("Read count without any failure {}", eventReadCount1.get());
-        log.info("Write count without any failure {}", eventWriteCount1.get());
+        log.info("Read count without any failover {}", eventReadCount1);
+        log.info("Write count without any failover {}", eventWriteCount1);
 
         //scale after some random time
-        Thread.sleep(new Random().nextInt(50000));
+        Thread.sleep(new Random().nextInt(50000) + 3000);
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         log.info("Scaling down SSS instances from 3 to 2");
-        eventWriteCount2 = eventData;
-        eventReadCount2 = eventReadCount;
+        eventWriteCount2 = eventData.get();
+        eventReadCount2 = eventReadCount.get();
 
-        log.info("Read count with SSS failover {}", eventReadCount2.get());
-        log.info("Write count with SSS failover {}", eventWriteCount2.get());
+        log.info("Read count with SSS failover {}", eventReadCount2);
+        log.info("Write count with SSS failover {}", eventWriteCount2);
 
         //ensure reads are happening
-        assertTrue(eventReadCount2.get() > eventReadCount1.get());
+        assertTrue(eventReadCount2 > eventReadCount1);
         //ensure writes are happening
-        assertTrue(eventWriteCount2.get() > eventWriteCount1.get());
+        assertTrue(eventWriteCount2 > eventWriteCount1);
 
         //scale after some random time
-        Thread.sleep(new Random().nextInt(50000));
+        Thread.sleep(new Random().nextInt(50000) + 3000);
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
@@ -343,19 +342,19 @@ public class MultiReaderWriterWithFailOverTest {
                 .collect(Collectors.toList());
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        eventWriteCount3 = eventData;
-        eventReadCount3 = eventReadCount;
+        eventWriteCount3 = eventData.get();
+        eventReadCount3 = eventReadCount.get();
 
-        log.info("Read count with controller failover {}", eventReadCount3.get());
-        log.info("Write count with controller failover {}", eventWriteCount3.get());
+        log.info("Read count with controller failover {}", eventReadCount3);
+        log.info("Write count with controller failover {}", eventWriteCount3);
 
         //ensure reads are happening
-        assertTrue(eventReadCount3.get() > eventReadCount2.get());
+        assertTrue(eventReadCount3 > eventReadCount2);
         //ensure writes are happening
-        assertTrue(eventWriteCount3.get() > eventWriteCount2.get());
+        assertTrue(eventWriteCount3 > eventWriteCount2);
 
         //scale after some random time
-        Thread.sleep(new Random().nextInt(50000));
+        Thread.sleep(new Random().nextInt(50000) + 3000);
 
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
@@ -367,16 +366,20 @@ public class MultiReaderWriterWithFailOverTest {
                 .collect(Collectors.toList());
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris1));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        eventWriteCount4 = eventData;
-        eventReadCount4 = eventReadCount;
+        log.info(" stop write flag {}", stopWriteFlag);
+        log.info(" stop read flag {}", stopWriteFlag);
+        log.info(" event data {}", eventData.get());
+        log.info(" read count {}", eventReadCount.get());
+        eventWriteCount4 = eventData.get();
+        eventReadCount4 = eventReadCount.get();
 
-        log.info("Read count with SSS and controller failover {}", eventReadCount3.get());
-        log.info("Write count with SSS and controller failover {}", eventWriteCount3.get());
+        log.info("Read count with SSS and controller failover {}", eventReadCount3);
+        log.info("Write count with SSS and controller failover {}", eventWriteCount3);
 
         //ensure reads are happening
-        assertTrue(eventReadCount4.get() > eventReadCount3.get());
+        assertTrue(eventReadCount4 > eventReadCount3);
         //ensure writes are happening
-        assertTrue(eventWriteCount4.get() > eventWriteCount3.get());
+        assertTrue(eventWriteCount4 > eventWriteCount3);
     }
 
     private CompletableFuture<Void> startWriting(final AtomicLong data, final EventStreamWriter<Long> writer, final AtomicBoolean stopWriteFlag) {
