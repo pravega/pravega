@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.Callable;
@@ -57,7 +58,9 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
-                        metrics.remove(gauge.getName());
+                        if (removal.getCause() != RemovalCause.REPLACED) {
+                            metrics.remove(gauge.getName());
+                        }
                         log.debug("Removed Gauge: {}.", gauge.getName());
                     }
                 }).
@@ -100,6 +103,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Preconditions.checkNotNull(value);
         Gauge newGauge = null;
         String gaugeName = name + ".Gauge";
+
         if (value instanceof Float) {
             newGauge = underlying.registerGauge(gaugeName, value::floatValue);
         } else if (value instanceof Double) {
@@ -117,9 +121,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         if (null == newGauge) {
             log.error("Unsupported Number type: {}.", value.getClass().getName());
         } else {
-            if (null == gaugesCache.getIfPresent(gaugeName)) {
-                gaugesCache.put(gaugeName, newGauge);
-            }
+            gaugesCache.put(gaugeName, newGauge);
         }
     }
 
