@@ -183,7 +183,7 @@ public class FileSystemStorage implements Storage {
 
     @Override
     public void close() {
-        this.closed.getAndSet(true);
+        this.closed.set(true);
     }
 
     //endregion
@@ -214,7 +214,7 @@ public class FileSystemStorage implements Storage {
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
             LoggerHelpers.traceLeave(log, "openWrite", traceId);
-            return openRead(streamSegmentName).get();
+            return syncOpenRead(streamSegmentName);
         }
     }
 

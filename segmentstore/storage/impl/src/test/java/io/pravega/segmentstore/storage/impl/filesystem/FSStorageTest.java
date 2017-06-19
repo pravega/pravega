@@ -60,7 +60,6 @@ public class FSStorageTest extends StorageTestBase {
 
     /**
      * Tests fencing abilities. We create two different Storage objects with different owner ids.
-     * Part 1: Creation:
      * * We create the Segment on Storage1:
      * ** We verify that Storage1 can execute all operations.
      * ** We verify that Storage2 can execute only read-only operations.
@@ -252,6 +251,11 @@ public class FSStorageTest extends StorageTestBase {
             Assert.assertTrue(s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
             s1.delete(writeHandle1, TIMEOUT);
         }
+    }
+
+    @Test
+    public void testPartialConcat() {
+
     }
 
     //endregion
