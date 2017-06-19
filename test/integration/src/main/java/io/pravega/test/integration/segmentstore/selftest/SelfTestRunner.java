@@ -69,7 +69,7 @@ public class SelfTestRunner {
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
                                         .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
                 .include(BookKeeperConfig.builder()
-                                         .with(BookKeeperConfig.MIN_WRITE_PARALLELISM, 4)
+                                         .with(BookKeeperConfig.MIN_WRITE_PARALLELISM, 1)
                                          .with(BookKeeperConfig.MAX_WRITE_PARALLELISM, 100)
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
