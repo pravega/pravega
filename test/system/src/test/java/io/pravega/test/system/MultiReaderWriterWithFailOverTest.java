@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
@@ -34,6 +34,7 @@ import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,17 +42,19 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.stream.Collectors;
@@ -169,7 +172,7 @@ public class MultiReaderWriterWithFailOverTest {
         }
     }
 
-    @Test(timeout = 600000)
+    @Test(timeout = 300000)
     public void multiReaderWriterWithFailOverTest() throws Exception {
 
         String scope = "testMultiReaderWriterScope" + new Random().nextInt(Integer.MAX_VALUE);
@@ -241,7 +244,46 @@ public class MultiReaderWriterWithFailOverTest {
                         ReaderConfig.builder().build());
                 readerList.add(reader);
             }
-            readWriteTest(writerList, readerList, stopWriteFlag);
+
+            // start writing asynchronously
+            List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
+            writerList.forEach(writer -> {
+                CompletableFuture<Void> writerFuture = startWriting(eventData, writer, stopWriteFlag);
+                writerFutureList.add(writerFuture);
+            });
+
+            //start reading asynchronously
+            List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
+            readerList.forEach(reader -> {
+                CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
+                writerFutureList.add(readerFuture);
+            });
+
+            //perform the scaling operations
+            performScaling();
+
+            //set the stop write flag to true
+            stopWriteFlag.set(true);
+
+            //wait for writers completion
+            FutureHelpers.allOf(writerFutureList);
+
+            //set the stop read flag to true
+            stopReadFlag.set(true);
+
+            // wait for reads = writes
+            synchronized (waitCondition) {
+                while (!(eventsReadFromPravega.size() == eventData.get())) {
+                    waitCondition.wait();
+                }
+            }
+
+            //wait for readers completion
+            FutureHelpers.allOf(readerFutureList);
+            log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
+                    "Count: {}", eventData.get(), eventsReadFromPravega.size());
+            assertEquals(eventData.get(), eventsReadFromPravega.size());
+            assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
             //close all the writers
             writerList.forEach(writer -> writer.close());
@@ -251,52 +293,50 @@ public class MultiReaderWriterWithFailOverTest {
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
         }
-            //seal the stream
-            CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
-            log.info("Sealing stream {}", STREAM_NAME);
-            assertTrue(sealStreamStatus.get());
-            //delete the stream
-            CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
-            log.info("Deleting stream {}", STREAM_NAME);
-            assertTrue(deleteStreamStatus.get());
+        //seal the stream
+        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+        log.info("Sealing stream {}", STREAM_NAME);
+        assertTrue(sealStreamStatus.get());
+        //delete the stream
+        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+        log.info("Deleting stream {}", STREAM_NAME);
+        assertTrue(deleteStreamStatus.get());
 
-            //delete the scope
-            CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
-            log.info("Deleting scope {}", scope);
-            assertTrue(deleteScopeStatus.get());
-            log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
-        }
+        //delete the scope
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        log.info("Deleting scope {}", scope);
+        assertTrue(deleteScopeStatus.get());
+        log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
+    }
 
-    private void readWriteTest(final List<EventStreamWriter<Long>> writerList,
-                               List<EventStreamReader<Long>> readerList, final AtomicBoolean stopWriteFlag) throws InterruptedException, ExecutionException {
-        // start writing asynchronously
-        List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
-        writerList.forEach(writer -> {
-            CompletableFuture<Void> writerFuture = startWriting(eventData, writer, stopWriteFlag);
-            writerFutureList.add(writerFuture);
-        });
-
-        //start reading asynchronously
-        List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
-        readerList.forEach(reader -> {
-            CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
-            writerFutureList.add(readerFuture);
-        });
+    private void performScaling() throws InterruptedException {
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
         eventWriteCount1 = eventData;
-        eventReadCount1 =  eventReadCount;
+        eventReadCount1 = eventReadCount;
+
+        log.info("Read count without any failure {}", eventReadCount1.get());
+        log.info("Write count without any failure {}", eventWriteCount1.get());
+
+        //scale after some random time
+        Thread.sleep(new Random().nextInt(50000));
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(60000);
         log.info("Scaling down SSS instances from 3 to 2");
         eventWriteCount2 = eventData;
-        eventReadCount2 =  eventReadCount;
+        eventReadCount2 = eventReadCount;
+
+        log.info("Read count with SSS failover {}", eventReadCount2.get());
+        log.info("Write count with SSS failover {}", eventWriteCount2.get());
+
         //ensure reads are happening
         assertTrue(eventReadCount2.get() > eventReadCount1.get());
         //ensure writes are happening
         assertTrue(eventWriteCount2.get() > eventWriteCount1.get());
+
+        //scale after some random time
+        Thread.sleep(new Random().nextInt(50000));
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
@@ -307,17 +347,22 @@ public class MultiReaderWriterWithFailOverTest {
                 .collect(Collectors.toList());
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        Thread.sleep(60000);
         eventWriteCount3 = eventData;
-        eventReadCount3 =  eventReadCount;
+        eventReadCount3 = eventReadCount;
+
+        log.info("Read count with controller failover {}", eventReadCount3.get());
+        log.info("Write count with controller failover {}", eventWriteCount3.get());
+
         //ensure reads are happening
         assertTrue(eventReadCount3.get() > eventReadCount2.get());
         //ensure writes are happening
         assertTrue(eventWriteCount3.get() > eventWriteCount2.get());
 
+        //scale after some random time
+        Thread.sleep(new Random().nextInt(50000));
+
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
-        Thread.sleep(60000);
         controllerInstance.scaleService(1, true);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
         List<URI> conURIs1 = controllerInstance.getServiceDetails();
@@ -326,36 +371,16 @@ public class MultiReaderWriterWithFailOverTest {
                 .collect(Collectors.toList());
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris1));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
-        Thread.sleep(60000);
         eventWriteCount4 = eventData;
-        eventReadCount4 =  eventReadCount;
+        eventReadCount4 = eventReadCount;
+
+        log.info("Read count with SSS and controller failover {}", eventReadCount3.get());
+        log.info("Write count with SSS and controller failover {}", eventWriteCount3.get());
+
         //ensure reads are happening
         assertTrue(eventReadCount4.get() > eventReadCount3.get());
         //ensure writes are happening
         assertTrue(eventWriteCount4.get() > eventWriteCount3.get());
-
-        //set the stop write flag to true
-        stopWriteFlag.set(true);
-
-        //wait for writers completion
-        FutureHelpers.allOf(writerFutureList);
-
-        //set the stop read flag to true
-        stopReadFlag.set(true);
-
-        // wait for reads = writes
-        synchronized (waitCondition) {
-            while (!(eventsReadFromPravega.size() == eventData.get())) {
-                waitCondition.wait();
-            }
-        }
-
-        //wait for readers completion
-        FutureHelpers.allOf(readerFutureList);
-        log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
-                "Count: {}", eventData.get(), eventsReadFromPravega.size());
-        assertEquals(eventData.get(), eventsReadFromPravega.size());
-        assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
     }
 
     private CompletableFuture<Void> startWriting(final AtomicLong data, final EventStreamWriter<Long> writer, final AtomicBoolean stopWriteFlag) {
