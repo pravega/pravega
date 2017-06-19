@@ -274,7 +274,7 @@ public class FSStorageTest extends StorageTestBase {
             s1.seal(writeHandle2, TIMEOUT).join();
 
             // This will append the segments and delete the concat segment.
-            s1.concat(writeHandle1,writeData.length, concatSegmentName, TIMEOUT).join();
+            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
             long lengthBeforeRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
 
             // Create the segment again.
@@ -285,7 +285,7 @@ public class FSStorageTest extends StorageTestBase {
             s1.seal(writeHandle2, TIMEOUT);
 
             //Concat at the same offset again
-            s1.concat(writeHandle1,writeData.length, concatSegmentName, TIMEOUT).join();
+            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
             Assert.assertTrue( lengthBeforeRetry == s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength());
             s1.delete(writeHandle1, TIMEOUT);
         }
