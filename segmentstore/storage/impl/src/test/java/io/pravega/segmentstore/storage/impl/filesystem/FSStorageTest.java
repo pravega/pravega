@@ -60,7 +60,6 @@ public class FSStorageTest extends StorageTestBase {
 
     /**
      * Tests fencing abilities. We create two different Storage objects with different owner ids.
-     * Part 1: Creation:
      * * We create the Segment on Storage1:
      * ** We verify that Storage1 can execute all operations.
      * ** We verify that Storage2 can execute only read-only operations.
@@ -250,6 +249,44 @@ public class FSStorageTest extends StorageTestBase {
                 offset += writeData.length;
             }
             Assert.assertTrue(s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
+            s1.delete(writeHandle1, TIMEOUT);
+        }
+    }
+
+    @Test
+    public void testPartialConcat() {
+        String segmentName = "foo_write";
+        String concatSegmentName = "foo_concat";
+        int offset = 0;
+
+        try ( Storage s1 = createStorage()) {
+            s1.initialize(DEFAULT_EPOCH);
+            s1.create(segmentName, TIMEOUT).join();
+            s1.create(concatSegmentName, TIMEOUT).join();
+            SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
+            SegmentHandle writeHandle2 = s1.openWrite(concatSegmentName).join();
+            byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
+            ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
+            ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
+            s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
+            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+
+            s1.seal(writeHandle2, TIMEOUT).join();
+
+            // This will append the segments and delete the concat segment.
+            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
+            long lengthBeforeRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
+
+            // Create the segment again.
+            s1.create(concatSegmentName, TIMEOUT).join();
+            writeHandle2 = s1.openWrite(concatSegmentName).join();
+            dataStream2 = new ByteArrayInputStream(writeData);
+            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+            s1.seal(writeHandle2, TIMEOUT);
+
+            //Concat at the same offset again
+            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
+            Assert.assertTrue( lengthBeforeRetry == s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength());
             s1.delete(writeHandle1, TIMEOUT);
         }
     }
