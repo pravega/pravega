@@ -41,7 +41,6 @@ import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -178,8 +177,9 @@ public class ECSStorageTest extends IdempotentStorageTest {
             PutObjectResult retVal = super.putObject(request);
            if (request.getAcl() != null) {
                long size = 0;
-               if(request.getRange() != null) size = request.getRange().getLast() -1;
-
+               if (request.getRange() != null) {
+                   size = request.getRange().getLast() -1;
+               }
                ACL_MAP.put(request.getKey(), new AclSize(request.getAcl(),
                        size));
            }
@@ -259,12 +259,14 @@ public class ECSStorageTest extends IdempotentStorageTest {
             super.deleteObject(bucketName, key);
             ACL_MAP.remove(key);
         }
+
         @Override
         public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
             request.getDeleteObjects().getKeys().forEach( (key) -> ACL_MAP.remove(key));
             return super.deleteObjects(request);
         }
     }
+
     @Data
     @AllArgsConstructor
     private static class AclSize {
