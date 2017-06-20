@@ -331,7 +331,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             lock.readLock().lock();
             try {
                 for (SegmentOutputStream writer : selector.getWriters()) {
-                        writer.flush();
+                    writer.flush();
                 }
             } finally {
                 lock.readLock().unlock();
