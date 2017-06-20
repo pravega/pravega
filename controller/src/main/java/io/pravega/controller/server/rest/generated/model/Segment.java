@@ -16,7 +16,7 @@ import io.swagger.annotations.ApiModelProperty;
 public class Segment   {
   private Integer number = null;
 
-  private Long start = null;
+  private Long startTime = null;
 
   private Integer keyStart = null;
 
@@ -40,22 +40,22 @@ public class Segment   {
     this.number = number;
   }
 
-  public Segment start(Long start) {
-    this.start = start;
+  public Segment startTime(Long startTime) {
+    this.startTime = startTime;
     return this;
   }
 
    /**
-   * Get start
-   * @return start
+   * Get startTime
+   * @return startTime
   **/
   @ApiModelProperty(value = "")
-  public Long getStart() {
-    return start;
+  public Long getStartTime() {
+    return startTime;
   }
 
-  public void setStart(Long start) {
-    this.start = start;
+  public void setStartTime(Long startTime) {
+    this.startTime = startTime;
   }
 
   public Segment keyStart(Integer keyStart) {
@@ -105,14 +105,14 @@ public class Segment   {
     }
     Segment segment = (Segment) o;
     return Objects.equals(this.number, segment.number) &&
-        Objects.equals(this.start, segment.start) &&
+        Objects.equals(this.startTime, segment.startTime) &&
         Objects.equals(this.keyStart, segment.keyStart) &&
         Objects.equals(this.keyEnd, segment.keyEnd);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(number, start, keyStart, keyEnd);
+    return Objects.hash(number, startTime, keyStart, keyEnd);
   }
 
   @Override
@@ -121,7 +121,7 @@ public class Segment   {
     sb.append("class Segment {\n");
     
     sb.append("    number: ").append(toIndentedString(number)).append("\n");
-    sb.append("    start: ").append(toIndentedString(start)).append("\n");
+    sb.append("    startTime: ").append(toIndentedString(startTime)).append("\n");
     sb.append("    keyStart: ").append(toIndentedString(keyStart)).append("\n");
     sb.append("    keyEnd: ").append(toIndentedString(keyEnd)).append("\n");
     sb.append("}");

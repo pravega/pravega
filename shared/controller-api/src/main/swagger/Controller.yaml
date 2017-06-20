@@ -375,8 +375,8 @@ definitions:
     properties:
       number:
         type: integer
-        format: int34
-      start:
+        format: int32
+      startTime:
         type: integer
         format: int64
       keyStart:

@@ -682,6 +682,14 @@ public class StreamMetaDataTests {
                 queryParam("to", toDateTime).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 404, response.getStatus());
 
+        // Test for getScalingEvents for bad request.
+        // from > to is tested here
+        when(mockControllerService.getScaleRecords("scope1", "stream1")).
+                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        response = client.target(resourceURI).queryParam("from", fromDateTime * 2).
+                queryParam("to", fromDateTime).request().buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 400, response.getStatus());
+
         // Test for getScalingEvents failure.
         final CompletableFuture<List<ScaleMetadata>> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new Exception());

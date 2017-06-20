@@ -410,7 +410,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             log.warn("updateStreamState for {} failed with exception: {}", streamName, exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStreamState", traceId));
+        .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStreamState", traceId));
     }
 
     /**
@@ -428,15 +428,24 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                  final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getScalingEvents");
 
+        if (from < 0 || to < 0 || from > to) {
+            log.warn("Received invalid request from client for scopeName/streamName: {}/{} ", scopeName, streamName);
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            return;
+        }
+
         controllerService.getScaleRecords(scopeName, streamName).thenApply(listScaleMetadata -> {
             Iterator<ScaleMetadata> metadataIterator = listScaleMetadata.iterator();
             List<ScaleMetadata> finalScaleMetadataList = new ArrayList<ScaleMetadata>();
+
+            // referenceEvent is the Event used as reference for the events between 'from' and 'to'.
             ScaleMetadata referenceEvent = null;
             while (metadataIterator.hasNext()) {
                 ScaleMetadata scaleMetadata = metadataIterator.next();
                 if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
                     finalScaleMetadataList.add(scaleMetadata);
                 } else if (scaleMetadata.getTimestamp() < from && scaleMetadata.getTimestamp() < to) {
+                    // This check is required to store a reference event i.e. an event before the 'from' datetime
                     referenceEvent = scaleMetadata;
                 } else {
                     break;
@@ -453,7 +462,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 log.warn("Stream/Scope name: {}/{} not found", scopeName, streamName);
                 return Response.status(Status.NOT_FOUND).build();
             } else {
-                log.warn("getScalingEvents for {} failed with exception: {}", scopeName, exception);
+                log.warn("getScalingEvents for scopeName/streamName: {}/{} failed with exception ",
+                        scopeName, streamName, exception);
                 return Response.status(Status.INTERNAL_SERVER_ERROR).build();
             }
         }).thenApply(asyncResponse::resume)
