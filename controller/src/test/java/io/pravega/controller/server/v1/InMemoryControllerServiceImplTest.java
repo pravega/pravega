@@ -65,7 +65,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executorService));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
 

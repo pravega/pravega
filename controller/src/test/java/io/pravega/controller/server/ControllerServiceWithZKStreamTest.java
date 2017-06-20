@@ -153,7 +153,7 @@ public class ControllerServiceWithZKStreamTest {
         connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
         streamTransactionMetadataTasks = new StreamTransactionTasksMock(streamStore, hostStore, taskMetadataStore,
                 segmentHelperMock, executor, "host", connectionFactory);
         streamTransactionMetadataTasks.initializeWriters(getWriteResultSequence(5), getWriteResultSequence(5));

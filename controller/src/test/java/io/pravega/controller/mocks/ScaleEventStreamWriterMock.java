@@ -21,6 +21,7 @@ import lombok.Data;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Mock EventStreamWriter.
@@ -28,13 +29,14 @@ import java.util.concurrent.CompletableFuture;
 @Data
 public class ScaleEventStreamWriterMock implements EventStreamWriter<ControllerEvent> {
     private final StreamMetadataTasks streamMetadataTasks;
+    private final ScheduledExecutorService executor;
 
     @Override
     public AckFuture writeEvent(ControllerEvent event) {
         if (event instanceof ScaleOpEvent) {
             ScaleOpEvent scaleOp = (ScaleOpEvent) event;
-            FutureHelpers.getAndHandleExceptions(
-                    streamMetadataTasks.startScale(scaleOp, scaleOp.isRunOnlyIfStarted(), null), RuntimeException::new);
+            FutureHelpers.delayedFuture(() ->
+                    streamMetadataTasks.startScale(scaleOp, scaleOp.isRunOnlyIfStarted(), null), 1000, executor);
         }
         return new AckFutureMock(CompletableFuture.completedFuture(true));
     }

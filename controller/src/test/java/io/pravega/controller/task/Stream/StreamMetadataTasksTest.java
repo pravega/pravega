@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.test.common.TestingServerStarter;
@@ -153,9 +153,9 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
 
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock());
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
-                Arrays.<AbstractMap.SimpleEntry<Double, Double>>asList(segment3, segment4, segment5), 30, null).get();
+                Arrays.asList(segment3, segment4, segment5), 30, null).get();
 
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.FAILURE, scaleOpResult.getStatus());

@@ -89,7 +89,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executorService));
         streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
         timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
