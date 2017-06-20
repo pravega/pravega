@@ -26,6 +26,7 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -392,14 +393,12 @@ public class ECSStorage implements Storage {
             return null;
     }
 
-
     private Void syncDelete(SegmentHandle handle) {
 
             client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + handle.getSegmentName());
             return null;
 
     }
-
 
     /**
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
@@ -424,7 +423,7 @@ public class ECSStorage implements Storage {
     private Exception translateException(String segmentName, Exception e) {
         Exception retVal = e;
 
-        if ( e instanceof S3Exception) {
+        if ( e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
             if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
                 retVal = new StreamSegmentNotExistsException(segmentName);
             }

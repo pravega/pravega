@@ -16,6 +16,7 @@ import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CopyObjectResult;
 import com.emc.object.s3.bean.CopyPartResult;
+import com.emc.object.s3.bean.DeleteObjectsResult;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.bean.PutObjectResult;
 import com.emc.object.s3.jersey.S3JerseyClient;
@@ -25,9 +26,12 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Module;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageTest;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
@@ -37,6 +41,7 @@ import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -45,6 +50,7 @@ import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -156,7 +162,7 @@ public class ECSStorageTest extends IdempotentStorageTest {
 
 
     private static class S3JerseyClientWrapper extends S3JerseyClient {
-        private static final ConcurrentMap<String, AccessControlList> ACL_MAP = new ConcurrentHashMap<>();
+        private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
         public S3JerseyClientWrapper(S3Config ecsConfig) {
             super(ecsConfig);
@@ -171,7 +177,11 @@ public class ECSStorageTest extends IdempotentStorageTest {
            }
             PutObjectResult retVal = super.putObject(request);
            if (request.getAcl() != null) {
-               ACL_MAP.put(request.getKey(), request.getAcl());
+               long size = 0;
+               if(request.getRange() != null) size = request.getRange().getLast() -1;
+
+               ACL_MAP.put(request.getKey(), new AclSize(request.getAcl(),
+                       size));
            }
            return retVal;
         }
@@ -184,7 +194,7 @@ public class ECSStorageTest extends IdempotentStorageTest {
                     int bytesRead = getObject(bucketName, key).getObject().read(totalByes, 0,
                             Math.toIntExact(range.getFirst()));
                     if ( bytesRead != range.getFirst() ) {
-                        throw new IllegalArgumentException();
+                        throw new CompletionException(new BadOffsetException(key, range.getFirst(), bytesRead));
                     }
                 }
                 int bytesRead = ( (InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
@@ -194,6 +204,7 @@ public class ECSStorageTest extends IdempotentStorageTest {
                     throw new IllegalArgumentException();
                 }
                 super.putObject( new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
+                ACL_MAP.get(key).setSize(range.getLast() -1);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -201,29 +212,29 @@ public class ECSStorageTest extends IdempotentStorageTest {
 
         @Override
         public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-            AccessControlList retVal = ACL_MAP.get(key);
+            AclSize retVal = ACL_MAP.get(key);
             if ( retVal == null ) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", key);
             }
-            ACL_MAP.put(key, acl);
+            retVal.setAcl(acl);
         }
 
         @Override
         public void setObjectAcl(SetObjectAclRequest request) {
-            AccessControlList retVal = ACL_MAP.get(request.getKey());
+            AclSize retVal = ACL_MAP.get(request.getKey());
             if ( retVal == null ) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
             }
-            ACL_MAP.put(request.getKey(), request.getAcl());
+            retVal.setAcl(request.getAcl());
         }
 
         @Override
         public AccessControlList getObjectAcl(String bucketName, String key) {
-            AccessControlList retVal = ACL_MAP.get(key);
+            AclSize retVal = ACL_MAP.get(key);
             if ( retVal == null ) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", key);
             }
-            return retVal;
+            return retVal.getAcl();
         }
 
         public CopyPartResult copyPart(CopyPartRequest request) {
@@ -231,6 +242,11 @@ public class ECSStorageTest extends IdempotentStorageTest {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
             }
 
+            Range range = request.getSourceRange();
+            if ( range.getLast() == -1 ) {
+                range = Range.fromOffsetLength(0, ACL_MAP.get(request.getSourceKey()).getSize());
+                request.withSourceRange(range);
+            }
             CopyObjectResult result = executeRequest(client, request, CopyObjectResult.class);
             CopyPartResult retVal = new CopyPartResult();
             retVal.setPartNumber(request.getPartNumber());
@@ -243,5 +259,16 @@ public class ECSStorageTest extends IdempotentStorageTest {
             super.deleteObject(bucketName, key);
             ACL_MAP.remove(key);
         }
+        @Override
+        public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
+            request.getDeleteObjects().getKeys().forEach( (key) -> ACL_MAP.remove(key));
+            return super.deleteObjects(request);
+        }
+    }
+    @Data
+    @AllArgsConstructor
+    private static class AclSize {
+       private  AccessControlList acl;
+       private  long size;
     }
 }

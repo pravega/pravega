@@ -244,8 +244,8 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
             ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
-            s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
-            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
+            s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT).join();
+            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
 
             s1.seal(writeHandle2, TIMEOUT).join();
 
@@ -257,13 +257,13 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             s1.create(concatSegmentName, TIMEOUT).join();
             writeHandle2 = s1.openWrite(concatSegmentName).join();
             dataStream2 = new ByteArrayInputStream(writeData);
-            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
-            s1.seal(writeHandle2, TIMEOUT);
+            s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
+            s1.seal(writeHandle2, TIMEOUT).join();
 
             //Concat at the same offset again
             s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
             Assert.assertTrue( lengthBeforeRetry == s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength());
-            s1.delete(writeHandle1, TIMEOUT);
+            s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
     //endregion
