@@ -76,10 +76,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void alterStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        log.info("alterStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+    public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
+        log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.alterStream(ModelHelper.encode(request)), responseObserver);
+        processResult(controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
     }
 
     @Override

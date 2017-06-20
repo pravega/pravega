@@ -13,11 +13,15 @@ import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheTestBase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for InMemoryCache.
  */
 public class InMemoryCacheTests extends CacheTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(30);
     private InMemoryCacheFactory factory;
 
     @Before

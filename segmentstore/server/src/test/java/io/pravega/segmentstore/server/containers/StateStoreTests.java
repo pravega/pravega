@@ -22,7 +22,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Defines tests for a generic State Store (AsyncMap(String, SegmentState))
@@ -30,6 +32,8 @@ import org.junit.Test;
 public abstract class StateStoreTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int ATTRIBUTE_COUNT = 10;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     //region Test Definitions
 

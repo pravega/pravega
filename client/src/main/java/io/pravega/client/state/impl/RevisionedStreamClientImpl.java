@@ -164,4 +164,17 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Revision fetchOldestRevision() {
         return new RevisionImpl(segment, 0, 0);
     }
+
+    @Override
+    public void close() {
+        synchronized (lock) {
+            try {
+                out.close();
+            } catch (SegmentSealedException e) {
+                log.warn("Error closing segment writer {}", out);
+            }
+            meta.close();
+            in.close();
+        }
+    }
 }

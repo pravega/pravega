@@ -28,7 +28,9 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -44,6 +46,8 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private final AtomicReference<BookKeeperConfig> config = new AtomicReference<>();
     private final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
     private final AtomicReference<BookKeeperLogFactory> factory = new AtomicReference<>();
@@ -124,7 +128,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testCreateDefaultConfig() throws Exception {
         BookKeeperConfig bkConfig = BookKeeperConfig
                 .builder()
