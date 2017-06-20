@@ -290,14 +290,17 @@ public interface StreamMetadataStore {
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments that were created as part of startScale
+     * @param activeEpoch    scale epoch
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
-    CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
+    CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
+                                                    final String name,
                                                     final List<Integer> sealedSegments,
                                                     final List<Segment> newSegments,
+                                                    final int activeEpoch,
                                                     final long scaleTimestamp,
                                                     final OperationContext context,
                                                     final Executor executor);
@@ -309,6 +312,7 @@ public interface StreamMetadataStore {
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments that were created as part of startScale
+     * @param activeEpoch    scale epoch
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
@@ -317,6 +321,7 @@ public interface StreamMetadataStore {
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
                                                 final List<Integer> sealedSegments,
                                                 final List<Segment> newSegments,
+                                                final int activeEpoch,
                                                 final long scaleTimestamp,
                                                 final OperationContext context,
                                                 final Executor executor);

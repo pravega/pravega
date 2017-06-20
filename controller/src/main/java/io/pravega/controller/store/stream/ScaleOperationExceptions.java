@@ -19,6 +19,9 @@ public class ScaleOperationExceptions {
     public static class ScalePreConditionFailureException extends ScaleOperationException {
     }
 
+    public static class ScaleConditionInvalidException extends ScaleOperationException {
+    }
+
     public static class ScaleStartException extends ScaleOperationException implements RetryableException {
     }
 

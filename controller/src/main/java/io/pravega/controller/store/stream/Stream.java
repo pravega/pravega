@@ -167,11 +167,12 @@ interface Stream {
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
-     * @param scaleTimestamp scaling timestamp
-     * @return future
+     * @param epoch
+     *@param scaleTimestamp scaling timestamp  @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
                                                     final List<Integer> newSegments,
+                                                    final int epoch,
                                                     final long scaleTimestamp);
 
     /**
@@ -179,12 +180,12 @@ interface Stream {
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
-     * @param scaleTimestamp scaling timestamp
-     * @return future
+     * @param activeEpoch    activeEpoch
+     *@param scaleTimestamp scaling timestamp  @return future
      */
     CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
                                                    final List<Integer> newSegments,
-                                                   final long scaleTimestamp);
+                                                   int activeEpoch, final long scaleTimestamp);
 
     /**
      * Returns the latest sets of segments created and removed by doing a diff of last two epochs.

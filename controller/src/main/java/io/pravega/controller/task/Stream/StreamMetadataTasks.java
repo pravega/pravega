@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -71,6 +73,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final SegmentHelper segmentHelper;
     private ClientFactory clientFactory;
     private String requestStreamName;
+
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -174,37 +177,52 @@ public class StreamMetadataTasks extends TaskBase {
      *
      * @param scope          scope.
      * @param stream         stream name.
-     * @param sealedSegments segments to be sealed.
+     * @param segmentsToSeal segments to be sealed.
      * @param newRanges      key ranges for new segments.
      * @param scaleTimestamp scaling time stamp.
      * @param context        optional context
      * @return returns the newly created segments.
      */
-    public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Integer> sealedSegments,
+    public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Integer> segmentsToSeal,
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
-        ScaleOpEvent event = new ScaleOpEvent(scope, stream, sealedSegments, newRanges, true, scaleTimestamp);
-        return postScale(event).thenCompose(x -> startScale(event, false, context)
-                .handle((newSegments, e) -> {
-                    ScaleResponse.Builder response = ScaleResponse.newBuilder();
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
+        return postScale(event).thenCompose(x ->
+                streamMetadataStore.startScale(scope,
+                        stream,
+                        segmentsToSeal,
+                        newRanges,
+                        scaleTimestamp,
+                        false,
+                        context,
+                        executor)
+                        .thenComposeAsync(startScaleResponse -> {
+                            AtomicBoolean scaling = new AtomicBoolean(true);
+                            return FutureHelpers.loop(scaling::get, () ->
+                                    streamMetadataStore.getState(scope, stream, null, executor)
+                                            .thenAccept(state -> scaling.set(state.equals(State.SCALING))), executor)
+                                    .thenApply(r -> startScaleResponse);
+                        })
+                        .handle((startScaleResponse, e) -> {
+                            ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
-                    if (e != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(e);
-                        if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
-                            response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
-                        } else {
-                            response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
-                        }
-                    } else {
-                        response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);
-                        response.addAllSegments(
-                                newSegments
-                                        .stream()
-                                        .map(segment -> convert(scope, stream, segment))
-                                        .collect(Collectors.toList()));
-                    }
-                    return response.build();
-                }));
+                            if (e != null) {
+                                Throwable cause = ExceptionHelpers.getRealException(e);
+                                if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
+                                    response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
+                                } else {
+                                    response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
+                                }
+                            } else {
+                                response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);
+                                response.addAllSegments(
+                                        startScaleResponse.getSegmentsCreated()
+                                                .stream()
+                                                .map(segment -> convert(scope, stream, segment))
+                                                .collect(Collectors.toList()));
+                            }
+                            return response.build();
+                        }));
     }
 
     /**
@@ -231,6 +249,11 @@ public class StreamMetadataTasks extends TaskBase {
             }
         }, executor);
         return result;
+    }
+
+    @VisibleForTesting
+    public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
+        requestEventWriterRef.set(requestEventWriter);
     }
 
     private EventStreamWriter<ControllerEvent> getRequestWriter() {
@@ -283,9 +306,10 @@ public class StreamMetadataTasks extends TaskBase {
                             long scaleTs = response.getSegmentsCreated().get(0).getStart();
 
                             return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
-                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), scaleTs, context, executor), executor);
+                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
+                                    scaleTs, context, executor), executor);
                         })
-                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getCurrentEpoch(), context))
+                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context))
                         .thenApply(y -> response.getSegmentsCreated()));
     }
 
@@ -312,7 +336,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return notifySealedSegments(scope, stream, response.getSegmentsSealed())
                             .thenCompose(y ->
                                     withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, response.getSegmentsSealed(),
-                                            response.getSegmentsCreated(), scaleTs, context, executor), executor)
+                                            response.getSegmentsCreated(), epoch, scaleTs, context, executor), executor)
                                     .thenApply(z -> true));
                 });
     }

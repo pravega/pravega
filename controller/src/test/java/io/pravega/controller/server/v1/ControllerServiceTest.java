@@ -10,6 +10,7 @@
 package io.pravega.controller.server.v1;
 
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -128,17 +129,19 @@ public class ControllerServiceTest {
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments = Collections.singletonList(1);
         scaleTs = System.currentTimeMillis();
-        List<Segment> segmentCreated = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, false, null, executor).get().getSegmentsCreated();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, scaleTs, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, scaleTs, null, executor).get();
+        StartScaleResponse startScaleResponse = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, false, null, executor).get();
+        List<Segment> segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         sealedSegments = Arrays.asList(0, 1, 2);
-        segmentCreated = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, false, null, executor).get().getSegmentsCreated();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, scaleTs, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, scaleTs, null, executor).get();
+        startScaleResponse = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, false, null, executor).get();
+        segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         // endregion
     }
 

@@ -21,6 +21,6 @@ import java.util.List;
 
 @Data
 public class StartScaleResponse {
-    private final int currentEpoch;
+    private final int activeEpoch;
     private final List<Segment> segmentsCreated;
 }

@@ -102,9 +102,10 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments = Collections.singletonList(1);
-        List<Segment> segmentsCreated = store.startScale(scope, stream1, sealedSegments, Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(scope, stream1, sealedSegments, segmentsCreated, scaleTs, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream1, sealedSegments, segmentsCreated, scaleTs, null, executor).join();
+        StartScaleResponse response = store.startScale(scope, stream1, sealedSegments, Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        store.scaleNewSegmentsCreated(scope, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());
@@ -120,9 +121,11 @@ public abstract class StreamMetadataStoreTest {
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         sealedSegments = Arrays.asList(0, 1, 2);
         long scaleTs2 = System.currentTimeMillis();
-        segmentsCreated = store.startScale(scope, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), scaleTs2, false, null, executor).get().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(scope, stream2, sealedSegments, segmentsCreated, scaleTs2, null, executor).get();
-        store.scaleSegmentsSealed(scope, stream2, sealedSegments, segmentsCreated, scaleTs2, null, executor).get();
+        response = store.startScale(scope, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), scaleTs2, false, null, executor).get();
+        segmentsCreated = response.getSegmentsCreated();
+
+        store.scaleNewSegmentsCreated(scope, stream2, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs2, null, executor).get();
+        store.scaleSegmentsSealed(scope, stream2, sealedSegments, segmentsCreated, response.getActiveEpoch(), scaleTs2, null, executor).get();
 
         segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(3, segments.size());

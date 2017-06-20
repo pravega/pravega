@@ -252,9 +252,10 @@ public class ZkStreamTest {
 
         long scale1 = start + 10000;
         ArrayList<Integer> sealedSegments = Lists.newArrayList(3, 4);
-        List<Segment> newSegments = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments, newSegments, scale1, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments, newSegments, scale1, context, executor).get();
+        StartScaleResponse response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
+        List<Segment> newSegments = response.getSegmentsCreated();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments, newSegments, response.getActiveEpoch(), scale1, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments, newSegments, response.getActiveEpoch(), scale1, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -269,9 +270,10 @@ public class ZkStreamTest {
 
         long scale2 = scale1 + 10000;
         ArrayList<Integer> sealedSegments1 = Lists.newArrayList(1, 2, 5);
-        List<Segment> segmentsCreated = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments1, segmentsCreated, scale2, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1, segmentsCreated, scale2, context, executor).get();
+        response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
+        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments1, segmentsCreated, response.getActiveEpoch(), scale2, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1, segmentsCreated, response.getActiveEpoch(), scale2, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -286,9 +288,10 @@ public class ZkStreamTest {
 
         long scale3 = scale2 + 10000;
         ArrayList<Integer> sealedSegments2 = Lists.newArrayList(7, 8);
-        segmentsCreated = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments2, segmentsCreated, scale3, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2, segmentsCreated, scale3, context, executor).get();
+        response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
+        segmentsCreated = response.getSegmentsCreated();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments2, segmentsCreated, response.getActiveEpoch(), scale3, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2, segmentsCreated, response.getActiveEpoch(), scale3, context, executor).get();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);

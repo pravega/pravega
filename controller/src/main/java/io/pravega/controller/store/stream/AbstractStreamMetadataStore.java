@@ -329,24 +329,27 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
                                                            final List<Integer> sealedSegments,
                                                            final List<Segment> newSegments,
+                                                           final int activeEpoch,
                                                            final long scaleTimestamp,
                                                            final OperationContext context,
                                                            final Executor executor) {
-        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         return withCompletion(getStream(scope, name, context)
-                .scaleNewSegmentsCreated(sealedSegments, collect, scaleTimestamp), executor);
+                .scaleNewSegmentsCreated(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
     }
 
     @Override
-    public CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
+    public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
+                                                       final String name,
                                                        final List<Integer> sealedSegments,
                                                        final List<Segment> newSegments,
+                                                       final int activeEpoch,
                                                        final long scaleTimestamp,
                                                        final OperationContext context,
                                                        final Executor executor) {
-        List<Integer> collect = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        List<Integer> newSegmentNumbers = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context)
-                .scaleOldSegmentsSealed(sealedSegments, collect, scaleTimestamp), executor);
+                .scaleOldSegmentsSealed(sealedSegments, newSegmentNumbers, activeEpoch, scaleTimestamp), executor);
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 

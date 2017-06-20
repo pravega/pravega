@@ -121,9 +121,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.5, 1.0);
         long scaleTimestamp = System.currentTimeMillis();
         List<Integer> existingSegments = segments.stream().map(Segment::getNumber).collect(Collectors.toList());
-        List<Segment> segmentsCreated = store.startScale(scope, stream, existingSegments, Arrays.asList(segment1, segment2),
-                scaleTimestamp, false, null, executor).join().getSegmentsCreated();
-        store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, scaleTimestamp, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, scaleTimestamp, null, executor).join();
+        StartScaleResponse response = store.startScale(scope, stream, existingSegments, Arrays.asList(segment1, segment2),
+                scaleTimestamp, false, null, executor).join();
+        List<Segment> segmentsCreated = response.getSegmentsCreated();
+         store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(), scaleTimestamp, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(), scaleTimestamp, null, executor).join();
     }
 }

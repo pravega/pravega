@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
@@ -113,9 +115,10 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments = Collections.singletonList(1);
-        List<Segment> segmentsCreated = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get().getSegmentsCreated();
-        streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
-        streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, start + 20, null, executor).get();
+        StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
+        List<Segment> segmentsCreated = response.getSegmentsCreated();
+        streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
+        streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
     }
 
     @After
@@ -150,6 +153,7 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
 
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
                 Arrays.<AbstractMap.SimpleEntry<Double, Double>>asList(segment3, segment4, segment5), 30, null).get();
 

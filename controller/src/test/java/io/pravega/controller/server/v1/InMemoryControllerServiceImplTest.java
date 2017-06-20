@@ -12,6 +12,7 @@ package io.pravega.controller.server.v1;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -64,7 +65,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
-
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
 

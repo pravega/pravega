@@ -307,7 +307,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @param runOnlyIfStarted run only if the scale operation was started.
-     * @return : list of newly created segments
+     * @return : list of newly created segments with current epoch
      */
     @Override
     public CompletableFuture<StartScaleResponse> startScale(final List<Integer> sealedSegments,
@@ -319,7 +319,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(pair -> {
                     final Data<T> segmentTable = pair.getRight();
                     final Data<T> historyTable = pair.getLeft();
-                    final int epoch = TableHelper.getActiveEpoch(historyTable.getData()).getKey();
+                    final int activeEpoch = TableHelper.getActiveEpoch(historyTable.getData()).getKey();
 
                     final int nextSegmentNumber;
                     if (TableHelper.isScaleOngoing(historyTable.getData(), segmentTable.getData())) {
@@ -327,7 +327,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             // rerun means segment table is already updated. No need to do anything
                             nextSegmentNumber = TableHelper.getSegmentCount(segmentTable.getData()) - newRanges.size();
                             return CompletableFuture.completedFuture(
-                                    new ImmutablePair<>(epoch, nextSegmentNumber));
+                                    new ImmutablePair<>(activeEpoch, nextSegmentNumber));
                         } else {
                             throw new ScaleOperationExceptions.ScaleStartException();
                         }
@@ -354,7 +354,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         final Data<T> updatedData = new Data<>(updated, segmentTable.getVersion());
 
                         return setSegmentTable(updatedData)
-                                .thenApply(z -> new ImmutablePair<>(epoch, nextSegmentNumber))
+                                .thenApply(z -> new ImmutablePair<>(activeEpoch, nextSegmentNumber))
                                 .thenCompose(response -> updateState(State.SCALING).thenApply(x -> response));
                     }
                 })
@@ -372,13 +372,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * 3. Add entry into the history table.
      *
      * @param sealedSegments segments to be sealed
+     * @param epoch
      * @return : list of newly created segments
      */
     @Override
     public CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
                                                            final List<Integer> newSegments,
+                                                           final int epoch,
                                                            final long scaleTimestamp) {
-        return verifyState(() -> FutureHelpers.toVoid(addPartialHistoryRecord(sealedSegments, newSegments)),
+        return verifyState(() -> FutureHelpers.toVoid(addPartialHistoryRecord(sealedSegments, newSegments, epoch)),
                 Lists.newArrayList(State.SCALING));
     }
 
@@ -430,14 +432,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * 5. Add entry into the index table.
      *
      * @param sealedSegments segments to be sealed
+     * @param activeEpoch
      * @return : list of newly created segments
      */
     @Override
     public CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
                                                           final List<Integer> newSegments,
+                                                          final int activeEpoch,
                                                           final long scaleTimestamp) {
         return verifyState(() -> FutureHelpers.toVoid(clearMarkers(sealedSegments)
-                .thenCompose(x -> completeScale(scaleTimestamp, sealedSegments, newSegments))),
+                .thenCompose(x -> completeScale(scaleTimestamp, sealedSegments, activeEpoch, newSegments))),
                 Lists.newArrayList(State.SCALING));
     }
 
@@ -771,7 +775,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : future of history table offset for last entry
      */
     private CompletableFuture<Void> addPartialHistoryRecord(final List<Integer> sealedSegments,
-                                                            final List<Integer> createdSegments) {
+                                                            final List<Integer> createdSegments,
+                                                            final int epoch) {
         return getHistoryTable()
                 .thenCompose(historyTable -> {
                     final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData(), false);
@@ -781,6 +786,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     assert lastRecordOpt.isPresent();
 
                     final HistoryRecord lastRecord = lastRecordOpt.get();
+
+                    if (lastRecord.getEpoch() > epoch) {
+                        throw new ScaleOperationExceptions.ScaleConditionInvalidException();
+                    }
 
                     // idempotent check
                     if (lastRecord.getSegments().containsAll(createdSegments)) {
@@ -793,12 +802,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     byte[] updatedTable = TableHelper.addPartialRecordToHistoryTable(historyTable.getData(), newActiveSegments);
                     final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
-                    int epoch = TableHelper.getLatestEpoch(updatedTable).getKey();
-                    return createNewEpoch(epoch).thenCompose(v -> updateHistoryTable(updated));
+                    int latestEpoch = TableHelper.getLatestEpoch(updatedTable).getKey();
+                    return createNewEpoch(latestEpoch).thenCompose(v -> updateHistoryTable(updated));
                 });
     }
 
-    private CompletableFuture<Void> completeScale(long scaleTimestamp, List<Integer> sealedSegments, List<Integer> newSegments) {
+    private CompletableFuture<Void> completeScale(final long scaleTimestamp,
+                                                  final List<Integer> sealedSegments,
+                                                  final int activeEpoch,
+                                                  final List<Integer> newSegments) {
         return getHistoryTable()
                 .thenCompose(historyTable -> {
                     final Optional<HistoryRecord> lastRecordOpt = HistoryRecord.readLatestRecord(historyTable.getData(), false);
@@ -820,6 +832,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (previousOpt.isPresent()) {
                         // To ensure that we always have ascending time in history records irrespective of controller clock mismatches.
                         scaleEventTime = Math.max(scaleEventTime, previousOpt.get().getScaleTime() + 1);
+
+                        if (previousOpt.get().getEpoch() > activeEpoch) {
+                            throw new ScaleOperationExceptions.ScaleConditionInvalidException();
+                        }
                     }
 
                     byte[] updatedTable = TableHelper.completePartialRecordInHistoryTable(historyTable.getData(), lastRecord, scaleEventTime);
