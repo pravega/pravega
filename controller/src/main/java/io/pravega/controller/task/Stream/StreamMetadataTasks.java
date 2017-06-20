@@ -252,6 +252,15 @@ public class StreamMetadataTasks extends TaskBase {
      * After that it optimistically calls tryCompleteScale.
      * Complete scale completes if there are no ongoing transactions on older epoch.
      * This method is called from both scale request handler and manual scale.
+     * This takes a parameter called runOnlyIfStarted. The parameter is set from manual scale requests.
+     * For autoscale, this is always false which means when a scale event is received on scale request event processor, it wil
+     * be processed.
+     * However, if a scale operation is started as part of a manual scale request, we want to make sure that manual scale operation
+     * does not get stuck in an incomplete state and hence we also post a request for its processing in scale event stream.
+     * However we want to process the scale request inline with the callers call so that we can send the response. And we want to
+     * make sure that we dont do any processing on the scale request if caller may have responded with some pre condition failure.
+     * So we send this flag to the event processor to process the scale request only if it was already started. Otherwise ignore. 
+     *
      * @param scaleInput scale input
      * @param runOnlyIfStarted run only if the scale operation was already running. It will ignore requests if the operation isnt started
      *                         by the caller.

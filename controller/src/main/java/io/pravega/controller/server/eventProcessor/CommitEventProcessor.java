@@ -10,7 +10,9 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.Position;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -20,8 +22,6 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.stream.Position;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
 import lombok.extern.slf4j.Slf4j;
@@ -92,21 +92,19 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveEpoch(scope, stream, context, executor)
-                .thenComposeAsync(pair -> {
-                    // Note, transaction's epoch either equals stream's current epoch or is one more than it,
-                    // because stream scale operation ensures that all transactions in current epoch are
-                    // complete before transitioning the stream to new epoch.
-                    if (epoch < pair.getKey()) {
-                        return CompletableFuture.completedFuture(null);
-                    } else if (epoch == pair.getKey()) {
-                        // If the transaction's epoch is same as the stream's current epoch, commit it.
-                        return completeCommit(scope, stream, epoch, txnId, context)
-                                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
-                    } else {
-                        // Otherwise, postpone commit operation until the stream transitions to next epoch.
-                        return postponeCommitEvent(event);
-                    }
+        streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
+            // Note, transaction's epoch either equals stream's current epoch or is one more than it,
+            // because stream scale operation ensures that all transactions in current epoch are
+            // complete before transitioning the stream to new epoch.
+            if (epoch < pair.getKey()) {
+                return CompletableFuture.completedFuture(null);
+            } else if (epoch == pair.getKey()) {
+                // If the transaction's epoch is same as the stream's current epoch, commit it.
+                return completeCommit(scope, stream, epoch, txnId, context);
+            } else {
+                // Otherwise, postpone commit operation until the stream transitions to next epoch.
+                return postponeCommitEvent(event);
+            }
         }).whenCompleteAsync((result, error) -> {
             if (error != null) {
                 log.error("Failed committing transaction {} on stream {}/{}", txnId, scope, stream);
@@ -127,7 +125,8 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         return streamMetadataStore.getActiveSegments(scope, stream, epoch, context, executor)
                 .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
                         streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
-                        .thenApply(x -> null));
+                        .thenApply(x -> null))
+                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
     }
 
     private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {

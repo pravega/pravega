@@ -95,9 +95,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<State> getState(String scope, String name,
-                                        OperationContext context,
-                                        Executor executor);
+    CompletableFuture<State> getState(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Creates a new scope with the given name.
@@ -234,7 +232,7 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
-     * Returns the segments in the epoch of the specified stream.
+     * Returns the segments in the specified epoch of the specified stream.
      *
      * @param scope    scope.
      * @param stream   stream.
@@ -477,7 +475,7 @@ public interface StreamMetadataStore {
      * @param stream   stream.
      * @param context  operation context
      * @param executor callers executor
-     * @return         active epoch number
+     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
      */
     CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
                                                                    final String stream,

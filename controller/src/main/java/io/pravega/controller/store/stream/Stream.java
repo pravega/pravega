@@ -135,7 +135,7 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
-     * Returns the currently active stream epoch.
+     * Returns the active segments in the specified epoch.
      * @param epoch epoch number
      * @return currently active stream epoch.
      */
