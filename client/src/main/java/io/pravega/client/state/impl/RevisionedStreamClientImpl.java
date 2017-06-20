@@ -168,11 +168,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public void close() {
         synchronized (lock) {
-            try {
-                out.close();
-            } catch (SegmentSealedException e) {
-                log.warn("Error closing segment writer {}", out);
-            }
+            out.close();
             meta.close();
             in.close();
         }
