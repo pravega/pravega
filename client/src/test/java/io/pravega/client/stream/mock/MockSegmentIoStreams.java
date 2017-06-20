@@ -15,7 +15,6 @@ import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -88,7 +87,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public void write(PendingEvent event) throws SegmentSealedException {
+    public void write(PendingEvent event) {
         if (event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) {
             dataWritten.add(event.getData().slice());
             offsetList.add(writeOffset);
@@ -106,7 +105,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void flush() throws SegmentSealedException {
+    public void flush() {
         //Noting to do.
     }
 

@@ -148,7 +148,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      */
     private void handleLogSealed(Segment segment) {
         //TODO: shrids since this is executed by the callback for that segment we need to pass the events to be resent.
-        //TODO: shrids Check if this call back execution by TransactionImpl change the functionality.
         lock.readLock().lock();
         try {
             List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment,
