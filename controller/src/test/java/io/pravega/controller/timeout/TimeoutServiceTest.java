@@ -449,26 +449,8 @@ public class TimeoutServiceTest {
 
         controllerService.pingTransaction(SCOPE, STREAM, tx, LEASE);
 
-        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
-
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);
-
-        PingTxnStatus pingStatus = timeoutService.pingTxn(SCOPE, STREAM, txData.getId(), LEASE);
-        Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNull(result);
-
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.OPEN, status);
-
-        result = timeoutService.getTaskCompletionQueue().poll((long) (0.8 * LEASE), TimeUnit.MILLISECONDS);
-        Assert.assertNotNull(result);
-
-        status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
-        Assert.assertEquals(TxnStatus.ABORTED, status);
     }
 
     private TxnId convert(UUID uuid) {
