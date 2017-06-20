@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
-import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -34,10 +34,8 @@ import lombok.RequiredArgsConstructor;
 class WriteQueue {
     //region Members
 
-    private static final double SIGNIFICANT_DIFERENCE = 0.1;
+    @Getter
     private final Supplier<Long> timeSupplier;
-    private final int minParallelism;
-    private final int maxParallelism;
     @GuardedBy("this")
     private final Deque<Write> writes;
     @GuardedBy("this")
@@ -49,10 +47,6 @@ class WriteQueue {
     @GuardedBy("this")
     private int recentWriteCount;
     @GuardedBy("this")
-    private PerformanceStats lastPerfStats;
-    @GuardedBy("this")
-    private int parallelism;
-    @GuardedBy("this")
     private boolean closed;
 
     //endregion
@@ -61,30 +55,20 @@ class WriteQueue {
 
     /**
      * Creates a new instance of the WriteQueue class.
-     *
-     * @param minParallelism The minimum number of items that can be processed at once.
-     * @param maxParallelism The maximum number of items that can be processed at once.
      */
-    WriteQueue(int minParallelism, int maxParallelism) {
-        this(minParallelism, maxParallelism, System::nanoTime);
+    WriteQueue() {
+        this(System::nanoTime);
     }
 
     /**
      * Creates a new instance of the WriteQueue class.
      *
-     * @param minParallelism The minimum number of items that can be processed at once.
-     * @param maxParallelism The maximum number of items that can be processed at once.
-     * @param timeSupplier   A Supplier that returns the current time, in milliseconds.
+     * @param timeSupplier   A Supplier that returns the current time, in nanoseconds.
      */
     @VisibleForTesting
-    WriteQueue(int minParallelism, int maxParallelism, Supplier<Long> timeSupplier) {
+    WriteQueue(Supplier<Long> timeSupplier) {
         this.timeSupplier = Preconditions.checkNotNull(timeSupplier, "timeSupplier");
-        Preconditions.checkArgument(minParallelism <= maxParallelism, "minParallelism must be <= maxParallelism.");
-        this.minParallelism = minParallelism;
-        this.maxParallelism = maxParallelism;
         this.writes = new ArrayDeque<>();
-        this.lastPerfStats = new PerformanceStats(0, 0, this.timeSupplier.get());
-        this.parallelism = minParallelism;
     }
 
     //endregion
@@ -96,9 +80,9 @@ class WriteQueue {
      *
      * @return The snapshot, including Queue Size, Item Fill Rate and elapsed time of the oldest item.
      */
-    synchronized QueueStats getStatistics() {
+    synchronized QueueStats getStatistics(int parallelism) {
         int size = this.writes.size();
-        double fillRatio = getFillRatio(this.totalLength, size);
+        double fillRatio = calculateFillRatio(this.totalLength, size);
         int processingTime = this.lastDurationMillis;
         if (processingTime == 0 && size > 0) {
             // We get in here when this method is invoked prior to any operation being completed. Since lastDurationMillis
@@ -107,7 +91,7 @@ class WriteQueue {
             processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return new QueueStats(this.parallelism, size, fillRatio, processingTime);
+        return new QueueStats(parallelism, size, fillRatio, processingTime);
     }
 
     /**
@@ -143,11 +127,12 @@ class WriteQueue {
      * * Neither of the MaxSize or MaxCount limits are reached
      * * The writes to return have the same Ledger Id assigned as the first write in the queue.
      *
+     * @param parallelism            The maximum degree of parallelism (how many in-progress writes can there be at once).
      * @param maximumAccumulatedSize The maximum total accumulated size of the items to return. Once this value is exceeded,
      *                               no further writes are returned.
      * @return The result.
      */
-    synchronized List<Write> getWritesToExecute(long maximumAccumulatedSize) {
+    synchronized List<Write> getWritesToExecute(int parallelism, long maximumAccumulatedSize) {
         Exceptions.checkNotClosed(this.closed, this);
         long accumulatedSize = 0;
         int activeWriteCount = 0;
@@ -159,7 +144,7 @@ class WriteQueue {
 
         List<Write> result = new ArrayList<>();
         for (Write write : this.writes) {
-            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= this.parallelism) {
+            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= parallelism) {
                 // Either reached the throttling limit or ledger max size limit.
                 // If we try to send too many writes to this ledger, the writes are likely to be rejected with
                 // LedgerClosedException and simply be retried again.
@@ -219,18 +204,13 @@ class WriteQueue {
         return failedWrite ? EnumSet.of(CleanupStatus.WriteFailed, empty) : EnumSet.of(empty);
     }
 
-    @Override
-    public String toString() {
-        return getStatistics().toString();
-    }
-
     /**
      * Calculates the FillRatio, which is a number between [0, 1] that represents the average fill of each
      * write with respect to the maximum BookKeeper write allowance.
      * @param totalLength Total length of the writes.
      * @param size Total number of writes.
      */
-    private double getFillRatio(long totalLength, int size) {
+    static double calculateFillRatio(long totalLength, int size) {
         if (size > 0) {
             return Math.min(1, (double) totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
         } else {
@@ -239,53 +219,31 @@ class WriteQueue {
     }
 
     /**
-     * Updates the degree of parallelism, based on information collected since the last time this method was called.
-     * Rules:
-     * * Only changes something if throughput changed significantly since the last time.
-     * * Changes the degree of parallelism in the same direction as throughput.
-     * ** Exception is if both throughput and the fill ratio are declining, in which case nothing is done.
+     * Gets information about recent writes, since the last time this method was called.
+     * Every call to this method resets these stats.
+     * @return A new instance of the WriteStats class.
      */
-    synchronized void updateParallelism() {
-        // Calculate the most recent throughput and Fill Ratio (of those items that have just been written).
-        long time = this.timeSupplier.get();
-        double recentThroughput = (double) this.recentTotalWrittenLength / ((time - this.lastPerfStats.timeStamp) / AbstractTimer.NANOS_TO_MILLIS);
-        double recentFillRatio = getFillRatio(this.recentTotalWrittenLength, this.recentWriteCount);
-        double throughputDifference = recentThroughput - this.lastPerfStats.throughput;
-
-        if (Math.abs(throughputDifference / this.lastPerfStats.throughput) >= SIGNIFICANT_DIFERENCE) {
-            // Throughput changed significantly.
-            // But first, check for a special case. If both Throughput and Fill Ratio are decreasing, then most likely the
-            // former is a result of the latter. As such, don't do anything, in that case.
-            boolean fillRatioDecreased = (recentFillRatio - this.lastPerfStats.fillRatio) <= -SIGNIFICANT_DIFERENCE;
-            if (throughputDifference > 0 || !fillRatioDecreased) {
-                // Either the throughput increased or the Fill Ratio did not decrease significantly.
-                // Change the parallelism in the same direction as Throughput.
-                // Update the degree of parallelism, but make sure we don't exceed the given bounds.
-                this.parallelism = MathHelpers.minMax(this.parallelism + (int) Math.signum(throughputDifference),
-                        this.minParallelism, this.maxParallelism);
-            }
-        }
-
-        // Update stats and reset counters.
-        this.lastPerfStats = new PerformanceStats(recentFillRatio, recentThroughput, time);
+    synchronized WriteStats fetchRecentWriteStats() {
+        WriteStats result = new WriteStats(this.recentTotalWrittenLength, this.recentWriteCount);
         this.recentTotalWrittenLength = 0;
         this.recentWriteCount = 0;
-        System.err.println(String.format("Stats: %s, NewP: %s.", this.lastPerfStats, this.parallelism));
+        return result;
     }
 
     //endregion
 
-    @RequiredArgsConstructor
-    private static class PerformanceStats {
-        final double fillRatio;
-        final double throughput;
-        final long timeStamp;
+    //region WriteStats
 
-        @Override
-        public String toString() {
-            return String.format("TP = %.1f B/ms, FR = %.2f", this.throughput, this.fillRatio);
-        }
+    /**
+     * Statistics about recent writes.
+     */
+    @RequiredArgsConstructor
+    static class WriteStats {
+        final long totalLength;
+        final int count;
     }
+
+    //endregion
 
     //region CleanupStatus
 

@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -90,6 +89,7 @@ class BookKeeperLog implements DurableDataLog {
     @GuardedBy("lock")
     private LogMetadata logMetadata;
     private final WriteQueue writes;
+    private final ConcurrencyManager concurrencyManager;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
 
@@ -116,10 +116,10 @@ class BookKeeperLog implements DurableDataLog {
         this.closed = new AtomicBoolean();
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", logId);
-        this.writes = new WriteQueue(this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
+        this.writes = new WriteQueue();
+        this.concurrencyManager = new ConcurrencyManager(this.writes, this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
-        this.executorService.scheduleWithFixedDelay(this.writes::updateParallelism,1000,1000, TimeUnit.MILLISECONDS);
     }
 
     //endregion
@@ -257,7 +257,7 @@ class BookKeeperLog implements DurableDataLog {
 
     @Override
     public QueueStats getQueueStatistics() {
-        return this.writes.getStatistics();
+        return this.writes.getStatistics(this.concurrencyManager.getCurrentParallelism());
     }
 
     //endregion
@@ -287,6 +287,7 @@ class BookKeeperLog implements DurableDataLog {
      * @return True if the no errors, false if at least one write failed.
      */
     private boolean processPendingWrites() {
+        //TODO: this method needs a try-catch, at least for logging
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
         val cs = this.writes.removeFinishedWrites();
         if (cs.contains(WriteQueue.CleanupStatus.WriteFailed)) {
@@ -300,16 +301,17 @@ class BookKeeperLog implements DurableDataLog {
 
         // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
+        final int parallelism = this.concurrencyManager.updateParallelism();
 
         // Get the writes to execute from the queue.
-        List<Write> toExecute = this.writes.getWritesToExecute(maxTotalSize);
+        List<Write> toExecute = this.writes.getWritesToExecute(parallelism, maxTotalSize);
 
         // Check to see if any writes executed on closed ledgers, in which case they either need to be failed (if deemed
         // appropriate, or retried).
         if (handleClosedLedgers(toExecute)) {
             // If any changes were made to the Writes in the list, re-do the search to get a more accurate list of Writes
             // to execute (since some may have changed Ledgers, more writes may not be eligible for execution).
-            toExecute = this.writes.getWritesToExecute(maxTotalSize);
+            toExecute = this.writes.getWritesToExecute(parallelism, maxTotalSize);
         }
 
         // Execute the writes.

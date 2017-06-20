@@ -30,9 +30,8 @@ import org.junit.rules.Timeout;
  * Unit tests for the WriteQueue class.
  */
 public class WriteQueueTests {
-    private static final int MIN_PARALLELISM = 1;
-    private static final int MAX_PARALLELISM = 10;
-    private static final int ITEM_COUNT = MAX_PARALLELISM * 10;
+    private static final int PARALLELISM = 10;
+    private static final int ITEM_COUNT = PARALLELISM * 10;
 
     @Rule
     public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
@@ -44,12 +43,12 @@ public class WriteQueueTests {
     public void testAdd() {
         final int timeIncrement = 1234 * 1000; // Just over 1ms.
         AtomicLong time = new AtomicLong();
-        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM, time::get);
-        val initialStats = q.getStatistics();
+        val q = new WriteQueue(time::get);
+        val initialStats = q.getStatistics(PARALLELISM);
         Assert.assertEquals("Unexpected getSize on empty queue.", 0, initialStats.getSize());
         Assert.assertEquals("Unexpected getAverageFillRate on empty queue.", 0, initialStats.getAverageItemFillRatio(), 0);
         Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis on empty queue.", 0, initialStats.getExpectedProcessingTimeMillis());
-        Assert.assertEquals("Unexpected getEstimatedParallelism on empty queue.", MAX_PARALLELISM, initialStats.getEstimatedParallelism());
+        Assert.assertEquals("Unexpected getEstimatedParallelism on empty queue.", PARALLELISM, initialStats.getEstimatedParallelism());
 
         int expectedSize = 0;
         long firstItemTime = 0;
@@ -63,15 +62,13 @@ public class WriteQueueTests {
             q.add(new Write(new ByteArraySegment(new byte[writeSize]), new TestWriteLedger(i), CompletableFuture.completedFuture(null)));
             expectedSize += writeSize;
 
-            val stats = q.getStatistics();
+            val stats = q.getStatistics(PARALLELISM);
             val expectedFillRatio = (double) expectedSize / stats.getSize() / BookKeeperConfig.MAX_APPEND_LENGTH;
             val expectedProcTime = (time.get() - firstItemTime) / AbstractTimer.NANOS_TO_MILLIS;
-            //TODO fix this val expectedParallelism = WriteQueue.calculateParallelism(expectedFillRatio, MIN_PARALLELISM, MAX_PARALLELISM - MIN_PARALLELISM);
             Assert.assertEquals("Unexpected getSize.", i + 1, stats.getSize());
             Assert.assertEquals("Unexpected getAverageFillRate.", expectedFillRatio, stats.getAverageItemFillRatio(), 0.01);
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis.", expectedProcTime, stats.getExpectedProcessingTimeMillis());
-            //TODO fix this too Assert.assertEquals("Unexpected getEstimatedParallelism", expectedParallelism, stats.getEstimatedParallelism());
-            System.out.println(stats);
+            Assert.assertEquals("Unexpected getEstimatedParallelism", PARALLELISM, stats.getEstimatedParallelism());
         }
     }
 
@@ -80,8 +77,7 @@ public class WriteQueueTests {
      */
     @Test
     public void testClose() {
-        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM);
-
+        val q = new WriteQueue();
         val expectedWrites = new ArrayList<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             val w = new Write(new ByteArraySegment(new byte[i]), new TestWriteLedger(i), CompletableFuture.completedFuture(null));
@@ -92,11 +88,11 @@ public class WriteQueueTests {
         val removedWrites = q.close();
         AssertExtensions.assertListEquals("Unexpected writes removed.", expectedWrites, removedWrites, Object::equals);
 
-        val clearStats = q.getStatistics();
+        val clearStats = q.getStatistics(PARALLELISM);
         Assert.assertEquals("Unexpected getSize after clear.", 0, clearStats.getSize());
         Assert.assertEquals("Unexpected getAverageFillRate after clear.", 0, clearStats.getAverageItemFillRatio(), 0);
         Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", 0, clearStats.getExpectedProcessingTimeMillis());
-        Assert.assertEquals("Unexpected getEstimatedParallelism after clear.", MAX_PARALLELISM, clearStats.getEstimatedParallelism());
+        Assert.assertEquals("Unexpected getEstimatedParallelism after clear.", PARALLELISM, clearStats.getEstimatedParallelism());
 
         AssertExtensions.assertThrows(
                 "add() worked after close().",
@@ -104,7 +100,7 @@ public class WriteQueueTests {
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows(
                 "getWritesToExecute() worked after close().",
-                () -> q.getWritesToExecute(1),
+                () -> q.getWritesToExecute(PARALLELISM, 1),
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows(
                 "removeFinishedWrites() worked after close().",
@@ -119,8 +115,7 @@ public class WriteQueueTests {
     public void testRemoveFinishedWrites() {
         final int timeIncrement = 1234 * 1000; // Just over 1ms.
         AtomicLong time = new AtomicLong();
-        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM, time::get);
-
+        val q = new WriteQueue(time::get);
         val writes = new ArrayDeque<Write>();
         for (int i = 0; i < ITEM_COUNT; i++) {
             time.addAndGet(timeIncrement);
@@ -141,7 +136,7 @@ public class WriteQueueTests {
                 val result1 = q.removeFinishedWrites();
                 AssertExtensions.assertContainsSameElements("Unexpected value from removeFinishedWrites when there were writes left in the queue.",
                         EnumSet.of(WriteQueue.CleanupStatus.QueueNotEmpty), result1);
-                val stats1 = q.getStatistics();
+                val stats1 = q.getStatistics(PARALLELISM);
                 Assert.assertEquals("Unexpected size after removeFinishedWrites with no effect.", writes.size() + 1, stats1.getSize());
 
                 // Complete this write.
@@ -161,7 +156,7 @@ public class WriteQueueTests {
             val result2 = q.removeFinishedWrites();
             val expectedResult = EnumSet.of(writes.isEmpty() ? WriteQueue.CleanupStatus.QueueEmpty : WriteQueue.CleanupStatus.QueueNotEmpty);
             AssertExtensions.assertContainsSameElements("Unexpected result from removeFinishedWrites.", expectedResult, result2);
-            val stats2 = q.getStatistics();
+            val stats2 = q.getStatistics(PARALLELISM);
             Assert.assertEquals("Unexpected size after removeFinishedWrites.", writes.size(), stats2.getSize());
             Assert.assertEquals("Unexpected getExpectedProcessingTimeMillis after clear.", expectedElapsed, stats2.getExpectedProcessingTimeMillis());
         }
@@ -181,9 +176,8 @@ public class WriteQueueTests {
      */
     @Test
     public void testGetWritesToExecute() {
-        final int ledgerChangeIndex = ITEM_COUNT - MAX_PARALLELISM / 2;
-        val q = new WriteQueue(MIN_PARALLELISM, MAX_PARALLELISM);
-
+        final int ledgerChangeIndex = ITEM_COUNT - PARALLELISM / 2;
+        val q = new WriteQueue();
         val writes = new ArrayList<Write>();
         int ledgerId = 0;
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -197,13 +191,13 @@ public class WriteQueueTests {
         }
 
         // 1. Throttled
-        val throttledResult = q.getWritesToExecute(Long.MAX_VALUE);
+        val throttledResult = q.getWritesToExecute(PARALLELISM, Long.MAX_VALUE);
         AssertExtensions.assertListEquals("Unexpected writes fetched with count throttling.",
-                writes.subList(0, MAX_PARALLELISM), throttledResult, Object::equals);
+                writes.subList(0, PARALLELISM), throttledResult, Object::equals);
 
         // 2. Max size reached.
         int sizeLimit = 10;
-        val maxSizeResult = q.getWritesToExecute(sizeLimit);
+        val maxSizeResult = q.getWritesToExecute(PARALLELISM, sizeLimit);
         val expectedMaxSizeResult = new ArrayList<Write>();
         for (Write w : writes) {
             if (w.data.getLength() > sizeLimit) {
@@ -220,34 +214,34 @@ public class WriteQueueTests {
         writes.get(0).setEntryId(0);
         writes.get(0).complete();
         writes.get(1).beginAttempt();
-        val result1 = q.getWritesToExecute(Long.MAX_VALUE);
+        val result1 = q.getWritesToExecute(PARALLELISM, Long.MAX_VALUE);
 
         // We expect to skip over the first one and second one, but count the second one when doing throttling.
         AssertExtensions.assertListEquals("Unexpected writes fetched when some writes in progress (at beginning).",
-                writes.subList(2, 1 + MAX_PARALLELISM), result1, Object::equals);
+                writes.subList(2, 1 + PARALLELISM), result1, Object::equals);
 
         //4. Mark a few writes as in progress after a non-progress write.
         writes.get(3).beginAttempt();
-        val result2 = q.getWritesToExecute(Long.MAX_VALUE);
+        val result2 = q.getWritesToExecute(PARALLELISM, Long.MAX_VALUE);
         Assert.assertEquals("Unexpected writes fetched when in-progress writes exist after non-in-progress writes.",
                 0, result2.size());
 
         //5. LedgerChange.
-        int beginIndex = ledgerChangeIndex - MAX_PARALLELISM / 2;
+        int beginIndex = ledgerChangeIndex - PARALLELISM / 2;
         for (int i = 0; i < beginIndex; i++) {
             writes.get(i).setEntryId(i);
             writes.get(i).complete();
         }
 
         q.removeFinishedWrites();
-        val result3 = q.getWritesToExecute(Long.MAX_VALUE);
+        val result3 = q.getWritesToExecute(PARALLELISM, Long.MAX_VALUE);
         AssertExtensions.assertListEquals("Unexpected writes fetched when ledger changed.",
                 writes.subList(beginIndex, ledgerChangeIndex), result3, Object::equals);
 
         result3.forEach(w -> w.setEntryId(0));
         result3.forEach(Write::complete);
         q.removeFinishedWrites();
-        val result4 = q.getWritesToExecute(Long.MAX_VALUE);
+        val result4 = q.getWritesToExecute(PARALLELISM, Long.MAX_VALUE);
         AssertExtensions.assertListEquals("Unexpected writes fetched from the end, after ledger changed.",
                 writes.subList(ledgerChangeIndex, writes.size()), result4, Object::equals);
     }
