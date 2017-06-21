@@ -45,9 +45,11 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
-                        Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
-                        metrics.remove(counter.getName());
-                        log.debug("Removed Counter: {}.", counter.getName());
+                        if (removal.getCause() != RemovalCause.REPLACED) {
+                            Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
+                            metrics.remove(counter.getName());
+                            log.debug("Removed Counter: {}.", counter.getName());
+                        }
                     }
                 }).
                 build();
@@ -59,9 +61,10 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         if (removal.getCause() != RemovalCause.REPLACED) {
+                            Exceptions.checkNotNullOrEmpty(gauge.getName(), "gauge");
                             metrics.remove(gauge.getName());
+                            log.debug("Removed Gauge: {}.", gauge.getName());
                         }
-                        log.debug("Removed Gauge: {}.", gauge.getName());
                     }
                 }).
                 build();
@@ -72,8 +75,11 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
-                    metrics.remove(meter.getName());
-                    log.debug("Removed Meter: {}.", meter.getName());
+                    if (removal.getCause() != RemovalCause.REPLACED) {
+                        Exceptions.checkNotNullOrEmpty(meter.getName(), "meter");
+                        metrics.remove(meter.getName());
+                        log.debug("Removed Meter: {}.", meter.getName());
+                    }
                 }
             }).
             build();
