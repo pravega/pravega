@@ -529,7 +529,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
         }
 
-        log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = {}).", this.traceObjectId, lastEntry.getLastStreamSegmentOffset(), futureReads.size(), sealed);
+        log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), lastEntry.getLastStreamSegmentOffset(), sealed);
 
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
