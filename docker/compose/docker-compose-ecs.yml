@@ -51,7 +51,7 @@ services:
       - "10080:10080"
     command: controller
     environment:
-      WAIT_FOR: zookeeper:2182
+      WAIT_FOR: zookeeper:2181
       REST_SERVER_PORT: 10080
       CONTROLLER_SERVER_PORT: 9090
       ZK_URL: zookeeper:2181
