@@ -244,6 +244,7 @@ public class ReadWriteTest {
                             latch.release();
                             log.info("Closing reader {}", reader);
                             reader.close();
+                            break;
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);

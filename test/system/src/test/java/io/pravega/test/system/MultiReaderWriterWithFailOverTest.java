@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
@@ -63,7 +63,7 @@ public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 10;
     private static final int NUM_READERS = 10;
-    private ExecutorService EXECUTOR_SERVICE;
+    private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
@@ -120,7 +120,6 @@ public class MultiReaderWriterWithFailOverTest {
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
 
-
     }
 
     @Before
@@ -151,7 +150,7 @@ public class MultiReaderWriterWithFailOverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        EXECUTOR_SERVICE = Executors.newFixedThreadPool(NUM_READERS+NUM_WRITERS);
+        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
     }
 
     @After
@@ -162,7 +161,7 @@ public class MultiReaderWriterWithFailOverTest {
         if (segmentStoreInstance != null && segmentStoreInstance.isRunning()) {
             segmentStoreInstance.stop();
         }
-        EXECUTOR_SERVICE.shutdownNow();
+        executorService.shutdownNow();
     }
 
     @Test(timeout = 300000)
@@ -208,7 +207,7 @@ public class MultiReaderWriterWithFailOverTest {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().build());
+                        EventWriterConfig.builder().retryAttempts(10).build());
                 writerList.add(writer);
             }
 
@@ -268,7 +267,7 @@ public class MultiReaderWriterWithFailOverTest {
             stopReadFlag.set(true);
 
             // wait for reads = writes
-            while (eventData.get()!=eventsReadFromPravega.size()) {
+            while (eventData.get() !=  eventsReadFromPravega.size()) {
                 latch.await();
             }
 
@@ -306,24 +305,16 @@ public class MultiReaderWriterWithFailOverTest {
 
     private void performFailoverTest() throws InterruptedException {
 
-         final Long eventWriteCount1;
-         final Long eventWriteCount2;
-         final Long eventWriteCount3;
-         final Long eventWriteCount4;
-         final Long eventWriteCount5;
-         final Long eventReadCount1;
-         final Long eventReadCount2;
-         final Long eventReadCount3;
-         final Long eventReadCount4;
-         final Long eventReadCount5;
+        long currentWriteCount1;
+        long currentReadCount1;
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
 
-        eventWriteCount1 = eventData.get();
-        eventReadCount1 = eventReadCount.get();
+        currentWriteCount1 = eventData.get();
+        currentReadCount1 = eventReadCount.get();
 
-        log.info("Read count without any failover {}", eventReadCount1);
-        log.info("Write count without any failover {}", eventWriteCount1);
+        log.info("Read count without any failover {}", currentReadCount1);
+        log.info("Write count without any failover {}", currentWriteCount1);
 
         int sleepTime;
 
@@ -332,16 +323,19 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Sleeping for {} ", sleepTime);
         Thread.sleep(sleepTime);
 
-        eventWriteCount2 = eventData.get();
-        eventReadCount2 = eventReadCount.get();
+        long currentWriteCount2;
+        long currentReadCount2;
 
-        log.info("Read count without any failover after sleep before scaling  {}", eventReadCount2);
-        log.info("Write count without any failover after sleep before scaling {}", eventWriteCount2);
+        currentWriteCount2 = eventData.get();
+        currentReadCount2 = eventReadCount.get();
+
+        log.info("Read count without any failover after sleep before scaling  {}", currentReadCount2);
+        log.info("Write count without any failover after sleep before scaling {}", currentWriteCount2);
 
         //ensure writes are happening
-        assertTrue(eventWriteCount2 > eventWriteCount1);
+        assertTrue(currentWriteCount2 > currentWriteCount1);
         //ensure reads are happening
-        assertTrue(eventReadCount2 > eventReadCount1);
+        assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
@@ -352,16 +346,16 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Sleeping for {} ", sleepTime);
         Thread.sleep(sleepTime);
 
-        eventWriteCount3 = eventData.get();
-        eventReadCount3 = eventReadCount.get();
+        currentWriteCount1 = eventData.get();
+        currentReadCount1 = eventReadCount.get();
 
-        log.info("Read count after SSS failover after sleep  {}", eventReadCount3);
-        log.info("Write count after SSS failover after sleep {}", eventWriteCount3);
+        log.info("Read count after SSS failover after sleep  {}", currentReadCount1);
+        log.info("Write count after SSS failover after sleep {}", currentWriteCount1);
 
         //ensure writes are happening
-        assertTrue(eventWriteCount3 > eventWriteCount2);
+        assertTrue(currentWriteCount1 > currentWriteCount2);
         //ensure reads are happening
-        assertTrue(eventReadCount3 > eventReadCount2);
+        assertTrue(currentReadCount1 > currentReadCount2);
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
@@ -372,16 +366,16 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Sleeping for {} ", sleepTime);
         Thread.sleep(sleepTime);
 
-        eventWriteCount4 = eventData.get();
-        eventReadCount4 = eventReadCount.get();
+        currentWriteCount2 = eventData.get();
+        currentReadCount2 = eventReadCount.get();
 
-        log.info("Read count after controller failover after sleep  {}", eventReadCount4);
-        log.info("Write count after controller failover after sleep  {}", eventWriteCount4);
+        log.info("Read count after controller failover after sleep  {}", currentReadCount2);
+        log.info("Write count after controller failover after sleep  {}", currentWriteCount2);
 
         //ensure writes are happening
-        assertTrue(eventWriteCount4 > eventWriteCount3);
+        assertTrue(currentWriteCount2 > currentWriteCount1);
         //ensure reads are happening
-        assertTrue(eventReadCount4 > eventReadCount3);
+        assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
@@ -393,15 +387,15 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Sleeping for {} ", sleepTime);
         Thread.sleep(sleepTime);
 
-        eventReadCount5 = eventReadCount.get();
-        eventWriteCount5 = eventData.get();
+        currentWriteCount1 = eventData.get();
+        currentReadCount1 = eventReadCount.get();
 
         log.info("Stop write flag status {}", stopWriteFlag);
         log.info("Stop read flag status {}", stopReadFlag);
         log.info("Event data {}", eventData.get());
         log.info("Read count {}", eventReadCount.get());
-        log.info("Read count with SSS and controller failover after sleep {}", eventReadCount5);
-        log.info("Write count with SSS and controller failover after sleep {} ", eventWriteCount5);
+        log.info("Read count with SSS and controller failover after sleep {}", currentReadCount1);
+        log.info("Write count with SSS and controller failover after sleep {} ", currentWriteCount1);
     }
 
     private CompletableFuture<Void> startWriting(final AtomicLong data, final EventStreamWriter<Long> writer,
@@ -418,7 +412,7 @@ public class MultiReaderWriterWithFailOverTest {
                     log.error("Test exception writing events: {}", e);
                 }
             }
-        }, EXECUTOR_SERVICE);
+        }, executorService);
     }
 
     private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
@@ -430,22 +424,22 @@ public class MultiReaderWriterWithFailOverTest {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(30)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
                     log.debug("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
                         readCount.incrementAndGet();
-                        log.info(" event read count {}", eventReadCount);
+                        log.info("Event read count {}", eventReadCount);
                     }
                 } catch (Throwable e) {
                     log.error("Test Exception while reading from the stream: {}", e);
                 }
             }
             //release if num. of reads = num. of writes
-            if(readCount.get() == writeCount.get()) {
+            if (readCount.get() == writeCount.get()) {
                 latch.release();
             }
-        }, EXECUTOR_SERVICE);
+        }, executorService);
     }
 }
