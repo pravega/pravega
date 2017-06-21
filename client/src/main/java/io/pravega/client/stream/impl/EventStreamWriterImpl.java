@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
@@ -63,6 +64,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * g. When a Close is being invoked, Flush and segmentSealedCallback can be executed concurrently.
      */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    /*
+     * This lock is to ensure two segmentSealed Callbacks (for different segments) are not invoked simultaneously.
+     */
+    private final ReentrantLock segmentSealedLock = new ReentrantLock();
     private final Stream stream;
     private final Serializer<Type> serializer;
     private final SegmentOutputStreamFactory outputStreamFactory;
@@ -150,11 +155,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void handleLogSealed(Segment segment) {
         //TODO: shrids since this is executed by the callback for that segment we need to pass the events to be resent.
         lock.readLock().lock();
+        segmentSealedLock.lock(); // prevent
         try {
             List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment,
                     segmentSealedCallBack);
             resend(toResend);
         } finally {
+            segmentSealedLock.unlock();
             lock.readLock().unlock();
         }
     }
