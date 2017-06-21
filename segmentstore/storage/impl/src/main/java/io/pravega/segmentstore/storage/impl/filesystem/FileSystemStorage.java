@@ -334,12 +334,12 @@ public class FileSystemStorage implements Storage {
         Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
         Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
 
+        long length = Files.size(sourcePath);
         try (FileChannel targetChannel = (FileChannel) Files.newByteChannel(targetPath, EnumSet.of(StandardOpenOption.APPEND));
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
             if (isWritableFile(sourcePath)) {
                 throw new IllegalStateException( String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
-            long length = sourceFile.length();
             while ( length > 0 ) {
                 long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
                 offset += bytesTransferred;
