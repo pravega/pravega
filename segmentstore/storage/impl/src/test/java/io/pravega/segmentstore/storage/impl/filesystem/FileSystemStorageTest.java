@@ -231,13 +231,17 @@ public class FileSystemStorageTest extends StorageTestBase {
 
         try ( Storage s1 = createStorage()) {
             s1.initialize(DEFAULT_EPOCH);
+
             s1.create(segmentName, TIMEOUT).join();
             s1.create(concatSegmentName, TIMEOUT).join();
+
             SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
             SegmentHandle writeHandle2 = s1.openWrite(concatSegmentName).join();
+
             byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
             ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
+
             s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT).join();
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
 
@@ -256,9 +260,10 @@ public class FileSystemStorageTest extends StorageTestBase {
 
             //Concat at the same offset again
             s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
-            Assert.assertTrue( "Concatenation of same segment at the same offset should result in same segment size.",
-                    lengthBeforeRetry == s1.getStreamSegmentInfo(segmentName,
-                    TIMEOUT).join().getLength());
+            long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
+            Assert.assertTrue( String.format("Concatenation of same segment at the same offset(%d) should result in " +
+                            "same segment size, but is (%d)",writeData.length, lengthBeforeRetry, lengthAfterRetry),
+                    lengthBeforeRetry == lengthAfterRetry);
             s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
