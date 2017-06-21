@@ -238,19 +238,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFlush() throws Exception {
-        testWithAction(DataFrameBuilder::flush);
-    }
-
-    /**
-     * Tests the fact that, upon calling close() on DataFrameBuilder, it auto-flushes all its contents.
-     * This may already be covered in the other cases, but it makes sense to explicitly test it.
-     */
-    @Test
-    public void testClose() throws Exception {
-        testWithAction(DataFrameBuilder::close);
-    }
-
-    private void testWithAction(Consumer<DataFrameBuilder> action) throws Exception {
         // Append two records, make sure they are not flushed, close the Builder, then make sure they are flushed.
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
@@ -270,8 +257,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Check the correctness of the commit callback.
             Assert.assertEquals("A Data Frame was generated but none was expected yet.", 0, commitFrames.size());
 
-            // Invoke custom action.
-            action.accept(b);
+            // Invoke flush.
+            b.flush();
 
             // Wait for all the frames commit callbacks to be invoked.
             await(() -> commitFrames.size() >= 1, 20);

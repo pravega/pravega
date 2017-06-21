@@ -71,9 +71,9 @@ public abstract class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
+        long start = System.currentTimeMillis();
         store.createStream(scope, stream1, configuration1, start + 5, null, executor).get();
         store.setState(scope, stream1, State.ACTIVE, null, executor).get();
         store.createStream(scope, stream2, configuration2, start + 5, null, executor).get();
