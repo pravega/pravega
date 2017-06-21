@@ -20,7 +20,6 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -237,7 +236,7 @@ public class FileSystemStorageTest extends StorageTestBase {
     /**
      * This test case simulates host crashing during concat and retrying the operation.
      */
-    @Ignore
+    @Test
     public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
