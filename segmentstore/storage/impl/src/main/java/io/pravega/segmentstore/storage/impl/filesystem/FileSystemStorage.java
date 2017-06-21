@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
@@ -56,27 +56,27 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 /**
  * Storage adapter for file system based storage.
- *
+ * <p>
  * Each segment is represented as a single file on the underlying storage.
- *
+ * <p>
  * Approach to locking:
- *
+ * <p>
  * This implementation works under the assumption that data is only appended and never modified.
  * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
- *
+ * <p>
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
- *
+ * <p>
  * As write to same offset to a file is idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), locking is not required.
- *
+ * <p>
  * In the absence of locking this is the expected behavior in case of ownership change: both the hosts will keep
  * writing the same data at the same offset till the time the earlier owner gets a notification that it is not the
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
- *
  */
 @Slf4j
 public class FileSystemStorage implements Storage {
+    private static final int NUM_RETRIES = 3;
 
     //region members
 
@@ -108,6 +108,7 @@ public class FileSystemStorage implements Storage {
 
     /**
      * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
+     *
      * @param containerEpoch The Container Epoch to initialize with (ignored here).
      */
     @Override
@@ -116,18 +117,17 @@ public class FileSystemStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-        return supplyAsync( streamSegmentName, () -> syncOpenRead(streamSegmentName));
+        return supplyAsync(streamSegmentName, () -> syncOpenRead(streamSegmentName));
     }
 
-
     @Override
-    public CompletableFuture<Integer> read( SegmentHandle handle,
-                                            long offset,
-                                            byte[] buffer,
-                                            int bufferOffset,
-                                            int length,
-                                            Duration timeout) {
-        return supplyAsync( handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
+    public CompletableFuture<Integer> read(SegmentHandle handle,
+                                           long offset,
+                                           byte[] buffer,
+                                           int bufferOffset,
+                                           int length,
+                                           Duration timeout) {
+        return supplyAsync(handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
     }
 
     @Override
@@ -147,7 +147,7 @@ public class FileSystemStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync( streamSegmentName, () -> syncCreate(streamSegmentName));
+        return supplyAsync(streamSegmentName, () -> syncCreate(streamSegmentName));
     }
 
     @Override
@@ -224,12 +224,24 @@ public class FileSystemStorage implements Storage {
 
         long fileSize = Files.size(path);
         if (fileSize < offset) {
-            throw new IllegalArgumentException( String.format( "Reading at offset (%d) which is beyond the " +
+            throw new IllegalArgumentException(String.format("Reading at offset (%d) which is beyond the " +
                     "current size of segment (%d).", offset, fileSize));
         }
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
-            int bytesRead = channel.read(ByteBuffer.wrap(buffer, bufferOffset, length), offset);
+            int bytesRead = 0;
+
+            do {
+                ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
+                bytesRead = FileSystemRetryHelper.retry(
+                        () -> channel.read(readBuffer, offset),
+                        (read) -> read <= 0,
+                        () -> new IllegalStateException("Retries exceeded while Reading"),
+                        NUM_RETRIES);
+
+                bufferOffset += bytesRead;
+                length -= bytesRead;
+            } while (length != 0);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -283,7 +295,7 @@ public class FileSystemStorage implements Storage {
 
         // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
-        if ( !isWritableFile(path)) {
+        if (!isWritableFile(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
@@ -294,7 +306,13 @@ public class FileSystemStorage implements Storage {
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
                  ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
                 while (length != 0) {
-                    long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                    long retryOffset = offset;
+                    long retryLength = length;
+                    long bytesWritten = FileSystemRetryHelper.retry(
+                            () -> channel.transferFrom(sourceChannel, retryOffset, retryLength),
+                            (written) -> written == 0,
+                            () -> new IllegalStateException("Retries exhausted while writing"),
+                            NUM_RETRIES);
                     offset += bytesWritten;
                     length -= bytesWritten;
                 }
@@ -326,7 +344,7 @@ public class FileSystemStorage implements Storage {
         return null;
     }
 
-    @SneakyThrows(IOException.class)
+    @SneakyThrows
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
@@ -338,10 +356,17 @@ public class FileSystemStorage implements Storage {
         try (FileChannel targetChannel = (FileChannel) Files.newByteChannel(targetPath, EnumSet.of(StandardOpenOption.APPEND));
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
             if (isWritableFile(sourcePath)) {
-                throw new IllegalStateException( String.format("Source segment (%s) is not sealed.", sourceSegment));
+                throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
-            while ( length > 0 ) {
-                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
+            while (length > 0) {
+                final long retryOffset = offset;
+                final long retryLength = length;
+                long bytesTransferred = FileSystemRetryHelper.retry(
+                        () -> targetChannel.transferFrom(sourceFile.getChannel(), retryOffset, retryLength),
+                        (read) -> read == 0,
+                        () -> new IllegalStateException("Retries exceeded"),
+                        NUM_RETRIES);
+
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }
@@ -400,7 +425,5 @@ public class FileSystemStorage implements Storage {
         return retVal;
     }
 
-
     //endregion
-
 }

@@ -202,7 +202,8 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         storage.delete(handle2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
+    @Override
+    protected void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
         final byte[] writeData = "hello".getBytes();
 
         // Write

@@ -101,39 +101,6 @@ public class FileSystemStorageTest extends StorageTestBase {
         }
     }
 
-    private void verifyReadOnlyOperationsSucceed(SegmentHandle handle, Storage storage) {
-        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertTrue("Segment does not exist.", exists);
-
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertNotNull("Unexpected response from getStreamSegmentInfo.", si);
-
-        byte[] readBuffer = new byte[(int) si.getLength()];
-        int readBytes = storage.read(handle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, readBytes);
-    }
-
-    private void verifyWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        final byte[] data = "hello".getBytes();
-        storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-
-        final String concatName = "concat";
-        storage.create(concatName, TIMEOUT).join();
-        val concatHandle = storage.openWrite(concatName).join();
-        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-        storage.seal(concatHandle, TIMEOUT).join();
-        storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT).join();
-    }
-
-    private void verifyFinalWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
-        storage.seal(handle, TIMEOUT).join();
-        storage.delete(handle, TIMEOUT).join();
-
-        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertFalse("Segment still exists after deletion.", exists);
-    }
-
     /**
      * Tests the write() method.
      *
@@ -296,6 +263,20 @@ public class FileSystemStorageTest extends StorageTestBase {
     }
 
     //endregion
+
+    //Region RetryHelper tests
+    @Test
+    public void retry() throws Exception {
+        // Retry fails if the condition is always met
+        final boolean testValue = false;
+        assertThrows( "Retry should throw when the condition does not change",
+                () -> FileSystemRetryHelper.retry(() -> testValue,
+                (bool) -> !bool,
+                () -> new Exception("Still false"),
+                3),
+                (ex) -> ex instanceof Exception);
+    }
+    //ednregion
 
     @Override
     protected Storage createStorage() {
