@@ -258,6 +258,9 @@ public class FileSystemStorageTest extends StorageTestBase {
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
             s1.seal(writeHandle2, TIMEOUT).join();
 
+            long sizeOfConcat = s1.getStreamSegmentInfo(concatSegmentName, TIMEOUT).join().getLength();
+            Assert.assertTrue( String.format("Size of the same concat is (%d) should be (%d).", sizeOfConcat,
+                    writeData.length), sizeOfConcat == writeData.length);
             //Concat at the same offset again
             s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
             long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
