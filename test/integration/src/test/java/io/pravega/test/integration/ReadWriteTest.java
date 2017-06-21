@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -66,7 +67,7 @@ public class ReadWriteTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
-    private final Object waitCondition = new Object();
+    private ReusableLatch latch = new ReusableLatch(false);
 
     @Before
     public void setup() throws Exception {
@@ -168,10 +169,8 @@ public class ReadWriteTest {
             FutureHelpers.allOf(writerList);
 
             // wait for reads = writes
-            synchronized (waitCondition) {
-                while (!(eventsReadFromPravega.size() == TOTAL_NUM_EVENTS)) {
-                    waitCondition.wait();
-                }
+            while (!(eventsReadFromPravega.size() == TOTAL_NUM_EVENTS)) {
+                   latch.await();
             }
 
             //wait for readers completion
@@ -242,11 +241,9 @@ public class ReadWriteTest {
                     }
                     //notify if num. of reads = num. of writes
                     if (TOTAL_NUM_EVENTS == eventsReadFromPravega.size()) {
-                        synchronized (waitCondition) {
-                            waitCondition.notify();
+                            latch.release();
                             log.info("Closing reader {}", reader);
                             reader.close();
-                        }
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
