@@ -42,21 +42,20 @@ import java.util.stream.IntStream;
 
 public class InMemoryStream extends PersistentStreamBase<Integer> {
 
-    private AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
-    private final AtomicReference<StreamConfiguration> configuration = new AtomicReference<>();
+    private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
+    private final Object lock = new Object();
 
-    private final Object stateLock = new Object();
-    @GuardedBy("stateLock")
-    private final AtomicReference<Data<Integer>> state = new AtomicReference<>();
-    private final Object segmentTableLock = new Object();
-    @GuardedBy("segmentTableLock")
-    private final AtomicReference<Data<Integer>> segmentTable = new AtomicReference<>();
-    private final Object historyTableLock = new Object();
-    @GuardedBy("historyTableLock")
-    private final AtomicReference<Data<Integer>> historyTable = new AtomicReference<>();
-    private final Object indexTableLock = new Object();
-    @GuardedBy("indexTableLock")
-    private final AtomicReference<Data<Integer>> indexTable = new AtomicReference<>();
+    @GuardedBy("lock")
+    private StreamConfiguration configuration;
+    @GuardedBy("lock")
+    private volatile Data<Integer> state;
+    @GuardedBy("lock")
+    private volatile Data<Integer> segmentTable;
+    @GuardedBy("lock")
+    private volatile Data<Integer> historyTable;
+    @GuardedBy("lock")
+    private volatile Data<Integer> indexTable;
+
     private final Object activeTxnsLock = new Object();
     private final ConcurrentHashMap<String, Data<Integer>> activeTxns = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Data<Integer>> completedTxns = new ConcurrentHashMap<>();
@@ -105,52 +104,81 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> storeCreationTime(Create create) {
+        Preconditions.checkNotNull(create);
+        Preconditions.checkNotNull(create.getCreationTime());
         creationTime.compareAndSet(Long.MIN_VALUE, create.getCreationTime());
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<Void> createConfiguration(Create create) {
-        this.configuration.set(create.getConfiguration());
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkNotNull(create);
+        Preconditions.checkNotNull(create.getConfiguration());
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (configuration != null) {
+                result.completeExceptionally(new DataExistsException("configuration"));
+            } else {
+                configuration = create.getConfiguration();
+                result.complete(null);
+            }
+        }
+        return result;
     }
 
     @Override
     CompletableFuture<Void> setConfigurationData(StreamConfiguration configuration) {
-        this.configuration.set(configuration);
-        return CompletableFuture.completedFuture(null);
+        Preconditions.checkNotNull(configuration);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.configuration == null) {
+                result.completeExceptionally(new DataNotFoundException("configuration"));
+            } else {
+                this.configuration = configuration;
+                result.complete(null);
+            }
+        }
+        return result;
     }
 
     @Override
     CompletableFuture<StreamConfiguration> getConfigurationData() {
-        if (this.configuration.get() == null) {
+        if (this.configuration == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
-        return CompletableFuture.completedFuture(this.configuration.get());
+        return CompletableFuture.completedFuture(this.configuration);
     }
 
     @Override
     CompletableFuture<Void> createState(State state) {
-        synchronized (stateLock) {
-            this.state.set(new Data<>(SerializationUtils.serialize(state), 0));
+        Preconditions.checkNotNull(state);
+
+        synchronized (lock) {
+            if (this.state == null) {
+                this.state = new Data<>(SerializationUtils.serialize(state), 0);
+            } else {
+                return FutureHelpers.failedFuture(new DataExistsException("state"));
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<Void> setStateData(Data<Integer> newState) {
+        Preconditions.checkNotNull(newState);
+
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (stateLock) {
-            this.state.updateAndGet(x -> {
-                Preconditions.checkNotNull(x);
-                if (Objects.equals(x.getVersion(), newState.getVersion())) {
-                    result.complete(null);
-                    return copy(new Data<>(newState.getData(), newState.getVersion() + 1));
-                } else {
-                    result.completeExceptionally(new WriteConflictException("state"));
-                    return x;
-                }
-            });
+        synchronized (lock) {
+            if (Objects.equals(this.state.getVersion(), newState.getVersion())) {
+                this.state = new Data<>(newState.getData(), newState.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(new WriteConflictException("state"));
+            }
         }
 
         return result;
@@ -158,15 +186,18 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getStateData() {
-        if (this.state.get() == null) {
+        if (this.state == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
 
-        return CompletableFuture.completedFuture(copy(state.get()));
+        return CompletableFuture.completedFuture(copy(state));
     }
 
     @Override
     CompletableFuture<Void> createSegmentTable(Create create) {
+        Preconditions.checkNotNull(create);
+        Preconditions.checkNotNull(create.getConfiguration());
+
         final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -175,15 +206,21 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
+        CompletableFuture<Void> result = new CompletableFuture<>();
 
-        synchronized (segmentTableLock) {
-            segmentTable.compareAndSet(null, new Data<>(TableHelper.updateSegmentTable(startingSegmentNumber,
-                    new byte[0],
-                    newRanges,
-                    create.getCreationTime()), 0));
+        synchronized (lock) {
+            if (segmentTable == null) {
+                segmentTable = new Data<>(TableHelper.updateSegmentTable(startingSegmentNumber,
+                        new byte[0],
+                        newRanges,
+                        create.getCreationTime()), 0);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(new DataExistsException("segmentTable"));
+            }
         }
 
-        return CompletableFuture.completedFuture(null);
+        return result;
     }
 
     @Override
@@ -194,11 +231,11 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getSegmentTable() {
-        if (this.segmentTable.get() == null) {
+        if (this.segmentTable == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
 
-        return CompletableFuture.completedFuture(copy(segmentTable.get()));
+        return CompletableFuture.completedFuture(copy(this.segmentTable));
     }
 
     @Override
@@ -208,86 +245,113 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> setSegmentTable(Data<Integer> data) {
+        Preconditions.checkNotNull(data);
+        Preconditions.checkNotNull(data.getData());
+
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (segmentTableLock) {
-            segmentTable.getAndUpdate(x -> {
-                if (x.getVersion().equals(data.getVersion())) {
-                    result.complete(null);
-                    return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
-                } else {
-                    result.completeExceptionally(new WriteConflictException("segmentTable"));
-                    return x;
-                }
-            });
+        synchronized (lock) {
+            if (segmentTable == null) {
+                result.completeExceptionally(new DataNotFoundException("segmentTable"));
+            }
+            if (segmentTable.getVersion().equals(data.getVersion())) {
+                segmentTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(new WriteConflictException("segmentTable"));
+            }
         }
         return result;
     }
 
     @Override
     CompletableFuture<Void> createIndexTable(Data<Integer> data) {
-        synchronized (indexTableLock) {
-            indexTable.compareAndSet(null, new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
+        Preconditions.checkNotNull(data);
+        Preconditions.checkNotNull(data.getData());
+
+        synchronized (lock) {
+            if (indexTable != null) {
+                return FutureHelpers.failedFuture(new DataExistsException("index"));
+            } else {
+                indexTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
+            }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     CompletableFuture<Data<Integer>> getIndexTable() {
-        if (this.indexTable.get() == null) {
+        if (this.indexTable == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
-        return CompletableFuture.completedFuture(copy(indexTable.get()));
+        return CompletableFuture.completedFuture(copy(indexTable));
     }
 
     @Override
     CompletableFuture<Void> updateIndexTable(Data<Integer> updated) {
+        Preconditions.checkNotNull(updated);
+        Preconditions.checkNotNull(updated.getData());
+
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (indexTableLock) {
-            indexTable.getAndUpdate(x -> {
-                if (x.getVersion().equals(updated.getVersion())) {
-                    result.complete(null);
-                    return new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
-                } else {
-                    result.completeExceptionally(new WriteConflictException("segmentTable"));
-                    return x;
-                }
-            });
+        synchronized (lock) {
+            if (indexTable == null) {
+                result.completeExceptionally(new DataNotFoundException("index"));
+            }
+            if (indexTable.getVersion().equals(updated.getVersion())) {
+                indexTable = new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(new WriteConflictException("segmentTable"));
+            }
         }
         return result;
     }
 
     @Override
     CompletableFuture<Void> createHistoryTable(Data<Integer> data) {
-        synchronized (historyTableLock) {
-            historyTable.compareAndSet(null, new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0));
+        Preconditions.checkNotNull(data);
+        Preconditions.checkNotNull(data.getData());
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (historyTable != null) {
+                result.completeExceptionally(new DataExistsException("historyTable"));
+            } else {
+                historyTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), 0);
+                result.complete(null);
+            }
         }
-        return CompletableFuture.completedFuture(null);
+        return result;
     }
 
     @Override
     CompletableFuture<Void> updateHistoryTable(Data<Integer> updated) {
+        Preconditions.checkNotNull(updated);
+        Preconditions.checkNotNull(updated.getData());
+
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (historyTableLock) {
-            historyTable.getAndUpdate(x -> {
-                if (x.getVersion().equals(updated.getVersion())) {
+        synchronized (lock) {
+            if (historyTable == null) {
+                result.completeExceptionally(new DataNotFoundException("history"));
+            } else {
+                if (historyTable.getVersion().equals(updated.getVersion())) {
+                    historyTable = new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
                     result.complete(null);
-                    return new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
                 } else {
                     result.completeExceptionally(new WriteConflictException("segmentTable"));
-                    return x;
                 }
-            });
+            }
         }
         return result;
     }
 
     @Override
     CompletableFuture<Data<Integer>> getHistoryTable() {
-        if (this.historyTable.get() == null) {
+        if (this.historyTable == null) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
 
-        return CompletableFuture.completedFuture(copy(historyTable.get()));
+        return CompletableFuture.completedFuture(copy(historyTable));
     }
 
     @Override
@@ -320,7 +384,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime, long scaleGracePeriod) {
+    CompletableFuture<Integer> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
+                                                    long scaleGracePeriod) {
+        Preconditions.checkNotNull(txId);
+
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         final Data<Integer> txnData = new Data<>(
                 new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
@@ -363,6 +430,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> updateActiveTx(int epoch, UUID txId, byte[] data) throws DataNotFoundException {
+        Preconditions.checkNotNull(data);
+
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (activeTxnsLock) {
             activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
@@ -380,6 +449,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> sealActiveTx(int epoch, UUID txId, boolean commit, ActiveTxnRecord txnRecord, int version) throws DataNotFoundException {
+        Preconditions.checkNotNull(txId);
+
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (activeTxnsLock) {
             activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
@@ -404,6 +475,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getCompletedTx(UUID txId) throws DataNotFoundException {
+        Preconditions.checkNotNull(txId);
+
         if (!completedTxns.containsKey(txId.toString())) {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
@@ -412,6 +485,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(int epoch, UUID txId) {
+        Preconditions.checkNotNull(txId);
+
         synchronized (activeTxnsLock) {
             activeTxns.remove(txId.toString());
         }
@@ -420,6 +495,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxnStatus complete, long timestamp) {
+        Preconditions.checkNotNull(txId);
+
         completedTxns.putIfAbsent(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
         return CompletableFuture.completedFuture(null);
     }
