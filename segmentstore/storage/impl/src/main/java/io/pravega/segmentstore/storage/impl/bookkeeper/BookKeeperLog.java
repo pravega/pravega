@@ -150,6 +150,8 @@ class BookKeeperLog implements DurableDataLog {
                     log.error("{}: Unable to close LedgerHandle for Ledger {}.", this.traceObjectId, writeLedger.ledger.getId(), bkEx);
                 }
             }
+
+            log.info("{}: Closed.", this.traceObjectId);
         }
     }
 
@@ -197,17 +199,18 @@ class BookKeeperLog implements DurableDataLog {
             assert ledgerMetadata != null : "cannot find newly added ledger metadata";
             this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
             this.logMetadata = metadata;
+            log.info("{}: Initialized.", this.traceObjectId);
         }
     }
 
     @Override
     public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
         ensurePreconditions();
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
         if (data.getLength() > getMaxAppendLength()) {
             return FutureHelpers.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
         }
 
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append");
         Timer timer = new Timer();
 
         // Queue up the write.
@@ -225,7 +228,7 @@ class BookKeeperLog implements DurableDataLog {
                 // Update metrics and take care of other logging tasks.
                 Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
                 Metrics.WRITE_BYTES.add(data.getLength());
-                LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, data.getLength(), address);
             }
         }, this.executorService);
         return result;
@@ -268,16 +271,21 @@ class BookKeeperLog implements DurableDataLog {
      * Write Processor main loop. This method is not thread safe and should only be invoked as part of the Write Processor.
      */
     private void processWritesSync() {
-        if (getWriteLedger().ledger.isClosed()) {
-            // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
-            // the write processor upon finish, so
-            this.rolloverProcessor.runAsync();
-        } else if (!processPendingWrites()) {
-            // We were not able to complete execution of all writes. Try again.
-            this.writeProcessor.runAsync();
-        } else {
-            // After every run, check if we need to trigger a rollover.
-            this.rolloverProcessor.runAsync();
+        try {
+            if (getWriteLedger().ledger.isClosed()) {
+                // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
+                // the write processor upon finish, so
+                this.rolloverProcessor.runAsync();
+            } else if (!processPendingWrites()) {
+                // We were not able to complete execution of all writes. Try again.
+                this.writeProcessor.runAsync();
+            } else {
+                // After every run, check if we need to trigger a rollover.
+                this.rolloverProcessor.runAsync();
+            }
+        } catch (Exception ex) {
+            log.error("{}: processWritesSync failed.", this.traceObjectId, ex);
+            throw ex;
         }
     }
 
@@ -287,15 +295,18 @@ class BookKeeperLog implements DurableDataLog {
      * @return True if the no errors, false if at least one write failed.
      */
     private boolean processPendingWrites() {
-        //TODO: this method needs a try-catch, at least for logging
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "processPendingWrites");
+
         // Clean up the write queue of all finished writes that are complete (successfully or failed for good)
         val cs = this.writes.removeFinishedWrites();
         if (cs.contains(WriteQueue.CleanupStatus.WriteFailed)) {
             // We encountered a failed write. As such, we must close immediately and not process anything else.
             // Closing will automatically cancel all pending writes.
             close();
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.WriteFailed);
             return false;
         } else if (cs.contains(WriteQueue.CleanupStatus.QueueEmpty)) {
+            LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, WriteQueue.CleanupStatus.QueueEmpty);
             return true;
         }
 
@@ -315,6 +326,7 @@ class BookKeeperLog implements DurableDataLog {
         }
 
         // Execute the writes.
+        log.debug("{}: Executing {} writes with parallelism {}.", this.traceObjectId, toExecute.size(), parallelism);
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
             try {
@@ -337,10 +349,12 @@ class BookKeeperLog implements DurableDataLog {
                     toExecute.get(j).fail(new DurableDataLogException("Previous write failed.", ex), isFinal);
                 }
 
+                LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, i);
                 return false;
             }
         }
 
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "processPendingWrites", traceId, toExecute.size());
         return true;
     }
 
@@ -359,6 +373,7 @@ class BookKeeperLog implements DurableDataLog {
             return false;
         }
 
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "handleClosedLedgers", writes.size());
         WriteLedger currentLedger = getWriteLedger();
         Map<Long, Long> lastAddsConfirmed = new HashMap<>();
         boolean anythingChanged = false;
@@ -381,6 +396,7 @@ class BookKeeperLog implements DurableDataLog {
             }
         }
 
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "handleClosedLedgers", traceId, writes.size(), anythingChanged);
         return anythingChanged;
     }
 
@@ -396,6 +412,7 @@ class BookKeeperLog implements DurableDataLog {
     private long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
         long ledgerId = writeLedger.ledger.getId();
         long lac = lastAddsConfirmed.getOrDefault(ledgerId, -1L);
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "fetchLastAddConfirmed", ledgerId, lac);
         if (lac < 0) {
             if (writeLedger.isRolledOver()) {
                 // This close was not due to failure, rather a rollover - hence lastAddConfirmed can be relied upon.
@@ -407,8 +424,10 @@ class BookKeeperLog implements DurableDataLog {
             }
 
             lastAddsConfirmed.put(ledgerId, lac);
+            log.info("{}: Fetched actual LastAddConfirmed ({}) for LedgerId {}.", this.traceObjectId, lac, ledgerId);
         }
 
+        LoggerHelpers.traceLeave(log, this.traceObjectId, "fetchLastAddConfirmed", traceId, ledgerId, lac);
         return lac;
     }
 
@@ -712,7 +731,7 @@ class BookKeeperLog implements DurableDataLog {
             // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
             // will be invoked within the lock, thus likely candidates for deadlocks).
             Ledgers.close(oldLedger);
-            log.debug("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.",
+            log.info("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.",
                     this.traceObjectId, oldLedger.getId(), newLedger.getId());
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {

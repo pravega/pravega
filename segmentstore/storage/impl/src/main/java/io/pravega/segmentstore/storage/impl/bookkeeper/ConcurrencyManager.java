@@ -26,9 +26,12 @@ import lombok.RequiredArgsConstructor;
 class ConcurrencyManager {
     //region Members
 
-    private static final double SIGNIFICANT_DIFFERENCE = 0.1;
-    private static final long MIN_FREQUENCY_MILLIS = 1000;
-    private static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 4;
+    @VisibleForTesting
+    static final double SIGNIFICANT_DIFFERENCE = 0.1;
+    @VisibleForTesting
+    static final long MIN_FREQUENCY_MILLIS = 1000;
+    @VisibleForTesting
+    static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 4;
     private final int minParallelism;
     private final int maxParallelism;
     private final Supplier<Long> timeSupplier;
@@ -76,6 +79,18 @@ class ConcurrencyManager {
     //region Operations
 
     /**
+     * Records the fact that a write with the given length has just completed successfully.
+     *
+     * @param writeLength The length of the write that completed.
+     */
+    void writeCompleted(int writeLength) {
+        synchronized (this) {
+            this.recentWriteCount++;
+            this.recentTotalWrittenLength += writeLength;
+        }
+    }
+
+    /**
      * Gets a value indicating the current (most recent) degree of parallelism.
      *
      * @return The result
@@ -104,7 +119,7 @@ class ConcurrencyManager {
         } else if (elapsedMillis >= STALE_MILLIS) {
             // Last snapshot is too old. We can't make any good determination.
             resetSnapshot();
-            return lastSnapshot.parallelism;
+            return this.lastSnapshot.get().parallelism;
         }
 
         final int recentCount;
@@ -136,16 +151,7 @@ class ConcurrencyManager {
 
         // Update stats and reset counters.
         this.lastSnapshot.set(new Snapshot(recentFillRatio, recentThroughput, time, parallelism));
-        //TODO: log with context.
-        System.err.println(this.lastSnapshot);
         return parallelism;
-    }
-
-    void writeCompleted(int writeLength) {
-        synchronized (this) {
-            this.recentWriteCount++;
-            this.recentTotalWrittenLength += writeLength;
-        }
     }
 
     private void resetSnapshot() {
