@@ -297,14 +297,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
-            state.failConnection(new SegmentSealedException());
+            state.failConnection(new SegmentSealedException(segmentIsSealed.getSegment()));
             if (!state.isSealedCallBackInvoked()) {
                 connectionFactory.getInternalExecutor().submit(() -> {
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
                     try {
                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                    } catch (Throwable t) {
-                        t.printStackTrace();
                     } finally {
                         state.sealedCallBackInvocationCompleted();
                         close();
