@@ -9,10 +9,11 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
@@ -44,7 +45,8 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    // TODO
+    public Timeout globalTimeout = new Timeout(1000, TimeUnit.SECONDS);
 
     protected StreamMetadataStore store;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -230,7 +232,7 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
-    public void getScopeTest() throws  Exception {
+    public void getScopeTest() throws Exception {
         final String scope1 = "Scope1";
         final String scope2 = "Scope2";
         String scopeName;
@@ -246,7 +248,124 @@ public abstract class StreamMetadataStoreTest {
                 (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
     }
 
+    @Test
+    public void scaleTest() throws Exception {
+        final String scope = "ScopeScale";
+        final String stream = "StreamScale";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // region idempotent
+
+        long scaleTs = System.currentTimeMillis();
+        SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
+        List<Integer> scale1SealedSegments = Collections.singletonList(1);
+
+        // test run only if started
+        AssertExtensions.assertThrows("", () ->
+                store.startScale(scope, stream, scale1SealedSegments,
+                        Arrays.asList(segment1, segment2), scaleTs, true, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleStartException);
+
+        // 1. start scale
+        StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+        final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
+        final int scale1ActiveEpoch = response.getActiveEpoch();
+
+        // rerun start scale
+        response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+        assertEquals(response.getSegmentsCreated(), scale1SegmentsCreated);
+
+        // 2. scale new segments created
+        store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        // rerun start scale and new segments created
+        response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+        assertEquals(response.getSegmentsCreated(), scale1SegmentsCreated);
+
+        store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        // 3. scale segments sealed -- this will complete scale
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        // rerun -- illegal state exception
+        AssertExtensions.assertThrows("", () ->
+                        store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                                scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+
+        // rerun  -- illegal state exception
+        AssertExtensions.assertThrows("", () ->
+                        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                                scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+
+        // rerun start scale -- should fail with precondition failure
+        AssertExtensions.assertThrows("", () ->
+                store.startScale(scope, stream, scale1SealedSegments,
+                        Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScalePreConditionFailureException);
+
+        // endregion
+
+        // 2 different conflicting scale operations
+        // region run concurrent conflicting scale
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
+        SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
+        List<Integer> scale2SealedSegments = Arrays.asList(0, 2, 3);
+        long scaleTs2 = System.currentTimeMillis();
+        response = store.startScale(scope, stream, scale2SealedSegments, Arrays.asList(segment3, segment4, segment5), scaleTs2, false, null, executor).get();
+        final List<Segment> scale2SegmentsCreated = response.getSegmentsCreated();
+        final int scale2ActiveEpoch = response.getActiveEpoch();
+
+        // rerun of scale 1 -- should fail with precondition failure
+        AssertExtensions.assertThrows("", () ->
+                store.startScale(scope, stream, scale1SealedSegments,
+                        Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleStartException);
+
+        // rerun of scale 1's new segments created method
+        AssertExtensions.assertThrows("", () ->
+                store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                        scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+
+        store.scaleNewSegmentsCreated(scope, stream, scale2SealedSegments, scale2SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
+
+        // rerun of scale 1's new segments created method
+        AssertExtensions.assertThrows("", () ->
+                store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                        scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
+
+        store.setState(scope, stream, State.SCALING, null, executor).get();
+
+        // rerun of scale 1's new segments created method
+        AssertExtensions.assertThrows("", () ->
+                store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                        scale1ActiveEpoch, scaleTs, null, executor).join(),
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+
+        // endregion
+    }
+
     private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {
         return t instanceof StoreException && ((StoreException) t).getType() == type;
     }
 }
+

@@ -787,17 +787,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     final HistoryRecord lastRecord = lastRecordOpt.get();
 
-                    if (lastRecord.getEpoch() > epoch) {
-                        throw new ScaleOperationExceptions.ScaleConditionInvalidException();
-                    }
-
                     // idempotent check
-                    if (lastRecord.getSegments().containsAll(createdSegments)) {
-                        HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData()).get();
+                    if (lastRecord.getEpoch() > epoch) {
+                        boolean idempotent = lastRecord.isPartial() && lastRecord.getSegments().containsAll(createdSegments);
+                        if (idempotent) {
+                            HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyTable.getData()).get();
 
-                        assert previous.getSegments().stream().noneMatch(createdSegments::contains);
-                        return CompletableFuture.completedFuture(null);
+                            idempotent = previous.getSegments().stream().noneMatch(createdSegments::contains);
+                        }
+
+                        if (idempotent) {
+                            return CompletableFuture.completedFuture(null);
+                        } else {
+                            throw new ScaleOperationExceptions.ScaleConditionInvalidException();
+                        }
                     }
+
                     final List<Integer> newActiveSegments = getNewActiveSegments(createdSegments, sealedSegments, lastRecord);
 
                     byte[] updatedTable = TableHelper.addPartialRecordToHistoryTable(historyTable.getData(), newActiveSegments);
@@ -821,10 +826,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     // idempotent check
                     if (!lastRecord.isPartial()) {
-                        assert lastRecord.getSegments().stream().noneMatch(sealedSegments::contains);
-                        assert newSegments.stream().allMatch(x -> lastRecord.getSegments().contains(x));
-
-                        return CompletableFuture.completedFuture(null);
+                        if (lastRecord.getSegments().stream().noneMatch(sealedSegments::contains) &&
+                                newSegments.stream().allMatch(x -> lastRecord.getSegments().contains(x))) {
+                            return CompletableFuture.completedFuture(null);
+                        } else {
+                            throw new ScaleOperationExceptions.ScaleConditionInvalidException();
+                        }
                     }
 
                     long scaleEventTime = Math.max(System.currentTimeMillis(), scaleTimestamp);
