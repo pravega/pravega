@@ -36,7 +36,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -395,13 +394,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         activeTxns.putIfAbsent(txId.toString(), txnData);
         int epoch = activeEpoch.get();
         synchronized (epochTxnLock) {
-            epochTxnMap.computeIfPresent(epoch, (x, y) -> {
-                y.add(txId.toString());
-                result.complete(epoch);
-                return y;
-            });
             if (!epochTxnMap.containsKey(epoch)) {
                 result.completeExceptionally(new DataNotFoundException("epoch"));
+            } else {
+                epochTxnMap.computeIfPresent(epoch, (x, y) -> {
+                    y.add(txId.toString());
+                    result.complete(epoch);
+                    return y;
+                });
             }
         }
 
@@ -453,21 +453,24 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (activeTxnsLock) {
-            activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
-                if (version != y.getVersion()) {
-                    result.completeExceptionally(new WriteConflictException(txId.toString()));
-                }
-                ActiveTxnRecord previous = ActiveTxnRecord.parse(y.getData());
-                ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                        previous.getLeaseExpiryTime(),
-                        previous.getMaxExecutionExpiryTime(),
-                        previous.getScaleGracePeriod(),
-                        commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                result.complete(null);
-                return new Data<>(updated.toByteArray(), y.getVersion() + 1);
-            });
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(new DataNotFoundException("txn"));
+            } else {
+                activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
+                    if (version != y.getVersion()) {
+                        result.completeExceptionally(new WriteConflictException(txId.toString()));
+                        return y;
+                    } else {
+                        ActiveTxnRecord previous = ActiveTxnRecord.parse(y.getData());
+                        ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                                previous.getLeaseExpiryTime(),
+                                previous.getMaxExecutionExpiryTime(),
+                                previous.getScaleGracePeriod(),
+                                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
+                        result.complete(null);
+                        return new Data<>(updated.toByteArray(), y.getVersion() + 1);
+                    }
+                });
             }
         }
         return result;
@@ -515,17 +518,18 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> updateMarkerData(int segmentNumber, Data<Integer> data) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         synchronized (markersLock) {
-            markers.computeIfPresent(segmentNumber, (x, y) -> {
-                if (y.getVersion().equals(data.getVersion())) {
-                    result.complete(null);
-                    return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
-                } else {
-                    result.completeExceptionally(new WriteConflictException(""));
-                    return y;
-                }
-            });
             if (!markers.containsKey(segmentNumber)) {
                 result.completeExceptionally(new DataNotFoundException("segment number"));
+            } else {
+                markers.computeIfPresent(segmentNumber, (x, y) -> {
+                    if (y.getVersion().equals(data.getVersion())) {
+                        result.complete(null);
+                        return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
+                    } else {
+                        result.completeExceptionally(new WriteConflictException(""));
+                        return y;
+                    }
+                });
             }
         }
         return result;
