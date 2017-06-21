@@ -365,7 +365,7 @@ class BookKeeperLog implements DurableDataLog {
 
             // Write likely failed because of LedgerClosedException. Need to check the LastAddConfirmed for each
             // involved Ledger and see if the write actually made it through or not.
-            long lac = tryGetLastAddConfirmed(w.getWriteLedger(), lastAddsConfirmed);
+            long lac = fetchLastAddConfirmed(w.getWriteLedger(), lastAddsConfirmed);
             if (w.getEntryId() >= 0 && w.getEntryId() <= lac) {
                 // Write was actually successful. Complete it and move on.
                 w.complete();
@@ -389,7 +389,7 @@ class BookKeeperLog implements DurableDataLog {
      * @return The LastAddConfirmed for the WriteLedger.
      */
     @SneakyThrows(DurableDataLogException.class)
-    private long tryGetLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
+    private long fetchLastAddConfirmed(WriteLedger writeLedger, Map<Long, Long> lastAddsConfirmed) {
         long ledgerId = writeLedger.ledger.getId();
         long lac = lastAddsConfirmed.getOrDefault(ledgerId, -1L);
         if (lac < 0) {
