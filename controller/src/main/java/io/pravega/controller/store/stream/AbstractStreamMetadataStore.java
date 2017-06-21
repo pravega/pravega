@@ -334,17 +334,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
         future.thenAccept(result -> {
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                    newSegments.size() - sealedSegments.size());
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), newSegments.size());
             getSealedRanges(scope, name, sealedSegments, context, executor)
                     .thenAccept(sealedRanges -> {
                         long oldNumSplits = DYNAMIC_LOGGER.getCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name));
-                        long newNumSplits = findSplits(sealedRanges, newRanges);
+                        long newNumSplits = findDeltaNumSplits(sealedRanges, newRanges);
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
                                     (newNumSplits > oldNumSplits) ? (newNumSplits - oldNumSplits) : newNumSplits );
 
                         long oldNumMerges = DYNAMIC_LOGGER.getCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name));
-                        long newNumMerges = findSplits(newRanges, sealedRanges);
+                        long newNumMerges = findDeltaNumSplits(newRanges, sealedRanges);
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name),
                                     (newNumMerges > oldNumMerges) ?  (newNumMerges - oldNumMerges) : newNumMerges);
                     });
@@ -539,7 +538,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         .collect(Collectors.toList()));
     }
 
-    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
+    private int findDeltaNumSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
         int splits = 0;
         for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
