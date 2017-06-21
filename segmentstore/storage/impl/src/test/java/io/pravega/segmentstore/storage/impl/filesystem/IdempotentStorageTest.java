@@ -13,9 +13,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -77,6 +75,7 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             verifyFinalWriteOperationsSucceed(handle2, storage2);
         }
     }
+
     /**
      * Tests the write() method.
      *

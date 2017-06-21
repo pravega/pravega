@@ -21,6 +21,8 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.ecs.ECSStorageConfig;
+import io.pravega.segmentstore.storage.impl.ecs.ECSStorageFactory;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
@@ -170,6 +172,10 @@ public final class ServiceStarter {
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
                         return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+
+                    case ECS:
+                        ECSStorageConfig ecsConfig = setup.getConfig(ECSStorageConfig::builder);
+                        return new ECSStorageFactory(ecsConfig, setup.getExecutor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());

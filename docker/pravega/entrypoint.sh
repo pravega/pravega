@@ -61,10 +61,12 @@ configure_tier2() {
     ECS_ROOT=${ECS_ROOT:-"/"}
     add_system_property "ecs.ecsRoot" "${ECS_ROOT}"
     add_system_property "ecs.ecsAccessKey" "${ECS_ACCESS_KEY_ID}"
+    add_system_property "ecs.ecsSecretKey" "${ECS_SECRET_KEY}"
     add_system_property "ecs.ecsUrl" "${ECS_URI}"
     add_system_property "ecs.ecsBucket" "${ECS_BUCKET}"
     add_system_property "ecs.ecsNamespace" "${ECS_NAMESPACE}"
     ;;
+    esac
 }
 configure_segmentstore() {
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
