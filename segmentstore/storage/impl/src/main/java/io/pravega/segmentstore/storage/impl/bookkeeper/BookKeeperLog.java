@@ -117,7 +117,7 @@ class BookKeeperLog implements DurableDataLog {
         this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", logId);
         this.writes = new WriteQueue();
-        this.concurrencyManager = new ConcurrencyManager(this.writes, this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
+        this.concurrencyManager = new ConcurrencyManager(this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
     }
@@ -432,6 +432,7 @@ class BookKeeperLog implements DurableDataLog {
                 // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
                 write.complete();
+                this.concurrencyManager.writeCompleted(write.data.getLength());
                 return;
             }
 

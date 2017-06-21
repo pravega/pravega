@@ -24,7 +24,6 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * A specialized queue for BookKeeper writes. Provides methods for adding new items, determining the next items to execute,
@@ -43,10 +42,6 @@ class WriteQueue {
     @GuardedBy("this")
     private int lastDurationMillis;
     @GuardedBy("this")
-    private long recentTotalWrittenLength;
-    @GuardedBy("this")
-    private int recentWriteCount;
-    @GuardedBy("this")
     private boolean closed;
 
     //endregion
@@ -63,7 +58,7 @@ class WriteQueue {
     /**
      * Creates a new instance of the WriteQueue class.
      *
-     * @param timeSupplier   A Supplier that returns the current time, in nanoseconds.
+     * @param timeSupplier A Supplier that returns the current time, in nanoseconds.
      */
     @VisibleForTesting
     WriteQueue(Supplier<Long> timeSupplier) {
@@ -190,13 +185,11 @@ class WriteQueue {
             Write w = this.writes.removeFirst();
             this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
             removedCount++;
-            this.recentTotalWrittenLength += w.data.getLength();
             totalElapsed += currentTime - w.getTimestamp();
             failedWrite |= w.getFailureCause() != null;
         }
 
         if (removedCount > 0) {
-            this.recentWriteCount += removedCount;
             this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
         }
 
@@ -216,55 +209,6 @@ class WriteQueue {
         } else {
             return 0;
         }
-    }
-
-    /**
-     * Gets information about recent writes, since the last time this method was called.
-     * Every call to this method resets these stats.
-     * @return A new instance of the WriteStats class.
-     */
-    synchronized WriteStats fetchRecentWriteStats() {
-        WriteStats result = new WriteStats(this.recentTotalWrittenLength, this.recentWriteCount);
-        this.recentTotalWrittenLength = 0;
-        this.recentWriteCount = 0;
-        return result;
-    }
-
-    //endregion
-
-    //region WriteStats
-
-    /**
-     * Statistics about recent writes.
-     */
-    @RequiredArgsConstructor
-    static class WriteStats {
-        final long totalLength;
-        final int count;
-    }
-
-    //endregion
-
-    //region CleanupStatus
-
-    /**
-     * Defines various states that the WriteQueue may be in after a cleanup is performed.
-     */
-    enum CleanupStatus {
-        /**
-         * The Queue is empty after the operation.
-         */
-        QueueEmpty,
-
-        /**
-         * The Queue is not empty after the operation.
-         */
-        QueueNotEmpty,
-
-        /**
-         * A permanently failed Write was detected.
-         */
-        WriteFailed
     }
 
     //endregion

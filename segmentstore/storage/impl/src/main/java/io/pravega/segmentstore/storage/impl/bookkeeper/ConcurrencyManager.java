@@ -9,16 +9,20 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.MathHelpers;
-import javax.annotation.concurrent.NotThreadSafe;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Manages the Write Queue Concurrency.
  */
-@NotThreadSafe
+@ThreadSafe
 class ConcurrencyManager {
     //region Members
 
@@ -27,8 +31,12 @@ class ConcurrencyManager {
     private static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 4;
     private final int minParallelism;
     private final int maxParallelism;
-    private final WriteQueue queue;
-    private Snapshot lastSnapshot;
+    private final Supplier<Long> timeSupplier;
+    @GuardedBy("this")
+    private long recentTotalWrittenLength;
+    @GuardedBy("this")
+    private int recentWriteCount;
+    private final AtomicReference<Snapshot> lastSnapshot;
 
     //endregion
 
@@ -37,15 +45,29 @@ class ConcurrencyManager {
     /**
      * Creates a new instance of the ConcurrencyManager class.
      *
-     * @param queue          The WriteQueue to attach to.
      * @param minParallelism The minimum degree of parallelism desired.
      * @param maxParallelism The maximum degree of parallelism desired.
      */
-    ConcurrencyManager(WriteQueue queue, int minParallelism, int maxParallelism) {
-        this.queue = Preconditions.checkNotNull(queue, "queue");
+    ConcurrencyManager(int minParallelism, int maxParallelism) {
+        this(minParallelism, maxParallelism, System::nanoTime);
+    }
+
+    /**
+     * Creates a new instance of the ConcurrencyManager class.
+     *
+     * @param minParallelism The minimum degree of parallelism desired.
+     * @param maxParallelism The maximum degree of parallelism desired.
+     * @param timeSupplier   A Supplier that returns the current time, in nanoseconds.
+     */
+    @VisibleForTesting
+    ConcurrencyManager(int minParallelism, int maxParallelism, Supplier<Long> timeSupplier) {
+        this.timeSupplier = Preconditions.checkNotNull(timeSupplier, "timeSupplier");
         Preconditions.checkArgument(minParallelism <= maxParallelism, "minParallelism must be <= maxParallelism.");
         this.minParallelism = minParallelism;
         this.maxParallelism = maxParallelism;
+        this.recentTotalWrittenLength = 0;
+        this.recentWriteCount = 0;
+        this.lastSnapshot = new AtomicReference<>();
         resetSnapshot();
     }
 
@@ -59,7 +81,7 @@ class ConcurrencyManager {
      * @return The result
      */
     int getCurrentParallelism() {
-        return this.lastSnapshot.parallelism;
+        return this.lastSnapshot.get().parallelism;
     }
 
     /**
@@ -73,28 +95,37 @@ class ConcurrencyManager {
      */
     int updateParallelism() {
         // Calculate the most recent throughput and Fill Ratio (of those items that have just been written).
-        final long time = this.queue.getTimeSupplier().get();
-        final long elapsedMillis = (time - this.lastSnapshot.timeStamp) / AbstractTimer.NANOS_TO_MILLIS;
+        final long time = this.timeSupplier.get();
+        final Snapshot lastSnapshot = this.lastSnapshot.get();
+        final long elapsedMillis = (time - lastSnapshot.timeStamp) / AbstractTimer.NANOS_TO_MILLIS;
         if (elapsedMillis < MIN_FREQUENCY_MILLIS) {
             // No need to do any change.
-            return this.lastSnapshot.parallelism;
+            return lastSnapshot.parallelism;
         } else if (elapsedMillis >= STALE_MILLIS) {
             // Last snapshot is too old. We can't make any good determination.
             resetSnapshot();
-            return this.lastSnapshot.parallelism;
+            return lastSnapshot.parallelism;
         }
 
-        final WriteQueue.WriteStats recentStats = this.queue.fetchRecentWriteStats();
-        final double recentThroughput = (double) recentStats.totalLength / elapsedMillis;
-        final double recentFillRatio = WriteQueue.calculateFillRatio(recentStats.totalLength, recentStats.count);
-        final double throughputDifference = recentThroughput - this.lastSnapshot.throughput;
+        final int recentCount;
+        final long recentLength;
+        synchronized (this) {
+            recentCount = this.recentWriteCount;
+            recentLength = this.recentTotalWrittenLength;
+            this.recentWriteCount = 0;
+            this.recentTotalWrittenLength = 0;
+        }
 
-        int parallelism = this.lastSnapshot.parallelism;
-        if (Math.abs(throughputDifference / this.lastSnapshot.throughput) >= SIGNIFICANT_DIFFERENCE) {
+        final double recentThroughput = (double) recentLength / elapsedMillis;
+        final double recentFillRatio = WriteQueue.calculateFillRatio(recentLength, recentCount);
+        final double throughputDifference = recentThroughput - lastSnapshot.throughput;
+
+        int parallelism = lastSnapshot.parallelism;
+        if (Math.abs(throughputDifference / lastSnapshot.throughput) >= SIGNIFICANT_DIFFERENCE) {
             // Throughput changed significantly.
             // But first, check for a special case. If both Throughput and Fill Ratio are decreasing, then most likely the
             // former is a result of the latter. As such, don't do anything, in that case.
-            boolean fillRatioDecreased = (recentFillRatio - this.lastSnapshot.fillRatio) <= -SIGNIFICANT_DIFFERENCE;
+            boolean fillRatioDecreased = (recentFillRatio - lastSnapshot.fillRatio) <= -SIGNIFICANT_DIFFERENCE;
             if (throughputDifference > 0 || !fillRatioDecreased) {
                 // Either the throughput increased or the Fill Ratio did not decrease significantly.
                 // Change the parallelism in the same direction as Throughput.
@@ -104,14 +135,21 @@ class ConcurrencyManager {
         }
 
         // Update stats and reset counters.
-        this.lastSnapshot = new Snapshot(recentFillRatio, recentThroughput, time, parallelism);
+        this.lastSnapshot.set(new Snapshot(recentFillRatio, recentThroughput, time, parallelism));
         //TODO: log with context.
         System.err.println(this.lastSnapshot);
         return parallelism;
     }
 
+    void writeCompleted(int writeLength) {
+        synchronized (this) {
+            this.recentWriteCount++;
+            this.recentTotalWrittenLength += writeLength;
+        }
+    }
+
     private void resetSnapshot() {
-        this.lastSnapshot = new Snapshot(0, 0, this.queue.getTimeSupplier().get(), this.minParallelism * 2);
+        this.lastSnapshot.set(new Snapshot(0, 0, this.timeSupplier.get(), Math.min(this.minParallelism * 2, this.maxParallelism)));
     }
 
     //endregion
