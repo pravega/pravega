@@ -216,6 +216,7 @@ public class FileSystemStorageTest extends StorageTestBase {
             }
             Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
                     s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
+
             s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
@@ -227,6 +228,8 @@ public class FileSystemStorageTest extends StorageTestBase {
     public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
+        String newConcatSegmentName = "foo_concat0";
+
         int offset = 0;
 
         try ( Storage s1 = createStorage()) {
@@ -252,17 +255,13 @@ public class FileSystemStorageTest extends StorageTestBase {
             long lengthBeforeRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
 
             // Create the segment again.
-            s1.create(concatSegmentName, TIMEOUT).join();
-            writeHandle2 = s1.openWrite(concatSegmentName).join();
+            s1.create(newConcatSegmentName, TIMEOUT).join();
+            writeHandle2 = s1.openWrite(newConcatSegmentName).join();
             dataStream2 = new ByteArrayInputStream(writeData);
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
             s1.seal(writeHandle2, TIMEOUT).join();
-
-            long sizeOfConcat = s1.getStreamSegmentInfo(concatSegmentName, TIMEOUT).join().getLength();
-            Assert.assertTrue( String.format("Size of the same concat is (%d) should be (%d).", sizeOfConcat,
-                    writeData.length), sizeOfConcat == writeData.length);
             //Concat at the same offset again
-            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
+            s1.concat(writeHandle1, writeData.length, newConcatSegmentName, TIMEOUT).join();
             long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             Assert.assertTrue( String.format("Concatenation of same segment at the same offset(%d) should result in " +
                             "same segment size(%d), but is (%d)", writeData.length, lengthBeforeRetry,
