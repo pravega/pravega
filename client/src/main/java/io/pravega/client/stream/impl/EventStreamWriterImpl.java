@@ -155,7 +155,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private void handleLogSealed(Segment segment) {
         //TODO: shrids since this is executed by the callback for that segment we need to pass the events to be resent.
         lock.readLock().lock();
-        segmentSealedLock.lock(); // prevent
+        /* Using segmentSealedLock the following behaviour is enforced
+            - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
+            - Ensure waiting segmentSealedCallbacks are invoked before the next write is invoked.
+            This ensures that resend() would be invoked again if we observe a segment sealed exception.
+         */
+        segmentSealedLock.lock();
         try {
             List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment,
                     segmentSealedCallBack);
