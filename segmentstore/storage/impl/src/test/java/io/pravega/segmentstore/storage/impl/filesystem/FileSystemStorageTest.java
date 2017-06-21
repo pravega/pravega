@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
@@ -202,8 +203,8 @@ public class FileSystemStorageTest extends StorageTestBase {
             SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
             SegmentHandle writeHandle2 = s1.openWrite(segmentName).join();
             long offset = 0;
+            byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             for (int j = 0; j < appendCount; j++) {
-                byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
                 ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
                 CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
@@ -216,6 +217,17 @@ public class FileSystemStorageTest extends StorageTestBase {
             }
             Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
                     s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
+
+            offset = 0;
+            byte[] readBuffer = new byte[writeData.length];
+            for (int j = 0; j < appendCount; j++) {
+                int bytesRead = s1.read(writeHandle1, j * readBuffer.length, readBuffer,
+                        0, readBuffer.length, TIMEOUT) .join();
+                Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                        readBuffer.length, bytesRead);
+                AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                        readBuffer, 0, readBuffer, 0, bytesRead);
+            }
 
             s1.delete(writeHandle1, TIMEOUT).join();
         }
@@ -267,6 +279,17 @@ public class FileSystemStorageTest extends StorageTestBase {
                             "same segment size(%d), but is (%d)", writeData.length, lengthBeforeRetry,
                     lengthAfterRetry),
                     lengthBeforeRetry == lengthAfterRetry);
+
+            //Verify the data
+            byte[] readBuffer = new byte[writeData.length];
+            for (int j = 0; j < 2; j++) {
+                int bytesRead = s1.read(writeHandle1, j * readBuffer.length, readBuffer,
+                        0, readBuffer.length, TIMEOUT) .join();
+                Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                        readBuffer.length, bytesRead);
+                AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                        readBuffer, (int) offset, readBuffer, 0, bytesRead);
+            }
             s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
