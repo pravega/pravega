@@ -48,6 +48,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -99,7 +100,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
         @GuardedBy("lock")
-        private CompletableFuture<Void> completedSealedSegmentProcessing = null;
+        private AtomicBoolean completedSealedSegmentProcessing = new AtomicBoolean();
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
@@ -127,22 +128,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         
         //Check if SealedCallBack is already invoked.
-        private boolean isSealedCallBackInvoked() {
-            synchronized (lock) {
-                if (completedSealedSegmentProcessing != null) {
-                    return true;
-                } else {
-                    completedSealedSegmentProcessing = new CompletableFuture<>();
-                    return false;
-                }
-            }
-        }
-
-        //update the state indicating SealedCallBackInvocation Completed.
-        private void sealedCallBackInvocationCompleted() {
-            synchronized (lock) {
-                completedSealedSegmentProcessing.complete(null);
-            }
+        private boolean startCallBackForSealedSegment() {
+           return completedSealedSegmentProcessing.compareAndSet(false, true);
         }
 
         private boolean isInflightEmpty() {
@@ -298,15 +285,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
             state.failConnection(new SegmentSealedException(segmentIsSealed.getSegment()));
-            if (!state.isSealedCallBackInvoked()) {
+
+            if (state.startCallBackForSealedSegment()) {
                 connectionFactory.getInternalExecutor().submit(() -> {
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
-                    try {
                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                    } finally {
-                        state.sealedCallBackInvocationCompleted();
-                        close();
-                    }
                 });
             }
         }
@@ -379,6 +362,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     @Synchronized
     public void write(PendingEvent event) {
+        checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
         try {

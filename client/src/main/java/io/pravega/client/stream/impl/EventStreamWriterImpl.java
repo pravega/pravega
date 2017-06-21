@@ -55,11 +55,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      *
      * a. When a Write is happening, segmentSealedCallback cannot be executed concurrently, this is used to handle
      * missing event.
-     * b. When a Write is happening, flush cannot be executed concurrently.
-     * c. When a Flush is being invoked, segmentSealedCallback can be executed concurrently.
-     * d. When a Flush is being invoked, write cannot be executed concurrently.
-     * e. When a Close is being invoked, write cannot be executed concurrently.
-     * f. When a Close is being invoked, Flush and segmentSealedCallback can be executed concurrently.
+     * b. When a Write is happening, a newer write cannot be execute concurrently.
+     * c. When a Write is happening, flush cannot be executed concurrently.
+     * d. When a Flush is being invoked, segmentSealedCallback can be executed concurrently.
+     * e. When a Flush is being invoked, write cannot be executed concurrently.
+     * f. When a Close is being invoked, write cannot be executed concurrently.
+     * g. When a Close is being invoked, Flush and segmentSealedCallback can be executed concurrently.
      */
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Stream stream;
