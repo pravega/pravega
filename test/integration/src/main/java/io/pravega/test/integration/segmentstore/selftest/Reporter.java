@@ -9,16 +9,17 @@
  */
 package io.pravega.test.integration.segmentstore.selftest;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import lombok.val;
-
+import io.pravega.common.AbstractTimer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import lombok.val;
 
 /**
  * Reports Test State on a periodic basis.
@@ -33,6 +34,8 @@ class Reporter extends AbstractScheduledService {
     private final TestConfig testConfig;
     private final Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider;
     private final ScheduledExecutorService executorService;
+    private final AtomicLong lastReportTime = new AtomicLong(-1);
+    private final AtomicLong lastReportLength = new AtomicLong(-1);
 
     //endregion
 
@@ -86,15 +89,25 @@ class Reporter extends AbstractScheduledService {
         val joinPoolSnapshot = ExecutorServiceHelpers.getSnapshot(ForkJoinPool.commonPool());
         val storePoolSnapshot = this.storePoolSnapshotProvider.get();
 
+        // Determine instant throughput.
+        long time = System.nanoTime();
+        long producedLength = this.testState.getProducedLength();
+        double instantThroughput = this.lastReportTime.get() < 0
+                ? -1 : (producedLength - this.lastReportLength.get()) / toSeconds(time - this.lastReportTime.get());
+
+        this.lastReportTime.set(time);
+        this.lastReportLength.set(producedLength);
+
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
                 this.testState.getSuccessfulOperationCount(),
                 this.testConfig.getOperationCount(),
-                toMB(this.testState.getProducedLength()),
+                toMB(producedLength),
                 toMB(this.testState.getVerifiedTailLength()),
                 toMB(this.testState.getVerifiedCatchupLength()),
                 toMB(this.testState.getVerifiedStorageLength()),
+                instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
                 formatSnapshot(storePoolSnapshot, "Store"),
                 formatSnapshot(testPoolSnapshot, "Test"),
@@ -141,5 +154,9 @@ class Reporter extends AbstractScheduledService {
 
     private double toMB(double bytes) {
         return bytes / (double) ONE_MB;
+    }
+
+    private double toSeconds(long nanos) {
+        return (double) nanos / AbstractTimer.NANOS_TO_MILLIS / 1000;
     }
 }
