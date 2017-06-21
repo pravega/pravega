@@ -160,17 +160,18 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                String storageChoice = this.serviceConfig.getStorageImplementation();
+                ServiceConfig.StorageTypes storageChoice = ServiceConfig.StorageTypes.valueOf(this.serviceConfig
+                        .getStorageImplementation());
                 switch (storageChoice) {
-                    case "HDFS":
+                    case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
                         return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
 
-                    case "FS":
+                    case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
                         return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
 
-                    case "INMEMORY":
+                    case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());
 
                     default:

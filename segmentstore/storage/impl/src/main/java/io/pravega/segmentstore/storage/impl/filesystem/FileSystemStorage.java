@@ -112,7 +112,6 @@ public class FileSystemStorage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
-        this.ensureInitializedAndNotClosed();
     }
 
     @Override
@@ -166,15 +165,14 @@ public class FileSystemStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration
-            timeout) {
-            return supplyAsync(targetHandle.getSegmentName(),
-                    () -> syncConcat(targetHandle, offset, sourceSegment));
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment,
+                                          Duration timeout) {
+        return supplyAsync(targetHandle.getSegmentName(), () -> syncConcat(targetHandle, offset, sourceSegment));
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-            return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
+        return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
     }
 
     //endregion
@@ -193,7 +191,7 @@ public class FileSystemStorage implements Storage {
     @SneakyThrows(StreamSegmentNotExistsException.class)
     private SegmentHandle syncOpenRead(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
-        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
+        Path path = Paths.get(config.getRoot(), streamSegmentName);
 
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
@@ -206,7 +204,7 @@ public class FileSystemStorage implements Storage {
     @SneakyThrows
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
+        Path path = Paths.get(config.getRoot(), streamSegmentName);
         if (!Files.exists(path)) {
             throw new StreamSegmentNotExistsException(streamSegmentName);
         } else if (Files.isWritable(path)) {
@@ -222,7 +220,7 @@ public class FileSystemStorage implements Storage {
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
-        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
+        Path path = Paths.get(config.getRoot(), handle.getSegmentName());
 
         long fileSize = Files.size(path);
         if (fileSize < offset) {
@@ -240,7 +238,7 @@ public class FileSystemStorage implements Storage {
     @SneakyThrows(IOException.class)
     private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getFilesystemRoot(), streamSegmentName),
+        PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
                 PosixFileAttributes.class);
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
                 !(attrs.permissions().contains(OWNER_WRITE)), false,
@@ -251,13 +249,12 @@ public class FileSystemStorage implements Storage {
     }
 
     private boolean syncExists(String streamSegmentName) {
-        return Files.exists(Paths.get(config.getFilesystemRoot(), streamSegmentName));
+        return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
     @SneakyThrows
     private SegmentProperties syncCreate(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        log.info("Creating Segment {}", streamSegmentName);
         Set<PosixFilePermission> perms = new HashSet<>();
         // add permission as rw-r--r-- 644
         perms.add(PosixFilePermission.OWNER_WRITE);
@@ -266,7 +263,7 @@ public class FileSystemStorage implements Storage {
         perms.add(PosixFilePermission.OTHERS_READ);
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(perms);
 
-        Path path = Paths.get(config.getFilesystemRoot(), streamSegmentName);
+        Path path = Paths.get(config.getRoot(), streamSegmentName);
         Files.createDirectories(path.getParent());
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
@@ -282,9 +279,9 @@ public class FileSystemStorage implements Storage {
                     + handle.getSegmentName());
         }
 
-        Path path = Paths.get(config.getFilesystemRoot(), handle.getSegmentName());
+        Path path = Paths.get(config.getRoot(), handle.getSegmentName());
 
-        //Fix for the case where Pravega runs as super user privileges.
+        // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
         if ( !isWritableFile(path)) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
@@ -324,7 +321,7 @@ public class FileSystemStorage implements Storage {
         perms.add(PosixFilePermission.OWNER_READ);
         perms.add(PosixFilePermission.GROUP_READ);
         perms.add(PosixFilePermission.OTHERS_READ);
-        Files.setPosixFilePermissions(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()), perms);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), perms);
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
@@ -334,8 +331,8 @@ public class FileSystemStorage implements Storage {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
 
-        Path sourcePath = Paths.get(config.getFilesystemRoot(), sourceSegment);
-        Path targetPath = Paths.get(config.getFilesystemRoot(), targetHandle.getSegmentName());
+        Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
+        Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
 
         try (FileChannel targetChannel = (FileChannel) Files.newByteChannel(targetPath, EnumSet.of(StandardOpenOption.APPEND));
              RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
@@ -344,8 +341,7 @@ public class FileSystemStorage implements Storage {
             }
             long length = sourceFile.length();
             while ( length > 0 ) {
-                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(),
-                        offset, length);
+                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }
@@ -357,7 +353,7 @@ public class FileSystemStorage implements Storage {
 
     @SneakyThrows(IOException.class)
     private Void syncDelete(SegmentHandle handle) {
-        Files.delete(Paths.get(config.getFilesystemRoot(), handle.getSegmentName()));
+        Files.delete(Paths.get(config.getRoot(), handle.getSegmentName()));
         return null;
     }
 
@@ -365,7 +361,7 @@ public class FileSystemStorage implements Storage {
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
      */
     private <R> CompletableFuture<R> supplyAsync(String segmentName, Supplier<R> operation) {
-        this.ensureInitializedAndNotClosed();
+        Exceptions.checkNotClosed(this.closed.get(), this);
 
         CompletableFuture<R> result = new CompletableFuture<>();
         this.executor.execute(() -> {
@@ -404,9 +400,6 @@ public class FileSystemStorage implements Storage {
         return retVal;
     }
 
-    private void ensureInitializedAndNotClosed() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-    }
 
     //endregion
 

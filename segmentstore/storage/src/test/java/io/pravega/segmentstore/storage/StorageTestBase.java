@@ -35,7 +35,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 public abstract class StorageTestBase extends ThreadPooledTestSuite {
     //region General Test arguments
 
-    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     protected static final long DEFAULT_EPOCH = 1;
     protected static final int APPENDS_PER_SEGMENT = 10;
     private static final int SEGMENT_COUNT = 4;
@@ -365,6 +365,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         }
         return appendData;
     }
+
+    //endregion
+
+    //Region Protected utility methods containing common code.
 
     //endregion
 

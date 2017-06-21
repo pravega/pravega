@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FileSystemStorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("filesystemRoot", "/fs/");
+    public static final Property<String> ROOT = Property.named("root", "/fs/");
     private static final String COMPONENT_CODE = "filesystem";
 
     //endregion
@@ -35,7 +35,7 @@ public class FileSystemStorageConfig {
      * owned by Pravega.
      */
     @Getter
-    private final String filesystemRoot;
+    private final String root;
 
     //endregion
 
@@ -47,7 +47,7 @@ public class FileSystemStorageConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private FileSystemStorageConfig(TypedProperties properties) throws ConfigurationException {
-        this.filesystemRoot = properties.get(ROOT);
+        this.root = properties.get(ROOT);
     }
 
     /**

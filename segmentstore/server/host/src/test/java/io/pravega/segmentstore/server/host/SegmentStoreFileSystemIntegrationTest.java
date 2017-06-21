@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class SegmentStoreFSIntegrationTest extends StreamSegmentStoreTestBase {
+public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final int BOOKIE_COUNT = 3;

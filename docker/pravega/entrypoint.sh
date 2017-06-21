@@ -47,7 +47,7 @@ configure_tier2() {
             sleep 5
         done
     fi
-    add_system_property "filesystem.filesystemRoot" "${NFS_MOUNT}"
+    add_system_property "filesystem.root" "${NFS_MOUNT}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"

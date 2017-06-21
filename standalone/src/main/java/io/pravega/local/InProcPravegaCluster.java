@@ -241,7 +241,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                                           .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                                           .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                                  "INMEMORY" : "FS"))
+                                                 ServiceConfig.StorageTypes.INMEMORY.toString() :
+                                                 ServiceConfig.StorageTypes.FILESYSTEM.toString()))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
