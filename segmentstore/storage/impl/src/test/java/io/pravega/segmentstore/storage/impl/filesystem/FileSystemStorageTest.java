@@ -262,7 +262,7 @@ public class FileSystemStorageTest extends StorageTestBase {
             s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
             long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             Assert.assertTrue( String.format("Concatenation of same segment at the same offset(%d) should result in " +
-                            "same segment size, but is (%d)",writeData.length, lengthBeforeRetry, lengthAfterRetry),
+                            "same segment size, but is (%d)", writeData.length, lengthBeforeRetry, lengthAfterRetry),
                     lengthBeforeRetry == lengthAfterRetry);
             s1.delete(writeHandle1, TIMEOUT).join();
         }
