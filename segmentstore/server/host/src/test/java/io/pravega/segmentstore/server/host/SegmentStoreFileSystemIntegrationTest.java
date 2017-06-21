@@ -34,13 +34,13 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
     //region Test Configuration and Setup
 
     private File baseDir = null;
-    private BKZKHelper helper = null;
+    private SegmentStoreIntegrationTestBKZKHelper helper = null;
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        helper = new BKZKHelper(this.configBuilder);
+        helper = new SegmentStoreIntegrationTestBKZKHelper(this.configBuilder);
         helper.setUp();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();

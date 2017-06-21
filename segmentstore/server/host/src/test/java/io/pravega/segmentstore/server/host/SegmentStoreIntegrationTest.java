@@ -38,14 +38,14 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
 
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private BKZKHelper helper = null;
+    private SegmentStoreIntegrationTestBKZKHelper helper = null;
 
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
-       helper = new BKZKHelper(this.configBuilder);
+       helper = new SegmentStoreIntegrationTestBKZKHelper(this.configBuilder);
        helper.setUp();
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
