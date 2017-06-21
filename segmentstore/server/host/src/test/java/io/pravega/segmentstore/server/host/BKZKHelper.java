@@ -13,7 +13,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.test.common.TestUtils;
-import java.io.File;
 import java.util.ArrayList;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -30,7 +29,6 @@ public class BKZKHelper {
 
     private static final int BOOKIE_COUNT = 3;
     private final ServiceBuilderConfig.Builder configBuilder;
-    private File baseDir = null;
     private BookKeeperServiceRunner bkRunner;
     @Getter
     private CuratorFramework zkClient;

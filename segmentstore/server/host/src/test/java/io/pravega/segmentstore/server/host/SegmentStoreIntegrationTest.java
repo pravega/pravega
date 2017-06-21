@@ -46,6 +46,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     @Before
     public void setUp() throws Exception {
        helper = new BKZKHelper(this.configBuilder);
+       helper.setUp();
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
