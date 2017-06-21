@@ -20,6 +20,7 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -192,7 +193,7 @@ public class FileSystemStorageTest extends StorageTestBase {
      * This test case simulates two hosts writing at the same offset at the same time.
      */
     @Test
-    public void testWriteTwoHosts() {
+    public void testParallelWriteTwoHosts() {
         String segmentName = "foo_write";
         int appendCount = 5;
 
@@ -236,7 +237,7 @@ public class FileSystemStorageTest extends StorageTestBase {
     /**
      * This test case simulates host crashing during concat and retrying the operation.
      */
-    @Test
+    @Ignore
     public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
@@ -272,6 +273,7 @@ public class FileSystemStorageTest extends StorageTestBase {
             dataStream2 = new ByteArrayInputStream(writeData);
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
             s1.seal(writeHandle2, TIMEOUT).join();
+
             //Concat at the same offset again
             s1.concat(writeHandle1, writeData.length, newConcatSegmentName, TIMEOUT).join();
             long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
