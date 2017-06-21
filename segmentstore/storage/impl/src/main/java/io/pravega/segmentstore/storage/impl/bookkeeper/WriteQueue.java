@@ -268,4 +268,28 @@ class WriteQueue {
     }
 
     //endregion
+
+    //region CleanupStatus
+
+    /**
+     * Defines various states that the WriteQueue may be in after a cleanup is performed.
+     */
+    enum CleanupStatus {
+        /**
+         * The Queue is empty after the operation.
+         */
+        QueueEmpty,
+
+        /**
+         * The Queue is not empty after the operation.
+         */
+        QueueNotEmpty,
+
+        /**
+         * A permanently failed Write was detected.
+         */
+        WriteFailed
+    }
+
+    //endregion
 }

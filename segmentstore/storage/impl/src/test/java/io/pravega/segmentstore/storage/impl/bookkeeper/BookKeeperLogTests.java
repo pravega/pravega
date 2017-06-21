@@ -116,6 +116,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 2)
+                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 2)
                 .with(BookKeeperConfig.MIN_WRITE_PARALLELISM, 4)
                 .with(BookKeeperConfig.MAX_WRITE_PARALLELISM, 10)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 100)) // Very frequent rollovers.
