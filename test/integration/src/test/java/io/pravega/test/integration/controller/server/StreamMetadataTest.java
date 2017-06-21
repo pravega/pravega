@@ -126,7 +126,7 @@ public class StreamMetadataTest {
 
         assertTrue(controller.createStream(config3).get());
 
-        // update stream config(alter Stream)
+        // update stream config(update Stream)
 
         // AS3:update the type of scaling policy
         final StreamConfiguration config6 = StreamConfiguration.builder()
@@ -134,7 +134,7 @@ public class StreamMetadataTest {
                                                                .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(100, 2, 2))
                                                                .build();
-        assertTrue(controller.alterStream(config6).get());
+        assertTrue(controller.updateStream(config6).get());
 
         // AS4:update the target rate of scaling policy
         final StreamConfiguration config7 = StreamConfiguration.builder()
@@ -142,7 +142,7 @@ public class StreamMetadataTest {
                                                                .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 2, 2))
                                                                .build();
-        assertTrue(controller.alterStream(config7).get());
+        assertTrue(controller.updateStream(config7).get());
 
         // AS5:update the scale factor of scaling policy
         final StreamConfiguration config8 = StreamConfiguration.builder()
@@ -150,7 +150,7 @@ public class StreamMetadataTest {
                                                                .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 2))
                                                                .build();
-        assertTrue(controller.alterStream(config8).get());
+        assertTrue(controller.updateStream(config8).get());
 
         // AS6:update the minNumsegments of scaling policy
         final StreamConfiguration config9 = StreamConfiguration.builder()
@@ -158,16 +158,16 @@ public class StreamMetadataTest {
                                                                .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 3))
                                                                .build();
-        assertTrue(controller.alterStream(config9).get());
+        assertTrue(controller.updateStream(config9).get());
 
-        // AS7:alter configuration of non-existent stream.
+        // AS7:Update configuration of non-existent stream.
         final StreamConfiguration config = StreamConfiguration.builder()
                                                               .scope("scope")
                                                               .streamName("streamName")
                                                               .scalingPolicy(ScalingPolicy.fixed(2))
                                                               .build();
-        CompletableFuture<Boolean> updateStatus = controller.alterStream(config);
-        assertThrows("FAILURE: Altering the configuration of a non-existent stream", updateStatus, t -> true);
+        CompletableFuture<Boolean> updateStatus = controller.updateStream(config);
+        assertThrows("FAILURE: Updating the configuration of a non-existent stream", updateStatus, t -> true);
 
         // get currently active segments
 

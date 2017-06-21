@@ -12,15 +12,15 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.test.common.AssertExtensions;
-
-import org.junit.Assert;
-
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.Assert;
 
 /**
  * Helper methods for testing DataFrames.
@@ -94,9 +94,9 @@ class DataFrameTestHelpers {
                 // General DataFrameEntry validation.
                 Assert.assertNotNull("Received a null entry even though hasNext() returned true." + state.getPosition(), entry);
                 Assert.assertEquals(
-                        "Unexpected value returned by getDataFrameAddress(). " + state.getPosition(),
+                        "Unexpected value returned by getFrameAddress(). " + state.getPosition(),
                         dataFrame.getAddress(),
-                        entry.getDataFrameAddress());
+                        entry.getFrameAddress());
 
                 if (entry.isFirstRecordEntry()) {
                     state.clearCurrentRecordEntries();
@@ -143,8 +143,13 @@ class DataFrameTestHelpers {
 
             state.moveToNextFrame();
         }
+    }
 
-        //Assert.assertEquals("Reached the end of the DataFrames but there are still records to be expected.", records.size(), state.getNextGoodRecordIndex());
+    /**
+     * Returns a Consumer that, given an item, inserts that item into the given map in the order in which they were encountered.
+     */
+    static <T> Consumer<T> appendOrder(HashMap<T, Integer> map) {
+        return item -> map.put(item, map.size());
     }
 
     //region ReadState

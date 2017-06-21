@@ -44,7 +44,7 @@ class LedgerAddress extends LogAddress implements Comparable<LedgerAddress> {
     /**
      * Creates a new instance of the LedgerAddress class.
      *
-     * @param metadata The LedgerMetdata for the ledger.
+     * @param metadata The LedgerMetadata for the ledger.
      * @param entryId  The Entry Id inside the Ledger that this Address corresponds to.
      */
     LedgerAddress(LedgerMetadata metadata, long entryId) {

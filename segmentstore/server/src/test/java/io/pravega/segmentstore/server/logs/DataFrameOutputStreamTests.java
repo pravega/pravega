@@ -9,25 +9,27 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.function.ConsumerWithException;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
-
-import org.junit.Assert;
-import org.junit.Test;
-
+import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for DataFrameOutputStream class.
  */
 public class DataFrameOutputStreamTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
+
     /**
      * Tests the basic functionality of startNewRecord(), endRecord() and discardRecord().
      */
@@ -37,14 +39,13 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        AtomicLong seqNo = new AtomicLong(0);
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
 
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(9, 0, 1024); // This should fit in one frame of 10KB
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, callback)) {
             // Verify that we cannot write unless we have a record started.
             AssertExtensions.assertThrows(
                     "write(byte) worked even though no entry started.",
@@ -95,14 +96,13 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        AtomicLong seqNo = new AtomicLong(0);
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             Assert.assertNull("A frame has already been written.", writtenFrame.get());
             writtenFrame.set(df);
         };
 
         ArrayList<byte[]> records = DataFrameTestHelpers.generateRecords(2, 0, 1024);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, callback)) {
             // Test 1: write record + reset + flush -> no frame.
             s.startNewRecord();
             s.write(records.get(0));
@@ -141,8 +141,7 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
-        AtomicLong seqNo = new AtomicLong(0);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, writtenFrames::add)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
                 s.startNewRecord();
@@ -171,8 +170,7 @@ public class DataFrameOutputStreamTests {
 
         // Callback for when a frame is written.
         ArrayList<DataFrame> writtenFrames = new ArrayList<>();
-        AtomicLong seqNo = new AtomicLong(0);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, writtenFrames::add)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrames::add)) {
             // Write each record, one byte at a time.
             for (byte[] record : records) {
                 s.startNewRecord();
@@ -194,15 +192,13 @@ public class DataFrameOutputStreamTests {
     @Test
     public void testCommitFailure() throws Exception {
         int maxFrameSize = 50;
-        final String exceptionMessage = "intentional";
 
         // Callback for when a frame is written. If we need to throw an exception, do it; otherwise just remember the frame.
         AtomicReference<DataFrame> writtenFrame = new AtomicReference<>();
-        AtomicLong seqNo = new AtomicLong(0);
         AtomicBoolean throwException = new AtomicBoolean();
-        ConsumerWithException<DataFrame, IOException> callback = df -> {
+        Consumer<DataFrame> callback = df -> {
             if (throwException.get()) {
-                throw new IOException(exceptionMessage);
+                throw new IntentionalException();
             }
 
             writtenFrame.set(df);
@@ -211,7 +207,7 @@ public class DataFrameOutputStreamTests {
         // Test #1: write(byte)
         AtomicInteger usableSpace = new AtomicInteger();
         ByteArrayOutputStream writtenData1 = new ByteArrayOutputStream();
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, callback)) {
             // 1. Call write(byte) until it fails. Check that the correct exception is thrown.
             s.startNewRecord();
             throwException.set(true);
@@ -224,7 +220,7 @@ public class DataFrameOutputStreamTests {
                             usableSpace.incrementAndGet();
                         }
                     },
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 2. Call write(byte) again and verify it fails. But this should fail because the DataFrame is sealed
             // (it was sealed prior to the current commit attempt).
@@ -245,7 +241,7 @@ public class DataFrameOutputStreamTests {
         // Test #2: startNewRecord()
         ByteArrayOutputStream writtenData2 = new ByteArrayOutputStream();
         writtenFrame.set(null);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, callback)) {
             // 1. Call write(byte) until we fill up the frame
             throwException.set(false);
             s.startNewRecord();
@@ -259,7 +255,7 @@ public class DataFrameOutputStreamTests {
             AssertExtensions.assertThrows(
                     "startNewRecord() did not throw when the commit callback threw an exception.",
                     s::startNewRecord,
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 3. Allow the commit to succeed. Verify a frame has been committed with the correct content.
             throwException.set(false);
@@ -272,7 +268,7 @@ public class DataFrameOutputStreamTests {
 
         // Test #3: write(byte[])
         writtenFrame.set(null);
-        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, seqNo::getAndIncrement, callback)) {
+        try (DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, callback)) {
             // 1. Call write(byte) until we fill up the frame
             throwException.set(false);
             s.startNewRecord();
@@ -285,7 +281,7 @@ public class DataFrameOutputStreamTests {
             AssertExtensions.assertThrows(
                     "write(byte[]) did not throw when the commit callback threw an exception.",
                     () -> s.write(new byte[10]),
-                    ex -> ex instanceof IOException && ex.getMessage().contains(exceptionMessage));
+                    ex -> ex instanceof IntentionalException);
 
             // 3. Allow the commit to succeed. Verify a frame has been committed with the correct content.
             throwException.set(false);
