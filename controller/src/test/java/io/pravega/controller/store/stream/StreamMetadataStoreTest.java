@@ -26,6 +26,8 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -35,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -360,8 +363,74 @@ public abstract class StreamMetadataStoreTest {
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
                 e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
-
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
         // endregion
+    }
+
+    @Test
+    public void scaleWithTxTest() throws Exception {
+        final String scope = "ScopeScaleWithTx";
+        final String stream = "StreamScaleWithTx";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        long scaleTs = System.currentTimeMillis();
+        SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.5, 0.75);
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
+        List<Integer> scale1SealedSegments = Collections.singletonList(1);
+
+        // scale with transaction test
+        VersionedTransactionData tx1 = store.createTransaction(scope, stream, UUID.randomUUID(),
+                100, 100, 100, null, executor).get();
+        assertEquals(0, tx1.getEpoch());
+        StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
+                Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
+        final List<Segment> scale1SegmentsCreated = response.getSegmentsCreated();
+        final int epoch = response.getActiveEpoch();
+        assertEquals(0, epoch);
+        assertNotNull(scale1SealedSegments);
+
+        // assert that txn is created on old epoch
+        VersionedTransactionData tx2 = store.createTransaction(scope, stream, UUID.randomUUID(),
+                100, 100, 100, null, executor).get();
+        assertEquals(0, tx2.getEpoch());
+
+        store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
+                response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        VersionedTransactionData tx3 = store.createTransaction(scope, stream, UUID.randomUUID(),
+                100, 100, 100, null, executor).get();
+        assertEquals(1, tx3.getEpoch());
+
+        DeleteEpochResponse deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch
+        assertEquals(false, deleteResponse.isDeleted());
+        assertEquals(null, deleteResponse.getSegmentsCreated());
+        assertEquals(null, deleteResponse.getSegmentsSealed());
+
+        store.sealTransaction(scope, stream, tx2.getId(), true, Optional.of(tx2.getVersion()), null, executor).get();
+        store.commitTransaction(scope, stream, tx2.getEpoch(), tx2.getId(), null, executor).get(); // should not happen
+
+        deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch
+        assertEquals(false, deleteResponse.isDeleted());
+
+        store.sealTransaction(scope, stream, tx1.getId(), true, Optional.of(tx1.getVersion()), null, executor).get();
+        store.commitTransaction(scope, stream, tx1.getEpoch(), tx1.getId(), null, executor).get(); // should not happen
+        deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch
+        assertEquals(true, deleteResponse.isDeleted());
+
+        store.sealTransaction(scope, stream, tx3.getId(), true, Optional.of(tx3.getVersion()), null, executor).get();
+        store.commitTransaction(scope, stream, tx3.getEpoch(), tx3.getId(), null, executor).get(); // should not happen
+
+        store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, response.getActiveEpoch(), scaleTs, null, executor).join();
+
+        deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
+        assertEquals(false, deleteResponse.isDeleted());
     }
 
     private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {

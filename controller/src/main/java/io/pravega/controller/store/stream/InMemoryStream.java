@@ -67,8 +67,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
      * This ensures that we remove an epoch node if an only if there are no transactions against that epoch.
      * Note: there can be only two epochs at max concurrently. So using one lock for both of their updates is okay.
      */
-    private final Object epochTxnLock = new Object();
-    @GuardedBy("epochTxnLock")
+    @GuardedBy("txnsLock")
     private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
     private final AtomicInteger activeEpoch = new AtomicInteger();
 
@@ -358,11 +357,11 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getHistoryTable() {
-        if (this.historyTable == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
-        }
-
         synchronized (lock) {
+            if (this.historyTable == null) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
+
             return CompletableFuture.completedFuture(copy(historyTable));
         }
     }
@@ -376,7 +375,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createEpochNode(int epoch) {
         Preconditions.checkArgument(epochTxnMap.size() <= 2);
         activeEpoch.compareAndSet(epoch - 1, epoch);
-        synchronized (epochTxnLock) {
+        synchronized (txnsLock) {
             epochTxnMap.putIfAbsent(epoch, new HashSet<>());
         }
         return CompletableFuture.completedFuture(null);
@@ -385,7 +384,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Void> deleteEpochNode(int epoch) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (epochTxnLock) {
+        synchronized (txnsLock) {
             if (epochTxnMap.getOrDefault(epoch, Collections.emptySet()).isEmpty()) {
                 epochTxnMap.remove(epoch);
                 result.complete(null);
@@ -409,7 +408,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             activeTxns.putIfAbsent(txId.toString(), txnData);
         }
         int epoch = activeEpoch.get();
-        synchronized (epochTxnLock) {
+        synchronized (txnsLock) {
             if (!epochTxnMap.containsKey(epoch)) {
                 result.completeExceptionally(new DataNotFoundException("epoch"));
             } else {
@@ -427,15 +426,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
         Optional<Integer> epoch;
-        synchronized (epochTxnLock) {
+        synchronized (txnsLock) {
             epoch = epochTxnMap.entrySet().stream().filter(x -> x.getValue().contains(txId.toString())).findFirst()
                     .map(Map.Entry::getKey);
         }
-        if (epoch.isPresent()) {
-            return CompletableFuture.completedFuture(epoch.get());
-        } else {
-            throw new DataNotFoundException(txId.toString());
-        }
+        return epoch.map(CompletableFuture::completedFuture)
+                .orElseGet(() -> FutureHelpers.failedFuture(new DataNotFoundException(txId.toString())));
     }
 
     @Override
@@ -460,7 +456,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             } else {
                 activeTxns.compute(txId.toString(), (x, y) -> new Data<>(y.getData(), y.getVersion() + 1));
                 result.complete(null);
-
             }
         }
 
@@ -514,6 +509,10 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         synchronized (txnsLock) {
             activeTxns.remove(txId.toString());
+            epochTxnMap.computeIfPresent(epoch, (x, y) -> {
+                y.remove(txId.toString());
+                return y;
+            });
         }
         return CompletableFuture.completedFuture(null);
     }
