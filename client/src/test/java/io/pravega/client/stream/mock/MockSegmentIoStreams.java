@@ -15,6 +15,7 @@ import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -39,7 +41,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private final ArrayList<ByteBuffer> dataWritten = new ArrayList<>();
     @GuardedBy("$lock")
-    private final ArrayList<Long> offsetList = new ArrayList<>(); 
+    private final ArrayList<Long> offsetList = new ArrayList<>();
+    private final AtomicBoolean close = new AtomicBoolean();
     private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
     
     @Override
@@ -87,7 +90,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public void write(PendingEvent event) {
+    public void write(PendingEvent event) throws SegmentSealedException {
         if (event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) {
             dataWritten.add(event.getData().slice());
             offsetList.add(writeOffset);
@@ -101,11 +104,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     
     @Override
     public void close() {
-        //Noting to do.
+        close.set(true);
     }
 
     @Override
-    public void flush() {
+    public void flush() throws SegmentSealedException {
         //Noting to do.
     }
 
@@ -144,6 +147,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         attributes.putIfAbsent(attribute, SegmentAttribute.NULL_VALUE);
         return attributes.replace(attribute, expectedValue, newValue);
+    }
+
+    public boolean isClosed() {
+        return close.get();
     }
 
 }

@@ -19,6 +19,9 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.ReusableLatch;
+import io.pravega.test.common.Async;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.junit.Ignore;
@@ -130,6 +133,7 @@ public class EventStreamWriterTest {
         private final Segment segment;
         private Consumer<Segment> callBackForSealed;
         private final ArrayList<PendingEvent> writes = new ArrayList<>();
+
         private void invokeSealedCallBack() {
             if (callBackForSealed != null) {
                 callBackForSealed.accept(segment);
@@ -137,17 +141,63 @@ public class EventStreamWriterTest {
         }
 
         @Override
-        public void write(PendingEvent event) {
+        public void write(PendingEvent event) throws SegmentSealedException {
             writes.add(event);
         }
 
         @Override
-        public void close() {
+        public void close() throws SegmentSealedException {
         }
 
         @Override
-        public void flush() {
+        public void flush() throws SegmentSealedException  {
             writes.clear();
+        }
+
+        @Override
+        public List<PendingEvent> getUnackedEvents() {
+            return Collections.unmodifiableList(writes);
+        }
+
+        @Override
+        public String getSegmentName() {
+            return segment.getScopedName();
+        }
+
+    }
+
+    @NotThreadSafe
+    @RequiredArgsConstructor
+    private static final class SealedSegmentOutputStream implements SegmentOutputStream {
+        private final Segment segment;
+        private Consumer<Segment> callBackForSealed;
+        private final ArrayList<PendingEvent> writes = new ArrayList<>();
+        private ReusableLatch flushLatch = new ReusableLatch();
+        private void invokeSealedCallBack() {
+            if (callBackForSealed != null) {
+                callBackForSealed.accept(segment);
+            }
+        }
+
+        private void releaseFlush() {
+            flushLatch.release();
+        }
+
+        @Override
+        public void write(PendingEvent event) throws SegmentSealedException {
+            writes.add(event);
+        }
+
+        @Override
+        public void close() throws SegmentSealedException {
+            flush();
+        }
+
+        @Override
+        public void flush() throws SegmentSealedException {
+            //flushLatch is used to simulate a blocking Flush(). .
+            Exceptions.handleInterrupted(() -> flushLatch.await());
+            throw new SegmentSealedException(segment.toString());
         }
 
         @Override
@@ -420,6 +470,100 @@ public class EventStreamWriterTest {
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
         assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertEquals(serializer.serialize("Foo"), outputStream2.read());
+    }
+
+    @Test
+    public void testRetryFlushSegmentSealed() throws EndOfSegmentException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        Segment segment2 = new Segment(scope, streamName, 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        SealedSegmentOutputStream outputStream = new SealedSegmentOutputStream(segment1);
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(getSegmentsFuture(segment1));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(getReplacement(segment1, segment2));
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any()))
+                .thenAnswer(i -> {
+                    outputStream.callBackForSealed = i.getArgument(1);
+                    return outputStream;
+                });
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
+                controller,
+                streamFactory,
+                serializer,
+                config);
+        writer.writeEvent("Foo");
+        Mockito.verify(controller).getCurrentSegments(any(), any());
+        assertTrue(outputStream.getUnackedEvents().size() > 0);
+
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
+
+        Async.testBlocking(() -> {
+            writer.flush(); // blocking on flush.
+        }, () -> {
+            outputStream.releaseFlush(); // trigger release with a segmentSealedException.
+            outputStream.invokeSealedCallBack(); // trigger Sealed Segment call back.
+        });
+
+        Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
+        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertEquals(serializer.serialize("Foo"), outputStream2.read());
+    }
+
+    @Test
+    public void testRetryCloseSegmentSealed() throws EndOfSegmentException {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        Segment segment2 = new Segment(scope, streamName, 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Controller controller = Mockito.mock(Controller.class);
+        SealedSegmentOutputStream outputStream = new SealedSegmentOutputStream(segment1);
+        Mockito.when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(getSegmentsFuture(segment1));
+        Mockito.when(controller.getSuccessors(segment1)).thenReturn(getReplacement(segment1, segment2));
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any()))
+                .thenAnswer(i -> {
+                    outputStream.callBackForSealed = i.getArgument(1);
+                    return outputStream;
+                });
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream,
+                controller,
+                streamFactory,
+                serializer,
+                config);
+        writer.writeEvent("Foo");
+        Mockito.verify(controller).getCurrentSegments(any(), any());
+        assertTrue(outputStream.getUnackedEvents().size() > 0);
+
+        MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
+
+        Async.testBlocking(() -> {
+            writer.close(); // closed invokes flush internally; this call is blocking on flush.
+        }, () -> {
+            outputStream.releaseFlush(); // trigger release with a segmentSealedException.
+            outputStream.invokeSealedCallBack(); // trigger Sealed Segment call back.
+        });
+
+        Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
+        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.isClosed());
+        //the connection to outputStream is closed with the failConnection during SegmentSealed Callback.
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
