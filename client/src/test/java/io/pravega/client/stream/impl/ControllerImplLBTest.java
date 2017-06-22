@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -28,7 +29,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-
+import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
@@ -118,7 +119,8 @@ public class ControllerImplLBTest {
 
         // Use 2 servers to discover all the servers.
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
+                Mockito.mock(ConnectionFactory.class));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -135,7 +137,8 @@ public class ControllerImplLBTest {
         testRPCServer1.awaitTermination();
         Assert.assertTrue(testRPCServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
+                Mockito.mock(ConnectionFactory.class));
 
         // Verify that we can read from the 2 live servers.
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
@@ -155,7 +158,8 @@ public class ControllerImplLBTest {
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
         ControllerImpl client = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
+                Mockito.mock(ConnectionFactory.class));
         AssertExtensions.assertThrows(ExecutionException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
@@ -166,8 +170,8 @@ public class ControllerImplLBTest {
         final int serverPort3 = testRPCServer3.getPort();
 
         // Directly use all 3 servers and verify.
-        ControllerImpl controllerClient = new ControllerImpl(URI.create(
-                "tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3));
+        ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1 + ",localhost:"
+                + serverPort2 + ",localhost:" + serverPort3), Mockito.mock(ConnectionFactory.class));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -183,8 +187,8 @@ public class ControllerImplLBTest {
         testRPCServer1.awaitTermination();
         Assert.assertTrue(testRPCServer1.isTerminated());
 
-        ControllerImpl controllerClient = new ControllerImpl(URI.create(
-                "tcp://localhost:" + serverPort1 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3));
+        ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1 + ",localhost:"
+                + serverPort2 + ",localhost:" + serverPort3), Mockito.mock(ConnectionFactory.class));
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));

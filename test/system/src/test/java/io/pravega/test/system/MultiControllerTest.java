@@ -15,6 +15,7 @@ import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.test.common.AssertExtensions;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +26,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
+import org.mockito.Mockito;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -182,7 +183,7 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI);
+        final ControllerImpl controllerClient = new ControllerImpl(controllerURI, Mockito.mock(ConnectionFactory.class));
         return controllerClient.createScope(scopeName);
     }
 }

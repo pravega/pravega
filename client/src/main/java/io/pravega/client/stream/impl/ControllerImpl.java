@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -67,6 +67,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -77,6 +78,7 @@ public class ControllerImpl implements Controller {
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
+    private final ConnectionFactory connectionFactory;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -87,11 +89,11 @@ public class ControllerImpl implements Controller {
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      */
-    public ControllerImpl(final URI controllerURI) {
+    public ControllerImpl(final URI controllerURI, ConnectionFactory connectionFactory) {
         this(ManagedChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .usePlaintext(true));
+                .usePlaintext(true), connectionFactory);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -101,11 +103,12 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
         client = ControllerServiceGrpc.newStub(channelBuilder.build());
+        this.connectionFactory = connectionFactory;
     }
 
     @Override
@@ -633,11 +636,14 @@ public class ControllerImpl implements Controller {
         CheckpointImpl cp = checkpoint.asImpl();
         HashSet<Segment> unread = new HashSet<>(cp.getPositions().keySet());
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cp.getPositions().keySet());
-        CompletableFuture<StreamSegments> currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());            
-        unread.addAll(FutureHelpers.getThrowingException(currentSegments).getSegments());
+        val currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());
+        unread.addAll(FutureHelpers.getAndHandleExceptions(currentSegments, RuntimeException::new).getSegments());
         while (!toFetchSuccessors.isEmpty()) {
             Segment segment = toFetchSuccessors.remove();
-            Set<Segment> successors = FutureHelpers.getThrowingException(getSuccessors(segment)).getSegmentToPredecessor().keySet();
+            Set<Segment> successors = FutureHelpers.getAndHandleExceptions(getSuccessors(segment),
+                                                                           RuntimeException::new)
+                                                   .getSegmentToPredecessor()
+                                                   .keySet();
             for (Segment successor : successors) {
                 if (!unread.contains(successor)) {
                     unread.add(successor);
@@ -645,8 +651,6 @@ public class ControllerImpl implements Controller {
                 }
             }
         }
-        @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(this, connectionFactory);
         long totalLength = 0;
         for (Segment s : unread) {

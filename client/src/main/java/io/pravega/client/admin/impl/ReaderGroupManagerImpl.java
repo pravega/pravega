@@ -11,6 +11,7 @@ package io.pravega.client.admin.impl;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderGroup;
@@ -43,10 +44,10 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final ClientFactory clientFactory;
     private final Controller controller;
 
-    public ReaderGroupManagerImpl(String scope, URI controllerUri) {
+    public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri);
-        this.clientFactory = new ClientFactoryImpl(scope, this.controller);
+        this.controller = new ControllerImpl(controllerUri, connectionFactory);
+        this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
     public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory) {

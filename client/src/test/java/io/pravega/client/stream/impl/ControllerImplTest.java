@@ -15,9 +15,12 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -61,7 +64,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
@@ -83,6 +85,7 @@ public class ControllerImplTest {
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
 
+    private final MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
 
@@ -532,7 +535,7 @@ public class ControllerImplTest {
                 .directExecutor()
                 .build()
                 .start();
-        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor(), connectionFactory);
     }
 
     @After
