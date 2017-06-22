@@ -263,8 +263,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         synchronized (lock) {
             if (segmentTable == null) {
                 result.completeExceptionally(new DataNotFoundException("segmentTable"));
-            }
-            if (segmentTable.getVersion().equals(data.getVersion())) {
+            } else if (segmentTable.getVersion().equals(data.getVersion())) {
                 segmentTable = new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
                 result.complete(null);
             } else {
@@ -308,8 +307,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         synchronized (lock) {
             if (indexTable == null) {
                 result.completeExceptionally(new DataNotFoundException("index"));
-            }
-            if (indexTable.getVersion().equals(updated.getVersion())) {
+            } else if (indexTable.getVersion().equals(updated.getVersion())) {
                 indexTable = new Data<>(Arrays.copyOf(updated.getData(), updated.getData().length), updated.getVersion() + 1);
                 result.complete(null);
             } else {
@@ -417,9 +415,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             } else {
                 epochTxnMap.compute(epoch, (x, y) -> {
                     y.add(txId.toString());
-                    result.complete(epoch);
                     return y;
                 });
+                result.complete(epoch);
             }
         }
 
@@ -460,10 +458,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(new DataNotFoundException("active txn"));
             } else {
-                activeTxns.compute(txId.toString(), (x, y) -> {
-                    result.complete(null);
-                    return new Data<>(y.getData(), y.getVersion() + 1);
-                });
+                activeTxns.compute(txId.toString(), (x, y) -> new Data<>(y.getData(), y.getVersion() + 1));
+                result.complete(null);
+
             }
         }
 
