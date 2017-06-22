@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
@@ -54,20 +54,20 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 /**
  * Storage adapter for file system based storage.
- * <p>
+ *
  * Each segment is represented as a single file on the underlying storage.
- * <p>
+ *
  * Approach to locking:
- * <p>
+ *
  * This implementation works under the assumption that data is only appended and never modified.
  * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
- * <p>
+ *
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
- * <p>
+ *
  * As write to same offset to a file is idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), locking is not required.
- * <p>
+ *
  * In the absence of locking this is the expected behavior in case of ownership change: both the hosts will keep
  * writing the same data at the same offset till the time the earlier owner gets a notification that it is not the
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
