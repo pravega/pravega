@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.ecs;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
+import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
@@ -20,6 +21,7 @@ import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
+import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
@@ -35,6 +37,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import java.net.URI;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,6 +79,12 @@ public class ECSStorage implements Storage {
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
+
+        S3Config ecsConfig = new S3Config(config.getEcsUrl())
+                .withIdentity(config.getEcsAccessKey())
+                .withSecretKey(config.getEcsSecretKey());
+
+        client = new S3JerseyClient(ecsConfig);
     }
 
     //endregion

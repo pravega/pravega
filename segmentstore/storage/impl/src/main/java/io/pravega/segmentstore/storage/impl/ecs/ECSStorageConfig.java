@@ -13,6 +13,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import java.net.URI;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -65,7 +66,7 @@ public class ECSStorageConfig {
      *  The end point of the ECS ECS REST interface
      */
     @Getter
-    private final String ecsUrl;
+    private final URI ecsUrl;
 
     /**
      *  A unique bucket name to store objects
@@ -92,7 +93,7 @@ public class ECSStorageConfig {
         this.ecsRoot = properties.get(ROOT);
         this.ecsAccessKey = properties.get(ECS_ACCESS_KEY_ID);
         this.ecsSecretKey = properties.get(ECS_SECRET_KEY);
-        this.ecsUrl = properties.get(ECS_URI);
+        this.ecsUrl = URI.create(properties.get(ECS_URI));
         this.ecsBucket = properties.get(ECS_BUCKET);
         this.ecsNamespace = properties.get(ECS_NAMESPACE);
     }
