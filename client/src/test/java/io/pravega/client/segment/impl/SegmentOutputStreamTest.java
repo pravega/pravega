@@ -30,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import lombok.Cleanup;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -338,8 +337,6 @@ public class SegmentOutputStreamTest {
         verifyNoMoreInteractions(connection);
     }
 
-    //TODO:shrids
-    @Ignore
     @Test(timeout = 10000)
     public void testSealedBeforeFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
@@ -363,8 +360,6 @@ public class SegmentOutputStreamTest {
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
 
-    //TODO: shrids
-    @Ignore
     @Test(timeout = 10000)
     public void testSealedAfterFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();

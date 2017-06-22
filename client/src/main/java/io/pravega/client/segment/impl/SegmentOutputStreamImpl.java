@@ -380,7 +380,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
-
+        if (state.isAlreadySealed()) {
+            throw new SegmentSealedException(this.segmentName);
+        }
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
@@ -426,7 +428,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     @Synchronized
     public void flush() throws SegmentSealedException {
-        if (!state.isInflightEmpty()  && !state.isAlreadySealed()) {
+        if (!state.isInflightEmpty()) {
             //Do not attempt to flush if inflight is empty or the segment is sealed.
             RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                           .throwingOn(SegmentSealedException.class)
@@ -443,5 +445,4 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public Collection<PendingEvent> getUnackedEvents() {
         return Collections.unmodifiableCollection(state.getAllInflightEvents());
     }
-
 }
