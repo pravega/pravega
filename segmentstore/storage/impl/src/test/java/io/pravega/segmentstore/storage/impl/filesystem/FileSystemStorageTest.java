@@ -89,7 +89,6 @@ public class FileSystemStorageTest extends StorageTestBase {
             SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
             // Storage1 should be able to execute read-only operations.
-            //verifyWriteOperationsFail(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
             // Storage2 should be able to execute all operations.
