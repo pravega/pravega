@@ -35,13 +35,13 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
 
     private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
-    private SegmentStoreTestBKZKHelper helper = null;
+    private BookKeeperRunner helper = null;
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        helper = new SegmentStoreTestBKZKHelper(this.configBuilder, BOOKIE_COUNT);
+        helper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
         helper.initialize();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();

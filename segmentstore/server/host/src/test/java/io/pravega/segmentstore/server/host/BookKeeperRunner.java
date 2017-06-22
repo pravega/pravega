@@ -25,7 +25,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Helper class for Segment store integration tests.
  * This class sets up the bookkeeper and zookeeper and sets up the correct values in config.
  */
-public class SegmentStoreTestBKZKHelper implements AutoCloseable {
+public class BookKeeperRunner implements AutoCloseable {
 
     private final ServiceBuilderConfig.Builder configBuilder;
     private final int bookieCount;
@@ -33,7 +33,7 @@ public class SegmentStoreTestBKZKHelper implements AutoCloseable {
     @Getter
     private CuratorFramework zkClient;
 
-    public SegmentStoreTestBKZKHelper(ServiceBuilderConfig.Builder configBuilder, int bookieCount) {
+    public BookKeeperRunner(ServiceBuilderConfig.Builder configBuilder, int bookieCount) {
         this.configBuilder = configBuilder;
         this.bookieCount = bookieCount;
     }
