@@ -368,7 +368,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     //endregion
 
-    //Helper methods for fencing tests
+    //region Protected utility methods containing common code.
 
     protected void verifyReadOnlyOperationsSucceed(SegmentHandle handle, Storage storage) {
         boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
@@ -441,7 +441,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         Assert.assertTrue("Segment was deleted after rejected call to delete.", exists);
     }
 
-    //Region Protected utility methods containing common code.
+
 
     //endregion
 
