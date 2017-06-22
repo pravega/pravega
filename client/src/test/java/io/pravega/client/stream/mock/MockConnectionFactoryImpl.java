@@ -25,7 +25,6 @@ import lombok.Synchronized;
 public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
-    final PravegaNodeUri endpoint;
 
     @Override
     @Synchronized
