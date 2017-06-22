@@ -53,7 +53,7 @@ public class SegmentStoreIntegrationTestBKZKHelper {
                                                .ledgersPath("/ledgers")
                                                .bookiePorts(bookiePorts)
                                                .build();
-        this.bkRunner.start();
+        this.bkRunner.startAll();
 
         // Create a ZKClient with a base namespace.
         String baseNamespace = "pravega/" + Long.toHexString(System.nanoTime());
