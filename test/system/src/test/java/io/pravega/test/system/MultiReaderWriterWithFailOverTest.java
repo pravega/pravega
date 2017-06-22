@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
@@ -25,7 +25,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -61,18 +60,18 @@ import java.util.stream.Collectors;
 @RunWith(SystemTestRunner.class)
 public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
-    private static final int NUM_WRITERS = 10;
-    private static final int NUM_READERS = 10;
+    private static final int NUM_WRITERS = 5;
+    private static final int NUM_READERS = 5;
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
+    private AtomicLong eventWriteCount;
     private AtomicLong eventReadCount;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
     private URI controllerURIDirect = null;
-    private ReusableLatch latch = new ReusableLatch(false);
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -164,12 +163,11 @@ public class MultiReaderWriterWithFailOverTest {
         executorService.shutdownNow();
     }
 
-    @Test(timeout = 300000)
+    @Test(timeout = 600000)
     public void multiReaderWriterWithFailOverTest() throws Exception {
 
         String scope = "testMultiReaderWriterScope" + new Random().nextInt(Integer.MAX_VALUE);
         String readerGroupName = "testMultiReaderWriterReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-        //10  readers -> 10 stream segments ( to have max read parallelism)
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
@@ -259,20 +257,16 @@ public class MultiReaderWriterWithFailOverTest {
             stopWriteFlag.set(true);
 
             //wait for writers completion
-            log.info("Wait for writers exceution to complete");
-            FutureHelpers.allOf(writerFutureList);
+            log.info("Wait for writers execution to complete");
+            FutureHelpers.allOf(writerFutureList).get();
 
             //set the stop read flag to true
             log.info("Stop read flag status {}", stopReadFlag);
             stopReadFlag.set(true);
 
-            // wait for reads = writes
-            while (eventData.get() !=  eventsReadFromPravega.size()) {
-                latch.await();
-            }
-
             //wait for readers completion
-            FutureHelpers.allOf(readerFutureList);
+            log.info("Wait for readers execution to complete");
+            FutureHelpers.allOf(readerFutureList).get();
 
             log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
                     "Count: {}", eventData.get(), eventsReadFromPravega.size());
@@ -280,8 +274,10 @@ public class MultiReaderWriterWithFailOverTest {
             assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
             //close all the writers
+            log.info("Closing writers");
             writerList.forEach(writer -> writer.close());
             //close all readers
+            log.info("Closing readers");
             readerList.forEach(reader -> reader.close());
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
@@ -430,15 +426,11 @@ public class MultiReaderWriterWithFailOverTest {
                         //update if event read is not null.
                         readResult.add(longEvent);
                         readCount.incrementAndGet();
-                        log.info("Event read count {}", eventReadCount);
+                        log.info("Event read count {}", readCount);
                     }
                 } catch (Throwable e) {
                     log.error("Test Exception while reading from the stream: {}", e);
                 }
-            }
-            //release if num. of reads = num. of writes
-            if (readCount.get() == writeCount.get()) {
-                latch.release();
             }
         }, executorService);
     }
