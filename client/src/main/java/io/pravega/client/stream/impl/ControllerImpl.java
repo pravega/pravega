@@ -88,6 +88,7 @@ public class ControllerImpl implements Controller {
      *                          This is used if the controller endpoints are static and can be directly accessed.
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
+     * @param connectionFactory The factory for connections to the pravega Server
      */
     public ControllerImpl(final URI controllerURI, ConnectionFactory connectionFactory) {
         this(ManagedChannelBuilder.forTarget(controllerURI.toString())
@@ -101,6 +102,7 @@ public class ControllerImpl implements Controller {
      * Creates a new instance of the Controller client class.
      *
      * @param channelBuilder The channel builder to connect to the service instance.
+     * @param connectionFactory The factory for connections to the pravega Server
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, ConnectionFactory connectionFactory) {
