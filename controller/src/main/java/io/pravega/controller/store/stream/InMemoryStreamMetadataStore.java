@@ -160,6 +160,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);

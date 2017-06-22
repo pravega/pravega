@@ -25,6 +25,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -43,30 +43,33 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
-
     @GuardedBy("lock")
     private StreamConfiguration configuration;
     @GuardedBy("lock")
-    private volatile Data<Integer> state;
+    private Data<Integer> state;
     @GuardedBy("lock")
-    private volatile Data<Integer> segmentTable;
+    private Data<Integer> segmentTable;
     @GuardedBy("lock")
-    private volatile Data<Integer> historyTable;
+    private Data<Integer> historyTable;
     @GuardedBy("lock")
-    private volatile Data<Integer> indexTable;
+    private Data<Integer> indexTable;
 
-    private final Object activeTxnsLock = new Object();
-    private final ConcurrentHashMap<String, Data<Integer>> activeTxns = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Data<Integer>> completedTxns = new ConcurrentHashMap<>();
+    private final Object txnsLock = new Object();
+    @GuardedBy("txnsLock")
+    private final Map<String, Data<Integer>> activeTxns = new HashMap<>();
+    @GuardedBy("txnsLock")
+    private final Map<String, Data<Integer>> completedTxns = new HashMap<>();
     private final Object markersLock = new Object();
-    private final ConcurrentHashMap<Integer, Data<Integer>> markers = new ConcurrentHashMap<>();
+    @GuardedBy("markersLock")
+    private final Map<Integer, Data<Integer>> markers = new HashMap<>();
     /**
      * This is used to guard updates to values in epoch txn map.
      * This ensures that we remove an epoch node if an only if there are no transactions against that epoch.
      * Note: there can be only two epochs at max concurrently. So using one lock for both of their updates is okay.
      */
     private final Object epochTxnLock = new Object();
-    private final ConcurrentHashMap<Integer, Set<String>> epochTxnMap = new ConcurrentHashMap<>();
+    @GuardedBy("epochTxnLock")
+    private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
     private final AtomicInteger activeEpoch = new AtomicInteger();
 
     InMemoryStream(String scope, String name) {
@@ -75,7 +78,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return CompletableFuture.completedFuture(activeTxns.size());
+        synchronized (txnsLock) {
+            return CompletableFuture.completedFuture(activeTxns.size());
+        }
     }
 
     @Override
@@ -92,7 +97,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> checkStreamExists(Create create) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        if (creationTime.get() != Long.MIN_VALUE && create.getCreationTime() != creationTime.get()) {
+        long time = creationTime.get();
+        if (time != Long.MIN_VALUE && create.getCreationTime() != time) {
             result.completeExceptionally(StoreException.create(StoreException.Type.NODE_EXISTS, getName()));
         } else {
             result.complete(null);
@@ -146,10 +152,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<StreamConfiguration> getConfigurationData() {
-        if (this.configuration == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+        synchronized (lock) {
+            if (this.configuration == null) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
+            return CompletableFuture.completedFuture(this.configuration);
         }
-        return CompletableFuture.completedFuture(this.configuration);
     }
 
     @Override
@@ -185,11 +193,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getStateData() {
-        if (this.state == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
-        }
+        synchronized (lock) {
+            if (this.state == null) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
 
-        return CompletableFuture.completedFuture(copy(state));
+            return CompletableFuture.completedFuture(copy(state));
+        }
     }
 
     @Override
@@ -230,11 +240,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getSegmentTable() {
-        if (this.segmentTable == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
-        }
+        synchronized (lock) {
+            if (this.segmentTable == null) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
 
-        return CompletableFuture.completedFuture(copy(this.segmentTable));
+            return CompletableFuture.completedFuture(copy(this.segmentTable));
+        }
     }
 
     @Override
@@ -279,10 +291,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getIndexTable() {
-        if (this.indexTable == null) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+        synchronized (lock) {
+            if (this.indexTable == null) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
+            return CompletableFuture.completedFuture(copy(indexTable));
         }
-        return CompletableFuture.completedFuture(copy(indexTable));
     }
 
     @Override
@@ -350,7 +364,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
         }
 
-        return CompletableFuture.completedFuture(copy(historyTable));
+        synchronized (lock) {
+            return CompletableFuture.completedFuture(copy(historyTable));
+        }
     }
 
     @Override
@@ -376,7 +392,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 epochTxnMap.remove(epoch);
                 result.complete(null);
             } else {
-                result.completeExceptionally(new DataExistsException(""));
+                result.completeExceptionally(new DataExistsException("epoch"));
             }
         }
         return result;
@@ -391,13 +407,15 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         final Data<Integer> txnData = new Data<>(
                 new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                 .toByteArray(), 0);
-        activeTxns.putIfAbsent(txId.toString(), txnData);
+        synchronized (txnsLock) {
+            activeTxns.putIfAbsent(txId.toString(), txnData);
+        }
         int epoch = activeEpoch.get();
         synchronized (epochTxnLock) {
             if (!epochTxnMap.containsKey(epoch)) {
                 result.completeExceptionally(new DataNotFoundException("epoch"));
             } else {
-                epochTxnMap.computeIfPresent(epoch, (x, y) -> {
+                epochTxnMap.compute(epoch, (x, y) -> {
                     y.add(txId.toString());
                     result.complete(epoch);
                     return y;
@@ -410,8 +428,11 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Integer> getTransactionEpoch(UUID txId) {
-        Optional<Integer> epoch = epochTxnMap.entrySet().stream().filter(x -> x.getValue().contains(txId.toString())).findFirst()
-                .map(Map.Entry::getKey);
+        Optional<Integer> epoch;
+        synchronized (epochTxnLock) {
+            epoch = epochTxnMap.entrySet().stream().filter(x -> x.getValue().contains(txId.toString())).findFirst()
+                    .map(Map.Entry::getKey);
+        }
         if (epoch.isPresent()) {
             return CompletableFuture.completedFuture(epoch.get());
         } else {
@@ -421,11 +442,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) throws DataNotFoundException {
-        if (!activeTxns.containsKey(txId.toString())) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
-        }
+        synchronized (txnsLock) {
+            if (!activeTxns.containsKey(txId.toString())) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
 
-        return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
+            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
+        }
     }
 
     @Override
@@ -433,14 +456,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (activeTxnsLock) {
-            activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
-                result.complete(null);
-                return new Data<>(y.getData(), y.getVersion() + 1);
-            });
-
+        synchronized (txnsLock) {
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(new DataNotFoundException("active txn"));
+            } else {
+                activeTxns.compute(txId.toString(), (x, y) -> {
+                    result.complete(null);
+                    return new Data<>(y.getData(), y.getVersion() + 1);
+                });
             }
         }
 
@@ -448,15 +471,16 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> sealActiveTx(int epoch, UUID txId, boolean commit, ActiveTxnRecord txnRecord, int version) throws DataNotFoundException {
+    CompletableFuture<Void> sealActiveTx(int epoch, UUID txId, boolean commit, ActiveTxnRecord txnRecord,
+                                         int version) throws DataNotFoundException {
         Preconditions.checkNotNull(txId);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (activeTxnsLock) {
+        synchronized (txnsLock) {
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(new DataNotFoundException("txn"));
             } else {
-                activeTxns.computeIfPresent(txId.toString(), (x, y) -> {
+                activeTxns.compute(txId.toString(), (x, y) -> {
                     if (version != y.getVersion()) {
                         result.completeExceptionally(new WriteConflictException(txId.toString()));
                         return y;
@@ -479,18 +503,19 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @Override
     CompletableFuture<Data<Integer>> getCompletedTx(UUID txId) throws DataNotFoundException {
         Preconditions.checkNotNull(txId);
-
-        if (!completedTxns.containsKey(txId.toString())) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+        synchronized (txnsLock) {
+            if (!completedTxns.containsKey(txId.toString())) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
+            return CompletableFuture.completedFuture(copy(completedTxns.get(txId.toString())));
         }
-        return CompletableFuture.completedFuture(copy(completedTxns.get(txId.toString())));
     }
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(int epoch, UUID txId) {
         Preconditions.checkNotNull(txId);
 
-        synchronized (activeTxnsLock) {
+        synchronized (txnsLock) {
             activeTxns.remove(txId.toString());
         }
         return CompletableFuture.completedFuture(null);
@@ -500,7 +525,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxnStatus complete, long timestamp) {
         Preconditions.checkNotNull(txId);
 
-        completedTxns.putIfAbsent(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
+        synchronized (txnsLock) {
+            completedTxns.putIfAbsent(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
+        }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -521,7 +548,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (!markers.containsKey(segmentNumber)) {
                 result.completeExceptionally(new DataNotFoundException("segment number"));
             } else {
-                markers.computeIfPresent(segmentNumber, (x, y) -> {
+                markers.compute(segmentNumber, (x, y) -> {
                     if (y.getVersion().equals(data.getVersion())) {
                         result.complete(null);
                         return new Data<>(Arrays.copyOf(data.getData(), data.getData().length), data.getVersion() + 1);
@@ -545,17 +572,21 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
-        if (!markers.containsKey(segmentNumber)) {
-            return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+        synchronized (markersLock) {
+            if (!markers.containsKey(segmentNumber)) {
+                return FutureHelpers.failedFuture(new DataNotFoundException(getName()));
+            }
+            return CompletableFuture.completedFuture(copy(markers.get(segmentNumber)));
         }
-        return CompletableFuture.completedFuture(copy(markers.get(segmentNumber)));
     }
 
     @Override
     CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        Map<String, Data<Integer>> map = activeTxns.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
-        return CompletableFuture.completedFuture(Collections.unmodifiableMap(map));
+        synchronized (txnsLock) {
+            Map<String, Data<Integer>> map = activeTxns.entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
+            return CompletableFuture.completedFuture(Collections.unmodifiableMap(map));
+        }
     }
 
     @Override
