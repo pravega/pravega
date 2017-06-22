@@ -29,8 +29,10 @@ configure_controller() {
 configure_tier2() {
     add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
 
+    case "${TIER2_STORAGE}" in
+    FS)
     echo "Checking whether NFS mounting is required"
-    if [ "${TIER2_STORAGE}" = "FS" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+    if [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
         while [ -z ${NFS_SERVER} ]
         do
             echo "NFS_SERVER not set. Looping till the container is restarted with NFS_SERVER set."
@@ -48,9 +50,21 @@ configure_tier2() {
         done
     fi
     add_system_property "filesystem.root" "${NFS_MOUNT}"
+    ;;
+
+    HDFS)
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
+    ;;
+    ECS)
+    ECS_ROOT=${ECS_ROOT:-"/"}
+    add_system_property "ecs.ecsRoot" "${ECS_ROOT}"
+    add_system_property "ecs.ecsAccessKey" "${ECS_ACCESS_KEY_ID}"
+    add_system_property "ecs.ecsUrl" "${ECS_URI}"
+    add_system_property "ecs.ecsBucket" "${ECS_BUCKET}"
+    add_system_property "ecs.ecsNamespace" "${ECS_NAMESPACE}"
+    ;;
 }
 configure_segmentstore() {
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
