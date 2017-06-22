@@ -123,7 +123,7 @@ public class ScaleRequestHandlerTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createScope(scope);
+        streamStore.createScope(scope).get();
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 

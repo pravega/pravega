@@ -12,11 +12,13 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -38,6 +40,8 @@ class WriteQueue {
     private long totalLength;
     @GuardedBy("this")
     private int lastDurationMillis;
+    @GuardedBy("this")
+    private boolean closed;
 
     //endregion
 
@@ -98,20 +102,22 @@ class WriteQueue {
      * @param write The write to add.
      */
     synchronized void add(Write write) {
+        Exceptions.checkNotClosed(this.closed, this);
         this.writes.addLast(write);
         this.totalLength += write.data.getLength();
         write.setTimestamp(this.timeSupplier.get());
     }
 
     /**
-     * Clears the queue of all the items.
+     * Clears the queue of all the items and closes it, preventing any new writes from being added.
      *
      * @return A new List with the contents of the queue (prior to cleanup), in the same order.
      */
-    synchronized List<Write> clear() {
+    synchronized List<Write> close() {
         List<Write> items = new ArrayList<>(this.writes);
         this.writes.clear();
         this.totalLength = 0;
+        this.closed = true;
         return items;
     }
 
@@ -128,12 +134,13 @@ class WriteQueue {
      * @return The result.
      */
     synchronized List<Write> getWritesToExecute(long maximumAccumulatedSize) {
+        Exceptions.checkNotClosed(this.closed, this);
         long accumulatedSize = 0;
         int activeWriteCount = 0;
 
         // Collect all remaining writes, as long as they are not currently in-progress and have the same ledger id
         // as the first item in the ledger.
-        long firstLedgerId = this.writes.peekFirst().getLedgerMetadata().getLedgerId();
+        long firstLedgerId = this.writes.peekFirst().getWriteLedger().metadata.getLedgerId();
         boolean canSkip = true;
 
         List<Write> result = new ArrayList<>();
@@ -155,7 +162,7 @@ class WriteQueue {
                     // with their updating their status. Try again next time (when that write completes).
                     return Collections.emptyList();
                 }
-            } else if (write.getLedgerMetadata().getLedgerId() != firstLedgerId) {
+            } else if (write.getWriteLedger().metadata.getLedgerId() != firstLedgerId) {
                 // We cannot initiate writes in a new ledger until all writes in the previous ledger completed.
                 break;
             } else if (!write.isDone()) {
@@ -174,27 +181,55 @@ class WriteQueue {
      *
      * @return True if there are items left in the queue, false otherwise.
      */
-    synchronized boolean removeFinishedWrites() {
+    synchronized EnumSet<CleanupStatus> removeFinishedWrites() {
+        Exceptions.checkNotClosed(this.closed, this);
         long currentTime = this.timeSupplier.get();
         long totalElapsed = 0;
         int removedCount = 0;
+        boolean failedWrite = false;
         while (!this.writes.isEmpty() && this.writes.peekFirst().isDone()) {
             Write w = this.writes.removeFirst();
             this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
             removedCount++;
             totalElapsed += currentTime - w.getTimestamp();
+            failedWrite |= w.getFailureCause() != null;
         }
 
         if (removedCount > 0) {
             this.lastDurationMillis = (int) (totalElapsed / removedCount / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return !this.writes.isEmpty();
+        CleanupStatus empty = this.writes.isEmpty() ? CleanupStatus.QueueEmpty : CleanupStatus.QueueNotEmpty;
+        return failedWrite ? EnumSet.of(CleanupStatus.WriteFailed, empty) : EnumSet.of(empty);
     }
 
     @Override
     public String toString() {
         return getStatistics().toString();
+    }
+
+    //endregion
+
+    //region CleanupStatus
+
+    /**
+     * Defines various states that the WriteQueue may be in after a cleanup is performed.
+     */
+    enum CleanupStatus {
+        /**
+         * The Queue is empty after the operation.
+         */
+        QueueEmpty,
+
+        /**
+         * The Queue is not empty after the operation.
+         */
+        QueueNotEmpty,
+
+        /**
+         * A permanently failed Write was detected.
+         */
+        WriteFailed
     }
 
     //endregion

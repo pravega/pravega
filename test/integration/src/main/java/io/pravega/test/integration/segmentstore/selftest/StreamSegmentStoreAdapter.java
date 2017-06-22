@@ -249,7 +249,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                                             .startZk(true)
                                             .ledgersPath(BK_LEDGER_PATH)
                                             .build();
-        runner.start();
+        runner.startAll();
         return runner;
     }
 

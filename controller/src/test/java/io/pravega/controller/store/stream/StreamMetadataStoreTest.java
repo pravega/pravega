@@ -73,9 +73,9 @@ public abstract class StreamMetadataStoreTest {
     public void testStreamMetadataStore() throws InterruptedException, ExecutionException {
 
         // region createStream
-        long start = System.currentTimeMillis();
         store.createScope(scope).get();
 
+        long start = System.currentTimeMillis();
         store.createStream(scope, stream1, configuration1, start, null, executor).get();
         store.setState(scope, stream1, State.ACTIVE, null, executor).get();
         store.createStream(scope, stream2, configuration2, start, null, executor).get();
@@ -88,13 +88,13 @@ public abstract class StreamMetadataStoreTest {
         List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        List<Integer> historicalSegments = store.getActiveSegments(scope, stream1, 10, null, executor).get();
+        List<Integer> historicalSegments = store.getActiveSegments(scope, stream1, 10l, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
         assertEquals(3, segments.size());
 
-        historicalSegments = store.getActiveSegments(scope, stream2, 10, null, executor).get();
+        historicalSegments = store.getActiveSegments(scope, stream2, 10l, null, executor).get();
         assertEquals(3, historicalSegments.size());
 
         // endregion
