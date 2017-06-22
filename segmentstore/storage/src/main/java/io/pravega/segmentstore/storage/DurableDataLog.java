@@ -33,13 +33,25 @@ public interface DurableDataLog extends AutoCloseable {
     void initialize(Duration timeout) throws DurableDataLogException;
 
     /**
-     * Adds a new entry to the log.
+     * Adds a new entry to the log. Multiple concurrent calls to this method are allowed.
+     *
      * The exceptions that can be returned in the CompletableFuture (asynchronously) can be:
      * <ul>
      * <li>DataLogNotAvailableException - When it is not possible to write to the DataLog at the current time.
      * <li>DataLogWriterNotPrimaryException - When the DurableDataLog has lost the exclusive write lock for its log.
      * <li>WriteFailureException - When a general failure occurred with the write.
      * <li>WriteTooLongException - When a write that is greater than getMaxAppendLength() is given.
+     * </ul>
+     *
+     * Ordering guarantees:
+     * <ul>
+     * <li> Log ordering is only guaranteed to be the same as this method's invocation order as long as it is called
+     * sequentially (subsequent calls need to wait for the method to exit synchronously before re-invoking).
+     * <li> If an append is completed, it can safely be assumed that all appends prior to that have also successfully
+     * been completed.
+     * <li> If an append failed, all subsequent appends will be failed as well and the DurableDataLog will close. An append
+     * is not considered failed if the method throws a synchronous exception (which means the append got rejected); failure
+     * is always reported when the CompletableFuture returned by this method is completed exceptionally.
      * </ul>
      *
      * @param data    An ArrayView representing the data to append.

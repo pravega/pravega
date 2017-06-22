@@ -268,7 +268,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     /**
-     * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures.
+     * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures. The expected
+     * outcome is that the OperationProcessor will auto-shutdown when such errors are encountered.
      */
     @Test
     public void testWithDataLogFailures() throws Exception {
@@ -307,8 +308,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 OperationWithCompletion.allOf(completionFutures)::join,
                 super::isExpectedExceptionForNonDataCorruption);
 
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
+        // Wait for the OperationProcessor to shutdown with failure.
+        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        Assert.assertEquals("Expected the OperationProcessor to fail after DurableDataLogException encountered.",
+                Service.State.FAILED, operationProcessor.state());
 
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);

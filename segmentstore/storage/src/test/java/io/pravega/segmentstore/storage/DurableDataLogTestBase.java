@@ -309,7 +309,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private byte[] getWriteData() {
+    protected byte[] getWriteData() {
         int length = WRITE_MIN_LENGTH + random.nextInt(WRITE_MAX_LENGTH - WRITE_MIN_LENGTH);
         byte[] data = new byte[length];
         this.random.nextBytes(data);

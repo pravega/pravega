@@ -85,7 +85,32 @@ final class Ledgers {
         try {
             return Exceptions.handleInterrupted(() -> bookKeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
         } catch (BKException bkEx) {
-            throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
+            throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
+        }
+    }
+
+    /**
+     * Reliably retrieves the LastAddConfirmed for the Ledger with given LedgerId, by opening the Ledger in fencing mode
+     * and getting the value. NOTE: this open-fences the Ledger which will effectively stop any writing action on it.
+     *
+     * @param ledgerId   The Id of the Ledger to query.
+     * @param bookKeeper A references to the BookKeeper client to use.
+     * @param config     Configuration to use.
+     * @return The LastAddConfirmed for the given LedgerId.
+     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
+     */
+    static long readLastAddConfirmed(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+        LedgerHandle h = null;
+        try {
+            // Here we open the Ledger WITH recovery, to force BookKeeper to reconcile any appends that may have been
+            // interrupted and not properly acked. Otherwise there is no guarantee we can get an accurate value for
+            // LastAddConfirmed.
+            h = openFence(ledgerId, bookKeeper, config);
+            return h.getLastAddConfirmed();
+        } finally {
+            if (h != null) {
+                close(h);
+            }
         }
     }
 

@@ -41,6 +41,16 @@ public class ServiceConfig {
     private static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
+    public enum StorageTypes {
+        HDFS("HDFS"),
+        FILESYSTEM("FS"),
+        INMEMORY("INMEMORY");
+
+        private final String type;
+        private StorageTypes(final String type) {
+            this.type = type;
+        }
+    }
 
     //region Members
 

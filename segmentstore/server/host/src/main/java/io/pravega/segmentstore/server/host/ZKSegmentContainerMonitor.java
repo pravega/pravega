@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.SneakyThrows;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang.SerializationUtils;
@@ -106,9 +107,16 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     public void initialize(Duration monitorInterval) {
         Exceptions.checkNotClosed(closed.get(), this);
 
+        // Start loading the segment container to node assigment map from zookeeper.
         this.hostContainerMapNode.start();
+
+        // There are two triggers for the segment container monitor.
+        // 1. On any segment container ownership changes notified via zookeeper. We will ensure the local containers
+        //      are stopped/started according to the new ownership mapping.
+        // 2. At scheduled intervals to perform retries on local segment container start failures.
         this.assigmentTask.set(this.executor.scheduleWithFixedDelay(
                 this::checkAssignment, 0L, monitorInterval.getSeconds(), TimeUnit.SECONDS));
+        this.hostContainerMapNode.getListenable().addListener(this::checkAssignment, this.executor);
     }
 
     @Override
@@ -143,11 +151,11 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     }
 
     /**
-     * The container assignment monitor. This is executed in a single threaded executor and hence there will never be
-     * parallel invocations of this method.
+     * The container assignment monitor.
      * This method will fetch the current owned containers for this host and ensures that the local containers' state
      * reflects this.
      */
+    @Synchronized
     private void checkAssignment() {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "checkAssignment");
