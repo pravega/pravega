@@ -26,7 +26,6 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -47,6 +46,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -62,12 +62,12 @@ public class ReadWriteTest {
     private static final int NUM_EVENTS_BY_WRITER = 1000;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
+    private AtomicBoolean stopReadFlag;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
-    private ReusableLatch latch = new ReusableLatch(false);
 
     @Before
     public void setup() throws Exception {
@@ -125,6 +125,7 @@ public class ReadWriteTest {
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
+        stopReadFlag = new AtomicBoolean(false);
 
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
             //create a scope
@@ -162,19 +163,17 @@ public class ReadWriteTest {
             for (int i = 0; i < NUM_READERS; i++) {
                 log.info("Starting reader{}", i);
                 readerList.add(startNewReader(readerName + i, clientFactory, readerGroupName,
-                        eventsReadFromPravega, eventData, eventReadCount));
+                        eventsReadFromPravega, eventData, eventReadCount, stopReadFlag));
             }
 
             //wait for writers completion
-            FutureHelpers.allOf(writerList);
+            FutureHelpers.allOf(writerList).get();
 
-            // wait for reads = writes
-            while (!(eventsReadFromPravega.size() == TOTAL_NUM_EVENTS)) {
-                   latch.await();
-            }
+            //set stop read flag to true
+            stopReadFlag.set(true);
 
             //wait for readers completion
-            FutureHelpers.allOf(readerList);
+            FutureHelpers.allOf(readerList).get();
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
@@ -224,33 +223,28 @@ public class ReadWriteTest {
 
     private CompletableFuture<Void> startNewReader(final String id, final ClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
-                                                   AtomicLong readCount) {
+                                                   AtomicLong readCount, final  AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
             final EventStreamReader<Long> reader = clientFactory.createReader(id,
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            while (true) {
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())){
                 try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
                         readCount.incrementAndGet();
                     }
-                    //notify if num. of reads = num. of writes
-                    if (TOTAL_NUM_EVENTS == eventsReadFromPravega.size()) {
-                            latch.release();
-                            log.info("Closing reader {}", reader);
-                            reader.close();
-                            break;
-                    }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
                     break;
                 }
             }
+            log.info("Closing reader {}", reader);
+            reader.close();
         });
     }
 }
