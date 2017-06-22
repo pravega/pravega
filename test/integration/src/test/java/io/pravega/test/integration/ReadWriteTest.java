@@ -229,7 +229,7 @@ public class ReadWriteTest {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
-            while (!(exitFlag.get() && readCount.get() == writeCount.get())){
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 try {
                     final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
                     log.info("Reading event {}", longEvent);
