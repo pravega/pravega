@@ -33,15 +33,16 @@ import org.junit.Before;
 public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
+    private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
-    private SegmentStoreIntegrationTestBKZKHelper helper = null;
+    private SegmentStoreTestBKZKHelper helper = null;
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        helper = new SegmentStoreIntegrationTestBKZKHelper(this.configBuilder);
-        helper.setUp();
+        helper = new SegmentStoreTestBKZKHelper(this.configBuilder, BOOKIE_COUNT);
+        helper.initialize();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();
 
@@ -55,7 +56,7 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
      */
     @After
     public void tearDown() throws Exception {
-        helper.tearDown();
+        helper.close();
         FileHelpers.deleteFileOrDirectory(this.baseDir);
         this.baseDir = null;
     }

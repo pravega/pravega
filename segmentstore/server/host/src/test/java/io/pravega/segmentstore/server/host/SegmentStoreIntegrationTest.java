@@ -36,17 +36,18 @@ import org.junit.Before;
 public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
+    private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private SegmentStoreIntegrationTestBKZKHelper helper = null;
+    private SegmentStoreTestBKZKHelper helper = null;
 
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
-       helper = new SegmentStoreIntegrationTestBKZKHelper(this.configBuilder);
-       helper.setUp();
+       helper = new SegmentStoreTestBKZKHelper(this.configBuilder, BOOKIE_COUNT);
+       helper.initialize();
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
@@ -62,7 +63,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
      */
     @After
     public void tearDown() throws Exception {
-        helper.tearDown();
+        helper.close();
         // HDFS
         val hdfs = this.hdfsCluster;
         if (hdfs != null) {
