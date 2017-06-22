@@ -343,11 +343,13 @@ public class FileSystemStorage implements Storage {
     }
 
     /**
-     * Concat uses client side operations. When the underlying storage is a remote filesystem (accessed by NFS),
-     * the concat happens on the client side. (As NFS v3 does not have server side concat primitive).
-     * This will involve number of reads and writes over the network.
-     * This option was preferred as other option (of having one file per transaction) will result in server side fragmentation
-     * and corresponding slowdown in cluster performance.
+     * Concatenation as currently implemented here requires that we read the data and write it back to target file.
+     * We do not make the assumption that a native operation exists as this is not a common feature supported by file
+     * systems. As such, a concatenation induces an important network overhead as each byte concatenated must be
+     * read and written back when the storage is backed by a remote filesystem (through NFS).
+     *
+     * This option was preferred as other option (of having one file per transaction) will result in server side
+     * fragmentation and corresponding slowdown in cluster performance.
      */
     @SneakyThrows
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
