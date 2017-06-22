@@ -9,13 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.TxnFailedException;
-
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TxnFailedException;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;
@@ -29,9 +29,13 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     }
 
     @Override
-    public void writeEvent(Type event) {
-        ByteBuffer buffer = serializer.serialize(event);
-        out.write(new PendingEvent(null, buffer, CompletableFuture.completedFuture(null)));
+    public void writeEvent(Type event) throws TxnFailedException {
+        try {
+            ByteBuffer buffer = serializer.serialize(event);
+            out.write(new PendingEvent(null, buffer,  CompletableFuture.completedFuture(null)));
+        } catch (SegmentSealedException e) {
+            throw new TxnFailedException(e);
+        }
     }
 
     @Override
@@ -41,12 +45,20 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 
     @Override
     public void flush() throws TxnFailedException {
-        out.flush();
+        try {
+            out.flush();
+        } catch (SegmentSealedException e) {
+            throw new TxnFailedException(e);
+        }
     }
 
     @Override
     public void close() throws TxnFailedException {
-        out.close();
+        try {
+            out.close();
+        } catch (SegmentSealedException e) {
+            throw new TxnFailedException(e);
+        }
     }
 
 }

@@ -67,7 +67,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
-    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 6);
     @Getter
     private final String segmentName;
     private final Controller controller;
@@ -189,7 +189,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         /**
          * Block until a connection has been established and AppendSetup has come back from the server.
          */
-        private ClientConnection waitForConnection() throws ConnectionFailedException {
+        private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
             try {
                 Exceptions.handleInterrupted(() -> connectionSetup.await());
                 synchronized (lock) {
@@ -198,7 +198,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     }
                     return connection;
                 }
-            } catch (ConnectionFailedException | IllegalArgumentException e) {
+            } catch (ConnectionFailedException | IllegalArgumentException | SegmentSealedException e) {
                 throw e;
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -361,7 +361,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     @Synchronized
-    public void write(PendingEvent event) {
+    public void write(PendingEvent event) throws SegmentSealedException {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
@@ -378,10 +378,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */
     @Synchronized
-    ClientConnection getConnection() {
+    ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
 
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(RuntimeException.class).run(() -> {
+        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
         });
@@ -407,10 +407,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     @Synchronized
-    public void close() {
+    public void close() throws SegmentSealedException {
         if (state.isClosed()) {
             return;
         }
+        // Wait until all the inflight events are written
         flush();
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
@@ -424,11 +425,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     @Synchronized
-    public void flush() {
-        if (!state.isInflightEmpty() && !state.isAlreadySealed()) {
-            //Do not attempt to flush if inflight is empty or  the segment is sealed.
+    public void flush() throws SegmentSealedException {
+        if (!state.isInflightEmpty()  && !state.isAlreadySealed()) {
+            //Do not attempt to flush if inflight is empty or the segment is sealed.
             RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                          .throwingOn(RuntimeException.class)
+                          .throwingOn(SegmentSealedException.class)
                           .run(() -> {
                               ClientConnection connection = getConnection();
                               connection.send(new KeepAlive());

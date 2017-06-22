@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.PingFailedException;
@@ -120,6 +121,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             }
             segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
+        } catch (SegmentSealedException e) {
+            log.warn("Connection failed due to {}, write will be retried", e.getMessage());
         } finally {
             lock.writeLock().unlock();
         }
@@ -153,7 +156,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * over very quickly.
      */
     private void handleLogSealed(Segment segment) {
-        //TODO: shrids since this is executed by the callback for that segment we need to pass the events to be resent.
         lock.readLock().lock();
         /* Using segmentSealedLock the following behaviour is enforced
             - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
@@ -185,7 +187,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         unsent.addAll(selector.refreshSegmentEventWriters(segmentSealedCallBack));
                         sendFailed = true;
                     } else {
-                        segmentWriter.write(event);
+                        try {
+                            segmentWriter.write(event);
+                        } catch (SegmentSealedException e) {
+                            log.warn("Event write failed during resend due to {}, it will be retried", e.getMessage());
+                        }
                     }
                 }
             }
@@ -338,17 +344,23 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
     
     private void flushInternal() {
+        lock.readLock().lock();
         boolean success = false;
-        while (!success) {
-            success = true;
-            lock.readLock().lock();
-            try {
+        try {
+            while (!success) {
+                success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
-                    writer.flush();
+                    try {
+                        writer.flush();
+                    } catch (SegmentSealedException e) {
+                        //Segment sealed exception observed during a flush. Re-run flush on all the available writers.
+                        success = false;
+                        log.warn("Flush failed due to {}, it will be retried.", e.getMessage());
+                    }
                 }
-            } finally {
-                lock.readLock().unlock();
             }
+        } finally {
+            lock.readLock().unlock();
         }
     }
 
@@ -360,11 +372,16 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         lock.readLock().lock();
         try {
             boolean success = false;
-            String sealedSegment = null;
             while (!success) {
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
+                    try {
                         writer.close();
+                    } catch (SegmentSealedException e) {
+                        //Segment sealed exception observed during a close. Re-run close on all the available writers.
+                        success = false;
+                        log.warn("Close failed due to {}, it will be retried.", e.getMessage());
+                    }
                 }
             }
         } finally {

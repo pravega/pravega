@@ -12,8 +12,14 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.FutureHelpers;
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,10 +29,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.function.Consumer;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * A class that determines to which segment an event associated with a routing key will go. This is
@@ -110,7 +112,12 @@ public class SegmentSelector {
             if (!currentSegments.getSegments().contains(entry.getKey())) {
                 SegmentOutputStream writer = entry.getValue();
                 iter.remove();
-                writer.close();
+                try {
+                    writer.close();
+                } catch (SegmentSealedException e) {
+                    //This exception should not be encountered since a we are closing a writer of a sealed segment.
+                    log.error("Exception while closing writer : {} ", e.getMessage());
+                }
                 toResend.addAll(writer.getUnackedEvents());
             }
         }
