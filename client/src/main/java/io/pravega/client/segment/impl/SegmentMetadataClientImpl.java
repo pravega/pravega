@@ -241,29 +241,35 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(getSegmentInfo()).getSegmentLength();
+                                 return FutureHelpers.getAndHandleExceptions(getSegmentInfo(), RuntimeException::new)
+                                                     .getSegmentLength();
                              });
     }
 
-    
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue())).getValue();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getAndHandleExceptions(getPropertyAsync(attribute.getValue()),
+                                                                             RuntimeException::new)
+                                                     .getValue();
+                             });
     }
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)).isSuccess();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getAndHandleExceptions(updatePropertyAsync(attribute.getValue(),
+                                                                                                 expectedValue,
+                                                                                                 newValue),
+                                                                             RuntimeException::new)
+                                                     .isSuccess();
+                             });
     }
 
     @Override
