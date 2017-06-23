@@ -320,8 +320,6 @@ public class AssertExtensions {
      * @param futureSupplier A Supplier that returns a new CompletableFuture, to test.
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>            The type of the future's result.
-     *
-     * @return boolean       Returns true if an expected exception is actually thrown.
      */
     public static <T> void assertMayThrow(String message, Supplier<CompletableFuture<T>> futureSupplier,
                                              Predicate<Throwable> tester) {
