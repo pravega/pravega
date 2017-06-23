@@ -66,7 +66,7 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig,
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig,
                                                         AtomicReference<Storage> storage) {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)

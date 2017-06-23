@@ -228,9 +228,6 @@ public class FileSystemStorage implements Storage {
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
                 bytesRead = channel.read(readBuffer, offset);
-                if( bytesRead <= 0 ) {
-                    throw new IllegalStateException("Read returned " + bytesRead);
-                }
                 bufferOffset += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
