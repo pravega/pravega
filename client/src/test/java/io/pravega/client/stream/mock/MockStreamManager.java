@@ -78,7 +78,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
+    public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
                                         .scope(scopeName)
@@ -87,7 +87,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
+        return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                                                                                               .scope(scopeName)
                                                                                               .streamName(streamName)
                                                                                               .scalingPolicy(config.getScalingPolicy())
@@ -150,5 +150,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteReaderGroup(String groupName) {
+        FutureHelpers.getAndHandleExceptions(controller.deleteStream(scope,
+                                                                     NameUtils.getStreamForReaderGroup(groupName)),
+                                             RuntimeException::new);
     }
 }

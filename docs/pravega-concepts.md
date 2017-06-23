@@ -28,7 +28,7 @@ Pravega itself is composed of two kinds of workload: Controller instances and
 Pravega Servers. The set of Pravega Servers is known collectively as the Segment Store. 
 
 The set of Controller instances make up the control plane of Pravega, providing
-functionality to create, alter and delete Streams, retrieve information about
+functionality to create, update and delete Streams, retrieve information about
 Streams, monitor the health of the Pravega cluster, gather metrics etc.  There
 are usually multiple (recommended at least 3) Controller instances running in a
 cluster for high availability.  

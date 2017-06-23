@@ -150,6 +150,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
                             }, this.executor);
 
                             this.actorManager.startAsync();
+                            this.state.resetClock();
                             this.reporter.startAsync();
                         },
                         this.executor);

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Runnables;
@@ -23,7 +24,6 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamingException;
-import io.pravega.segmentstore.server.logs.operations.OperationFactory;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
@@ -32,6 +32,7 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.OperationFactory;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -106,13 +107,18 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.metadata = metadata;
         this.executor = executor;
         this.operationFactory = new OperationFactory();
-        this.inMemoryOperationLog = new SequencedItemList<>();
+        this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
+    }
+
+    @VisibleForTesting
+    protected SequencedItemList<Operation> createInMemoryLog() {
+        return new SequencedItemList<>();
     }
 
     //endregion
@@ -384,7 +390,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Now continue with the recovery from here.
             while (readResult != null) {
-                recordTruncationMarker(readResult, metadataUpdater);
+                recordTruncationMarker(readResult);
                 recoverOperation(readResult.getItem(), metadataUpdater);
                 recoveredItemCount++;
 
@@ -395,7 +401,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Commit whatever changes we have in the metadata updater to the Container Metadata.
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
-        metadataUpdater.commit();
+        metadataUpdater.commitAll();
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
         return recoveredItemCount > 0;
     }
@@ -418,7 +424,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.memoryStateUpdater.process(operation);
     }
 
-    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult, OperationMetadataUpdater metadataUpdater) {
+    private void recordTruncationMarker(DataFrameReader.ReadResult<Operation> readResult) {
+        // Truncation Markers are stored directly in the ContainerMetadata. There is no need for an OperationMetadataUpdater
+        // to do this.
         // Determine and record Truncation Markers, but only if the current operation spans multiple DataFrames
         // or it's the last entry in a DataFrame.
         LogAddress lastFullAddress = readResult.getLastFullDataFrameAddress();
@@ -426,10 +434,10 @@ public class DurableLog extends AbstractService implements OperationLog {
         if (lastFullAddress != null && lastFullAddress.getSequence() != lastUsedAddress.getSequence()) {
             // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
             // that ends with a part of it.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
+            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastFullAddress);
         } else if (readResult.isLastFrameEntry()) {
             // The operation was the last one in the frame. This is a Truncation Marker.
-            metadataUpdater.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
+            this.metadata.recordTruncationMarker(readResult.getItem().getSequenceNumber(), lastUsedAddress);
         }
     }
 
@@ -493,9 +501,9 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                tr.future.complete(FutureHelpers.runOrFail(() -> {
-                    return this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount);
-                }, tr.future));
+                tr.future.complete(FutureHelpers.runOrFail(
+                        () -> this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount),
+                        tr.future));
             }
         });
     }

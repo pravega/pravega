@@ -23,10 +23,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
+import lombok.ToString;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@ToString(of = { "segment", "currentState" })
 public class StateSynchronizerImpl<StateT extends Revisioned>
         implements StateSynchronizer<StateT> {
 
@@ -190,6 +192,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             log.trace("Updating new state to {} ", newValue.getRevision());
             currentState = newValue;
         }
+    }
+
+    @Override
+    public void close() {
+        log.info("Closing stateSynchronizer ", this);
+        client.close();
     }
 
 }

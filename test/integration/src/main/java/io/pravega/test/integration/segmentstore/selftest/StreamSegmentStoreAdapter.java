@@ -20,18 +20,27 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.TruncateableStorage;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
  * Store Adapter wrapping a real StreamSegmentStore.
@@ -39,14 +48,18 @@ import java.util.concurrent.atomic.AtomicReference;
 class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Members
 
+    static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     private static final String LOG_ID = "SegmentStoreAdapter";
     protected final Executor testExecutor;
+    private final TestConfig config;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<VerificationStorage> storage;
     private final AtomicReference<ExecutorService> storeExecutor;
+    private BookKeeperServiceRunner bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
+    private CuratorFramework zkClient;
 
     //endregion
 
@@ -60,27 +73,20 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
      * @param testExecutor  An Executor to use for test-related async operations.
      */
     StreamSegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testExecutor) {
-        Preconditions.checkNotNull(testConfig, "testConfig");
+        this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
-        Preconditions.checkNotNull(testExecutor, "testCallbackExecutor");
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
-        this.testExecutor = testExecutor;
-        this.serviceBuilder = ServiceBuilder
+        this.testExecutor = Preconditions.checkNotNull(testExecutor, "testCallbackExecutor");
+        this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withDataLogFactory(setup -> {
-                    InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(setup.getExecutor());
-                    Duration appendDelay = testConfig.getDataLogAppendDelay();
-                    factory.setAppendDelayProvider(() -> appendDelay);
-                    return factory;
-                })
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).createStorageAdapter();
-                    innerStorage.initialize(0);
+                    innerStorage.initialize(1);
 
                     // ... and the Test executor for the verification storage (to invoke callbacks).
                     VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testExecutor);
@@ -89,7 +95,32 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
                     this.storeExecutor.set(setup.getExecutor());
                     return factory;
-                });
+                }));
+    }
+
+    private ServiceBuilder attachDataLogFactory(ServiceBuilder builder) {
+        if (this.config.isUseBookKeeper()) {
+            this.zkClient = CuratorFrameworkFactory
+                    .builder()
+                    .connectString("localhost:" + this.config.getZkPort())
+                    .namespace("pravega")
+                    .retryPolicy(new ExponentialBackoffRetry(1000, 5))
+                    .sessionTimeoutMs(5000)
+                    .connectionTimeoutMs(5000)
+                    .build();
+            this.zkClient.start();
+            return builder.withDataLogFactory(setup -> {
+                BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
+                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
+            });
+        } else {
+            return builder.withDataLogFactory(setup -> {
+                InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(setup.getExecutor());
+                Duration appendDelay = this.config.getDataLogAppendDelay();
+                factory.setAppendDelayProvider(() -> appendDelay);
+                return factory;
+            });
+        }
     }
 
     //endregion
@@ -97,9 +128,22 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     //region AutoCloseable Implementation
 
     @Override
+    @SneakyThrows
     public void close() {
         if (!this.closed.get()) {
             this.serviceBuilder.close();
+            val bk = this.bookKeeperService;
+            if (bk != null) {
+                bk.close();
+                this.bookKeeperService = null;
+            }
+
+            val zk = this.zkClient;
+            if (zk != null) {
+                zk.close();
+                this.zkClient = null;
+            }
+
             this.closed.set(true);
             TestLogger.log(LOG_ID, "Closed.");
         }
@@ -113,6 +157,10 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
+        if (this.config.isUseBookKeeper()) {
+            this.bookKeeperService = startBookKeeper();
+        }
+
         this.serviceBuilder.initialize();
         this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
         this.initialized.set(true);
@@ -192,6 +240,17 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
 
     protected StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
+    }
+
+    private BookKeeperServiceRunner startBookKeeper() throws Exception {
+        val runner = BookKeeperServiceRunner.builder()
+                                            .bookiePorts(Collections.singletonList(this.config.getBkPort()))
+                                            .zkPort(this.config.getZkPort())
+                                            .startZk(true)
+                                            .ledgersPath(BK_LEDGER_PATH)
+                                            .build();
+        runner.startAll();
+        return runner;
     }
 
     //endregion

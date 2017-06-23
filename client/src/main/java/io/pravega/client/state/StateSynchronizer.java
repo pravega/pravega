@@ -33,7 +33,7 @@ import java.util.function.Function;
  * 
  * @param <StateT> The type of the object whose updates are being synchronized.
  */
-public interface StateSynchronizer<StateT extends Revisioned> {
+public interface StateSynchronizer<StateT extends Revisioned> extends AutoCloseable {
     
     /**
      * Gets the state object currently held in memory.
@@ -97,4 +97,12 @@ public interface StateSynchronizer<StateT extends Revisioned> {
      * @param compactor An generator of InitialUpdates given a state.
      */
     void compact(Function<StateT, InitialUpdate<StateT>> compactor);
+    
+    
+    /**
+     * Closes the StateSynchronizer and frees any resources associated with it. (It may no longer be used)
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    abstract void close();
 }

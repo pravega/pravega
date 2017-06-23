@@ -149,10 +149,14 @@ public class SynchronizerTest {
         public Revision fetchOldestRevision() {
             return new RevisionImpl(segment, 0, 0);
         }
+
+        @Override
+        public void close() { 
+        }
     }
 
     @Test(timeout = 20000)
-    public void testLocking() throws EndOfSegmentException {
+    public void testLocking() {
         String streamName = "streamName";
         String scope = "scope";
         Segment segment = new Segment(scope, streamName, 0);
@@ -162,6 +166,7 @@ public class SynchronizerTest {
 
         MockRevisionedStreamClient client = new MockRevisionedStreamClient();
         client.segment = segment;
+        @Cleanup
         StateSynchronizerImpl<RevisionedImpl> sync = new StateSynchronizerImpl<RevisionedImpl>(segment, client);
         client.init = new BlockingUpdate(0);
         client.updates = updates;

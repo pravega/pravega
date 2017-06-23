@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.fault;
 
-import io.pravega.common.TimeoutTimer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -45,9 +44,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
 
     //The pravega cluster which this host controller manages.
     private Cluster pravegaServiceCluster = null;
-
-    //The timer to ensure we maintain a minimum interval between expensive rebalance operations.
-    private TimeoutTimer timeoutTimer = null;
 
     //The minimum interval between any two rebalance operations. The minimum duration is not guaranteed when leadership
     //moves across controllers. Since this is uncommon and there are no significant side-effects to it, we don't
@@ -143,12 +139,13 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
                 }
 
                 hostsChange.acquire();
-                log.debug("Received rebalance event");
+                log.info("Received rebalance event");
 
-                //Wait here until the rebalance timer is zero so that we honor the minimum rebalance interval.
+                // Wait here until rebalance can be performed.
                 waitForRebalance();
 
-                //Clear all events that has been received until this point.
+                // Clear all events that has been received until this point since this will be included in the current
+                // rebalance operation.
                 hostsChange.drainPermits();
                 triggerRebalance();
             } catch (InterruptedException e) {
@@ -171,14 +168,14 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     }
 
     /**
-     * Blocks until the rebalance timer is zero so that we honor the minimum rebalance interval.
+     * Blocks until the rebalance interval. This wait serves multiple purposes:
+     * -- Ensure rebalance does not happen in quick succession since its a costly cluster level operation.
+     * -- Clubs multiple host events into one to reduce rebalance operations. For example:
+     *      Fresh cluster start, cluster/multi-host/host restarts, etc.
      */
     private void waitForRebalance() throws InterruptedException {
-        if (timeoutTimer != null && timeoutTimer.getRemaining().getSeconds() > 0) {
-            log.info("Waiting for {} seconds before attempting to rebalance",
-                    timeoutTimer.getRemaining().getSeconds());
-            Thread.sleep(timeoutTimer.getRemaining().getSeconds() * 1000);
-        }
+        log.info("Waiting for {} seconds before attempting to rebalance", minRebalanceInterval.getSeconds());
+        Thread.sleep(minRebalanceInterval.toMillis());
     }
 
     private void triggerRebalance() throws IOException {
@@ -189,9 +186,6 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
             hostStore.updateHostContainersMap(newMapping);
         } catch (Exception e) {
             throw new IOException(e);
-        } finally {
-            //Reset the rebalance timer.
-            timeoutTimer = new TimeoutTimer(minRebalanceInterval);
         }
     }
 

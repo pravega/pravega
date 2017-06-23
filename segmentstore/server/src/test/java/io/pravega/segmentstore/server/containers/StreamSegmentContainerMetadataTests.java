@@ -27,7 +27,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for StreamSegmentContainerMetadata class.
@@ -36,6 +38,9 @@ public class StreamSegmentContainerMetadataTests {
     private static final int CONTAINER_ID = 1234567;
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT_COUNT = 2;
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests SequenceNumber-related operations.
@@ -435,7 +440,7 @@ public class StreamSegmentContainerMetadataTests {
 
         for (int i = 0; i < segments.size(); i++) {
             UpdateableSegmentMetadata segmentMetadata = m.getStreamSegmentMetadata(segments.get(i));
-            if (segmentMetadata.getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
+            if (segmentMetadata.isTransaction()) {
                 // All transactions expire at once, in a second step.
                 segmentMetadata.setLastUsed(transactionExpiration);
             } else if (i % 2 == 0) {

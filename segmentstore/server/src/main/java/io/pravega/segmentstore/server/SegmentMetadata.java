@@ -82,4 +82,18 @@ public interface SegmentMetadata extends SegmentProperties {
     default SegmentProperties getSnapshot() {
         return new StreamSegmentInformation(this, new HashMap<>(getAttributes()));
     }
+
+    /**
+     * Determines whether the Segment represented by this SegmentMetadata is a Transaction.
+     *
+     * @return True if Transaction, False otherwise.
+     */
+    default boolean isTransaction() {
+        return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
+    }
+
+    @Override
+    default long getLength() {
+        return getDurableLogLength();
+    }
 }
