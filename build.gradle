@@ -228,8 +228,8 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
     }
 
-    task createAppWithGCLogs(type: CreateStartScripts) {
-        applicationName = "pravega-segmentstoreWithGCLog"
+    task createAppWithGCLogging(type: CreateStartScripts) {
+        applicationName = "pravega-segmentstore-withGCLogging"
         mainClassName = "io.pravega.controller.server.Main"
         defaultJvmOpts = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                           "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
@@ -244,7 +244,7 @@ project('segmentstore:server:host') {
     }
 
     applicationDistribution.into("bin") {
-        from(createAppWithGCLogs)
+        from(createAppWithGCLogging)
     }
 }
 
@@ -389,8 +389,8 @@ project('controller') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
-    task createAppWithGCLogs(type: CreateStartScripts) {
-        applicationName = "pravega-controllerWithGCLog"
+    task createAppWithGCLogging(type: CreateStartScripts) {
+        applicationName = "pravega-controller-withGCLogging"
         mainClassName = "io.pravega.controller.server.Main"
         defaultJvmOpts = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                           "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
@@ -405,7 +405,7 @@ project('controller') {
     }
 
     applicationDistribution.into("bin") {
-        from(createAppWithGCLogs)
+        from(createAppWithGCLogging)
     }
 }
 
