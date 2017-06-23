@@ -371,7 +371,7 @@ public class MultiReaderWriterWithFailOverTest {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(new Random().nextInt(50000) + 60000);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventData.get();
