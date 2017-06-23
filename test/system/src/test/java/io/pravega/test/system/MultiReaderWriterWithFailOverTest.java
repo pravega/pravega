@@ -335,6 +335,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
+        //zookeeper will take about 60 seconds to detect that the node has gone down
         Thread.sleep(60000);
         log.info("Scaling down SSS instances from 3 to 2");
 
@@ -351,6 +352,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
+        //zookeeper will take about 60 seconds to detect that the node has gone down
         Thread.sleep(60000);
         log.info("Scaling down controller instances from 3 to 2");
 
@@ -367,8 +369,8 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
-        Thread.sleep(60000);
         controllerInstance.scaleService(1, true);
+        //zookeeper will take about 60 seconds to detect that the node has gone down
         Thread.sleep(60000);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
