@@ -40,8 +40,7 @@ public class BookKeeperRunner implements AutoCloseable {
         this.bookieCount = bookieCount;
     }
 
-    @SneakyThrows
-    public void initialize() {
+    public void initialize() throws Exception {
         // BookKeeper
         // Pick random ports to reduce chances of collisions during concurrent test executions.
         int zkPort = TestUtils.getAvailableListenPort();
