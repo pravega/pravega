@@ -16,7 +16,6 @@ import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
