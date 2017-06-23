@@ -179,6 +179,10 @@ public class FileSystemStorageTest extends StorageTestBase {
                                 "threw an unexpected exception.",
                         () -> CompletableFuture.allOf(f1, f2),
                         ex -> ex instanceof BadOffsetException);
+
+                // Make sure at least one operation is success.
+                Assert.assertTrue("At least one of the two parallel writes should succeed.",
+                        !f1.isCompletedExceptionally() || !f2.isCompletedExceptionally());
                 offset += writeData.length;
             }
             Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
