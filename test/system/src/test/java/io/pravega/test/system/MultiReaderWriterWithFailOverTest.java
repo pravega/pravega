@@ -335,12 +335,8 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
+        Thread.sleep(60000);
         log.info("Scaling down SSS instances from 3 to 2");
-
-        //check reads and writes after some random time
-        sleepTime = new Random().nextInt(50000) + 3000;
-        log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
 
         currentWriteCount1 = eventData.get();
         currentReadCount1 = eventReadCount.get();
@@ -355,12 +351,8 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
+        Thread.sleep(60000);
         log.info("Scaling down controller instances from 3 to 2");
-
-        //check reads and writes after some random time
-        sleepTime = new Random().nextInt(50000) + 3000;
-        log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
 
         currentWriteCount2 = eventData.get();
         currentReadCount2 = eventReadCount.get();
@@ -375,7 +367,9 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
+        Thread.sleep(60000);
         controllerInstance.scaleService(1, true);
+        Thread.sleep(60000);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         //scale after some random time
@@ -401,9 +395,11 @@ public class MultiReaderWriterWithFailOverTest {
                 try {
                     long value = data.incrementAndGet();
                     Thread.sleep(100);
+                    log.info("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
-                    log.debug("Writing event {}", value);
+                    log.info("Event write count before flush {}", value);
                     writer.flush();
+                    log.debug("Writing event {}", value);
                 } catch (Throwable e) {
                     log.error("Test exception writing events: {}", e);
                 }
@@ -427,6 +423,8 @@ public class MultiReaderWriterWithFailOverTest {
                         readResult.add(longEvent);
                         readCount.incrementAndGet();
                         log.info("Event read count {}", readCount);
+                    } else {
+                        log.info("Read timeout");
                     }
                 } catch (Throwable e) {
                     log.error("Test Exception while reading from the stream: {}", e);
