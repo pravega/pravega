@@ -323,21 +323,18 @@ public class AssertExtensions {
      *
      * @return boolean       Returns true if an expected exception is actually thrown.
      */
-    public static <T> boolean assertMayThrow(String message, Supplier<CompletableFuture<T>> futureSupplier,
+    public static <T> void assertMayThrow(String message, Supplier<CompletableFuture<T>> futureSupplier,
                                              Predicate<Throwable> tester) {
         try {
             futureSupplier.get().join();
-            return false;
         } catch (CompletionException ex) {
             if (!tester.test(getRealException(ex))) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
             }
-            return true;
         } catch (Exception ex) {
             if (!tester.test(ex)) {
                 Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
             }
-            return true;
         }
     }
 

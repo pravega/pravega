@@ -33,21 +33,21 @@ import org.junit.Before;
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
+public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
-    private BookKeeperRunner helper = null;
+    private BookKeeperRunner bookkeeper = null;
 
     /**
      * Starts BookKeeper and HDFS MiniCluster.
      */
     @Before
     public void setUp() throws Exception {
-       helper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
-       helper.initialize();
+       bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
+       bookkeeper.initialize();
         // HDFS
         this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
         this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
@@ -63,7 +63,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
      */
     @After
     public void tearDown() throws Exception {
-        helper.close();
+        bookkeeper.close();
         // HDFS
         val hdfs = this.hdfsCluster;
         if (hdfs != null) {
@@ -87,7 +87,7 @@ public class SegmentStoreIntegrationTest extends StreamSegmentStoreTestBase {
                     StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
                     return new ListenableStorageFactory(f, storage::set);
                 })
-                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), helper.getZkClient(), setup.getExecutor()));
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
     //endregion

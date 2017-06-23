@@ -30,7 +30,7 @@ import org.junit.Before;
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTestBase {
+public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final int BOOKIE_COUNT = 3;

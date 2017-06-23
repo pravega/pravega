@@ -57,7 +57,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  *
  * Each segment is represented as a single file on the underlying storage.
  *
- * Approach to locking:
+ * Approach to fencing:
  *
  * This implementation works under the assumption that data is only appended and never modified.
  * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.

@@ -25,7 +25,7 @@ public class FileSystemRetryHelperTest {
                         (bool) -> !bool,
                         () -> new Exception("Still false"),
                         3),
-                (ex) -> ex instanceof Exception);
+                (ex) -> ex.getMessage().equals("Still false"));
 
         // Retry passes in first attempt
         FileSystemRetryHelper.retry(() -> !testValue,

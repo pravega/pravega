@@ -67,7 +67,7 @@ public class FileSystemStorageTest extends StorageTestBase {
      * ** We verify that Storage2 can execute all operations.
      */
     @Override
-    @Test
+    @Test(timeout = 30000)
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -106,7 +106,7 @@ public class FileSystemStorageTest extends StorageTestBase {
      * @throws Exception if an unexpected error occurred.
      */
     @Override
-    @Test
+    @Test(timeout = 30000)
     public void testWrite() throws Exception {
         String segmentName = "foo_write";
         int appendCount = 100;
@@ -157,7 +157,7 @@ public class FileSystemStorageTest extends StorageTestBase {
     /**
      * This test case simulates two hosts writing at the same offset at the same time.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testParallelWriteTwoHosts() {
         String segmentName = "foo_write";
         int appendCount = 5;
@@ -202,7 +202,7 @@ public class FileSystemStorageTest extends StorageTestBase {
     /**
      * This test case simulates host crashing during concat and retrying the operation.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
