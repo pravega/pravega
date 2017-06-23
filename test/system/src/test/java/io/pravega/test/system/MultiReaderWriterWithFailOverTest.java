@@ -404,7 +404,7 @@ public class MultiReaderWriterWithFailOverTest {
         }, executorService);
     }
 
-    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
     AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status {}", exitFlag.get());
