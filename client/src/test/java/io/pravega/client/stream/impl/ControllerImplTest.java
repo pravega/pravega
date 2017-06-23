@@ -14,6 +14,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
+import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ScalingPolicy;
@@ -48,6 +49,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,11 +64,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -79,7 +86,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
 
-    @Rule
+  //  @Rule
     public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
@@ -944,5 +951,42 @@ public class ControllerImplTest {
         createCount.acquire();
         executorService.shutdownNow();
         assertTrue(success.get());
+    }
+    
+    @Test
+    public void testRemainingBytes() throws Exception {
+        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
+        String scope = "scope1";
+        String stream = "stream1";
+        Stream s = new StreamImpl(scope, stream);
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(new Segment(scope, stream, 0), 4l);
+        segments.put(new Segment(scope, stream, 1), 6l);
+        Checkpoint cp = new CheckpointImpl(s.getScopedName(), segments);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                val reply = new StreamSegmentInfo(1, Segment.getScopedName(scope, stream, 0), true, false, false, 0,
+                        100);
+                connectionFactory.getProcessor(pravegaNodeUri).streamSegmentInfo(reply);
+                return null;
+            }
+        }).when(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(1,
+                Segment.getScopedName(scope, stream, 0))));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                val reply = new StreamSegmentInfo(1, Segment.getScopedName(scope, stream, 1), true, false, false, 0,
+                        150);
+                connectionFactory.getProcessor(pravegaNodeUri).streamSegmentInfo(reply);
+                return null;
+            }
+        }).when(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(1,
+                Segment.getScopedName(scope, stream, 1))));
+        connectionFactory.provideConnection(pravegaNodeUri, connection);
+
+        long remainingBytes = controllerClient.getRemainingBytes(s, cp);
+        assertEquals(240, remainingBytes);
     }
 }
