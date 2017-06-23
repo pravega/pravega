@@ -374,11 +374,6 @@ public class MultiReaderWriterWithFailOverTest {
         Thread.sleep(60000);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
-        //scale after some random time
-        sleepTime = new Random().nextInt(50000) + 3000;
-        log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
-
         currentWriteCount1 = eventData.get();
         currentReadCount1 = eventReadCount.get();
 
@@ -397,13 +392,13 @@ public class MultiReaderWriterWithFailOverTest {
                 try {
                     long value = data.incrementAndGet();
                     Thread.sleep(100);
-                    log.info("Event write count before write call {}", value);
+                    log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
-                    log.info("Event write count before flush {}", value);
+                    log.debug("Event write count before flush {}", value);
                     writer.flush();
                     log.debug("Writing event {}", value);
                 } catch (Throwable e) {
-                    log.error("Test exception writing events: {}", e);
+                    log.error("Test exception writing events: ", e);
                 }
             }
         }, executorService);
@@ -424,12 +419,12 @@ public class MultiReaderWriterWithFailOverTest {
                         //update if event read is not null.
                         readResult.add(longEvent);
                         readCount.incrementAndGet();
-                        log.info("Event read count {}", readCount);
+                        log.debug("Event read count {}", readCount);
                     } else {
-                        log.info("Read timeout");
+                        log.debug("Read timeout");
                     }
                 } catch (Throwable e) {
-                    log.error("Test Exception while reading from the stream: {}", e);
+                    log.error("Test Exception while reading from the stream: ", e);
                 }
             }
         }, executorService);
