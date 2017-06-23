@@ -42,13 +42,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import lombok.Cleanup;
-import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -152,8 +148,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             checkReads(segmentContents, segmentStore);
 
             // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage());
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkStorage(segmentContents, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage());
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them..
@@ -164,7 +160,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             sealSegments(segmentNames, segmentStore).join();
             checkSegmentStatus(lengths, true, false, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
