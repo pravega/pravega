@@ -316,13 +316,13 @@ paths:
         - application/json
       responses:
         200:
-          description: List of scaling events
+          description: Successfully fetched list of scaling events.
           schema:
             $ref: "#/definitions/ScalingEventList"
         404:
-          description: Scope/Stream not found
+          description: Scope/Stream not found.
         500:
-          description: Server error
+          description: Internal Server error while fetching scaling events.
 definitions:
   ScalingEventList:
     type: object
