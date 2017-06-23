@@ -44,9 +44,9 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
     }
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
+    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig)
-                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory, storage::set))
+                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory))
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
     }
 

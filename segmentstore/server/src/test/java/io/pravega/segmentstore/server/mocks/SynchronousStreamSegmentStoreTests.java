@@ -30,8 +30,8 @@ public class SynchronousStreamSegmentStoreTests extends StreamSegmentServiceTest
     }
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
-        return super.createBuilder(builderConfig, storage)
+    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
+        return super.createBuilder(builderConfig)
                     .withStreamSegmentStore(setup -> {
                         StreamSegmentStore base = new StreamSegmentService(setup.getContainerRegistry(), setup.getSegmentToContainerMapper());
                         return new SynchronousStreamSegmentStore(base);

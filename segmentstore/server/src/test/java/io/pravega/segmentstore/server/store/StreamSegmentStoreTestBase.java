@@ -45,7 +45,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Cleanup;
+import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
@@ -111,14 +114,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      */
     @Test(timeout = 300000)
     public void testEndToEnd() throws Exception {
-        AtomicReference<Storage> storage = new AtomicReference<>();
 
         // Phase 1: Create segments and add some appends.
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-        try (val builder = createBuilder(storage)) {
+        try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             // Create the StreamSegments.
@@ -133,7 +135,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
 
         // Phase 2: Force a recovery and merge all transactions.
-        try (val builder = createBuilder(storage)) {
+        try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
@@ -144,25 +146,25 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         }
 
         // Phase 3: Force a recovery and check final reads.
-        try (val builder = createBuilder(storage)) {
+        try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
 
             // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, segmentStore, storage.get());
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkStorage(segmentContents, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage());
         }
 
         // Phase 4: Force a recovery, seal segments and then delete them..
-        try (val builder = createBuilder(storage)) {
+        try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             // Seals.
             sealSegments(segmentNames, segmentStore).join();
             checkSegmentStatus(lengths, true, false, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, storage.get()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory)builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
@@ -172,9 +174,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private ServiceBuilder createBuilder(AtomicReference<Storage> storage) throws Exception {
+    private ServiceBuilder createBuilder() throws Exception {
         val builderConfig = this.configBuilder.build();
-        val builder = createBuilder(builderConfig, storage);
+        val builder = createBuilder(builderConfig);
         builder.initialize();
         return builder;
     }
@@ -183,11 +185,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
      * When overridden in a derived class, creates a ServiceBuilder using the given configuration.
      *
      * @param builderConfig The configuration to use.
-     * @param storage       After the completion of this method, this will contain a reference to the Storage used by
-     *                      this builder.
      * @return The ServiceBuilder.
      */
-    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage);
+    protected abstract ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig);
 
     private CompletableFuture<Void> appendData(Collection<String> segmentNames, HashMap<String, ByteArrayOutputStream> segmentContents,
                                                HashMap<String, Long> lengths, StreamSegmentStore store) {
@@ -441,19 +441,15 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     @RequiredArgsConstructor
     protected static class ListenableStorageFactory implements StorageFactory {
         private final StorageFactory wrappedFactory;
-        private final Consumer<Storage> storageCreated;
+        @Getter
+        private Storage storage;
 
         @Override
         public Storage createStorageAdapter() {
             Storage storage = this.wrappedFactory.createStorageAdapter();
-            val callback = this.storageCreated;
-            if (callback != null) {
-                callback.accept(storage);
-            }
-
+            this.storage = storage;
             return storage;
         }
     }
-
     //endregion
 }

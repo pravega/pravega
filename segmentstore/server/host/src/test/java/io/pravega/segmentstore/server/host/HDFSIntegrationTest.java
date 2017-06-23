@@ -79,13 +79,13 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
+    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
-                    return new ListenableStorageFactory(f, storage::set);
+                    return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
     }
