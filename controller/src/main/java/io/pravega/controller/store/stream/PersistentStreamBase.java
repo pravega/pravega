@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -323,16 +324,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     final int nextSegmentNumber;
                     if (TableHelper.isScaleOngoing(historyTable.getData(), segmentTable.getData())) {
-                        if (TableHelper.isRerunOf(sealedSegments, newRanges, historyTable.getData(), segmentTable.getData())) {
-                            // rerun means segment table is already updated. No need to do anything
-                            nextSegmentNumber = TableHelper.getSegmentCount(segmentTable.getData()) - newRanges.size();
-                            return CompletableFuture.completedFuture(
-                                    new ImmutablePair<>(activeEpoch, nextSegmentNumber));
-                        } else {
-                            throw new ScaleOperationExceptions.ScaleStartException();
-                        }
+                        return isScaleRerun(sealedSegments, newRanges, segmentTable, historyTable, activeEpoch);
                     } else {
-                        // check input is valid
+                        // check input is valid and satisfies preconditions
                         if (!TableHelper.canScaleFor(sealedSegments, historyTable.getData())) {
                             // invalid input, log and ignore
                             log.warn("scale precondition failed {}", sealedSegments);
@@ -344,18 +338,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         }
 
                         // fresh run
-                        nextSegmentNumber = TableHelper.getSegmentCount(segmentTable.getData());
-                        final byte[] updated = TableHelper.updateSegmentTable(nextSegmentNumber,
-                                segmentTable.getData(),
-                                newRanges,
-                                scaleTimestamp
-                        );
-
-                        final Data<T> updatedData = new Data<>(updated, segmentTable.getVersion());
-
-                        return setSegmentTable(updatedData)
-                                .thenApply(z -> new ImmutablePair<>(activeEpoch, nextSegmentNumber))
-                                .thenCompose(response -> updateState(State.SCALING).thenApply(x -> response));
+                        return scaleCreateNewSegments(newRanges, scaleTimestamp, segmentTable, activeEpoch);
                     }
                 })
                 .thenCompose(epochStartSegmentpair -> getSegments(IntStream.range(epochStartSegmentpair.getRight(),
@@ -365,6 +348,35 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments))),
                 Lists.newArrayList(State.ACTIVE, State.SCALING)
         );
+    }
+
+    private CompletableFuture<ImmutablePair<Integer, Integer>> scaleCreateNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
+                                                                                    final long scaleTimestamp, Data<T> segmentTable,
+                                                                                    final int activeEpoch) {
+        final int nextSegmentNumber = TableHelper.getSegmentCount(segmentTable.getData());
+        final byte[] updated = TableHelper.updateSegmentTable(nextSegmentNumber, segmentTable.getData(),
+                newRanges, scaleTimestamp);
+
+        final Data<T> updatedData = new Data<>(updated, segmentTable.getVersion());
+
+        return setSegmentTable(updatedData)
+                .thenApply(z -> new ImmutablePair<>(activeEpoch, nextSegmentNumber))
+                .thenCompose(response -> updateState(State.SCALING).thenApply(x -> response));
+    }
+
+    private CompletableFuture<ImmutablePair<Integer, Integer>> isScaleRerun(final List<Integer> sealedSegments,
+                                                                          final List<SimpleEntry<Double, Double>> newRanges,
+                                                                          final Data<T> segmentTable, final Data<T> historyTable,
+                                                                          final int activeEpoch) {
+        int nextSegmentNumber;
+        if (TableHelper.isRerunOf(sealedSegments, newRanges, historyTable.getData(), segmentTable.getData())) {
+            // rerun means segment table is already updated. No need to do anything
+            nextSegmentNumber = TableHelper.getSegmentCount(segmentTable.getData()) - newRanges.size();
+            return CompletableFuture.completedFuture(
+                    new ImmutablePair<>(activeEpoch, nextSegmentNumber));
+        } else {
+            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleStartException());
+        }
     }
 
     /**

@@ -18,6 +18,8 @@ import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.jboss.netty.util.internal.ConcurrentHashMap;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -78,7 +80,7 @@ public class ConcurrentEventProcessorTest {
                         switch (testEvent.getNumber()) {
                             case 3:
                                 FutureHelpers.getAndHandleExceptions(latch, RuntimeException::new);
-                                if (checkpoint > 2) {
+                                if (checkpoint.get() > 2) {
                                     result.completeExceptionally(new RuntimeException("3 still running yet checkpoint moved ahead"));
                                 }
                                 break;
@@ -92,31 +94,40 @@ public class ConcurrentEventProcessorTest {
         }
     }
 
-    private int checkpoint = -1;
-    private Map<Integer, Boolean> map = new HashMap<>();
-    private CompletableFuture<Void> latch = new CompletableFuture<>();
-    private CompletableFuture<Void> result = new CompletableFuture<>();
+    private AtomicInteger checkpoint;
+    private ConcurrentHashMap<Integer, Boolean> map;
+    private CompletableFuture<Void> latch;
+    private CompletableFuture<Void> result;
 
-    private AtomicInteger runningcount = new AtomicInteger(0);
+    private AtomicInteger runningcount;
+
+    @Before
+    public void setup() {
+        checkpoint = new AtomicInteger(-1);
+        map = new ConcurrentHashMap<>();
+        latch = new CompletableFuture<>();
+        result = new CompletableFuture<>();
+        runningcount = new AtomicInteger(0);
+    }
 
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
         EventProcessor.Writer<TestEvent> writer = event -> new AckFutureMock(CompletableFuture.completedFuture(true));
 
         EventProcessor.Checkpointer checkpointer = pos -> {
-            checkpoint = ((TestPosition) pos).getNumber();
+            checkpoint.set(((TestPosition) pos).getNumber());
 
-            if (!latch.isDone() && checkpoint > 2) {
+            if (!latch.isDone() && checkpoint.get() > 2) {
                 result.completeExceptionally(new IllegalStateException("checkpoint greater than 2"));
             }
 
-            if (checkpoint == 2) {
+            if (checkpoint.get() == 2) {
                 if (map.get(0) && map.get(1) && map.get(2) && map.get(4)) {
                     latch.complete(null);
                 }
             }
 
-            if (checkpoint == 4) {
+            if (checkpoint.get() == 4) {
                 if (map.get(0) && map.get(1) && map.get(2) && map.get(3) && map.get(4)) {
                     result.complete(null);
                 } else {
@@ -144,8 +155,8 @@ public class ConcurrentEventProcessorTest {
         CompletableFuture<Void> checkpointTest = new CompletableFuture<>();
         TestEvent request = new TestEvent(0);
         EventProcessor.Checkpointer checkpointer = pos -> {
-            checkpoint = ((TestPosition) pos).getNumber();
-            if (checkpoint == 0) {
+            checkpoint.set(((TestPosition) pos).getNumber());
+            if (checkpoint.get() == 0) {
                 checkpointTest.complete(null);
             } else {
                 checkpointTest.completeExceptionally(new RuntimeException());
@@ -179,8 +190,8 @@ public class ConcurrentEventProcessorTest {
         CompletableFuture<Void> checkpointTest = new CompletableFuture<>();
         TestEvent request = new TestEvent(0);
         EventProcessor.Checkpointer checkpointer = pos -> {
-            checkpoint = ((TestPosition) pos).getNumber();
-            if (checkpoint == 0) {
+            checkpoint.set(((TestPosition) pos).getNumber());
+            if (checkpoint.get() == 0) {
                 checkpointTest.complete(null);
             } else {
                 checkpointTest.completeExceptionally(new RuntimeException());

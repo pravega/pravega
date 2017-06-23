@@ -111,6 +111,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(create);
         Preconditions.checkNotNull(create.getCreationTime());
         creationTime.compareAndSet(Long.MIN_VALUE, create.getCreationTime());
+        if (creationTime.get() != create.getCreationTime()) {
+            return FutureHelpers.failedFuture(new DataExistsException("createTime"));
+        }
         return CompletableFuture.completedFuture(null);
     }
 

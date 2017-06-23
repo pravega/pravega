@@ -188,14 +188,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
         return postScale(event).thenCompose(x ->
-                streamMetadataStore.startScale(scope,
-                        stream,
-                        segmentsToSeal,
-                        newRanges,
-                        scaleTimestamp,
-                        false,
-                        context,
-                        executor)
+                streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
+                        context, executor)
                         .thenComposeAsync(startScaleResponse -> {
                             AtomicBoolean scaling = new AtomicBoolean(true);
                             return FutureHelpers.loop(scaling::get, () ->
