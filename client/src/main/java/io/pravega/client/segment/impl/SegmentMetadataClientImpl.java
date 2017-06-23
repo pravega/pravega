@@ -241,7 +241,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getAndHandleExceptions(getSegmentInfo(), RuntimeException::new)
+                                 return FutureHelpers.getThrowingException(getSegmentInfo())
                                                      .getSegmentLength();
                              });
     }
@@ -252,8 +252,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getAndHandleExceptions(getPropertyAsync(attribute.getValue()),
-                                                                             RuntimeException::new)
+                                 return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue()))
                                                      .getValue();
                              });
     }
@@ -264,10 +263,9 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getAndHandleExceptions(updatePropertyAsync(attribute.getValue(),
+                                 return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(),
                                                                                                  expectedValue,
-                                                                                                 newValue),
-                                                                             RuntimeException::new)
+                                                                                                 newValue))
                                                      .isSuccess();
                              });
     }
