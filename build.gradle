@@ -204,9 +204,6 @@ project('segmentstore:server:host') {
     mainClassName = "io.pravega.segmentstore.server.host.ServiceStarter"
 
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
-                                 "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
-                                 "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=segmentstore",
                                  "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
@@ -229,6 +226,25 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
+    }
+
+    task createAppWithGCLogs(type: CreateStartScripts) {
+        applicationName = "pravega-segmentstoreWithGCLog"
+        mainClassName = "io.pravega.controller.server.Main"
+        defaultJvmOpts = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                          "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                          "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                          "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
+                          "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                          "-Dlog.name=segmentstore",
+                          "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
+                          "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml"]
+        classpath = startScripts.classpath
+        outputDir = startScripts.outputDir
+    }
+
+    applicationDistribution.into("bin") {
+        from(createAppWithGCLogs)
     }
 }
 
@@ -340,9 +356,6 @@ project('controller') {
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
-                                 "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
-                                 "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
                                  "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
@@ -374,6 +387,25 @@ project('controller') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+    }
+
+    task createAppWithGCLogs(type: CreateStartScripts) {
+        applicationName = "pravega-controllerWithGCLog"
+        mainClassName = "io.pravega.controller.server.Main"
+        defaultJvmOpts = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
+                          "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                          "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                          "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
+                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                          "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                          "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                          "-Dlog.name=controller"]
+        classpath = startScripts.classpath
+        outputDir = startScripts.outputDir
+    }
+
+    applicationDistribution.into("bin") {
+        from(createAppWithGCLogs)
     }
 }
 
