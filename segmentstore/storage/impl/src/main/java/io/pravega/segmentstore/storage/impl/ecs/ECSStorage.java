@@ -348,14 +348,17 @@ public class ECSStorage implements Storage {
         return null;
     }
 
-
-
+    @SneakyThrows
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
 
             SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
             String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
             String uploadId = client.initiateMultipartUpload(config.getEcsBucket(), targetPath);
 
+            // check whether the target exists
+            if (!syncExists(targetHandle.getSegmentName())) {
+                throw new StreamSegmentNotExistsException(targetHandle.getSegmentName());
+            }
             // check whether the source is sealed
             SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
             if ( !si.isSealed()) {
