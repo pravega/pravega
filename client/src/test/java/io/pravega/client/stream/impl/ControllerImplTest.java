@@ -68,6 +68,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.mockito.Mockito;
@@ -86,7 +87,7 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
 
-  //  @Rule
+    @Rule
     public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
@@ -960,8 +961,8 @@ public class ControllerImplTest {
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
         Map<Segment, Long> segments = new HashMap<>();
-        segments.put(new Segment(scope, stream, 0), 4l);
-        segments.put(new Segment(scope, stream, 1), 6l);
+        segments.put(new Segment(scope, stream, 0), 4L);
+        segments.put(new Segment(scope, stream, 1), 6L);
         Checkpoint cp = new CheckpointImpl(s.getScopedName(), segments);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         Mockito.doAnswer(new Answer<Void>() {
