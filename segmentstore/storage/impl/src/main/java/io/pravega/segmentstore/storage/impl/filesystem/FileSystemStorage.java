@@ -43,11 +43,10 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -186,8 +185,7 @@ public class FileSystemStorage implements Storage {
 
     //region private sync implementation
 
-    @SneakyThrows(StreamSegmentNotExistsException.class)
-    private SegmentHandle syncOpenRead(String streamSegmentName) {
+    private SegmentHandle syncOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         Path path = Paths.get(config.getRoot(), streamSegmentName);
 
@@ -199,8 +197,7 @@ public class FileSystemStorage implements Storage {
         return FileSystemSegmentHandle.readHandle(streamSegmentName);
     }
 
-    @SneakyThrows
-    private SegmentHandle syncOpenWrite(String streamSegmentName) {
+    private SegmentHandle syncOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         if (!Files.exists(path)) {
@@ -214,8 +211,7 @@ public class FileSystemStorage implements Storage {
         }
     }
 
-    @SneakyThrows(IOException.class)
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
+    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
@@ -245,8 +241,7 @@ public class FileSystemStorage implements Storage {
         }
     }
 
-    @SneakyThrows(IOException.class)
-    private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) {
+    private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
                 PosixFileAttributes.class);
@@ -262,8 +257,7 @@ public class FileSystemStorage implements Storage {
         return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
-    @SneakyThrows
-    private SegmentProperties syncCreate(String streamSegmentName) {
+    private SegmentProperties syncCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         Set<PosixFilePermission> perms = new HashSet<>();
         // add permission as rw-r--r-- 644
@@ -280,8 +274,8 @@ public class FileSystemStorage implements Storage {
         return this.syncGetStreamSegmentInfo(streamSegmentName);
     }
 
-    @SneakyThrows
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
+    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length)
+            throws IOException, StreamSegmentSealedException, BadOffsetException {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         if (handle.isReadOnly()) {
@@ -325,8 +319,7 @@ public class FileSystemStorage implements Storage {
         return attrs.permissions().contains(OWNER_WRITE);
     }
 
-    @SneakyThrows
-    private Void syncSeal(SegmentHandle handle) {
+    private Void syncSeal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
@@ -351,8 +344,7 @@ public class FileSystemStorage implements Storage {
      * This option was preferred as other option (of having one file per transaction) will result in server side
      * fragmentation and corresponding slowdown in cluster performance.
      */
-    @SneakyThrows
-    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
+    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
 
@@ -383,8 +375,7 @@ public class FileSystemStorage implements Storage {
         }
     }
 
-    @SneakyThrows(IOException.class)
-    private Void syncDelete(SegmentHandle handle) {
+    private Void syncDelete(SegmentHandle handle) throws IOException {
         Files.delete(Paths.get(config.getRoot(), handle.getSegmentName()));
         return null;
     }
@@ -392,13 +383,13 @@ public class FileSystemStorage implements Storage {
     /**
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
      */
-    private <R> CompletableFuture<R> supplyAsync(String segmentName, Supplier<R> operation) {
+    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         CompletableFuture<R> result = new CompletableFuture<>();
         this.executor.execute(() -> {
             try {
-                result.complete(operation.get());
+                result.complete(operation.call());
             } catch (Throwable e) {
                 handleException(e, segmentName, result);
             }
