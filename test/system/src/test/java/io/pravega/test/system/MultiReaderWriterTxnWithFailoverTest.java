@@ -427,12 +427,11 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
-            log.info("Transaction with id {} failed", txn.getTxnId());
             final Class<? extends Throwable> exceptionClass = ex.getCause().getClass();
             if (exceptionClass.equals(io.grpc.StatusRuntimeException.class) && !exitFlag.get())  {
                 //Exit flag is true no need to retry.
                 log.warn("Cause for failure is {} and we need to retry", exceptionClass.getName());
-                throw new TxnCreationFailedException(); // we can retry on this exception.
+                throw new MultiReaderWriterTxnWithFailoverTest.TxnCreationFailedException(); // we can retry on this exception.
             } else {
                 throw ex;
             }
