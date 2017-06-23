@@ -263,20 +263,6 @@ public class FileSystemStorageTest extends StorageTestBase {
 
     //endregion
 
-    //Region RetryHelper tests
-    @Test
-    public void retry() throws Exception {
-        // Retry fails if the condition is always met
-        final boolean testValue = false;
-        assertThrows( "Retry should throw when the condition does not change",
-                () -> FileSystemRetryHelper.retry(() -> testValue,
-                (bool) -> !bool,
-                () -> new Exception("Still false"),
-                3),
-                (ex) -> ex instanceof Exception);
-    }
-    //endregion
-
     @Override
     protected Storage createStorage() {
         return this.storageFactory.createStorageAdapter();
