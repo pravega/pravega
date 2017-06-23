@@ -167,7 +167,7 @@ public class FileSystemStorageTest extends StorageTestBase {
             s1.initialize(DEFAULT_EPOCH);
             s1.create(segmentName, TIMEOUT).join();
             SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
-            SegmentHandle writeHandle2 = s1.openWrite(segmentName).join();
+            SegmentHandle writeHandle2 = s2.openWrite(segmentName).join();
             long offset = 0;
             byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             for (int j = 0; j < appendCount; j++) {
@@ -275,7 +275,7 @@ public class FileSystemStorageTest extends StorageTestBase {
                 3),
                 (ex) -> ex instanceof Exception);
     }
-    //ednregion
+    //endregion
 
     @Override
     protected Storage createStorage() {

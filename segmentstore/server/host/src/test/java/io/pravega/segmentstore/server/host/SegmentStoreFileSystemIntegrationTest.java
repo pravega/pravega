@@ -35,14 +35,14 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
 
     private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
-    private BookKeeperRunner helper = null;
+    private BookKeeperRunner bookkeeper = null;
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        helper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
-        helper.initialize();
+        bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
+        bookkeeper.initialize();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();
 
@@ -56,7 +56,7 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
      */
     @After
     public void tearDown() throws Exception {
-        helper.close();
+        bookkeeper.close();
         FileHelpers.deleteFileOrDirectory(this.baseDir);
         this.baseDir = null;
     }
@@ -77,7 +77,7 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
                     return new ListenableStorageFactory(f, storage::set);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                                                            helper.getZkClient(), setup.getExecutor()));
+                                                            bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
     //endregion
