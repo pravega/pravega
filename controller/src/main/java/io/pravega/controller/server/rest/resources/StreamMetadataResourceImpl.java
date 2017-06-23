@@ -440,6 +440,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
             // referenceEvent is the Event used as reference for the events between 'from' and 'to'.
             ScaleMetadata referenceEvent = null;
+
             while (metadataIterator.hasNext()) {
                 ScaleMetadata scaleMetadata = metadataIterator.next();
                 if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
@@ -451,7 +452,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     break;
                 }
             }
-            finalScaleMetadataList.add(0, referenceEvent);
+
+            if (referenceEvent != null) {
+                finalScaleMetadataList.add(0, referenceEvent);
+            }
             log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
             return Response.status(Status.OK).entity(finalScaleMetadataList).build();
         }).exceptionally(exception -> {

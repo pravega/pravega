@@ -672,7 +672,7 @@ public class StreamMetaDataTests {
                 queryParam("to", toDateTime).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
         final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(List.class);
-        assertEquals("List Size", 3, scaleMetadataListResponse.size());
+        assertEquals("List Size", 2, scaleMetadataListResponse.size());
 
         // Test for getScalingEvents for invalid scope.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
