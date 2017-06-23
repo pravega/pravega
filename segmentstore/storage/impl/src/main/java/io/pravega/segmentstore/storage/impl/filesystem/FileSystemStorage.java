@@ -227,12 +227,10 @@ public class FileSystemStorage implements Storage {
 
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
-                bytesRead = FileSystemRetryHelper.retry(
-                        () -> channel.read(readBuffer, offset),
-                        (read) -> read <= 0,
-                        () -> new IllegalStateException("Retries exceeded while Reading"),
-                        NUM_RETRIES);
-
+                bytesRead = channel.read(readBuffer, offset);
+                if( bytesRead <= 0 ) {
+                    throw new IllegalStateException("Read returned " + bytesRead);
+                }
                 bufferOffset += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
@@ -298,13 +296,7 @@ public class FileSystemStorage implements Storage {
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
                  ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
                 while (length != 0) {
-                    long retryOffset = offset;
-                    long retryLength = length;
-                    long bytesWritten = FileSystemRetryHelper.retry(
-                            () -> channel.transferFrom(sourceChannel, retryOffset, retryLength),
-                            (written) -> written == 0,
-                            () -> new IllegalStateException("Retries exhausted while writing"),
-                            NUM_RETRIES);
+                    long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
                     offset += bytesWritten;
                     length -= bytesWritten;
                 }
@@ -358,14 +350,7 @@ public class FileSystemStorage implements Storage {
                 throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
             }
             while (length > 0) {
-                final long retryOffset = offset;
-                final long retryLength = length;
-                long bytesTransferred = FileSystemRetryHelper.retry(
-                        () -> targetChannel.transferFrom(sourceFile.getChannel(), retryOffset, retryLength),
-                        (read) -> read == 0,
-                        () -> new IllegalStateException("Retries exceeded"),
-                        NUM_RETRIES);
-
+                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }

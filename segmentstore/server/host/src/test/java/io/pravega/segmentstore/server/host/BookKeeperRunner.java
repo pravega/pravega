@@ -14,6 +14,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -25,6 +26,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Helper class for Segment store integration tests.
  * This class sets up the bookkeeper and zookeeper and sets up the correct values in config.
  */
+@NotThreadSafe
 public class BookKeeperRunner implements AutoCloseable {
 
     private final ServiceBuilderConfig.Builder configBuilder;
