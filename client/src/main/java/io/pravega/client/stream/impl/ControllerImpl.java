@@ -660,6 +660,9 @@ public class ControllerImpl implements Controller {
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
             totalLength += metadataClient.fetchCurrentStreamLength();
         }
+        for (long bytesRead : checkpoint.asImpl().getPositions().values()) {
+            totalLength -= bytesRead;
+        }
         return totalLength;
     }
 }
