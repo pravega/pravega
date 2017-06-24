@@ -7,6 +7,7 @@ import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
@@ -41,6 +42,11 @@ public class ScopesApiServiceImpl extends ScopesApiService {
     }
     @Override
     public Response deleteStream(String scopeName, String streamName, SecurityContext securityContext) throws NotFoundException {
+        // do some magic!
+        return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
+    }
+    @Override
+    public Response getScalingEvents(String scopeName, String streamName, Long from, Long to, SecurityContext securityContext) throws NotFoundException {
         // do some magic!
         return Response.ok().entity(new ApiResponseMessage(ApiResponseMessage.OK, "magic!")).build();
     }

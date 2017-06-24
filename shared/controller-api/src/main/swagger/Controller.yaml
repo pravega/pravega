@@ -284,8 +284,53 @@ paths:
           description: Scope or stream with given name not found
         500:
           description: Internal server error while updating the stream state
-
+  /scopes/{scopeName}/streams/{streamName}/scaling-events:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: streamName
+        description: Stream name
+        required: true
+        type: string
+    get:
+      parameters:
+        - in: query
+          name: from
+          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.
+          required: true
+          type: integer
+          format: int64
+        - in: query
+          name: to
+          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.
+          required: true
+          type: integer
+          format: int64
+      operationId: getScalingEvents
+      description: Get scaling events for a given datetime period.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Successfully fetched list of scaling events.
+          schema:
+            $ref: "#/definitions/ScalingEventList"
+        404:
+          description: Scope/Stream not found.
+        500:
+          description: Internal Server error while fetching scaling events.
 definitions:
+  ScalingEventList:
+    type: object
+    properties:
+      scalingEvents:
+        type: array
+        items:
+          $ref: "#/definitions/ScaleMetadata"
   StreamsList:
     type: object
     properties:
@@ -352,3 +397,29 @@ definitions:
         type: string
         enum:
         - SEALED
+  ScaleMetadata:
+    type: object
+    properties:
+      timestamp:
+        type: integer
+        format: int64
+      segmentList:
+        type: array
+        items:
+          $ref: "#/definitions/Segment"
+  Segment:
+    type: object
+    properties:
+      number:
+        type: integer
+        format: int32
+      startTime:
+        type: integer
+        format: int64
+      keyStart:
+        type: integer
+        format: double
+      keyEnd:
+        type: integer
+        format: double
+
