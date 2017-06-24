@@ -100,14 +100,6 @@ public class ECSStorage implements Storage {
 
     //endregion
 
-    //region testing entry
-    @VisibleForTesting
-    public ECSStorage(S3Client client, ECSStorageConfig config, ExecutorService executor) {
-        this.client = client;
-        this.config = config;
-        this.executor = executor;
-    }
-    //endregion
 
     //region Storage implementation
 
@@ -439,5 +431,15 @@ public class ECSStorage implements Storage {
 
         return retVal;
     }
+
+    //endregion
+
+    //region testing entry
+
+    @VisibleForTesting
+    public void setClient(S3JerseyClient client) {
+        this.client = client;
+    }
+
     //endregion
 }

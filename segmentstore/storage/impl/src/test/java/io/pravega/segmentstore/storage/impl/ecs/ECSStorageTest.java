@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class ECSStorageTest extends IdempotentStorageTest {
+    private ECSStorageFactory storageFactory;
     private ECSStorageConfig adapterConfig;
     private S3JerseyClient client = null;
     private S3Proxy s3Proxy;
@@ -142,7 +143,11 @@ public class ECSStorageTest extends IdempotentStorageTest {
             ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
 
             client = new S3JerseyClientWrapper(ecsConfig);
-            return new ECSStorage(client, this.adapterConfig, executorService());
+
+            storageFactory = new ECSStorageFactory(adapterConfig, this.executorService());
+            ECSStorage storage = (ECSStorage) storageFactory.createStorageAdapter();
+            storage.setClient(client);
+            return storage;
         } catch (Exception e) {
             e.printStackTrace();
             return null;
