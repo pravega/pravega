@@ -13,7 +13,6 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -23,25 +22,25 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTestBase {
+public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
+    private static final int BOOKIE_COUNT = 3;
     private File baseDir = null;
-    private SegmentStoreIntegrationTestBKZKHelper helper = null;
+    private BookKeeperRunner bookkeeper = null;
     /**
      * Starts BookKeeper.
      */
     @Before
     public void setUp() throws Exception {
-        helper = new SegmentStoreIntegrationTestBKZKHelper(this.configBuilder);
-        helper.setUp();
+        bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
+        bookkeeper.initialize();
 
         this.baseDir = Files.createTempDirectory("test_fs").toFile().getAbsoluteFile();
 
@@ -55,7 +54,7 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
      */
     @After
     public void tearDown() throws Exception {
-        helper.tearDown();
+        bookkeeper.close();
         FileHelpers.deleteFileOrDirectory(this.baseDir);
         this.baseDir = null;
     }
@@ -65,18 +64,17 @@ public class SegmentStoreFileSystemIntegrationTest extends StreamSegmentStoreTes
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig,
-                                                        AtomicReference<Storage> storage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     StorageFactory f = new FileSystemStorageFactory(
                             setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor());
-                    return new ListenableStorageFactory(f, storage::set);
+                    return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                                                            helper.getZkClient(), setup.getExecutor()));
+                                                            bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
     //endregion

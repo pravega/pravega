@@ -14,8 +14,8 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -25,25 +25,26 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Helper class for Segment store integration tests.
  * This class sets up the bookkeeper and zookeeper and sets up the correct values in config.
  */
-public class SegmentStoreIntegrationTestBKZKHelper {
+@NotThreadSafe
+public class BookKeeperRunner implements AutoCloseable {
 
-    private static final int BOOKIE_COUNT = 3;
     private final ServiceBuilderConfig.Builder configBuilder;
+    private final int bookieCount;
     private BookKeeperServiceRunner bkRunner;
     @Getter
     private CuratorFramework zkClient;
 
-    public SegmentStoreIntegrationTestBKZKHelper(ServiceBuilderConfig.Builder configBuilder) {
+    public BookKeeperRunner(ServiceBuilderConfig.Builder configBuilder, int bookieCount) {
         this.configBuilder = configBuilder;
+        this.bookieCount = bookieCount;
     }
 
-    @SneakyThrows
-    public void setUp() {
+    public void initialize() throws Exception {
         // BookKeeper
         // Pick random ports to reduce chances of collisions during concurrent test executions.
         int zkPort = TestUtils.getAvailableListenPort();
         val bookiePorts = new ArrayList<Integer>();
-        for (int i = 0; i < BOOKIE_COUNT; i++) {
+        for (int i = 0; i < this.bookieCount; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
         }
 
@@ -76,8 +77,8 @@ public class SegmentStoreIntegrationTestBKZKHelper {
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers"));
     }
 
-    @SneakyThrows
-    public void tearDown() {
+    @Override
+    public void close() throws Exception {
         // BookKeeper
         val bk = this.bkRunner;
         if (bk != null) {
