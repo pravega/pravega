@@ -431,6 +431,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         if (from < 0 || to < 0 || from > to) {
             log.warn("Received invalid request from client for scopeName/streamName: {}/{} ", scopeName, streamName);
             asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "getScalingEvents", traceId);
             return;
         }
 
