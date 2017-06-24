@@ -14,6 +14,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -42,7 +43,7 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
      * ** We verify that Storage2 can execute all operations.
      */
     @Override
-    @Test
+    @Test(timeout = 30000)
     public void testFencing() throws Exception {
         final long epoch1 = 1;
         final long epoch2 = 2;
@@ -64,7 +65,6 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             SegmentHandle handle2 = storage2.openWrite(segmentName).join();
 
             // Storage1 should be able to execute read-only operations.
-            //verifyWriteOperationsFail(handle1, storage1);
             verifyReadOnlyOperationsSucceed(handle1, storage1);
 
             // Storage2 should be able to execute all operations.
@@ -82,7 +82,7 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
      * @throws Exception if an unexpected error occurred.
      */
     @Override
-    @Test
+    @Test(timeout = 30000)
     public void testWrite() throws Exception {
         String segmentName = "foo_write";
         int appendCount = 100;
@@ -126,9 +126,15 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
         }
     }
 
+    //endregion
+
     //region synchronization unit tests
-    @Test
-    public void testWriteTwoHosts() {
+
+    /**
+     * This test case simulates two hosts writing at the same offset at the same time.
+     */
+    @Test(timeout = 30000)
+    public void testParallelWriteTwoHosts() {
         String segmentName = "foo_write";
         int appendCount = 5;
 
@@ -137,10 +143,10 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             s1.initialize(DEFAULT_EPOCH);
             s1.create(segmentName, TIMEOUT).join();
             SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
-            SegmentHandle writeHandle2 = s1.openWrite(segmentName).join();
+            SegmentHandle writeHandle2 = s2.openWrite(segmentName).join();
             long offset = 0;
+            byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             for (int j = 0; j < appendCount; j++) {
-                byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
                 ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
                 ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
                 CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
@@ -149,28 +155,54 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
                                 "threw an unexpected exception.",
                         () -> CompletableFuture.allOf(f1, f2),
                         ex -> ex instanceof BadOffsetException);
+
+                // Make sure at least one operation is success.
+                Assert.assertTrue("At least one of the two parallel writes should succeed.",
+                        !f1.isCompletedExceptionally() || !f2.isCompletedExceptionally());
                 offset += writeData.length;
             }
-            Assert.assertTrue(s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
-            s1.delete(writeHandle1, TIMEOUT);
+            Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
+                    s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
+
+            offset = 0;
+            byte[] readBuffer = new byte[writeData.length];
+            for (int j = 0; j < appendCount; j++) {
+                int bytesRead = s1.read(writeHandle1, j * readBuffer.length, readBuffer,
+                        0, readBuffer.length, TIMEOUT) .join();
+                Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                        readBuffer.length, bytesRead);
+                AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                        readBuffer, 0, readBuffer, 0, bytesRead);
+            }
+
+            s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
 
-    @Test
+    /**
+     * This test case simulates host crashing during concat and retrying the operation.
+     */
+    @Test(timeout = 30000)
     public void testPartialConcat() {
         String segmentName = "foo_write";
         String concatSegmentName = "foo_concat";
+        String newConcatSegmentName = "foo_concat0";
+
         int offset = 0;
 
         try ( Storage s1 = createStorage()) {
             s1.initialize(DEFAULT_EPOCH);
+
             s1.create(segmentName, TIMEOUT).join();
             s1.create(concatSegmentName, TIMEOUT).join();
+
             SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
             SegmentHandle writeHandle2 = s1.openWrite(concatSegmentName).join();
+
             byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
             ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
             ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
+
             s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT).join();
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
 
@@ -181,17 +213,33 @@ public abstract class IdempotentStorageTest extends StorageTestBase {
             long lengthBeforeRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
 
             // Create the segment again.
-            s1.create(concatSegmentName, TIMEOUT).join();
-            writeHandle2 = s1.openWrite(concatSegmentName).join();
+            s1.create(newConcatSegmentName, TIMEOUT).join();
+            writeHandle2 = s1.openWrite(newConcatSegmentName).join();
             dataStream2 = new ByteArrayInputStream(writeData);
             s1.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT).join();
             s1.seal(writeHandle2, TIMEOUT).join();
 
             //Concat at the same offset again
-            s1.concat(writeHandle1, writeData.length, concatSegmentName, TIMEOUT).join();
-            Assert.assertTrue( lengthBeforeRetry == s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength());
+            s1.concat(writeHandle1, writeData.length, newConcatSegmentName, TIMEOUT).join();
+            long lengthAfterRetry = s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
+            Assert.assertTrue( String.format("Concatenation of same segment at the same offset(%d) should result in " +
+                            "same segment size(%d), but is (%d)", writeData.length, lengthBeforeRetry,
+                    lengthAfterRetry),
+                    lengthBeforeRetry == lengthAfterRetry);
+
+            //Verify the data
+            byte[] readBuffer = new byte[writeData.length];
+            for (int j = 0; j < 2; j++) {
+                int bytesRead = s1.read(writeHandle1, j * readBuffer.length, readBuffer,
+                        0, readBuffer.length, TIMEOUT) .join();
+                Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
+                        readBuffer.length, bytesRead);
+                AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
+                        readBuffer, (int) offset, readBuffer, 0, bytesRead);
+            }
             s1.delete(writeHandle1, TIMEOUT).join();
         }
     }
+
     //endregion
 }
