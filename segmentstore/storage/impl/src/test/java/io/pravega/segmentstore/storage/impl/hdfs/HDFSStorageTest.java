@@ -14,15 +14,7 @@ import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Collections;
-import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -35,12 +27,17 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.util.Progressable;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Collections;
+import java.util.concurrent.Executor;
 
 /**
  * Unit tests for HDFSStorage.
@@ -122,77 +119,6 @@ public class HDFSStorageTest extends StorageTestBase {
             verifyFinalWriteOperationsFail(handle1, storage1);
             verifyFinalWriteOperationsSucceed(handle2, storage2);
         }
-    }
-
-    private void verifyReadOnlyOperationsSucceed(SegmentHandle handle, Storage storage) {
-        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertTrue("Segment does not exist.", exists);
-
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertNotNull("Unexpected response from getStreamSegmentInfo.", si);
-
-        byte[] readBuffer = new byte[(int) si.getLength()];
-        int readBytes = storage.read(handle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
-        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, readBytes);
-    }
-
-    private void verifyWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        final byte[] data = "hello".getBytes();
-        storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-
-        final String concatName = "concat";
-        storage.create(concatName, TIMEOUT).join();
-        val concatHandle = storage.openWrite(concatName).join();
-        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-        storage.seal(concatHandle, TIMEOUT).join();
-        storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT).join();
-    }
-
-    private void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        final byte[] data = "hello".getBytes();
-        AssertExtensions.assertThrows(
-                "Write was not fenced out.",
-                () -> storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
-
-        // Create a second segment and try to concat it into the primary one.
-        final String concatName = "concat";
-        storage.create(concatName, TIMEOUT).join();
-        val concatHandle = storage.openWrite(concatName).join();
-        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
-        storage.seal(concatHandle, TIMEOUT).join();
-        AssertExtensions.assertThrows(
-                "Concat was not fenced out.",
-                () -> storage.concat(handle, si.getLength(), concatHandle.getSegmentName(), TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
-        storage.delete(concatHandle, TIMEOUT).join();
-    }
-
-    private void verifyFinalWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
-        storage.seal(handle, TIMEOUT).join();
-        storage.delete(handle, TIMEOUT).join();
-
-        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertFalse("Segment still exists after deletion.", exists);
-    }
-
-    private void verifyFinalWriteOperationsFail(SegmentHandle handle, Storage storage) {
-        AssertExtensions.assertThrows(
-                "Seal was allowed on fenced Storage.",
-                () -> storage.seal(handle, TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
-
-        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertFalse("Segment was sealed after rejected call to seal.", si.isSealed());
-
-        AssertExtensions.assertThrows(
-                "Delete was allowed on fenced Storage.",
-                () -> storage.delete(handle, TIMEOUT),
-                ex -> ex instanceof StorageNotPrimaryException);
-        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
-        Assert.assertTrue("Segment was deleted after rejected call to delete.", exists);
     }
 
     //endregion
