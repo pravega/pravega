@@ -104,9 +104,9 @@ public class ControllerService {
                 .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
-    public CompletableFuture<UpdateStreamStatus> alterStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> updateStream(final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        return streamMetadataTasks.alterStream(
+        return streamMetadataTasks.updateStream(
                 streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
@@ -186,7 +186,7 @@ public class ControllerService {
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
 
-        return streamMetadataTasks.scale(scope,
+        return streamMetadataTasks.manualScale(scope,
                                          stream,
                                          new ArrayList<>(sealedSegments),
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),

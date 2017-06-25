@@ -8,30 +8,50 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Description of the Pravega Controller APIs.
-swagger: '2.0'
+
+swagger: "2.0"
 info:
+  description: "List of admin REST APIs for the pravega controller service."
   version: "0.0.1"
   title: Pravega Controller APIs
-basePath: /v1
+  license:
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0"
+basePath: "/v1"
+tags:
+- name: "Scopes"
+  description: "Scope related APIs"
+  externalDocs:
+    description: "Find out more about pravega"
+    url: "http://pravega.io"
+- name: "Streams"
+  description: "Stream related APIs"
+  externalDocs:
+    description: "Find out more about pravega"
+    url: "http://pravega.io"
 schemes:
   - http
 paths:
   /scopes:
     get:
+      tags:
+      - "Scopes"
       operationId: listScopes
-      description: List all scopes in the system
+      description: List all available scopes in pravega
       produces:
         - application/json
       responses:
         200:
-          description: List of scope objects
+          description: List of currently available scopes
           schema:
             $ref: "#/definitions/ScopesList"
         500:
-          description: Server error
+          description: Internal server error while fetching list of scopes
     post:
+      tags:
+      - "Scopes"
       operationId: createScope
-      description: Creates a new scope
+      description: Create a new scope
       consumes:
         - application/json
       parameters:
@@ -52,9 +72,9 @@ paths:
           schema:
             $ref: "#/definitions/ScopeProperty"
         409:
-          description: Scope already exists
+          description: Scope with the given name already exists
         500:
-          description: Server error
+          description: Internal server error while creating a scope
   /scopes/{scopeName}:
     parameters:
       - in: path
@@ -63,20 +83,24 @@ paths:
         required: true
         type: string
     get:
+      tags:
+      - "Scopes"
       operationId: getScope
-      description: Retrieve scope
+      description: Retrieve details of an existing scope
       produces:
         - application/json
       responses:
         200:
-          description: Successfully retrieved the scope
+          description: Successfully retrieved the scope details
           schema:
             $ref: "#/definitions/ScopeProperty"
         404:
-          description: Scope not found
+          description: Scope with the given name not found
         500:
-          description: Server error
+          description: Internal server error while fetching scope details
     delete:
+      tags:
+      - "Scopes"
       operationId: deleteScope
       description: Delete a scope
       responses:
@@ -85,9 +109,9 @@ paths:
         404:
           description: Scope not found
         412:
-          description: Cannot delete scope which has non-empty list of streams
+          description: Cannot delete scope since it has non-empty list of streams
         500:
-          description: Server error
+          description: Internal server error while deleting a scope
   /scopes/{scopeName}/streams:
     parameters:
       - in: path
@@ -96,10 +120,12 @@ paths:
         required: true
         type: string
     get:
+      tags:
+      - "Streams"
       parameters:
         - in: query
           name: showInternalStreams
-          description: Flag whether to display only system created streams
+          description: Optional flag whether to display system created streams. If not specified only user created streams will be returned
           required: false
           type: string
       operationId: listStreams
@@ -108,16 +134,18 @@ paths:
         - application/json
       responses:
         200:
-          description: List of stream objects
+          description: List of all streams configured for the given scope
           schema:
             $ref: "#/definitions/StreamsList"
         404:
           description: Scope not found
         500:
-          description: Server error
+          description: Internal server error while fetching the list of streams for the given scope
     post:
+      tags:
+      - "Streams"
       operationId: createStream
-      description: Creates a new stream
+      description: Create a new stream
       consumes:
         - application/json
       parameters:
@@ -138,15 +166,15 @@ paths:
         - application/json
       responses:
         201:
-          description: Successful created the stream
+          description: Successfully created the stream with the given configuration
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
           description: Scope not found
         409:
-          description: Stream already exists
+          description: Stream with given name already exists
         500:
-          description: Server error
+          description: Internal server error while creating a stream
   /scopes/{scopeName}/streams/{streamName}:
     parameters:
       - in: path
@@ -160,21 +188,26 @@ paths:
         required: true
         type: string
     get:
+      tags:
+      - "Streams"
       operationId: getStream
-      description: Fetch the stream properties
+      description: Fetch the properties of an existing stream
       produces:
         - application/json
       responses:
         200:
-          description: Found stream configuration
+          description: Found stream properties
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
-          description: Scope or stream not found
+          description: Scope or stream with given name not found
         500:
-          description: Server error
+          description: Internal server error while fetching stream details
     put:
+      tags:
+      - "Streams"
       operationId: updateStream
+      description: Update configuration of an existing stream
       consumes:
         - application/json
       parameters:
@@ -197,10 +230,12 @@ paths:
           schema:
             $ref: "#/definitions/StreamProperty"
         404:
-          description: Scope or stream not found
+          description: Scope or stream with given name not found
         500:
-          description: Server error
+          description: Internal server error while updating the stream
     delete:
+      tags:
+      - "Streams"
       operationId: deleteStream
       description: Delete a stream
       responses:
@@ -211,7 +246,7 @@ paths:
         412:
           description: Cannot delete stream since it is not sealed
         500:
-          description: Server error
+          description: Internal server error while deleting the stream
   /scopes/{scopeName}/streams/{streamName}/state:
     parameters:
       - in: path
@@ -225,6 +260,8 @@ paths:
         required: true
         type: string
     put:
+      tags:
+      - "Streams"
       operationId: updateStreamState
       description: Updates the current state of the stream
       consumes:
@@ -244,11 +281,56 @@ paths:
           schema:
             $ref: "#/definitions/StreamState"
         404:
-          description: Scope or stream not found
+          description: Scope or stream with given name not found
         500:
-          description: Server error
-
+          description: Internal server error while updating the stream state
+  /scopes/{scopeName}/streams/{streamName}/scaling-events:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: streamName
+        description: Stream name
+        required: true
+        type: string
+    get:
+      parameters:
+        - in: query
+          name: from
+          description: Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.
+          required: true
+          type: integer
+          format: int64
+        - in: query
+          name: to
+          description: Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.
+          required: true
+          type: integer
+          format: int64
+      operationId: getScalingEvents
+      description: Get scaling events for a given datetime period.
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Successfully fetched list of scaling events.
+          schema:
+            $ref: "#/definitions/ScalingEventList"
+        404:
+          description: Scope/Stream not found.
+        500:
+          description: Internal Server error while fetching scaling events.
 definitions:
+  ScalingEventList:
+    type: object
+    properties:
+      scalingEvents:
+        type: array
+        items:
+          $ref: "#/definitions/ScaleMetadata"
   StreamsList:
     type: object
     properties:
@@ -315,3 +397,29 @@ definitions:
         type: string
         enum:
         - SEALED
+  ScaleMetadata:
+    type: object
+    properties:
+      timestamp:
+        type: integer
+        format: int64
+      segmentList:
+        type: array
+        items:
+          $ref: "#/definitions/Segment"
+  Segment:
+    type: object
+    properties:
+      number:
+        type: integer
+        format: int32
+      startTime:
+        type: integer
+        format: int64
+      keyStart:
+        type: integer
+        format: double
+      keyEnd:
+        type: integer
+        format: double
+

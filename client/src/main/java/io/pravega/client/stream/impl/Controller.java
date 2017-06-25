@@ -56,13 +56,13 @@ public interface Controller {
     CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
 
     /**
-     * Api to alter stream.
+     * Api to update stream.
      *
      * @param streamConfig Stream configuration to updated
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the stream was altered because the config is now different from before.
+     *         indicate that the stream was updated because the config is now different from before.
      */
-    CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
 
     /**
      * Api to seal stream.
@@ -91,7 +91,7 @@ public interface Controller {
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the stream was altered or false if the segments to seal have already
+     *         indicate that the stream was scaled or false if the segments to seal have already
      *         been sealed.
      */
     CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,

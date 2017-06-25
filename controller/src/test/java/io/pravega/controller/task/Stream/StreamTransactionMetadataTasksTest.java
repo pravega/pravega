@@ -312,10 +312,10 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedAbortEvents));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
@@ -400,10 +400,10 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new CommitEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, hostStore, executor, segmentHelperMock,
+                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedAbortEvents));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.

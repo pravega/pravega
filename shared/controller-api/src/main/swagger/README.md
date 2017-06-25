@@ -36,3 +36,12 @@ Copy these API descriptions into interfaces in .../server/rest/v1/ApiV1.java. Al
 ## Update generated/model/RetentionConfig.java
 Swagger codegen truncates common enum prefixes. So until https://github.com/swagger-api/swagger-codegen/issues/4261 is fixed we need to perform the following manual step.
 In file RetentionConfig.java replace DAYS to LIMITED_DAYS and SIZE_MB to LIMITED_SIZE_MB.
+
+## Generate documentation
+### Download Swagger2Markup CLI
+https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.1/swagger2markup-cli-1.3.1.jar
+
+### Generate and save the markup documentation
+```
+java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i Controller.yaml -f <pravega root>/docs/rest/restapis
+```

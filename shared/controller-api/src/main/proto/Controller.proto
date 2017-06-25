@@ -18,7 +18,7 @@ option optimize_for = SPEED;
 service ControllerService {
     rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
-    rpc alterStream(StreamConfig) returns (UpdateStreamStatus);
+    rpc updateStream(StreamConfig) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);

@@ -103,11 +103,11 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig) {
-        return this.controller.alterStream(streamConfig).thenApply(x -> {
+    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
+        return this.controller.updateStream(streamConfig).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to altering stream: " + streamConfig);
+                throw new ControllerFailureException("Failed to update stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_NOT_FOUND:
@@ -115,7 +115,7 @@ public class LocalController implements Controller {
             case SUCCESS:
                 return true;
             default:
-                throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
+                throw new ControllerFailureException("Unknown return status updating stream " + streamConfig
                                                      + " " + x.getStatus());
             }
         });

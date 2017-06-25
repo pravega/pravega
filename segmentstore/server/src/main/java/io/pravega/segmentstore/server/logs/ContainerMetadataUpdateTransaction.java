@@ -76,7 +76,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private final boolean recoveryMode;
     @Getter
     private int maximumActiveSegmentCount;
-    private int baseActiveSegmentCount;
+    private int baseNewSegmentCount;
     /**
      * The base ContainerMetadata on top of which this UpdateTransaction is based. This isn't necessarily the same as
      * realMetadata (above) and this should be used when relying on information that is updated via transactions.
@@ -107,7 +107,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         this.containerId = this.baseMetadata.getContainerId();
         this.recoveryMode = this.baseMetadata.isRecoveryMode();
         this.maximumActiveSegmentCount = this.baseMetadata.getMaximumActiveSegmentCount();
-        this.baseActiveSegmentCount = this.baseMetadata.getActiveSegmentCount();
+        this.baseNewSegmentCount = getNewSegmentCount(baseMetadata);
 
         this.traceObjectId = String.format("MetadataUpdate[%d-%d]", this.containerId, transactionId);
         this.segmentUpdates = new HashMap<>();
@@ -167,7 +167,28 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     @Override
     public int getActiveSegmentCount() {
-        return this.baseActiveSegmentCount + this.newSegments.size();
+        return this.realMetadata.getActiveSegmentCount() + getNewSegmentCount();
+    }
+
+    /**
+     * Gets the total number of new segments from this UpdateTransaction and all base UpdateTransactions.
+     */
+    private int getNewSegmentCount() {
+        return this.baseNewSegmentCount + this.newSegments.size();
+    }
+
+    /**
+     * Gets the total number of new segments from the given metadata.
+     *
+     * @param baseMetadata The metadata to query.
+     * @return The total number of new segments, if the argument is a ContainerMetadataUpdateTransaction, or 0 otherwise.
+     */
+    private int getNewSegmentCount(ContainerMetadata baseMetadata) {
+        if (baseMetadata instanceof ContainerMetadataUpdateTransaction) {
+            return ((ContainerMetadataUpdateTransaction) baseMetadata).getNewSegmentCount();
+        }
+
+        return 0;
     }
 
     //endregion
@@ -192,7 +213,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         Preconditions.checkArgument(baseMetadata.isRecoveryMode() == this.isRecoveryMode(), "isRecoveryMode mismatch");
         this.baseMetadata = baseMetadata;
         this.maximumActiveSegmentCount = baseMetadata.getMaximumActiveSegmentCount();
-        this.baseActiveSegmentCount = baseMetadata.getActiveSegmentCount();
+        this.baseNewSegmentCount = getNewSegmentCount(baseMetadata);
         resetNewSequenceNumber();
     }
 
