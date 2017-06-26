@@ -471,7 +471,7 @@ public class TableHelper {
         int newRows = n > 0 ? n : 1;
         List<SegmentRecord> lastN = SegmentRecord.readLastN(segmentTable, newRows);
 
-        boolean newSegmentsPredicate = newRanges.isEmpty()? SegmentRecord.isSealSentinal(lastN.get(0)) :
+        boolean newSegmentsPredicate = newRanges.isEmpty() ? SegmentRecord.isSealSentinal(lastN.get(0)) :
                 newRanges.stream().allMatch(x -> lastN.stream()
                         .anyMatch(y -> y.getRoutingKeyStart() == x.getKey() && y.getRoutingKeyEnd() == x.getValue()));
         boolean segmentToSealPredicate;
