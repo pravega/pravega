@@ -13,6 +13,8 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -32,7 +34,8 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import mesosphere.marathon.client.utils.MarathonException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,17 +47,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.stream.Collectors;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -173,7 +177,9 @@ public class MultiReaderWriterWithFailOverTest {
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
-        Controller controller = new ControllerImpl(controllerUri);
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        Controller controller = new ControllerImpl(controllerUri, connectionFactory);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -193,7 +199,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //get ClientFactory instance
         log.info("Scope passed to client factory {}", scope);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
+        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
 
             log.info("Client factory details {}", clientFactory.toString());
