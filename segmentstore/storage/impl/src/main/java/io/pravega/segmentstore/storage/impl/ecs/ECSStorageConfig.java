@@ -30,7 +30,7 @@ public class ECSStorageConfig {
 
     public static final Property<String> ECS_SECRET_KEY = Property.named( "ecsSecretKey", "");
 
-    public static final Property<String> ECS_URI = Property.named( "ecsUrl", "https://object.ecstestdrive.com");
+    public static final Property<String> ECS_URI = Property.named( "ecsUrl", "");
 
     public static final Property<String> ECS_BUCKET = Property.named("ecsBucket", "pravega-bucket");
 

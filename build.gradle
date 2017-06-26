@@ -181,13 +181,8 @@ project('segmentstore:storage:impl') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         //For ECS
-        /*testCompile group: 'io.findify', name: 's3mock_2.12', version: '0.2.2'
-        testCompile group: 'com.sun.jersey', name: 'jersey-json', version: '1.19'*/
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
-        
-
         compile "com.emc.ecs:object-client:3.0.0"
-        compile "com.sun.jersey:jersey-core:1.19"
 
         compile project(':common')
         compile project(':segmentstore:storage')

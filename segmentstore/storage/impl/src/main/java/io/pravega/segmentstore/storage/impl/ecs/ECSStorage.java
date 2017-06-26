@@ -62,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
- * As PutObject calls to with the same start-offset to an ECS object is idempotent (any attempt to re-write data with the same file offset does not
+ * As PutObject calls to with the same start-offset to an ECS object are idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), fencing is not required.
  *
  *
@@ -108,7 +108,6 @@ public class ECSStorage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
-
     }
 
     @Override
