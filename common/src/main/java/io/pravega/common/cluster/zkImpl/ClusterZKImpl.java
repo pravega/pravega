@@ -177,7 +177,8 @@ public class ClusterZKImpl implements Cluster {
         try {
             cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
         } catch (Exception e) {
-            throw ClusterException.create(ClusterException.Type.METASTORE, "Failed to initialize ZooKeeper cache");
+            throw ClusterException.create(ClusterException.Type.METASTORE,
+                                          "Failed to initialize ZooKeeper cache: " + e.getMessage());
         }
     }
 
