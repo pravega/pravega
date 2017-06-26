@@ -98,6 +98,7 @@ public class ECSStorageTest extends IdempotentStorageTest {
                 .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "x")
                 .with(ECSStorageConfig.ECS_SECRET_KEY, "x")
                 .with(ECSStorageConfig.ROOT, "test")
+                .with(ECSStorageConfig.ECS_URI, "http://127.0.0.1:9020")
                 .build();
         if (client == null) {
             try {
