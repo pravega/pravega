@@ -99,8 +99,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
-        @GuardedBy("lock")
-        private AtomicBoolean completedSealedSegmentProcessing = new AtomicBoolean();
+        private AtomicBoolean segmentSealed = new AtomicBoolean();
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
@@ -125,11 +124,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 return connection == null && exception != null && exception instanceof SegmentSealedException;
             }
-        }
-        
-        //Check if SealedCallBack is already invoked.
-        private boolean startCallBackForSealedSegment() {
-           return completedSealedSegmentProcessing.compareAndSet(false, true);
         }
 
         private boolean isInflightEmpty() {
@@ -286,10 +280,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
             state.failConnection(new SegmentSealedException(segmentIsSealed.getSegment()));
 
-            if (state.startCallBackForSealedSegment()) {
+            if (state.segmentSealed.compareAndSet(false, true)) {
                 connectionFactory.getInternalExecutor().submit(() -> {
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
-                        callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                    callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
                 });
             }
         }
@@ -429,13 +423,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     public void flush() throws SegmentSealedException {
         if (!state.isInflightEmpty()) {
-            //Do not attempt to flush if inflight is empty or the segment is sealed.
             RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                           .throwingOn(SegmentSealedException.class)
                           .run(() -> {
                               ClientConnection connection = getConnection();
                               connection.send(new KeepAlive());
-                              FutureHelpers.getThrowingException(state.getEmptyInflightFuture());
+                              FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>
+                                  getThrowingException(state.getEmptyInflightFuture());
                               return null;
                           });
         }
