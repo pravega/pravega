@@ -133,7 +133,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
         throw new NotImplementedException();
     }
 

@@ -65,7 +65,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final Object stateLock = new Object();
     private final QueueProcessingState state;
     @GuardedBy("stateLock")
-    private DataFrameBuilder<Operation> dataFrameBuilder;
+    private final DataFrameBuilder<Operation> dataFrameBuilder;
 
     //endregion
 
@@ -88,7 +88,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.durableDataLog = Preconditions.checkNotNull(durableDataLog, "durableDataLog");
         this.operationQueue = new BlockingDrainingQueue<>();
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
-        this.dataFrameBuilder = null;
+        val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
+        this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
     }
 
     //endregion
@@ -114,14 +115,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     @Override
     protected void doStop() {
         // We need to first stop the queue, which will prevent any new items from being processed.
-        closeQueue(null);
+        Throwable ex = new CancellationException("OperationProcessor is shutting down.");
+        closeQueue(ex);
 
-        // Then close the DataFrameBuilder, which will await any pending data frames to be flushed away.
-        val builder = getDataFrameBuilder(false);
-        if (builder != null) {
-            builder.close();
+        // Close the DataFrameBuilder and cancel any operations caught in limbo.
+        synchronized (this.stateLock) {
+            this.dataFrameBuilder.close();
         }
 
+        this.state.fail(ex, null);
         super.doStop();
     }
 
@@ -129,8 +131,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         closeQueue(ex);
-        if (!(ex instanceof CancellationException)) {
-            // CancellationException means we are already stopping, so no need to do anything else. For all other cases,
+        if (!isShutdownException(ex)) {
+            // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
             stopAsync();
@@ -144,12 +146,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // caused by the queue being shut down, but the main processing loop has just started another iteration and they
         // crossed paths.
         State s = state();
-        boolean isExpected = ex instanceof ObjectClosedException && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
+        boolean isExpected = isShutdownException(ex) && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
         if (!isExpected) {
             throw ex;
         }
 
         return null;
+    }
+
+    private boolean isShutdownException(Throwable ex) {
+        return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
     //endregion
@@ -206,23 +212,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
-    private DataFrameBuilder<Operation> getDataFrameBuilder(boolean recover) {
-        synchronized (this.stateLock) {
-            if (this.dataFrameBuilder == null || this.dataFrameBuilder.failureCause() != null) {
-                // Builder is not created or in a failed state.
-                if (recover) {
-                    // If instructed to recover, recreate a new one.
-                    val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
-                    this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
-                } else {
-                    this.dataFrameBuilder = null;
-                }
-            }
-
-            return this.dataFrameBuilder;
-        }
-    }
-
     /**
      * Processes a set of pending operations (essentially a single iteration of the QueueProcessor).
      * Steps:
@@ -243,17 +232,21 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // arrived while we were busy handling the current items.
         while (!operations.isEmpty()) {
             try {
-                // Get the DataFrameBuilder, and recover it if necessary.
-                val builder = getDataFrameBuilder(true);
-
                 // Process the current set of operations.
                 while (!operations.isEmpty()) {
                     CompletableOperation o = operations.poll();
-                    if (processOperation(o, builder)) {
-                        // Add the operation as 'pending', only if we were able to successfully append it to a data frame.
-                        // We only commit data frames when we attempt to start a new record (if it's full) or if we try to
-                        // close it, so we will not miss out on it.
+                    try {
+                        processOperation(o);
                         this.state.addPending(o);
+                    } catch (Throwable ex) {
+                        ex = ExceptionHelpers.getRealException(ex);
+                        this.state.failOperation(o, ex);
+                        if (isFatalException(ex)) {
+                            // If we encountered an unrecoverable error then we cannot proceed - rethrow the Exception
+                            // and let it be handled by the enclosing try-catch. Otherwise, we only need to fail this
+                            // operation as its failure is isolated to itself (most likely it's invalid).
+                            throw ex;
+                        }
                     }
                 }
 
@@ -264,7 +257,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
                         synchronized (this.stateLock) {
-                            builder.flush();
+                            this.dataFrameBuilder.flush();
                         }
                     } else {
                         log.debug("{}: processOperations (Add OperationCount = {}).", this.traceObjectId, operations.size());
@@ -272,16 +265,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             } catch (Throwable ex) {
                 // Fail ALL the operations that haven't been acknowledged yet.
-                Throwable realCause = ExceptionHelpers.getRealException(ex);
-                this.state.fail(realCause, null);
+                ex = ExceptionHelpers.getRealException(ex);
+                this.state.fail(ex, null);
 
-                if (isFatalException(realCause)) {
+                if (isFatalException(ex)) {
                     // If we encountered a fatal exception, it means we detected something that we cannot possibly recover from.
                     // We need to shutdown right away (this will be done by the main loop).
 
                     // But first, fail any Operations that we did not have a chance to process yet.
-                    cancelIncompleteOperations(operations, realCause);
-                    throw Lombok.sneakyThrow(realCause);
+                    cancelIncompleteOperations(operations, ex);
+                    throw Lombok.sneakyThrow(ex);
                 }
             }
         }
@@ -297,71 +290,31 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * <li> Accepts operation in MetadataUpdater.
      * </ol>
      *
-     * If the Operation is rejected by the Metadata (due to the Operation being invalid or invalid for the current state
-     * of the Segment(s) affected), this method will return false and the Operation will not be processed.
-     *
-     * If the Operation cannot be processed due to an exception, it will be rejected and the causing exception thrown.
-     * This can include the underlying DataFrameBuilder being in a failed/closed state, or a DataCorruptionException.
-     *
      * @param operation        The operation to process.
-     * @param dataFrameBuilder The DataFrameBuilder to append the operation to.
-     * @return True if processed successfully, false otherwise (false only if it got rejected due to it being invalid).
-     * See @throws below for expected Exceptions.
-     * @throws DataCorruptionException If a fatal exception that could possibly lead to corruption was detected along the
-     * way. This is usually a terminal exception and there is no way to recover from it.
-     * @throws ObjectClosedException If the given DataFrameBuilder is in a closed/failed state. In this case, the cause
-     * of the ObjectClosedException needs to be inspected to determine the actual error that triggered this. This error
-     * can generally be recovered from if a new DataFrameBuilder is created, however this method does not have enough
-     * context to do so (and as such it is the responsibility of the upstream code to recover it).
+     * @throws Exception If an exception occurred while processing this operation. Depending on the type of the exception,
+     * this could be due to the operation itself being invalid, or because we are unable to process any more operations.
      */
-    private boolean processOperation(CompletableOperation operation, DataFrameBuilder<Operation> dataFrameBuilder) throws DataCorruptionException {
+    private void processOperation(CompletableOperation operation) throws Exception {
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         Operation entry = operation.getOperation();
         if (!entry.canSerialize()) {
             // This operation cannot be serialized, so don't bother doing anything with it.
-            return true;
+            return;
         }
 
-        try {
-            synchronized (this.stateLock) {
-                // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater
-                // has all the knowledge for that task.
-                this.metadataUpdater.preProcessOperation(entry);
+        synchronized (this.stateLock) {
+            // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater
+            // has all the knowledge for that task.
+            this.metadataUpdater.preProcessOperation(entry);
 
-                // Entry is ready to be serialized; assign a sequence number.
-                entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
-                dataFrameBuilder.append(operation.getOperation());
-                this.metadataUpdater.acceptOperation(entry);
-            }
-
-            log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
-        } catch (ObjectClosedException ex) {
-            // DataFrameBuilder is in a closed/failed state. We cannot proceed with this operation, or any other one,
-            // so we need to re-throw the exception for it to be handled upstream.
-            Throwable rootCause = dataFrameBuilder.failureCause();
-            if (rootCause != null && rootCause != ex) {
-                ex.addSuppressed(rootCause);
-            }
-
-            this.state.failOperation(operation, ex);
-            throw ex;
-        } catch (Exception ex) {
-            this.state.failOperation(operation, ex);
-
-            Throwable cause = ExceptionHelpers.getRealException(ex);
-            if (cause instanceof DataCorruptionException) {
-                // Besides failing the operation, DataCorruptionExceptions are pretty serious. We should shut down the
-                // Operation Processor if we ever encounter one. The shutdown is handled in the main processor loop of
-                // this class - which is responsible for determining whether the current iteration's error is a "fatal"
-                // one or not.
-                throw (DataCorruptionException) cause;
-            }
-
-            return false;
+            // Entry is ready to be serialized; assign a sequence number.
+            entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+            this.dataFrameBuilder.append(operation.getOperation());
+            this.metadataUpdater.acceptOperation(entry);
         }
 
-        return true;
+        log.trace("{}: DataFrameBuilder.Append {}.", this.traceObjectId, operation.getOperation());
     }
 
     /**
@@ -377,7 +330,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             if (remainingOperations != null && remainingOperations.size() > 0) {
                 // If any outstanding Operations were left in the queue, they need to be failed.
                 // If no other cause was passed, assume we are closing the queue because we are shutting down.
-                Throwable failException = causingException != null ? causingException : new ObjectClosedException(this);
+                Throwable failException = causingException != null ? causingException : new CancellationException();
                 cancelIncompleteOperations(remainingOperations, failException);
             }
         }
@@ -404,7 +357,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     private static boolean isFatalException(Throwable ex) {
         return ex instanceof DataCorruptionException
-                || ex instanceof DataLogWriterNotPrimaryException;
+                || ex instanceof DataLogWriterNotPrimaryException
+                || ex instanceof ObjectClosedException;
     }
 
     //endregion
@@ -490,7 +444,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 synchronized (stateLock) {
                     if (addressSequence <= this.highestCommittedDataFrame) {
                         // Ack came out of order (we already processed one with a higher SeqNo).
-                        log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = ).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
+                        log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = {}).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
+                        return;
+                    }
+
+                    if (state() != State.RUNNING) {
+                        // We are shutting down.
+                        log.debug("{}: CommitRejected ({}, Not Running, State = {}).", traceObjectId, commitArgs, state());
                         return;
                     }
 
@@ -571,9 +531,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 autoCompleteIfNeeded();
             }
 
-            if (isFatalException(ex)) {
-                CallbackHelpers.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
-            }
+            // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
+            // perform a new recovery that will detect any possible data loss or corruption.
+            CallbackHelpers.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
         }
 
         /**

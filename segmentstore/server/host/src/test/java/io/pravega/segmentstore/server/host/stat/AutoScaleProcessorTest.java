@@ -15,7 +15,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.controller.event.ScaleEvent;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.UUID;
@@ -57,22 +57,22 @@ public class AutoScaleProcessorTest {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
         CompletableFuture<Void> result3 = new CompletableFuture<>();
-        EventStreamWriter<ScaleEvent> writer = createWriter(event -> {
+        EventStreamWriter<AutoScaleEvent> writer = createWriter(event -> {
             if (event.getScope().equals(SCOPE) &&
                     event.getStream().equals(STREAM1) &&
-                    event.getDirection() == ScaleEvent.UP) {
+                    event.getDirection() == AutoScaleEvent.UP) {
                 result.complete(null);
             }
 
             if (event.getScope().equals(SCOPE) &&
                     event.getStream().equals(STREAM2) &&
-                    event.getDirection() == ScaleEvent.DOWN) {
+                    event.getDirection() == AutoScaleEvent.DOWN) {
                 result2.complete(null);
             }
 
             if (event.getScope().equals(SCOPE) &&
                     event.getStream().equals(STREAM3) &&
-                    event.getDirection() == ScaleEvent.DOWN) {
+                    event.getDirection() == AutoScaleEvent.DOWN) {
                 result3.complete(null);
             }
         });
@@ -109,27 +109,27 @@ public class AutoScaleProcessorTest {
         assertTrue(FutureHelpers.await(result3));
     }
 
-    private EventStreamWriter<ScaleEvent> createWriter(Consumer<ScaleEvent> consumer) {
-        return new EventStreamWriter<ScaleEvent>() {
+    private EventStreamWriter<AutoScaleEvent> createWriter(Consumer<AutoScaleEvent> consumer) {
+        return new EventStreamWriter<AutoScaleEvent>() {
             @Override
-            public AckFuture writeEvent(ScaleEvent event) {
+            public AckFuture writeEvent(AutoScaleEvent event) {
                 return null;
             }
 
             @Override
-            public AckFuture writeEvent(String routingKey, ScaleEvent event) {
+            public AckFuture writeEvent(String routingKey, AutoScaleEvent event) {
                 consumer.accept(event);
                 return null;
             }
 
             @Override
-            public Transaction<ScaleEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
-                                                    long scaleGracePeriod) {
+            public Transaction<AutoScaleEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
+                                                        long scaleGracePeriod) {
                 return null;
             }
 
             @Override
-            public Transaction<ScaleEvent> getTxn(UUID transactionId) {
+            public Transaction<AutoScaleEvent> getTxn(UUID transactionId) {
                 return null;
             }
 

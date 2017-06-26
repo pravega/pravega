@@ -34,8 +34,7 @@ import org.junit.Test;
  * Base class for all tests for implementations of DurableDataLog.
  */
 public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
-    protected static final int TIMEOUT_MILLIS = 60 * 1000;
-    protected static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MILLIS);
+    protected static final Duration TIMEOUT = Duration.ofMillis(60 * 1000);
     protected static final int WRITE_MIN_LENGTH = 20;
     protected static final int WRITE_MAX_LENGTH = 200;
     private final Random random = new Random(0);
@@ -47,7 +46,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testAppendSequence() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             // Check Append pre-initialization.
@@ -78,7 +77,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testAppendParallel() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -90,7 +89,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
             }
 
-            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             for (int i = 0; i < results.size(); i++) {
                 LogAddress address = results.get(i);
                 Assert.assertNotNull("No address returned from append() for index " + i, address);
@@ -107,7 +106,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testRead() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         Object context = createSharedContext();
@@ -134,7 +133,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testTruncate() throws Exception {
         TreeMap<LogAddress, byte[]> writeData;
         ArrayList<LogAddress> addresses;
@@ -167,7 +166,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testConcurrentIterator() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -194,7 +193,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
      *
      * @throws Exception If one got thrown.
      */
-    @Test(timeout = TIMEOUT_MILLIS)
+    @Test
     public void testOpenCloseClient() throws Exception {
         // This is a very repetitive test; and we only care about "recovery" from no client; all else is already tested.
         final int writeCount = 10;
@@ -310,7 +309,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private byte[] getWriteData() {
+    protected byte[] getWriteData() {
         int length = WRITE_MIN_LENGTH + random.nextInt(WRITE_MAX_LENGTH - WRITE_MIN_LENGTH);
         byte[] data = new byte[length];
         this.random.nextBytes(data);

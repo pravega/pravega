@@ -14,21 +14,21 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
+import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.SegmentContainerManager;
+import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.containers.ContainerConfig;
+import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
+import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
-import io.pravega.segmentstore.server.OperationLogFactory;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerManager;
-import io.pravega.segmentstore.server.SegmentContainerRegistry;
-import io.pravega.segmentstore.server.containers.ContainerConfig;
-import io.pravega.segmentstore.server.containers.StreamSegmentContainerFactory;
-import io.pravega.segmentstore.server.logs.DurableLogConfig;
-import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -346,6 +346,10 @@ public final class ServiceBuilder implements AutoCloseable {
                              .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));
+    }
+
+    public StorageFactory getStorageFactory() {
+        return this.storageFactory.get();
     }
 
     //endregion

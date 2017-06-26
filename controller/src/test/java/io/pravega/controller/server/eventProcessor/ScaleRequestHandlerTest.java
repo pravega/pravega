@@ -9,10 +9,20 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.test.common.TestingServerStarter;
+import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -24,9 +34,10 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.util.Config;
+import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -37,13 +48,22 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScaleRequestHandlerTest {
     private final String scope = "scope";
@@ -61,6 +81,8 @@ public class ScaleRequestHandlerTest {
     private TestingServer zkServer;
 
     private CuratorFramework zkClient;
+    private ClientFactory clientFactory;
+    private ConnectionFactoryImpl connectionFactory;
 
     @Before
     public void setup() throws Exception {
@@ -88,9 +110,11 @@ public class ScaleRequestHandlerTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+        connectionFactory = new ConnectionFactoryImpl(false);
+        clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory);
+        streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
                 segmentHelper, executor, hostId, connectionFactory);
 
@@ -99,12 +123,14 @@ public class ScaleRequestHandlerTest {
         // add a host in zk
         // mock pravega
         // create a stream
-        streamStore.createScope(scope);
+        streamStore.createScope(scope).get();
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 
     @After
     public void tearDown() throws Exception {
+        clientFactory.close();
+        connectionFactory.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         zkClient.close();
@@ -112,12 +138,39 @@ public class ScaleRequestHandlerTest {
         executor.shutdown();
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 20000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        ScaleRequestHandler requestHandler = new ScaleRequestHandler(streamMetadataTasks, streamStore, executor);
-        ScaleEvent request = new ScaleEvent(scope, stream, 2, ScaleEvent.UP, System.currentTimeMillis(), 2, false);
+        AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
+        ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
+        RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler);
+        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 2, false);
+        CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
+        CompletableFuture<ScaleOpEvent> request2 = new CompletableFuture<>();
+        EventStreamWriter<ControllerEvent> writer = createWriter(x -> {
+            if (!request1.isDone()) {
+                final ArrayList<AbstractMap.SimpleEntry<Double, Double>> expected = new ArrayList<>();
+                double start = 2.0 / 3.0;
+                double end = 1.0;
+                double middle = (start + end) / 2;
+                expected.add(new AbstractMap.SimpleEntry<>(start, middle));
+                expected.add(new AbstractMap.SimpleEntry<>(middle, end));
+                checkRequest(request1, x, Lists.newArrayList(2), expected);
+            } else if (!request2.isDone()) {
+                final ArrayList<AbstractMap.SimpleEntry<Double, Double>> expected = new ArrayList<>();
+                double start = 2.0 / 3.0;
+                double end = 1.0;
+                expected.add(new AbstractMap.SimpleEntry<>(start, end));
+                checkRequest(request2, x, Lists.newArrayList(3, 4), expected);
+            }
+        });
 
-        assertTrue(FutureHelpers.await(requestHandler.process(request)));
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
+        assertTrue(FutureHelpers.await(request1));
+        assertTrue(FutureHelpers.await(multiplexer.process(request1.get())));
+
+        // verify that the event is posted successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
@@ -125,22 +178,92 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleEvent(scope, stream, 4, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        request = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(requestHandler.process(request)));
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
 
-        request = new ScaleEvent(scope, stream, 3, ScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        request = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(requestHandler.process(request)));
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
+        assertTrue(FutureHelpers.await(request2));
+        assertTrue(FutureHelpers.await(multiplexer.process(request2.get())));
+
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
         assertTrue(activeSegments.size() == 3);
+
+        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0, 1, 5),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
+        assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
+        assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
+        assertTrue(activeSegments.size() == 3);
+
+        assertFalse(FutureHelpers.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
+    }
+
+    private void checkRequest(CompletableFuture<ScaleOpEvent> request, ControllerEvent in, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> expected) {
+        if (in instanceof ScaleOpEvent) {
+            ScaleOpEvent event = (ScaleOpEvent) in;
+            if (!event.isRunOnlyIfStarted() && event.getScope().equals(scope) &&
+                    event.getStream().equals(stream) && Sets.newHashSet(event.getSegmentsToSeal()).equals(Sets.newHashSet(segmentsToSeal)) &&
+                    Sets.newHashSet(event.getNewRanges()).equals(Sets.newHashSet(expected))) {
+                request.complete(event);
+            } else {
+                request.completeExceptionally(new RuntimeException());
+            }
+
+        } else {
+            request.completeExceptionally(new RuntimeException());
+        }
+    }
+
+    private EventStreamWriter<ControllerEvent> createWriter(Consumer<ControllerEvent> consumer) {
+        return new EventStreamWriter<ControllerEvent>() {
+            @Override
+            public AckFuture writeEvent(ControllerEvent event) {
+                consumer.accept(event);
+                return new AckFutureMock(CompletableFuture.completedFuture(true));
+            }
+
+            @Override
+            public AckFuture writeEvent(String routingKey, ControllerEvent event) {
+                consumer.accept(event);
+                return new AckFutureMock(CompletableFuture.completedFuture(true));
+            }
+
+            @Override
+            public Transaction<ControllerEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
+                                                        long scaleGracePeriod) {
+                return null;
+            }
+
+            @Override
+            public Transaction<ControllerEvent> getTxn(UUID transactionId) {
+                return null;
+            }
+
+            @Override
+            public EventWriterConfig getConfig() {
+                return null;
+            }
+
+            @Override
+            public void flush() {
+
+            }
+
+            @Override
+            public void close() {
+
+            }
+        };
     }
 }

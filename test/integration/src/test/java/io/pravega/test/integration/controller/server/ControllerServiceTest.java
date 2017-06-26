@@ -180,7 +180,7 @@ public class ControllerServiceTest {
 
         updataMinSegmentes(controller, scope1, streamName1);
 
-        alterConfigOfNonExistantStream(controller);
+        updateConfigOfNonExistantStream(controller);
 
         //get currently active segments
 
@@ -251,8 +251,8 @@ public class ControllerServiceTest {
     }
 
 
-    private static void alterConfigOfNonExistantStream(Controller controller) {
-        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+    private static void updateConfigOfNonExistantStream(Controller controller) {
+        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
                                                                .scope("scope")
                                                                .streamName("streamName")
                                                                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
@@ -261,7 +261,7 @@ public class ControllerServiceTest {
 
     private static void updataMinSegmentes(Controller controller, final String scope,
                                            final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
@@ -270,7 +270,7 @@ public class ControllerServiceTest {
 
     private static void updateScaleFactor(Controller controller, final String scope,
                                           final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(100, 3, 2))
@@ -279,7 +279,7 @@ public class ControllerServiceTest {
 
     private static void updateTargetRate(Controller controller, final String scope,
                                          final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 2))
@@ -288,7 +288,7 @@ public class ControllerServiceTest {
 
     private static void updateScalingPolicy(Controller controller, final String scope,
                                             final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
@@ -297,7 +297,7 @@ public class ControllerServiceTest {
 
     private static void updateStreamName(Controller controller, final String scope,
                                          final ScalingPolicy scalingPolicy) {
-        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
                                                                .scope(scope)
                                                                .streamName("stream4")
                                                                .scalingPolicy(scalingPolicy)

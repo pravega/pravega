@@ -10,12 +10,16 @@
 package io.pravega.segmentstore.server.store;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests for the ServiceConfig class
  */
 public class ServiceConfigTests {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
     @Test
     public void testListeningAndPublicIPAndPort() {
         // When the published IP and port are not specified, it should default to listening IP and port

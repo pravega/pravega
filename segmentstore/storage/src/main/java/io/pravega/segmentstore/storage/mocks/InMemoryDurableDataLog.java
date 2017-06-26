@@ -110,7 +110,6 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     @Override
     public int getMaxAppendLength() {
-        ensurePreconditions();
         return this.entries.getMaxAppendSize();
     }
 

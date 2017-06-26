@@ -19,6 +19,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,17 +78,10 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
 
     @Override
     public void close() {
-        if (this.closed.getAndSet(true)) {
-            return;
+        if (!this.closed.compareAndSet(false, true)) {
+            // Close the underlying stream (which destroys whatever we have in flight).
+            this.outputStream.close();
         }
-
-        // Seal & ship whatever frame we currently have (if any).
-        if (!this.outputStream.isClosed()) {
-            this.outputStream.flush();
-        }
-
-        // Close the underlying stream (which destroys whatever we have in flight).
-        this.outputStream.close();
     }
 
     //endregion
@@ -205,7 +199,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
         ex = ExceptionHelpers.getRealException(ex);
-        if (!(ex instanceof ObjectClosedException)) {
+        if (!isShutdownException(ex)) {
             // This is usually from a subsequent call. We want to store the actual failure cause.
             this.failureCause.compareAndSet(null, ex);
         }
@@ -213,6 +207,10 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         this.args.commitFailure.accept(ex, commitArgs);
         close();
         return null;
+    }
+
+    private boolean isShutdownException(Throwable ex) {
+        return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
     //endregion

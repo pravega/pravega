@@ -9,19 +9,22 @@
  */
 package io.pravega.segmentstore.storage.impl.rocksdb;
 
+import com.google.common.io.Files;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheTestBase;
-import com.google.common.io.Files;
 import java.io.File;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for RocksDBCache.
  */
 public class RocksDBCacheTests extends CacheTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(30);
     private final AtomicReference<File> tempDir = new AtomicReference<>();
     private final AtomicReference<RocksDBConfig> config = new AtomicReference<>();
     private final AtomicReference<RocksDBCacheFactory> factory = new AtomicReference<>();

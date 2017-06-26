@@ -312,6 +312,30 @@ public class AssertExtensions {
         Assert.assertFalse(message, string == null || string.length() == 0);
     }
 
+    /**
+     * Asserts that a future (that has not yet been invoked) throws an expected exception or completes without
+     * exception.
+     *
+     * @param message        The message to include in the Assert calls.
+     * @param futureSupplier A Supplier that returns a new CompletableFuture, to test.
+     * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
+     * @param <T>            The type of the future's result.
+     */
+    public static <T> void assertMayThrow(String message, Supplier<CompletableFuture<T>> futureSupplier,
+                                             Predicate<Throwable> tester) {
+        try {
+            futureSupplier.get().join();
+        } catch (CompletionException ex) {
+            if (!tester.test(getRealException(ex))) {
+                Assert.fail(message + " Exception thrown was of unexpected type: " + getRealException(ex));
+            }
+        } catch (Exception ex) {
+            if (!tester.test(ex)) {
+                Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
+            }
+        }
+    }
+
     private static Throwable getRealException(Throwable ex) {
         if (ex instanceof CompletionException) {
             return getRealException(ex.getCause());

@@ -13,7 +13,9 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Random;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ReadIndexSummary class.
@@ -22,6 +24,8 @@ public class ReadIndexSummaryTests {
     private static final int GENERATION_COUNT = 100;
     private static final int ITEMS_PER_GENERATION = 100;
     private static final int MAX_ITEM_SIZE = 1000;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the basic functionality of adding elements and then removing them.

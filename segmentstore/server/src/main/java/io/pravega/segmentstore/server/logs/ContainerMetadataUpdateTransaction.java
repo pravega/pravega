@@ -76,7 +76,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private final boolean recoveryMode;
     @Getter
     private int maximumActiveSegmentCount;
-    private int baseActiveSegmentCount;
+    private int baseNewSegmentCount;
     /**
      * The base ContainerMetadata on top of which this UpdateTransaction is based. This isn't necessarily the same as
      * realMetadata (above) and this should be used when relying on information that is updated via transactions.
@@ -107,20 +107,15 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         this.containerId = this.baseMetadata.getContainerId();
         this.recoveryMode = this.baseMetadata.isRecoveryMode();
         this.maximumActiveSegmentCount = this.baseMetadata.getMaximumActiveSegmentCount();
-        this.baseActiveSegmentCount = this.baseMetadata.getActiveSegmentCount();
+        this.baseNewSegmentCount = getNewSegmentCount(baseMetadata);
 
         this.traceObjectId = String.format("MetadataUpdate[%d-%d]", this.containerId, transactionId);
         this.segmentUpdates = new HashMap<>();
         this.newTruncationPoints = new ArrayList<>();
         this.newSegments = new HashMap<>();
         this.newSegmentNames = new HashMap<>();
-        if (baseMetadata.isRecoveryMode()) {
-            this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
-        } else {
-            this.newSequenceNumber = Long.MIN_VALUE;
-        }
-
         this.sealed = false;
+        resetNewSequenceNumber();
     }
 
     //endregion
@@ -134,7 +129,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     @Override
     public long getOperationSequenceNumber() {
-        return this.newSequenceNumber;
+        Preconditions.checkState(!isRecoveryMode(), "GetOperationSequenceNumber cannot be invoked in recovery mode.");
+        return this.realMetadata.getOperationSequenceNumber();
     }
 
     @Override
@@ -171,7 +167,28 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     @Override
     public int getActiveSegmentCount() {
-        return this.baseActiveSegmentCount + this.newSegments.size();
+        return this.realMetadata.getActiveSegmentCount() + getNewSegmentCount();
+    }
+
+    /**
+     * Gets the total number of new segments from this UpdateTransaction and all base UpdateTransactions.
+     */
+    private int getNewSegmentCount() {
+        return this.baseNewSegmentCount + this.newSegments.size();
+    }
+
+    /**
+     * Gets the total number of new segments from the given metadata.
+     *
+     * @param baseMetadata The metadata to query.
+     * @return The total number of new segments, if the argument is a ContainerMetadataUpdateTransaction, or 0 otherwise.
+     */
+    private int getNewSegmentCount(ContainerMetadata baseMetadata) {
+        if (baseMetadata instanceof ContainerMetadataUpdateTransaction) {
+            return ((ContainerMetadataUpdateTransaction) baseMetadata).getNewSegmentCount();
+        }
+
+        return 0;
     }
 
     //endregion
@@ -196,12 +213,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         Preconditions.checkArgument(baseMetadata.isRecoveryMode() == this.isRecoveryMode(), "isRecoveryMode mismatch");
         this.baseMetadata = baseMetadata;
         this.maximumActiveSegmentCount = baseMetadata.getMaximumActiveSegmentCount();
-        this.baseActiveSegmentCount = baseMetadata.getActiveSegmentCount();
-        if (this.baseMetadata.isRecoveryMode()) {
-            this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
-        } else {
-            this.newSequenceNumber = Long.MIN_VALUE;
-        }
+        this.baseNewSegmentCount = getNewSegmentCount(baseMetadata);
+        resetNewSequenceNumber();
     }
 
     /**
@@ -219,8 +232,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 target.reset();
             }
 
-            // Reset cleaned up the Operation Sequence number. We need to reset it to whatever we have in our transaction.
-            // If we have nothing, we'll just set it to 0, which is what the default value was in the metadata too.
+            // RecoverableMetadata.reset() cleaned up the Operation Sequence number. We need to set it back to whatever
+            // we have in our UpdateTransaction. If we have nothing, we'll just set it to the default.
             assert this.newSequenceNumber >= ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER
                     : "Invalid Sequence Number " + this.newSequenceNumber;
             target.setOperationSequenceNumber(this.newSequenceNumber);
@@ -260,6 +273,10 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         this.newSegmentNames.clear();
         this.newTruncationPoints.clear();
         this.processedCheckpoint = false;
+        resetNewSequenceNumber();
+    }
+
+    private void resetNewSequenceNumber() {
         if (this.baseMetadata.isRecoveryMode()) {
             this.newSequenceNumber = ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER;
         } else {
@@ -505,11 +522,12 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // The ContainerMetadata.SequenceNumber is always guaranteed to be unique (it's monotonically strict increasing).
         // It can be safely used as a new unique Segment Id. If any clashes occur, just keep searching up until we find
         // a non-used one.
-        long segmentId = Math.max(this.baseMetadata.getOperationSequenceNumber(), ContainerMetadata.NO_STREAM_SEGMENT_ID + 1);
+        long segmentId = this.realMetadata.getOperationSequenceNumber();
         while (this.newSegments.containsKey(segmentId) || this.baseMetadata.getStreamSegmentMetadata(segmentId) != null) {
             segmentId++;
         }
 
+        assert segmentId >= ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER : "Invalid generated SegmentId";
         return segmentId;
     }
 
