@@ -36,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -142,24 +141,7 @@ public abstract class StreamMetadataStoreTest {
         // region seal stream
 
         assertFalse(store.isSealed(scope, stream1, null, executor).get());
-        assertNotEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus);
-        assertTrue(store.isSealed(scope, stream1, null, executor).get());
-        assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
 
-        //Sealing an already seal stream should return success.
-        Boolean sealOperationStatus1 = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus1);
-        assertTrue(store.isSealed(scope, stream1, null, executor).get());
-        assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-
-        // seal a non-existent stream.
-        try {
-            store.setSealed(scope, "streamNonExistent", null, executor).join();
-        } catch (CompletionException e) {
-            assertEquals(DataNotFoundException.class, e.getCause().getClass());
-        }
         // endregion
 
         // region delete scope and stream

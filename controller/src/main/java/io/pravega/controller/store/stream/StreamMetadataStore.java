@@ -164,17 +164,6 @@ public interface StreamMetadataStore {
                                                             final Executor executor);
 
     /**
-     * Set the stream state to sealed.
-     *
-     * @param scope    stream scope
-     * @param name     stream name.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return boolean indicating whether the stream was updated.
-     */
-    CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
-
-    /**
      * Get the stream sealed status.
      *
      * @param scope    stream scope

@@ -12,6 +12,7 @@ package io.pravega.controller.task.Stream;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -26,7 +27,6 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -133,20 +134,29 @@ public class StreamMetadataTasksTest {
         executor.shutdown();
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void sealStreamTest() throws Exception {
-        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
+        List<Controller.SegmentRange> segmentRanges = consumer.getCurrentSegments(SCOPE, stream1).get();
+        assertNotEquals(0, segmentRanges.size());
 
         //seal a stream.
-        UpdateStreamStatus.Status sealOperationResult = streamMetadataTasks.sealStreamBody(SCOPE, stream1, null).get();
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult);
+        ScaleResponse scaleResponse = streamMetadataTasks.manualScale(SCOPE, stream1,
+                segmentRanges.stream()
+                        .map(range -> range.getSegmentId().getSegmentNumber())
+                        .collect(Collectors.toList()),
+                Collections.emptyList(), System.currentTimeMillis(), null).get();
+        assertEquals(ScaleStreamStatus.SUCCESS, scaleResponse.getStatus());
 
         //a sealed stream should have zero active/current segments
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
 
         //reseal a sealed stream.
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, streamMetadataTasks.sealStreamBody(SCOPE, stream1, null).get());
+        assertEquals(ScaleStreamStatus.SUCCESS, streamMetadataTasks.manualScale(SCOPE, stream1,
+                segmentRanges.stream()
+                        .map(range -> range.getSegmentId().getSegmentNumber())
+                        .collect(Collectors.toList()),
+                Collections.emptyList(), System.currentTimeMillis(), null).get().getStatus());
 
         //scale operation on the sealed stream.
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);

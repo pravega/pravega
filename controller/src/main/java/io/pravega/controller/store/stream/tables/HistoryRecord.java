@@ -138,7 +138,7 @@ public class HistoryRecord {
 
     private static HistoryRecord parsePartial(final byte[] table, final int offset) {
         final int length = BitConverter.readInt(table, offset + lengthOffset());
-        assert length > FIXED_FIELDS_LENGTH && (length - FIXED_FIELDS_LENGTH) % Integer.BYTES == 0;
+        assert length >= FIXED_FIELDS_LENGTH && (length - FIXED_FIELDS_LENGTH) % Integer.BYTES == 0;
         final int epoch = BitConverter.readInt(table, offset + epochOffset());
         int count = getCount(length);
         final List<Integer> segments = new ArrayList<>();

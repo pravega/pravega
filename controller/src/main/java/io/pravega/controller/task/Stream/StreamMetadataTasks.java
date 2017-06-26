@@ -138,22 +138,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
-     * Seal a stream.
-     *
-     * @param scope      scope.
-     * @param stream     stream name.
-     * @param contextOpt optional context
-     * @return update status.
-     */
-    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
-    public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, null},
-                () -> sealStreamBody(scope, stream, contextOpt));
-    }
-
-    /**
      * Delete a stream. Precondition for deleting a stream is that the stream sholud be sealed.
      *
      * @param scope      scope.
@@ -407,42 +391,6 @@ public class StreamMetadataTasks extends TaskBase {
                                 : UpdateStreamStatus.Status.FAILURE;
                     }
                 });
-    }
-
-    CompletableFuture<UpdateStreamStatus.Status> sealStreamBody(String scope, String stream, OperationContext contextOpt) {
-        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-
-        return withRetries(() -> streamMetadataStore.getState(scope, stream, context, executor)
-                .thenCompose(state -> {
-                    if (!state.equals(State.SEALED)) {
-                        return streamMetadataStore.setState(scope, stream, State.SEALING, context, executor);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                })
-                .thenCompose(x -> streamMetadataStore.getActiveSegments(scope, stream, context, executor)), executor)
-                .thenCompose(activeSegments -> {
-                    if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
-                        //Do not update the state if the stream is already sealed.
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.SUCCESS);
-                    } else {
-                        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
-                                collect(Collectors.toList());
-                        return notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> withRetries(() ->
-                                        streamMetadataStore.setSealed(scope, stream, context, executor), executor))
-                                .handle((result, ex) -> {
-                                    if (ex != null) {
-                                        log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
-                                        return handleUpdateStreamError(ex);
-                                    } else {
-                                        return result ? UpdateStreamStatus.Status.SUCCESS
-                                                : UpdateStreamStatus.Status.FAILURE;
-                                    }
-                                });
-                    }
-                })
-                .exceptionally(this::handleUpdateStreamError);
     }
 
     CompletableFuture<DeleteStreamStatus.Status> deleteStreamBody(final String scope, final String stream,

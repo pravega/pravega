@@ -22,18 +22,14 @@ public enum State {
     CREATING,
     ACTIVE,
     UPDATING,
-    SCALING,
-    SEALING,
-    SEALED;
+    SCALING;
 
     private enum StateTransitions {
         UNKNOWN(State.UNKNOWN, State.CREATING),
         CREATING(State.CREATING, State.ACTIVE),
-        ACTIVE(State.ACTIVE, State.SCALING, State.SEALING, State.SEALED, State.UPDATING),
+        ACTIVE(State.ACTIVE, State.SCALING, State.UPDATING),
         SCALING(State.SCALING, State.ACTIVE),
-        UPDATING(State.UPDATING, State.ACTIVE),
-        SEALING(State.SCALING, State.SEALED),
-        SEALED(State.SEALED);
+        UPDATING(State.UPDATING, State.ACTIVE);
 
         private final Set<State> transitions;
 

@@ -26,7 +26,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -249,18 +248,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
+        return withCompletion(getStream(scope, name, context).getActiveSegments().thenApply(list -> list.isEmpty()), executor);
     }
-
-    @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
-            SEAL_STREAM.reportSuccessValue(1);
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-            return result;
-        });
-    }
-
 
     @Override
     public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor) {
@@ -275,18 +264,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor) {
         final Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getState()
-                        .thenComposeAsync(state -> {
-                            if (State.SEALED.equals(state)) {
-                                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
-                            } else {
-                                return stream.getActiveSegments();
-                            }
-                        }, executor)
-                        .thenComposeAsync(currentSegments ->
-                                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
-                                        .collect(Collectors.toList())), executor),
-                executor);
+        return withCompletion(stream.getActiveSegments().thenComposeAsync(currentSegments ->
+                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                        .collect(Collectors.toList())), executor), executor);
     }
 
 
@@ -356,13 +336,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         future.thenAccept(result -> {
             DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
                     newSegments.size() - sealedSegments.size());
-            getSealedRanges(scope, name, sealedSegments, context, executor)
-                    .thenAccept(sealedRanges -> {
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
-                                findSplits(sealedRanges, newRanges));
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
-                                findSplits(newRanges, sealedRanges));
-                    });
+            if (newSegments.isEmpty()) {
+                // No new segments implies completion of sealing operation.
+                SEAL_STREAM.reportSuccessValue(1);
+            } else {
+                // It is a normal scaling operation and we can change split or merge counters.
+                getSealedRanges(scope, name, sealedSegments, context, executor)
+                        .thenAccept(sealedRanges -> {
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
+                                    findSplits(sealedRanges, newRanges));
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
+                                    findSplits(newRanges, sealedRanges));
+                        });
+            }
         });
 
         return future;

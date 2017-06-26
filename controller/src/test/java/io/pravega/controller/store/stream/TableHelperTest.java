@@ -18,6 +18,7 @@ import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -532,6 +533,39 @@ public class TableHelperTest {
                 .boxed()
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        final double keyRangeChunkInvalid = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRangesInvalid = IntStream.range(0, 2)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunkInvalid, (x + 1) * keyRangeChunkInvalid))
+                .collect(Collectors.toList());
+        assertFalse(TableHelper.isRerunOf(Lists.newArrayList(5, 6), newRangesInvalid, historyTable, segmentTable));
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+
+        assertFalse(TableHelper.isScaleOngoing(historyTable, segmentTable));
+    }
+
+    @Test
+    public void sealAsScaleTest() {
+        long timestamp = System.currentTimeMillis();
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+
+        // start new scale
+        List<Integer> newSegments = Collections.emptyList();
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Collections.emptyList();
 
         segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
         assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));

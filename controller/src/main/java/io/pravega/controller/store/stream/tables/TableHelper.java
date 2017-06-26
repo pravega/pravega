@@ -277,20 +277,25 @@ public class TableHelper {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         try {
             segmentStream.write(segmentTable);
-
-            IntStream.range(0, newRanges.size())
-                    .forEach(
-                            x -> {
-                                try {
-                                    segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
-                                            timeStamp,
-                                            newRanges.get(x).getKey(),
-                                            newRanges.get(x).getValue()).toByteArray());
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
+            if (newRanges.isEmpty()) {
+                // Empty newRanges implies stream sealing operation, hence we add a SealSentinal record.
+                segmentStream.write(SegmentRecord.getSealSentinal(startingSegmentNumber, timeStamp).toByteArray());
+            } else {
+                // Otherwise we add one row per entry in newRanges to SegmentTable.
+                IntStream.range(0, newRanges.size())
+                        .forEach(
+                                x -> {
+                                    try {
+                                        segmentStream.write(new SegmentRecord(startingSegmentNumber + x,
+                                                timeStamp,
+                                                newRanges.get(x).getKey(),
+                                                newRanges.get(x).getValue()).toByteArray());
+                                    } catch (Exception e) {
+                                        throw new RuntimeException(e);
+                                    }
                                 }
-                            }
-                    );
+                        );
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -427,7 +432,13 @@ public class TableHelper {
     public static boolean isScaleOngoing(final byte[] historyTable, final byte[] segmentTable) {
 
         HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
-        return latestHistoryRecord.isPartial() || !latestHistoryRecord.getSegments().contains(getLastSegmentNumber(segmentTable));
+        // Either last row of HistoryTable is partial,
+        // or negation of the following condition.
+        // Non-empty set of segments in last row of HistoryTable implies that
+        // those segments contain highest numbered segment from SegmentTable.
+        return latestHistoryRecord.isPartial() ||
+                (!latestHistoryRecord.getSegments().isEmpty() &&
+                        !latestHistoryRecord.getSegments().contains(getLastSegmentNumber(segmentTable)));
     }
 
     /**
@@ -457,10 +468,12 @@ public class TableHelper {
         HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
 
         int n = newRanges.size();
-        List<SegmentRecord> lastN = SegmentRecord.readLastN(segmentTable, n);
+        int newRows = n > 0 ? n : 1;
+        List<SegmentRecord> lastN = SegmentRecord.readLastN(segmentTable, newRows);
 
-        boolean newSegmentsPredicate = newRanges.stream()
-                .allMatch(x -> lastN.stream().anyMatch(y -> y.getRoutingKeyStart() == x.getKey() && y.getRoutingKeyEnd() == x.getValue()));
+        boolean newSegmentsPredicate = newRanges.isEmpty()? SegmentRecord.isSealSentinal(lastN.get(0)) :
+                newRanges.stream().allMatch(x -> lastN.stream()
+                        .anyMatch(y -> y.getRoutingKeyStart() == x.getKey() && y.getRoutingKeyEnd() == x.getValue()));
         boolean segmentToSealPredicate;
         boolean exactMatchPredicate;
 
@@ -468,18 +481,19 @@ public class TableHelper {
         if (!latestHistoryRecord.isPartial()) {
             // it is implicit: history.latest.containsNone(lastN)
             segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(segmentsToSeal);
-            assert !latestHistoryRecord.getSegments().isEmpty();
+            assert !segmentToSealPredicate || !latestHistoryRecord.getSegments().isEmpty();
             exactMatchPredicate = latestHistoryRecord.getSegments().stream()
-                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
+                    .max(Comparator.naturalOrder()).get() + newRows == getLastSegmentNumber(segmentTable);
         } else { // CASE 2: segment table updated.. history table updated (partial record)..
             // since latest is partial so previous has to exist
             HistoryRecord previousHistoryRecord = HistoryRecord.fetchPrevious(latestHistoryRecord, historyTable).get();
 
-            segmentToSealPredicate = latestHistoryRecord.getSegments().containsAll(lastN.stream()
-                    .map(SegmentRecord::getSegmentNumber).collect(Collectors.toList())) &&
+            segmentToSealPredicate = (latestHistoryRecord.getSegments().isEmpty() && newRanges.isEmpty() ||
+                    latestHistoryRecord.getSegments().containsAll(lastN.stream()
+                    .map(SegmentRecord::getSegmentNumber).collect(Collectors.toList()))) &&
                     previousHistoryRecord.getSegments().containsAll(segmentsToSeal);
             exactMatchPredicate = previousHistoryRecord.getSegments().stream()
-                    .max(Comparator.naturalOrder()).get() + n == getLastSegmentNumber(segmentTable);
+                    .max(Comparator.naturalOrder()).get() + newRows == getLastSegmentNumber(segmentTable);
         }
 
         return newSegmentsPredicate && segmentToSealPredicate && exactMatchPredicate;
