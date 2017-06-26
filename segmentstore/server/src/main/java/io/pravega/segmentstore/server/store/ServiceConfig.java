@@ -44,7 +44,7 @@ public class ServiceConfig {
     public enum StorageTypes {
         HDFS("HDFS"),
         FILESYSTEM("FS"),
-        ECS("ECS"),
+        EXTS3("EXTS3"),
         INMEMORY("INMEMORY");
 
         private final String type;

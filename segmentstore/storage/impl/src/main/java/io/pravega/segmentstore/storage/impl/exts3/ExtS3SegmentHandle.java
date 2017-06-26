@@ -7,15 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.ecs;
+package io.pravega.segmentstore.storage.impl.exts3;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 
-public class ECSSegmentHandle implements SegmentHandle {
+public class ExtS3SegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
-    public ECSSegmentHandle(String streamSegmentName, boolean isReadOnly) {
+    public ExtS3SegmentHandle(String streamSegmentName, boolean isReadOnly) {
         this.segmentName = streamSegmentName;
         this.isReadOnly = isReadOnly;
     }
@@ -30,11 +30,11 @@ public class ECSSegmentHandle implements SegmentHandle {
         return isReadOnly;
     }
 
-    public static ECSSegmentHandle getReadHandle(String streamSegmentName) {
-        return new ECSSegmentHandle(streamSegmentName, true);
+    public static ExtS3SegmentHandle getReadHandle(String streamSegmentName) {
+        return new ExtS3SegmentHandle(streamSegmentName, true);
     }
 
-    public static ECSSegmentHandle getWriteHandle(String streamSegmentName) {
-        return new ECSSegmentHandle(streamSegmentName, false);
+    public static ExtS3SegmentHandle getWriteHandle(String streamSegmentName) {
+        return new ExtS3SegmentHandle(streamSegmentName, false);
     }
 }

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.ecs;
+package io.pravega.segmentstore.storage.impl.exts3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Config;
@@ -55,18 +55,17 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
- * Unit tests for ECSStorage.
+ * Unit tests for ExtS3Storage.
  */
 @Slf4j
-public class ECSStorageTest extends IdempotentStorageTest {
-    private ECSStorageFactory storageFactory;
-    private ECSStorageConfig adapterConfig;
+public class EXTS3StorageTest extends IdempotentStorageTest {
+    private ExtS3StorageFactory storageFactory;
+    private ExtS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
     private S3Proxy s3Proxy;
 
     @Before
     public void setUp() throws Exception {
-        S3Config ecsConfig = null;
 
         String endpoint = "http://127.0.0.1:9020";
         URI uri = URI.create(endpoint);
@@ -93,13 +92,13 @@ public class ECSStorageTest extends IdempotentStorageTest {
 
         s3Proxy.start();
 
-        this.adapterConfig = ECSStorageConfig.builder()
-                .with(ECSStorageConfig.ECS_BUCKET, "kanpravegatest")
-                .with(ECSStorageConfig.ECS_ACCESS_KEY_ID, "x")
-                .with(ECSStorageConfig.ECS_SECRET_KEY, "x")
-                .with(ECSStorageConfig.ROOT, "test")
-                .with(ECSStorageConfig.ECS_URI, "http://127.0.0.1:9020")
-                .build();
+        this.adapterConfig = ExtS3StorageConfig.builder()
+                                               .with(ExtS3StorageConfig.EXTS3_BUCKET, "kanpravegatest")
+                                               .with(ExtS3StorageConfig.EXTS3_ACCESS_KEY_ID, "x")
+                                               .with(ExtS3StorageConfig.EXTS3_SECRET_KEY, "x")
+                                               .with(ExtS3StorageConfig.ROOT, "test")
+                                               .with(ExtS3StorageConfig.EXTS3_URI, "http://127.0.0.1:9020")
+                                               .build();
         if (client == null) {
             try {
                 createStorage();
@@ -118,7 +117,7 @@ public class ECSStorageTest extends IdempotentStorageTest {
 
                 client.deleteObjects(new DeleteObjectsRequest("kanpravegatest").withKeys(keys));
             } catch (Exception e) {
-                log.error("Wrong ECS URI {}. Can not continue.");
+                log.error("Wrong EXTS3 URI {}. Can not continue.");
             }
         }
     }
@@ -135,18 +134,18 @@ public class ECSStorageTest extends IdempotentStorageTest {
 
     @Override
     protected Storage createStorage() {
-        S3Config ecsConfig = null;
+        S3Config exts3Config = null;
         try {
-            ecsConfig = new S3Config(new URI("http://localhost:9020"));
+            exts3Config = new S3Config(new URI("http://localhost:9020"));
             if (adapterConfig == null) {
                 setUp();
             }
-            ecsConfig.withIdentity(adapterConfig.getEcsAccessKey()).withSecretKey(adapterConfig.getEcsSecretKey());
+            exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
 
-            client = new S3JerseyClientWrapper(ecsConfig);
+            client = new S3JerseyClientWrapper(exts3Config);
 
-            storageFactory = new ECSStorageFactory(adapterConfig, this.executorService());
-            ECSStorage storage = (ECSStorage) storageFactory.createStorageAdapter();
+            storageFactory = new ExtS3StorageFactory(adapterConfig, this.executorService());
+            ExtS3Storage storage = (ExtS3Storage) storageFactory.createStorageAdapter();
             storage.setClient(client);
             return storage;
         } catch (Exception e) {
@@ -159,9 +158,9 @@ public class ECSStorageTest extends IdempotentStorageTest {
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return ECSSegmentHandle.getReadHandle(segmentName);
+            return ExtS3SegmentHandle.getReadHandle(segmentName);
         } else {
-            return ECSSegmentHandle.getWriteHandle(segmentName);
+            return ExtS3SegmentHandle.getWriteHandle(segmentName);
         }
     }
 
@@ -169,8 +168,8 @@ public class ECSStorageTest extends IdempotentStorageTest {
     private static class S3JerseyClientWrapper extends S3JerseyClient {
         private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
-        public S3JerseyClientWrapper(S3Config ecsConfig) {
-            super(ecsConfig);
+        public S3JerseyClientWrapper(S3Config exts3Config) {
+            super(exts3Config);
         }
 
         @Override

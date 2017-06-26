@@ -7,7 +7,7 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.ecs;
+package io.pravega.segmentstore.storage.impl.exts3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
@@ -62,7 +62,7 @@ import lombok.extern.slf4j.Slf4j;
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
- * As PutObject calls to with the same start-offset to an ECS object are idempotent (any attempt to re-write data with the same file offset does not
+ * As PutObject calls to with the same start-offset to an Exts3 object are idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), fencing is not required.
  *
  *
@@ -72,11 +72,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ECSStorage implements Storage {
+public class ExtS3Storage implements Storage {
 
     //region members
 
-    private final ECSStorageConfig config;
+    private final ExtS3StorageConfig config;
     private final ExecutorService executor;
     private S3Client client = null;
 
@@ -84,17 +84,17 @@ public class ECSStorage implements Storage {
 
     //region constructor
 
-    public ECSStorage(ECSStorageConfig config, ExecutorService executor) {
+    public ExtS3Storage(ExtS3StorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
 
-        S3Config ecsConfig = new S3Config(config.getEcsUrl())
-                .withIdentity(config.getEcsAccessKey())
-                .withSecretKey(config.getEcsSecretKey());
+        S3Config exts3Config = new S3Config(config.getExts3Url())
+                .withIdentity(config.getExts3AccessKey())
+                .withSecretKey(config.getExts3SecretKey());
 
-        client = new S3JerseyClient(ecsConfig);
+        client = new S3JerseyClient(exts3Config);
     }
 
     //endregion
@@ -180,7 +180,7 @@ public class ECSStorage implements Storage {
         log.trace("Opening {} for read.", streamSegmentName);
 
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        ECSSegmentHandle retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+        ExtS3SegmentHandle retHandle = ExtS3SegmentHandle.getReadHandle(streamSegmentName);
         log.trace("Created read handle for segment {} ", streamSegmentName);
         return retHandle;
     }
@@ -188,11 +188,11 @@ public class ECSStorage implements Storage {
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
         log.trace("Opening {} for write.", streamSegmentName);
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        ECSSegmentHandle retHandle;
+        ExtS3SegmentHandle retHandle;
         if (info.isSealed()) {
-            retHandle = ECSSegmentHandle.getReadHandle(streamSegmentName);
+            retHandle = ExtS3SegmentHandle.getReadHandle(streamSegmentName);
         } else {
-            retHandle = ECSSegmentHandle.getWriteHandle(streamSegmentName);
+            retHandle = ExtS3SegmentHandle.getWriteHandle(streamSegmentName);
         }
 
         log.trace("Created read handle for segment {} ", streamSegmentName);
@@ -206,12 +206,12 @@ public class ECSStorage implements Storage {
             throw new CompletionException(new ArrayIndexOutOfBoundsException());
         }
 
-        try (InputStream reader = client.readObjectStream(config.getEcsBucket(),
-                config.getEcsRoot() + handle.getSegmentName(), Range.fromOffset(offset))) {
+        try (InputStream reader = client.readObjectStream(config.getExts3Bucket(),
+                config.getExts3Root() + handle.getSegmentName(), Range.fromOffset(offset))) {
 
             if (reader == null) {
-                log.info("Object does not exist {} in bucket {} ", config.getEcsRoot() + handle.getSegmentName(),
-                        config.getEcsBucket());
+                log.info("Object does not exist {} in bucket {} ", config.getExts3Root() + handle.getSegmentName(),
+                        config.getExts3Bucket());
 
                 throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
             }
@@ -231,11 +231,11 @@ public class ECSStorage implements Storage {
     }
 
     private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName) {
-        S3ObjectMetadata result = client.getObjectMetadata(config.getEcsBucket(),
-                config.getEcsRoot() + streamSegmentName);
+        S3ObjectMetadata result = client.getObjectMetadata(config.getExts3Bucket(),
+                config.getExts3Root() + streamSegmentName);
 
         //client.
-        AccessControlList acls = client.getObjectAcl(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+        AccessControlList acls = client.getObjectAcl(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
 
         boolean canWrite = false;
         canWrite = acls.getGrants().stream().filter((grant) -> {
@@ -251,7 +251,7 @@ public class ECSStorage implements Storage {
     private boolean syncExists(String streamSegmentName) {
         GetObjectResult<InputStream> result = null;
         try {
-            result = client.getObject(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName);
+            result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
         } catch (Exception e) {
             log.warn("Exception {} observed while getting segment info {}", e.getMessage(), streamSegmentName);
         }
@@ -261,7 +261,7 @@ public class ECSStorage implements Storage {
     private SegmentProperties syncCreate(String streamSegmentName) {
         log.info("Creating Segment {}", streamSegmentName);
 
-        if (client.listObjects(config.getEcsBucket(), config.getEcsRoot() + streamSegmentName)
+        if (client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
                   .getObjects().size() != 0) {
             throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
         }
@@ -269,13 +269,13 @@ public class ECSStorage implements Storage {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         metadata.setContentLength((long) 0);
 
-        PutObjectRequest request = new PutObjectRequest(config.getEcsBucket(),
-                config.getEcsRoot() + streamSegmentName,
+        PutObjectRequest request = new PutObjectRequest(config.getExts3Bucket(),
+                config.getExts3Root() + streamSegmentName,
                 (Object) null);
 
         AccessControlList acl = new AccessControlList();
         acl.addGrants(new Grant[]{
-                new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
+                new Grant(new CanonicalUser(config.getExts3AccessKey(), config.getExts3AccessKey()),
                         Permission.FULL_CONTROL)
         });
 
@@ -300,7 +300,7 @@ public class ECSStorage implements Storage {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
-        client.putObject(this.config.getEcsBucket(), this.config.getEcsRoot() + handle.getSegmentName(),
+        client.putObject(this.config.getExts3Bucket(), this.config.getExts3Root() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
         return null;
     }
@@ -312,14 +312,14 @@ public class ECSStorage implements Storage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        AccessControlList acl = client.getObjectAcl(config.getEcsBucket(),
-                config.getEcsRoot() + handle.getSegmentName());
+        AccessControlList acl = client.getObjectAcl(config.getExts3Bucket(),
+                config.getExts3Root() + handle.getSegmentName());
         acl.getGrants().clear();
-        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getEcsAccessKey(), config.getEcsAccessKey()),
+        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getExts3AccessKey(), config.getExts3AccessKey()),
                 Permission.READ)});
 
         client.setObjectAcl(
-                new SetObjectAclRequest(config.getEcsBucket(), config.getEcsRoot() + handle.getSegmentName()).withAcl(acl));
+                new SetObjectAclRequest(config.getExts3Bucket(), config.getExts3Root() + handle.getSegmentName()).withAcl(acl));
         log.info("Successfully sealed segment {}", handle.getSegmentName());
         return null;
     }
@@ -327,8 +327,8 @@ public class ECSStorage implements Storage {
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-        String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
-        String uploadId = client.initiateMultipartUpload(config.getEcsBucket(), targetPath);
+        String targetPath = config.getExts3Root() + targetHandle.getSegmentName();
+        String uploadId = client.initiateMultipartUpload(config.getExts3Bucket(), targetPath);
 
         // check whether the target exists
         if (!syncExists(targetHandle.getSegmentName())) {
@@ -341,9 +341,9 @@ public class ECSStorage implements Storage {
         }
 
         //Upload the first part
-        CopyPartRequest copyRequest = new CopyPartRequest(config.getEcsBucket(),
+        CopyPartRequest copyRequest = new CopyPartRequest(config.getExts3Bucket(),
                 targetPath,
-                config.getEcsBucket(),
+                config.getExts3Bucket(),
                 targetPath,
                 uploadId,
                 1).withSourceRange(Range.fromOffsetLength(0, offset));
@@ -352,13 +352,13 @@ public class ECSStorage implements Storage {
         partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
         //Upload the second part
-        S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getEcsBucket(),
-                config.getEcsRoot() + sourceSegment);
+        S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getExts3Bucket(),
+                config.getExts3Root() + sourceSegment);
         long objectSize = metadataResult.getContentLength(); // in bytes
 
-        copyRequest = new CopyPartRequest(config.getEcsBucket(),
-                config.getEcsRoot() + sourceSegment,
-                config.getEcsBucket(),
+        copyRequest = new CopyPartRequest(config.getExts3Bucket(),
+                config.getExts3Root() + sourceSegment,
+                config.getExts3Bucket(),
                 targetPath,
                 uploadId,
                 2).withSourceRange(Range.fromOffsetLength(0, objectSize));
@@ -367,20 +367,20 @@ public class ECSStorage implements Storage {
         partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
         //Close the upload
-        client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getEcsBucket(),
+        client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getExts3Bucket(),
                 targetPath, uploadId).withParts(partEtags));
 
         si = syncGetStreamSegmentInfo(targetHandle.getSegmentName());
         log.trace("Properties after concat completion : length is {} ", si.getLength());
 
-        client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + sourceSegment);
+        client.deleteObject(config.getExts3Bucket(), config.getExts3Root() + sourceSegment);
 
         return null;
     }
 
     private Void syncDelete(SegmentHandle handle) {
 
-        client.deleteObject(config.getEcsBucket(), config.getEcsRoot() + handle.getSegmentName());
+        client.deleteObject(config.getExts3Bucket(), config.getExts3Root() + handle.getSegmentName());
         return null;
     }
 
