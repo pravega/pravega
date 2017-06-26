@@ -322,11 +322,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Integer>> getActiveSegmentNumbers(final String scope,
-                                                                    final String stream,
-                                                                    final int epoch,
-                                                                    final OperationContext context,
-                                                                    final Executor executor) {
+    public CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
+                                                                final String stream,
+                                                                final int epoch,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveSegments(epoch), executor);
     }
 

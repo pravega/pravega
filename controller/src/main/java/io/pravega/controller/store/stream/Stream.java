@@ -234,11 +234,11 @@ interface Stream {
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txData Transaction data.
+     * @param txnData Transaction data.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txData, final long lease);
+    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.

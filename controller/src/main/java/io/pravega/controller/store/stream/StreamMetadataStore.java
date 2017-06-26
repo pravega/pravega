@@ -259,11 +259,11 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<List<Integer>> getActiveSegmentNumbers(final String scope,
-                                                             final String stream,
-                                                             final int epoch,
-                                                             final OperationContext context,
-                                                             final Executor executor);
+    CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
+                                                         final String stream,
+                                                         final int epoch,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it

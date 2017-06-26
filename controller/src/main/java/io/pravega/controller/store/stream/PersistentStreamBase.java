@@ -478,16 +478,16 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txData,
+    public CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData,
                                                                        final long lease) {
         // Update txn record with new lease value and return versioned tx data.
-        final int epoch = txData.getEpoch();
-        final UUID txnId = txData.getId();
-        final int version = txData.getVersion();
-        final long creationTime = txData.getCreationTime();
-        final long maxExecutionExpiryTime = txData.getMaxExecutionExpiryTime();
-        final long scaleGracePeriod = txData.getScaleGracePeriod();
-        final TxnStatus status = txData.getStatus();
+        final int epoch = txnData.getEpoch();
+        final UUID txnId = txnData.getId();
+        final int version = txnData.getVersion();
+        final long creationTime = txnData.getCreationTime();
+        final long maxExecutionExpiryTime = txnData.getMaxExecutionExpiryTime();
+        final long scaleGracePeriod = txnData.getScaleGracePeriod();
+        final TxnStatus status = txnData.getStatus();
         final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
                 maxExecutionExpiryTime, scaleGracePeriod, status);
         final Data<Integer> data = new Data<>(newData.toByteArray(), version);

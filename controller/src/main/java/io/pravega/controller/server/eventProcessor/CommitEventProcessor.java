@@ -122,7 +122,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                                                    final int epoch,
                                                    final UUID txnId,
                                                    final OperationContext context) {
-        return streamMetadataStore.getActiveSegmentNumbers(scope, stream, epoch, context, executor)
+        return streamMetadataStore.getActiveSegmentIds(scope, stream, epoch, context, executor)
                 .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
                         streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
                         .thenApply(x -> null))

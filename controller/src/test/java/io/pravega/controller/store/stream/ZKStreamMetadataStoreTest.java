@@ -84,7 +84,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 (Throwable t) -> t instanceof IllegalStateException);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testError() throws Exception {
         String host = "host";
         TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
