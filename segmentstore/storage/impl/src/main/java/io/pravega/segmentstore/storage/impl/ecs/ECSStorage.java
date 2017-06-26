@@ -43,11 +43,10 @@ import java.nio.file.AccessDeniedException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -201,8 +200,7 @@ public class ECSStorage implements Storage {
         return retHandle;
     }
 
-    @SneakyThrows(IOException.class)
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
+    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         log.info("Creating a inputstream at offset {} for stream {}", offset, handle.getSegmentName());
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
@@ -290,8 +288,7 @@ public class ECSStorage implements Storage {
         return syncGetStreamSegmentInfo(streamSegmentName);
     }
 
-    @SneakyThrows
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) {
+    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException {
         log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
 
         if (handle.isReadOnly()) {
@@ -328,8 +325,7 @@ public class ECSStorage implements Storage {
         return null;
     }
 
-    @SneakyThrows
-    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) {
+    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         String targetPath = config.getEcsRoot() + targetHandle.getSegmentName();
@@ -392,11 +388,11 @@ public class ECSStorage implements Storage {
     /**
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
      */
-    private <R> CompletableFuture<R> supplyAsync(String segmentName, Supplier<R> operation) {
+    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
         CompletableFuture<R> result = new CompletableFuture<>();
         this.executor.execute(() -> {
             try {
-                result.complete(operation.get());
+                result.complete(operation.call());
             } catch (Exception e) {
                 handleException(e, segmentName, result);
             }
