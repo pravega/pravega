@@ -27,7 +27,7 @@ configure_controller() {
 }
 
 configure_tier2() {
-    add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
+   add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
 
     case "${TIER2_STORAGE}" in
     FS)
@@ -71,8 +71,6 @@ configure_tier2() {
 configure_segmentstore() {
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
     add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
-    add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
-    echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
 configure_standalone() {

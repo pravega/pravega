@@ -38,6 +38,7 @@ sed -i 's|ledgerDirectories=/tmp/bk-data|ledgerDirectories='${BK_DIR}'/ledgers|'
 sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories='${BK_DIR}'/index|' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 
+sed -i '/autoRecoveryDaemonEnabled/d' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 
 echo "wait for zookeeper"

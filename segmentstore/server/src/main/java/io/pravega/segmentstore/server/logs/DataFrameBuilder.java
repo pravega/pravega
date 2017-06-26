@@ -199,7 +199,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
         ex = ExceptionHelpers.getRealException(ex);
-        if (!(ex instanceof ObjectClosedException) && !(ex instanceof CancellationException)) {
+        if (!isShutdownException(ex)) {
             // This is usually from a subsequent call. We want to store the actual failure cause.
             this.failureCause.compareAndSet(null, ex);
         }
@@ -207,6 +207,10 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         this.args.commitFailure.accept(ex, commitArgs);
         close();
         return null;
+    }
+
+    private boolean isShutdownException(Throwable ex) {
+        return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
     //endregion

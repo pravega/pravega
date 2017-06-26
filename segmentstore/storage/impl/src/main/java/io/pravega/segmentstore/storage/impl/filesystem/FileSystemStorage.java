@@ -73,6 +73,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  */
 @Slf4j
 public class FileSystemStorage implements Storage {
+    private static final int NUM_RETRIES = 3;
 
     //region members
 

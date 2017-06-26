@@ -236,6 +236,25 @@ project('segmentstore:server:host') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
     }
+
+    task createAppWithGCLogging(type: CreateStartScripts) {
+        applicationName = "pravega-segmentstore-withGCLogging"
+        mainClassName = "io.pravega.controller.server.Main"
+        defaultJvmOpts = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                          "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                          "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                          "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
+                          "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                          "-Dlog.name=segmentstore",
+                          "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
+                          "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml"]
+        classpath = startScripts.classpath
+        outputDir = startScripts.outputDir
+    }
+
+    applicationDistribution.into("bin") {
+        from(createAppWithGCLogging)
+    }
 }
 
 project('test:integration') {
@@ -377,6 +396,25 @@ project('controller') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+    }
+
+    task createAppWithGCLogging(type: CreateStartScripts) {
+        applicationName = "pravega-controller-withGCLogging"
+        mainClassName = "io.pravega.controller.server.Main"
+        defaultJvmOpts = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
+                          "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                          "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                          "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
+                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                          "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
+                          "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                          "-Dlog.name=controller"]
+        classpath = startScripts.classpath
+        outputDir = startScripts.outputDir
+    }
+
+    applicationDistribution.into("bin") {
+        from(createAppWithGCLogging)
     }
 }
 

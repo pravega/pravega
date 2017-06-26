@@ -131,8 +131,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     protected void errorHandler(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
         closeQueue(ex);
-        if (!(ex instanceof CancellationException)) {
-            // CancellationException means we are already stopping, so no need to do anything else. For all other cases,
+        if (!isShutdownException(ex)) {
+            // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
             super.errorHandler(ex);
             stopAsync();
@@ -146,12 +146,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // caused by the queue being shut down, but the main processing loop has just started another iteration and they
         // crossed paths.
         State s = state();
-        boolean isExpected = ex instanceof ObjectClosedException && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
+        boolean isExpected = isShutdownException(ex) && (s == State.STOPPING || s == State.TERMINATED || s == State.FAILED);
         if (!isExpected) {
             throw ex;
         }
 
         return null;
+    }
+
+    private boolean isShutdownException(Throwable ex) {
+        return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
     //endregion
@@ -440,7 +444,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 synchronized (stateLock) {
                     if (addressSequence <= this.highestCommittedDataFrame) {
                         // Ack came out of order (we already processed one with a higher SeqNo).
-                        log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = ).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
+                        log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = {}).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
+                        return;
+                    }
+
+                    if (state() != State.RUNNING) {
+                        // We are shutting down.
+                        log.debug("{}: CommitRejected ({}, Not Running, State = {}).", traceObjectId, commitArgs, state());
                         return;
                     }
 

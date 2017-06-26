@@ -611,6 +611,74 @@ Delete a stream
 ```
 
 
+<a name="getscalingevents"></a>
+### GET /scopes/{scopeName}/streams/{streamName}/scaling-events
+
+#### Description
+Get scaling events for a given datetime period.
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**scopeName**  <br>*required*|Scope name|string|
+|**Path**|**streamName**  <br>*required*|Stream name|string|
+|**Query**|**from**  <br>*required*|Parameter to display scaling events from that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
+|**Query**|**to**  <br>*required*|Parameter to display scaling events to that particular datetime. Input should be milliseconds from Jan 1 1970.|integer (int64)|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|Successfully fetched list of scaling events.|[ScalingEventList](#scalingeventlist)|
+|**404**|Scope/Stream not found.|No Content|
+|**500**|Internal Server error while fetching scaling events.|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/scopes/string/streams/string/scaling-events
+```
+
+
+##### Request query
+```
+json :
+{
+  "from" : 0,
+  "to" : 0
+}
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```
+json :
+{
+  "scalingEvents" : [ {
+    "timestamp" : 0,
+    "segmentList" : [ {
+      "number" : 0,
+      "startTime" : 0,
+      "keyStart" : 0,
+      "keyEnd" : 0
+    } ]
+  } ]
+}
+```
+
+
 <a name="updatestreamstate"></a>
 ### PUT /scopes/{scopeName}/streams/{streamName}/state
 
@@ -693,6 +761,15 @@ json :
 |**value**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
+<a name="scalemetadata"></a>
+### ScaleMetadata
+
+|Name|Description|Schema|
+|---|---|---|
+|**segmentList**  <br>*optional*|**Example** : `[ "[segment](#segment)" ]`|< [Segment](#segment) > array|
+|**timestamp**  <br>*optional*|**Example** : `0`|integer (int64)|
+
+
 <a name="scalingconfig"></a>
 ### ScalingConfig
 
@@ -702,6 +779,14 @@ json :
 |**scaleFactor**  <br>*optional*|**Example** : `0`|integer (int32)|
 |**targetRate**  <br>*optional*|**Example** : `0`|integer (int32)|
 |**type**  <br>*optional*|**Example** : `"string"`|enum (FIXED_NUM_SEGMENTS, BY_RATE_IN_KBYTES_PER_SEC, BY_RATE_IN_EVENTS_PER_SEC)|
+
+
+<a name="scalingeventlist"></a>
+### ScalingEventList
+
+|Name|Description|Schema|
+|---|---|---|
+|**scalingEvents**  <br>*optional*|**Example** : `[ "[scalemetadata](#scalemetadata)" ]`|< [ScaleMetadata](#scalemetadata) > array|
 
 
 <a name="scopeproperty"></a>
@@ -718,6 +803,17 @@ json :
 |Name|Description|Schema|
 |---|---|---|
 |**scopes**  <br>*optional*|**Example** : `[ "[scopeproperty](#scopeproperty)" ]`|< [ScopeProperty](#scopeproperty) > array|
+
+
+<a name="segment"></a>
+### Segment
+
+|Name|Description|Schema|
+|---|---|---|
+|**keyEnd**  <br>*optional*|**Example** : `0`|integer (double)|
+|**keyStart**  <br>*optional*|**Example** : `0`|integer (double)|
+|**number**  <br>*optional*|**Example** : `0`|integer (int32)|
+|**startTime**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 
 <a name="streamproperty"></a>
