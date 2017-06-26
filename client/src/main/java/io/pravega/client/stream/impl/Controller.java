@@ -223,7 +223,7 @@ public interface Controller {
     
     /**
      * Returns the total number of bytes from the provided positions until the stream.
-     * TODO: Make this API asynchronous.
+     * TODO: Make this API asynchronous. https://github.com/pravega/pravega/issues/1478
      * 
      * @param stream The stream being queried.  
      * @param checkpoint A set of segment/offset pairs for a single stream that represent a
