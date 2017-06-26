@@ -106,7 +106,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 3 instances of pravega controller
-        Service conService = new PravegaControllerService("controllerFailover2", zkUri);
+        Service conService = new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -122,7 +122,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start 3 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("segmentstoreFailover2", zkUri, controllerURI);
+        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -143,7 +143,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controllerFailover2", zkUri);
+        controllerInstance = new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
@@ -156,7 +156,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstoreFailover2", zkUri, controllerURIDirect);
+        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
@@ -183,12 +183,8 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
 
     @After
     public void tearDown() {
-        if (controllerInstance != null && controllerInstance.isRunning()) {
-            controllerInstance.stop();
-        }
-        if (segmentStoreInstance != null && segmentStoreInstance.isRunning()) {
-            segmentStoreInstance.stop();
-        }
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
         controllerUri = null;
         controller = null;
