@@ -31,14 +31,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 abstract class AbstractScaleTests {
     protected final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
-    @Getter(lazy = true, onMethod=@__({@SuppressFBWarnings}))
+    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
     private final URI controllerURI = createControllerURI();
-    @Getter(lazy = true, onMethod=@__({@SuppressFBWarnings}))
+    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-    @Getter(lazy = true, onMethod=@__({@SuppressFBWarnings}))
+    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
     private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE,
             new ControllerImpl(getControllerURI(), getConnectionFactory()), getConnectionFactory());
-    @Getter(lazy = true, onMethod=@__({@SuppressFBWarnings}))
+    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
     private final ControllerImpl controller = new ControllerImpl(getControllerURI(), getConnectionFactory());
 
     private URI createControllerURI() {
