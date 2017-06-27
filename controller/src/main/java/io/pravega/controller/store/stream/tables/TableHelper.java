@@ -649,7 +649,8 @@ public class TableHelper {
     public static boolean isScaleInputValid(final List<Integer> segmentsToSeal,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final byte[] segmentTable) {
-        boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue());
+        boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() &&
+                x.getKey() >= 0 && x.getValue() > 0);
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
                 .map(segment -> SegmentRecord.readRecord(segmentTable, segment).map(x ->
@@ -676,15 +677,26 @@ public class TableHelper {
         double high = -1.0;
         for (AbstractMap.SimpleEntry<Double, Double> range : ranges) {
             if (high < range.getKey()) {
+                // add previous result and start a new result if prev.high is less than next.low
                 if (low != -1.0 && high != -1.0) {
                     result.add(new AbstractMap.SimpleEntry<>(low, high));
                 }
                 low = range.getKey();
                 high = range.getValue();
+            } else if (high == range.getKey()) {
+                // if adjacent (prev.high == next.low) then update only high
+                high = range.getValue();
             } else {
+                // if prev.high > next.low.
+                // [Note: next.low cannot be less than 0] which means prev.high > 0
+                assert low >= 0;
+                assert high > 0;
+                result.add(new AbstractMap.SimpleEntry<>(low, high));
+                low = range.getKey();
                 high = range.getValue();
             }
         }
+        // add the last range
         if (low != -1.0 && high != -1.0) {
             result.add(new AbstractMap.SimpleEntry<>(low, high));
         }
