@@ -21,7 +21,7 @@ public class UnlockFailedException extends RuntimeException implements Retryable
     /**
      * Creates a new instance of UnlockFailedException class.
      *
-     * @param name  stream name
+     * @param name Stream name.
      */
     public UnlockFailedException(final String name) {
         super(String.format(FORMAT_STRING, name));
@@ -30,8 +30,8 @@ public class UnlockFailedException extends RuntimeException implements Retryable
     /**
      * Creates a new instance of UnlockFailedException class.
      *
-     * @param name  stream name
-     * @param cause error cause
+     * @param name  Stream name.
+     * @param cause error cause.
      */
     public UnlockFailedException(final String name, final Throwable cause) {
         super(String.format(FORMAT_STRING, name), cause);

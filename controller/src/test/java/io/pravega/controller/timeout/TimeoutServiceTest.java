@@ -9,6 +9,11 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -20,11 +25,6 @@ import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.WriteConflictException;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -416,7 +416,7 @@ public class TimeoutServiceTest {
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.25 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNotNull(result);
         Assert.assertTrue(result.isPresent());
-        Assert.assertEquals(WriteConflictException.class, result.get().getClass());
+        Assert.assertEquals(StoreException.WriteConflictException.class, result.get().getClass());
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);

@@ -9,9 +9,8 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.SegmentNotFoundException;
+import io.pravega.controller.store.stream.StoreException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -51,7 +50,7 @@ public class TableHelper {
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else {
-            throw new SegmentNotFoundException(number);
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.valueOf(number));
         }
     }
 
@@ -509,7 +508,8 @@ public class TableHelper {
             record = HistoryRecord.fetchPrevious(record.get(), historyTableData);
         }
 
-        return record.orElseThrow(() -> new DataNotFoundException("epoch not found in history table")).getSegments();
+        return record.orElseThrow(() -> StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                "epoch not found in history table")).getSegments();
     }
 
     /**
