@@ -145,7 +145,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return setStateData(new Data<>(SerializationUtils.serialize(state), currState.getVersion()))
                                 .thenApply(x -> true);
                     } else {
-                        return FutureHelpers.failedFuture(new OperationNotAllowed(state.name()));
+                        return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                state.name()));
                     }
                 });
     }
