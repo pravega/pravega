@@ -278,12 +278,28 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
-            state.failConnection(new SegmentSealedException(segmentIsSealed.getSegment()));
-
             if (state.segmentSealed.compareAndSet(false, true)) {
-                connectionFactory.getInternalExecutor().submit(() -> {
+                CompletableFuture.<Void>supplyAsync(() -> {
+                    /*
+                      Invariants for segment sealed:
+                      * SegmentSealed callback and write will not run concurrently.
+                      * During the execution of the call back
+                        - no new writes will be executed.
+                      * Once the segment Sealed callback is executed successfully
+                        - there will be no new writes to this segment.
+                        - any write to this segment will throw a SegmentSealedException.
+                        - any thread waiting on state.getEmptyInflightFuture() will get SegmentSealedException.
+                     */
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
                     callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                    return null;
+                }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
+                    //close connection and update the exception to SegmentSealed.
+                    state.failConnection(new SegmentSealedException(segmentIsSealed.getSegment()));
+                    if (ex != null) {
+                        log.error("Unexpected Error while execution SealedSegment CallBack", ex);
+                        throw new RuntimeException(ex);
+                    }
                 });
             }
         }

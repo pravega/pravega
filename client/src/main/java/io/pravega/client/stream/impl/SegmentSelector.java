@@ -81,7 +81,7 @@ public class SegmentSelector {
             segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = FutureHelpers.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), RuntimeException::new);
-        return updateSegments(currentSegments.withReplacementRange(successors), segmentSealedCallback);
+        return updateSegmentsUponSealed(currentSegments.withReplacementRange(successors), segmentSealedCallback);
     }
 
     /**
@@ -99,12 +99,7 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment> segmentSealedCallBack) {
         currentSegments = newSteamSegments;
-        for (Segment segment : currentSegments.getSegments()) {
-            if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);
-                writers.put(segment, out);
-            }
-        }
+        createMissingWriters(segmentSealedCallBack);
         List<PendingEvent> toResend = new ArrayList<>();
         Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
         while (iter.hasNext()) {
@@ -115,13 +110,39 @@ public class SegmentSelector {
                 try {
                     writer.close();
                 } catch (SegmentSealedException e) {
-                    //This exception should not be encountered since a we are closing a writer of a sealed segment.
-                    log.error("Exception while closing writer : {} ", e.getMessage());
+                    log.info("Caught segment sealed while refreshing on segment {}", entry.getKey());
                 }
                 toResend.addAll(writer.getUnackedEvents());
             }
         }
         return toResend;
+    }
+
+    @Synchronized
+    private List<PendingEvent> updateSegmentsUponSealed(StreamSegments newSteamSegments, Consumer<Segment>
+            segmentSealedCallBack) {
+        currentSegments = newSteamSegments;
+        createMissingWriters(segmentSealedCallBack);
+        List<PendingEvent> toResend = new ArrayList<>();
+        Iterator<Entry<Segment, SegmentOutputStream>> iter = writers.entrySet().iterator();
+        while (iter.hasNext()) {
+            Entry<Segment, SegmentOutputStream> entry = iter.next();
+            if (!currentSegments.getSegments().contains(entry.getKey())) {
+                SegmentOutputStream writer = entry.getValue();
+                iter.remove();
+                toResend.addAll(writer.getUnackedEvents());
+            }
+        }
+        return toResend;
+    }
+
+    private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
+        for (Segment segment : currentSegments.getSegments()) {
+            if (!writers.containsKey(segment)) {
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);
+                writers.put(segment, out);
+            }
+        }
     }
 
     @Synchronized
