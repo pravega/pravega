@@ -649,18 +649,28 @@ public class TableHelper {
     public static boolean isScaleInputValid(final List<Integer> segmentsToSeal,
                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                             final byte[] segmentTable) {
+        boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue());
 
         List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segment -> SegmentRecord.readRecord(segmentTable, segment)
-                        .map(x -> new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
+                .map(segment -> SegmentRecord.readRecord(segmentTable, segment).map(x ->
+                        new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
 
-        return reduce(oldRanges).equals(reduce(newRanges));
+        return newRangesPredicate && reduce(oldRanges).equals(reduce(newRanges));
     }
 
-    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> ranges) {
+    /**
+     * Helper method to compute list of continuous ranges. For example, two neighbouring key ranges where,
+     * range1.high == range2.low then they are considered neighbours.
+     * This method reduces input range into distinct continuous blocks.
+     * @param input list of key ranges.
+     * @return reduced list of key ranges.
+     */
+    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
+        List<AbstractMap.SimpleEntry<Double, Double>> ranges = new ArrayList<>(input);
+        ranges.sort(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
         List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();
         double low = -1.0;
         double high = -1.0;
