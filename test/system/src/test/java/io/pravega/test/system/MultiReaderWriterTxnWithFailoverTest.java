@@ -65,6 +65,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
+    private static final int ZK_DEFAULT_SESSION_TIMEOUT = 60000;
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -348,7 +349,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -364,7 +365,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventWriteCount.get();
@@ -381,7 +382,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(new Random().nextInt(50000) + 60000);
+        Thread.sleep(new Random().nextInt(50000) + ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -389,42 +390,56 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
 
         log.info("Stop write flag status: {}, stop read flag status: {} ", stopWriteFlag, stopReadFlag);
         log.info("Event data: {}, read count: {}", eventData.get(), eventReadCount.get());
-        log.info("Read count: {}, write count: {} with SSS and controller failover after sleep", currentReadCount1, currentReadCount1);
+        log.info("Read count: {}, write count: {} with SSS and controller failover after sleep", currentReadCount1, currentWriteCount1);
     }
 
+
     private CompletableFuture<Void> startWritingIntoTxn(final AtomicLong data, final EventStreamWriter<Long> writer,
-                                                 final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
+                                                        final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
-                    try {
-                        transaction = retry
-                                .retryingOn(MultiReaderWriterTxnWithFailoverTest.TxnCreationFailedException.class)
-                                .throwingOn(RuntimeException.class)
-                                .run(() -> createTransaction(writer, stopWriteFlag));
+                try {
+                    Transaction<Long> transaction = retry
+                            .retryingOn(MultiReaderWriterTxnWithFailoverTest.TxnCreationFailedException.class)
+                            .throwingOn(RuntimeException.class)
+                            .run(() -> createTransaction(writer, stopWriteFlag));
 
-                        //each transaction has 50 events
-                        for (int j = 0; j < 50; j++) {
-                            long value = data.incrementAndGet();
-                            Thread.sleep(100);
-                            transaction.writeEvent(String.valueOf(value), value);
-                            log.debug("Writing event: {} into transaction: {}", value, transaction);
-                        }
-                        //commit Txn
-                        transaction.commit();
-
-                        //wait for transaction to get committed
-                        while (!transaction.checkStatus().equals(Transaction.Status.COMMITTED)) {
-                            Thread.sleep(100);
-                        }
-
-                        log.debug("Transaction: {} status: {}", transaction, transaction.checkStatus());
-                    } catch (Throwable e) {
-                        log.warn("Exception while writing events in the transaction: {}", e);
-                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    //each transaction has 50 events
+                    for (int j = 0; j < 50; j++) {
+                        long value = data.incrementAndGet();
+                        Thread.sleep(100);
+                        transaction.writeEvent(String.valueOf(value), value);
+                        log.debug("Writing event: {} into transaction: {}", value, transaction);
                     }
+                    //commit Txn
+                    transaction.commit();
+
+                    //wait for transaction to get committed
+                    checkTxnStatus(transaction, eventWriteCount).get();
+                } catch (Throwable e) {
+                    log.warn("Exception while writing events in the transaction: {}", e);
+                    //log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                }
             }
         }, executorService);
+    }
+
+    private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
+                                                   final AtomicLong eventWriteCount) {
+
+        return CompletableFuture.runAsync(() -> {
+            Transaction.Status status = retry.retryingOn(MultiReaderWriterTxnWithFailoverTest.TxnNotCompleteException.class)
+                    .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
+            log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
+            if (status.equals(Transaction.Status.COMMITTED)) {
+                eventWriteCount.getAndIncrement();
+                log.info("Event write count: {}", eventWriteCount.get());
+            } else if (status.equals(Transaction.Status.ABORTED)) {
+                log.debug("Transaction with id: {} aborted", txn.getTxnId());
+            } else {
+                throw new TxnNotCompleteException();
+            }
+        });
     }
 
     private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
@@ -448,4 +463,9 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
 
     private class TxnCreationFailedException extends RuntimeException {
     }
+
+    private class TxnNotCompleteException extends RuntimeException {
+
+    }
+
 }
