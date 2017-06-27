@@ -236,7 +236,7 @@ public class StreamMetadataTasks extends TaskBase {
             } catch (Exception e) {
                 log.error("error sending request to requeststream {}", e);
                 if (e instanceof ScaleOperationExceptions.ScaleRequestNotEnabledException) {
-                    result.complete(null);
+                    result.completeExceptionally(e);
                 } else {
                     result.completeExceptionally(new ScaleOperationExceptions.ScalePostException());
                 }
