@@ -17,7 +17,7 @@ public final class MetricsNames {
     public static final String SEGMENT_WRITE_LATENCY = "segment_write_latency_ms";   // Timer
     public static final String SEGMENT_READ_BYTES = "segmentstore.segment_read_bytes";            // Dynamic Counter
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment_write_bytes";          // Dynamic Counter
-    public static final String SEGMENT_WRITE_EVENTS = "segment_write_events";                     // Dynamic Counter
+    public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment_write_events";        // Dynamic Counter
 
     //hdfs stats
     public static final String HDFS_READ_LATENCY = "tier2_read_latency_ms";   // Timer
