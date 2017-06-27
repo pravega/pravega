@@ -55,12 +55,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import static java.time.Duration.ofSeconds;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWithFailOverTest {
+public class MultiReaderTxnWriterWithFailoverTest {
 
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
@@ -182,7 +183,7 @@ public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWit
         readerName = "reader";
     }
 
-   /* @After
+    @After
     public void tearDown() {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
@@ -199,7 +200,7 @@ public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWit
         readerGroupName = null;
         scalingPolicy = null;
         readerName = null;
-    }*/
+    }
 
     @Test(timeout = 600000)
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
@@ -398,8 +399,9 @@ public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWit
                                                         final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
+                Transaction<Long> transaction = null;
                 try {
-                    Transaction<Long> transaction = retry
+                    transaction = retry
                             .retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnCreationFailedException.class)
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, stopWriteFlag));
@@ -418,7 +420,7 @@ public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWit
                     checkTxnStatus(transaction, eventWriteCount).get();
                 } catch (Throwable e) {
                     log.warn("Exception while writing events in the transaction: {}", e);
-                    //log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    log.debug("Transaction with id: {}  failed", transaction.getTxnId());
                 }
             }
         }, executorService);
@@ -458,6 +460,32 @@ public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWit
             }
         }
         return txn;
+    }
+
+    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
+        return CompletableFuture.runAsync(() -> {
+            log.info("Exit flag status {}", exitFlag.get());
+            log.info("Read count {} and write count {}", readCount.get(), writeCount.get());
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
+                log.info("Entering read loop");
+                // exit only if exitFlag is true  and read Count equals write count.
+                try {
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    log.debug("Reading event {}", longEvent);
+                    if (longEvent != null) {
+                        //update if event read is not null.
+                        readResult.add(longEvent);
+                        readCount.incrementAndGet();
+                        log.debug("Event read count {}", readCount);
+                    } else {
+                        log.debug("Read timeout");
+                    }
+                } catch (Throwable e) {
+                    log.error("Test Exception while reading from the stream: ", e);
+                }
+            }
+        }, executorService);
     }
 
     private class TxnCreationFailedException extends RuntimeException {

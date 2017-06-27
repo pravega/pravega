@@ -50,6 +50,7 @@ import static org.junit.Assert.assertTrue;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -57,6 +58,7 @@ import java.net.URISyntaxException;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
@@ -404,7 +406,7 @@ public class MultiReaderWriterWithFailOverTest {
         }, executorService);
     }
 
-    CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
     AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status {}", exitFlag.get());
