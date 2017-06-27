@@ -30,7 +30,7 @@ configure_tier2() {
     add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
 
     echo "Checking whether NFS mounting is required"
-    if [ "${TIER2_STORAGE}" = "FS" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+    if [ "${TIER2_STORAGE}" = "FILESYSTEM" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
         while [ -z ${NFS_SERVER} ]
         do
             echo "NFS_SERVER not set. Looping till the container is restarted with NFS_SERVER set."
