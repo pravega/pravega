@@ -311,7 +311,7 @@ public class ZKStoreHelper {
             } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
                 exception.accept(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
             } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
-                exception.accept(StoreException.create(StoreException.Type.DATA_NOT_EMPTY, path));
+                exception.accept(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, path));
             } else {
                 exception.accept(new StoreException.UnknownException(path,
                         KeeperException.create(KeeperException.Code.get(event.getResultCode()), path)));

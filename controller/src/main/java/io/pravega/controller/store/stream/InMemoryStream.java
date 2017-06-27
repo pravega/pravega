@@ -393,7 +393,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                 epochTxnMap.remove(epoch);
                 result.complete(null);
             } else {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_EMPTY, "epoch"));
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, "epoch"));
             }
         }
         return result;

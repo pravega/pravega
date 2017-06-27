@@ -26,7 +26,7 @@ public class StoreException extends RuntimeException {
     public enum Type {
         DATA_EXISTS,
         DATA_NOT_FOUND,
-        DATA_NOT_EMPTY,
+        DATA_CONTAINS_ELEMENTS,
         WRITE_CONFLICT,
         ILLEGAL_STATE,
         CONNECTION_ERROR,
@@ -86,7 +86,7 @@ public class StoreException extends RuntimeException {
             case DATA_NOT_FOUND:
                 exception = new DataNotFoundException();
                 break;
-            case DATA_NOT_EMPTY:
+            case DATA_CONTAINS_ELEMENTS:
                 exception = new DataNotEmptyException();
                 break;
             case WRITE_CONFLICT:
@@ -130,7 +130,7 @@ public class StoreException extends RuntimeException {
      */
     public static class DataNotEmptyException extends StoreException {
         public DataNotEmptyException() {
-            super(Type.DATA_NOT_EMPTY);
+            super(Type.DATA_CONTAINS_ELEMENTS);
         }
     }
 
