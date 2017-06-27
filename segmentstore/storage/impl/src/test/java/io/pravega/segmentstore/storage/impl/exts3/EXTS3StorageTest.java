@@ -165,7 +165,7 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
     }
 
 
-    private static class S3JerseyClientWrapper extends S3JerseyClient {
+    public static class S3JerseyClientWrapper extends S3JerseyClient {
         private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
         public S3JerseyClientWrapper(S3Config exts3Config) {
@@ -274,7 +274,7 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
 
     @Data
     @AllArgsConstructor
-    private static class AclSize {
+    public static class AclSize {
        private  AccessControlList acl;
        private  long size;
     }
