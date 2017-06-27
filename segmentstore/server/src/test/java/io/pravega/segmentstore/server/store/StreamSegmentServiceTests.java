@@ -9,11 +9,9 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,9 +42,9 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
     }
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
         return ServiceBuilder.newInMemoryBuilder(builderConfig)
-                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory, storage::set))
+                             .withStorageFactory(setup -> new ListenableStorageFactory(this.storageFactory))
                              .withDataLogFactory(setup -> this.durableDataLogFactory);
     }
 

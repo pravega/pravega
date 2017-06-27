@@ -9,6 +9,9 @@
 #
 FROM java:8
 
+RUN apt-get update && apt-get install -y -q rpcbind nfs-common \
+    && rm -rf /var/lib/apt/lists/*
+
 EXPOSE 9090 9091 10000 12345
 WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/

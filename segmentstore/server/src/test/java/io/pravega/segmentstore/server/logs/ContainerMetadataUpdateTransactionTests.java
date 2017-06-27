@@ -1201,6 +1201,59 @@ public class ContainerMetadataUpdateTransactionTests {
         checkLastKnownSequenceNumber("Unexpected lastUsed for Transaction segment in update transaction after rollback.", 0, transactionMetadata);
     }
 
+    /**
+     * Tests the correctness of getActiveSegmentCount(), especially in the case when the real ContainerMetadata has
+     * changed its value.
+     */
+    @Test
+    public void testGetActiveSegmentCount() throws Exception {
+        // Create a base metadata and make sure it has one active segment.
+        UpdateableContainerMetadata metadata = createMetadata();
+        int expected = 3;
+        Assert.assertEquals("Unexpected initial Active Segment Count for base metadata.",
+                expected, metadata.getActiveSegmentCount());
+
+        // Create an UpdateTransaction for it and map a new segment.
+        val txn1 = new ContainerMetadataUpdateTransaction(metadata, metadata, 0);
+        Assert.assertEquals("Unexpected Active Segment Count for first transaction.",
+                expected, txn1.getActiveSegmentCount());
+        val map1 = createMap("NewSegment1");
+        txn1.preProcessOperation(map1);
+        map1.setSequenceNumber(metadata.nextOperationSequenceNumber());
+        txn1.acceptOperation(map1);
+        expected++;
+        Assert.assertEquals("Unexpected Active Segment Count for first transaction after map.",
+                expected, txn1.getActiveSegmentCount());
+
+        // Create a second UpdateTransaction for it and map a new segment.
+        val txn2 = new ContainerMetadataUpdateTransaction(txn1, metadata, 0);
+
+        Assert.assertEquals("Unexpected Active Segment Count for second transaction.",
+                expected, txn2.getActiveSegmentCount());
+        val map2 = createMap("NewSegment2");
+        txn2.preProcessOperation(map2);
+        map2.setSequenceNumber(metadata.nextOperationSequenceNumber());
+        txn2.acceptOperation(map2);
+        expected++;
+        Assert.assertEquals("Unexpected Active Segment Count for first transaction after map.",
+                expected, txn2.getActiveSegmentCount());
+
+        // Clean up base metadata - simplest way to deactivate segments (even if this will cause a TxnCommit to fail,
+        // but we don't test that here).
+        metadata.enterRecoveryMode();
+        metadata.reset();
+        metadata.exitRecoveryMode();
+        expected = 0;
+
+        // Check Active Segment Count after the cleanup.
+        Assert.assertEquals("Unexpected Active Segment Count for base metadata after cleanup.",
+                expected, metadata.getActiveSegmentCount());
+        Assert.assertEquals("Unexpected Active Segment Count for first transaction after cleanup.",
+                expected + 1, txn1.getActiveSegmentCount());
+        Assert.assertEquals("Unexpected Active Segment Count for second transaction after cleanup.",
+                expected + 2, txn2.getActiveSegmentCount());
+    }
+
     //endregion
 
     //region Helpers
@@ -1227,7 +1280,7 @@ public class ContainerMetadataUpdateTransactionTests {
         return metadata;
     }
 
-    private ContainerMetadataUpdateTransaction createUpdateTransaction(UpdateableContainerMetadata metadata) {
+    private ContainerMetadataUpdateTransaction createUpdateTransaction(ContainerMetadata metadata) {
         return new ContainerMetadataUpdateTransaction(metadata, metadata, 0);
     }
 

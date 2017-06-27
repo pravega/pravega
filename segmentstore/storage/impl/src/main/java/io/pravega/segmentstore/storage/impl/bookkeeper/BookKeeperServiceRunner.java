@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -68,11 +69,35 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     //region BookKeeper operations
 
     /**
+     * Suspends the BookieService with the given index (does not stop it).
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     */
+    public void suspendBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        val bk = this.servers.get(bookieIndex);
+        bk.suspendProcessing();
+    }
+
+    /**
+     * Resumes the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to start.
+     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     */
+    public void resumeBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        val bk = this.servers.get(bookieIndex);
+        bk.resumeProcessing();
+    }
+
+    /**
      * Starts the BookKeeper cluster in-process.
      *
      * @throws Exception If an exception occurred.
      */
-    public void start() throws Exception {
+    public void startAll() throws Exception {
         if (this.startZk) {
             val zk = new ZooKeeperServiceRunner(this.zkPort);
             zk.start();
@@ -92,11 +117,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                                  .sessionTimeoutMs(10000)
                                  .build();
 
-        String[] znodes = ledgersPath.split("/");
         String znode;
         StringBuilder znodePath = new StringBuilder();
-        for ( int i = 0; i < znodes.length; i++ ) {
-            znodePath.append(znodes[i]);
+        for (String z : ledgersPath.split("/")) {
+            znodePath.append(z);
             znode = znodePath.toString();
             if (!znode.isEmpty()) {
                 zkc.create(znode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);

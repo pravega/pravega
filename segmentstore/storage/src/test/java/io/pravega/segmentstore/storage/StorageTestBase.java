@@ -368,6 +368,83 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region Protected utility methods containing common code.
+
+    protected void verifyReadOnlyOperationsSucceed(SegmentHandle handle, Storage storage) {
+        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
+        Assert.assertTrue("Segment does not exist.", exists);
+
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        Assert.assertNotNull("Unexpected response from getStreamSegmentInfo.", si);
+
+        byte[] readBuffer = new byte[(int) si.getLength()];
+        int readBytes = storage.read(handle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, readBytes);
+    }
+
+    protected void verifyWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        final byte[] data = "hello".getBytes();
+        storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+
+        final String concatName = "concat";
+        storage.create(concatName, TIMEOUT).join();
+        val concatHandle = storage.openWrite(concatName).join();
+        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+        storage.seal(concatHandle, TIMEOUT).join();
+        storage.concat(handle, si.getLength() + data.length, concatHandle.getSegmentName(), TIMEOUT).join();
+    }
+
+    protected void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        final byte[] data = "hello".getBytes();
+        AssertExtensions.assertThrows(
+                "Write was not fenced out.",
+                () -> storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+
+        // Create a second segment and try to concat it into the primary one.
+        final String concatName = "concat";
+        storage.create(concatName, TIMEOUT).join();
+        val concatHandle = storage.openWrite(concatName).join();
+        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+        storage.seal(concatHandle, TIMEOUT).join();
+        AssertExtensions.assertThrows(
+                "Concat was not fenced out.",
+                () -> storage.concat(handle, si.getLength(), concatHandle.getSegmentName(), TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+        storage.delete(concatHandle, TIMEOUT).join();
+    }
+
+    protected void verifyFinalWriteOperationsSucceed(SegmentHandle handle, Storage storage) {
+        storage.seal(handle, TIMEOUT).join();
+        storage.delete(handle, TIMEOUT).join();
+
+        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
+        Assert.assertFalse("Segment still exists after deletion.", exists);
+    }
+
+    protected void verifyFinalWriteOperationsFail(SegmentHandle handle, Storage storage) {
+        AssertExtensions.assertThrows(
+                "Seal was allowed on fenced Storage.",
+                () -> storage.seal(handle, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        Assert.assertFalse("Segment was sealed after rejected call to seal.", si.isSealed());
+
+        AssertExtensions.assertThrows(
+                "Delete was allowed on fenced Storage.",
+                () -> storage.delete(handle, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+        boolean exists = storage.exists(handle.getSegmentName(), TIMEOUT).join();
+        Assert.assertTrue("Segment was deleted after rejected call to delete.", exists);
+    }
+
+
+
+    //endregion
+
     //region Abstract methods
 
     /**

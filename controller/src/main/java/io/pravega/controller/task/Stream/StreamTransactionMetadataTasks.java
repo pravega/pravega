@@ -221,9 +221,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         UUID txnId = UUID.randomUUID();
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                 scaleGracePeriod, ctx, executor)
-                .thenComposeAsync(txData -> streamMetadataStore.getActiveSegments(scope, stream, ctx, executor)
-                        .thenComposeAsync(segments -> notifyTxnCreation(scope, stream, segments, txnId)
-                                .thenApplyAsync(v -> new ImmutablePair<>(txData, segments), executor), executor), executor);
+                .thenComposeAsync(txData -> streamMetadataStore.getActiveSegments(scope, stream, txData.getEpoch(), ctx, executor)
+                        .thenComposeAsync(segmentNumbers -> notifyTxnCreation(scope, stream, segmentNumbers, txnId)
+                                .thenComposeAsync(v -> FutureHelpers.allOfWithResults(segmentNumbers.stream()
+                                        .map(s -> streamMetadataStore.getSegment(scope, stream, s, ctx, executor))
+                                        .collect(Collectors.toList()))
+                                        .thenApply(segments -> new ImmutablePair<>(txData, segments)), executor), executor), executor);
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
@@ -288,10 +291,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId) {
+                                                      final List<Integer> segments, final UUID txnId) {
         return FutureHelpers.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxCreation(scope, stream, segment, txnId))
                 .collect(Collectors.toList()));
     }
 

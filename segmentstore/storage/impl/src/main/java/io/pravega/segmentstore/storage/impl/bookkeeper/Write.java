@@ -15,10 +15,10 @@ import io.pravega.segmentstore.storage.LogAddress;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Getter;
 import lombok.Setter;
-import org.apache.bookkeeper.client.LedgerHandle;
 
 /**
  * A single Write in the BookKeeperLog Write Queue.
@@ -30,6 +30,7 @@ class Write {
     private final CompletableFuture<LogAddress> result;
     private final AtomicInteger attemptCount;
     private final AtomicReference<WriteLedger> writeLedger;
+    private final AtomicLong entryId;
     private final AtomicBoolean inProgress;
     private final AtomicReference<Throwable> failureCause;
     @Getter
@@ -54,6 +55,7 @@ class Write {
         this.result = Preconditions.checkNotNull(result, "result");
         this.attemptCount = new AtomicInteger();
         this.failureCause = new AtomicReference<>();
+        this.entryId = new AtomicLong(Long.MIN_VALUE);
         this.inProgress = new AtomicBoolean();
     }
 
@@ -62,17 +64,11 @@ class Write {
     //region Properties
 
     /**
-     * Gets the LedgerHandle associated with this write.
+     * Gets the WriteLedger associated with this write.
+     * @return The WriteLedger.
      */
-    LedgerHandle getLedger() {
-        return this.writeLedger.get().ledger;
-    }
-
-    /**
-     * Gets the LedgerMetadata for the Ledger associated with this write.
-     */
-    LedgerMetadata getLedgerMetadata() {
-        return this.writeLedger.get().metadata;
+    WriteLedger getWriteLedger() {
+        return this.writeLedger.get();
     }
 
     /**
@@ -82,6 +78,26 @@ class Write {
      */
     void setWriteLedger(WriteLedger writeLedger) {
         this.writeLedger.set(writeLedger);
+        this.entryId.set(Long.MIN_VALUE);
+    }
+
+    /**
+     * Sets the assigned Ledger Entry Id. This should be set any time such information is available (regardless of whether
+     * the Write failed or succeeded).
+     *
+     * @param value The value to assign.
+     */
+    void setEntryId(long value) {
+        this.entryId.set(value);
+    }
+
+    /**
+     * Gets the assigned Ledger Entry Id.
+     *
+     * @return The result.
+     */
+    long getEntryId() {
+        return this.entryId.get();
     }
 
     /**
@@ -96,14 +112,8 @@ class Write {
 
     /**
      * Records the fact that an attempt to execute this write has ended.
-     *
-     * @param rollback If true, it rolls back the attempt count.
      */
-    void endAttempt(boolean rollback) {
-        if (rollback && this.attemptCount.decrementAndGet() < 0) {
-            this.attemptCount.set(0); // Make sure it doesn't become negative.
-        }
-
+    private void endAttempt() {
         this.inProgress.set(false);
     }
 
@@ -136,13 +146,12 @@ class Write {
 
     /**
      * Indicates that this write completed successfully. This will set the final result on the externalCompletion future.
-     *
-     * @param result The result to set.
      */
-    void complete(LogAddress result) {
+    void complete() {
+        Preconditions.checkState(this.entryId.get() >= 0, "entryId not set; cannot complete Write.");
         this.failureCause.set(null);
-        this.result.complete(result);
-        endAttempt(false);
+        this.result.complete(new LedgerAddress(this.writeLedger.get().metadata, this.entryId.get()));
+        endAttempt();
     }
 
     /**
@@ -162,7 +171,7 @@ class Write {
             this.failureCause.set(cause);
         }
 
-        endAttempt(false);
+        endAttempt();
         if (complete) {
             this.result.completeExceptionally(this.failureCause.get());
         }

@@ -96,30 +96,30 @@ public interface ControllerEventProcessorConfig {
     CheckpointConfig getAbortCheckpointConfig();
 
     /**
-     * Fetches name of the scale stream.
+     * Fetches name of the request stream.
      *
-     * @return Name of the scale stream.
+     * @return Name of the request stream.
      */
-    String getScaleStreamName();
+    String getRequestStreamName();
 
     /**
-     * Fetches name of the reader group processing events from scale stream.
+     * Fetches name of the reader group processing events from request stream.
      *
-     * @return Name of the reader group processing events from scale stream.
+     * @return Name of the reader group processing events from request stream.
      */
-    String getScaleReaderGroupName();
+    String getRequestReaderGroupName();
 
     /**
-     * Fetches scale stream scaling policy.
+     * Fetches request stream scaling policy.
      *
-     * @return Scale stream scaling policy.
+     * @return Request stream scaling policy.
      */
-    ScalingPolicy getScaleStreamScalingPolicy();
+    ScalingPolicy getRequestStreamScalingPolicy();
 
     /**
-     * Fetches checkpoint configuration for scale stream event processors.
+     * Fetches checkpoint configuration for request stream event processors.
      *
-     * @return Checkpoint configuration for scale stream event processors.
+     * @return Checkpoint configuration for request stream event processors.
      */
-    CheckpointConfig getScaleCheckpointConfig();
+    CheckpointConfig getRequestStreamCheckpointConfig();
 }

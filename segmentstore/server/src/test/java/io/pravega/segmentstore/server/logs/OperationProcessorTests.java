@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -38,12 +40,14 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -52,10 +56,15 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -268,7 +277,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
     }
 
     /**
-     * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures.
+     * Tests the ability of the OperationProcessor to process Operations when there are DataLog write failures. The expected
+     * outcome is that the OperationProcessor will auto-shutdown when such errors are encountered.
      */
     @Test
     public void testWithDataLogFailures() throws Exception {
@@ -307,8 +317,10 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 OperationWithCompletion.allOf(completionFutures)::join,
                 super::isExpectedExceptionForNonDataCorruption);
 
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
+        // Wait for the OperationProcessor to shutdown with failure.
+        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        Assert.assertEquals("Expected the OperationProcessor to fail after DurableDataLogException encountered.",
+                Service.State.FAILED, operationProcessor.state());
 
         performLogOperationChecks(completionFutures, context.memoryLog, dataLog, context.metadata);
         performMetadataChecks(streamSegmentIds, new HashSet<>(), new HashMap<>(), completionFutures, context.metadata, false, false);
@@ -494,6 +506,46 @@ public class OperationProcessorTests extends OperationLogTestBase {
         operationProcessor.stopAsync().awaitTerminated();
     }
 
+    /**
+     * Tests a scenario where the OperationProcessor is shut down while a DataFrame is being processed and will eventually
+     * complete successfully - however its operation should be cancelled.
+     */
+    @Test
+    public void testConcurrentStopAndCommit() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+
+        // Generate some test data.
+        val segmentId = createStreamSegmentsInMetadata(1, context.metadata).stream().findFirst().orElse(-1L);
+        List<Operation> operations = Collections.singletonList(new StreamSegmentAppendOperation(segmentId, new byte[1], null));
+
+        CompletableFuture<LogAddress> appendCallback = new CompletableFuture<>();
+
+        // Setup an OperationProcessor with a custom DurableDataLog and start it.
+        @Cleanup
+        DurableDataLog dataLog = new ManualAppendOnlyDurableDataLog(() -> appendCallback);
+        dataLog.initialize(TIMEOUT);
+        @Cleanup
+        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
+                dataLog, getNoOpCheckpointPolicy(), executorService());
+        operationProcessor.startAsync().awaitRunning();
+
+        // Process all generated operations.
+        OperationWithCompletion completionFuture = processOperations(operations, operationProcessor).stream().findFirst().orElse(null);
+        operationProcessor.stopAsync();
+        appendCallback.complete(new TestLogAddress(1));
+
+        // Stop the processor.
+        operationProcessor.awaitTerminated();
+
+        // Wait for the operation to complete. The operation should have been cancelled (due to the OperationProcessor
+        // shutting down) - no other exception (or successful completion is accepted).
+        AssertExtensions.assertThrows(
+                "Operation did not fail with the right exception.",
+                () -> completionFuture.completion,
+                ex -> ex instanceof CancellationException);
+    }
+
     private List<OperationWithCompletion> processOperations(Collection<Operation> operations, OperationProcessor operationProcessor) {
         List<OperationWithCompletion> completionFutures = new ArrayList<>();
         operations.forEach(op -> completionFutures.add(new OperationWithCompletion(op, operationProcessor.process(op))));
@@ -604,4 +656,58 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.cacheManager.close();
         }
     }
+
+
+    //region ManualAppendOnlyDurableDataLog
+
+    @RequiredArgsConstructor
+    private static class ManualAppendOnlyDurableDataLog implements DurableDataLog {
+        private final Supplier<CompletableFuture<LogAddress>> addImplementation;
+
+        @Override
+        public CompletableFuture<LogAddress> append(ArrayView data, Duration timeout) {
+            return this.addImplementation.get();
+        }
+
+        //region Not Implemented methods.
+
+        @Override
+        public void initialize(Duration timeout) throws DurableDataLogException {
+
+        }
+
+        @Override
+        public CompletableFuture<Void> truncate(LogAddress upToAddress, Duration timeout) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
+            return null;
+        }
+
+        @Override
+        public int getMaxAppendLength() {
+            return 1024 * 1024;
+        }
+
+        @Override
+        public long getEpoch() {
+            return 0;
+        }
+
+        @Override
+        public QueueStats getQueueStatistics() {
+            return QueueStats.DEFAULT;
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        //endregion
+    }
+
+    //endregion
 }

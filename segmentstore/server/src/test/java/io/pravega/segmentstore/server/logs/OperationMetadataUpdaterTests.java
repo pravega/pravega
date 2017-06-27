@@ -378,10 +378,4 @@ public class OperationMetadataUpdaterTests {
         op.setSequenceNumber(updater.nextOperationSequenceNumber());
         updater.acceptOperation(op);
     }
-
-    private static class TestLogAddress extends LogAddress {
-        public TestLogAddress(long sequence) {
-            super(sequence);
-        }
-    }
 }
