@@ -138,7 +138,8 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
-                setSystemProperty("log.level", "DEBUG");
+                setSystemProperty("log.level", "DEBUG") +
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30*1000));
         Map<String, String> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
