@@ -39,7 +39,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -131,12 +131,12 @@ public class EventStreamWriterTest {
     @RequiredArgsConstructor
     private static final class FakeSegmentOutputStream implements SegmentOutputStream {
         private final Segment segment;
-        private Consumer<Segment> callBackForSealed;
+        private BiConsumer<Segment, List<PendingEvent>> callBackForSealed;
         private final ArrayList<PendingEvent> writes = new ArrayList<>();
 
         private void invokeSealedCallBack() {
             if (callBackForSealed != null) {
-                callBackForSealed.accept(segment);
+                callBackForSealed.accept(segment, getUnackedEvents());
             }
         }
 
@@ -170,12 +170,12 @@ public class EventStreamWriterTest {
     @RequiredArgsConstructor
     private static final class SealedSegmentOutputStream implements SegmentOutputStream {
         private final Segment segment;
-        private Consumer<Segment> callBackForSealed;
+        private BiConsumer<Segment, List<PendingEvent>> callBackForSealed;
         private final ArrayList<PendingEvent> writes = new ArrayList<>();
         private ReusableLatch flushLatch = new ReusableLatch();
         private void invokeSealedCallBack() {
             if (callBackForSealed != null) {
-                callBackForSealed.accept(segment);
+                callBackForSealed.accept(segment, getUnackedEvents());
             }
         }
 
@@ -228,12 +228,12 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream outputStream2 = new FakeSegmentOutputStream(segment2);
 
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1),
-                ArgumentMatchers.<Consumer<Segment>>any())).thenAnswer(i -> {
+                ArgumentMatchers.<BiConsumer<Segment, List<PendingEvent>>>any())).thenAnswer(i -> {
             outputStream1.callBackForSealed = i.getArgument(1);
             return outputStream1;
         });
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2),
-                ArgumentMatchers.<Consumer<Segment>>any())).thenAnswer(i -> {
+                ArgumentMatchers.<BiConsumer<Segment, List<PendingEvent>>>any())).thenAnswer(i -> {
             outputStream2.callBackForSealed = i.getArgument(1);
             return outputStream2;
         });

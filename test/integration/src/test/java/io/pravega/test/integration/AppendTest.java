@@ -56,13 +56,14 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import lombok.Cleanup;
 import org.junit.After;
@@ -77,7 +78,7 @@ import static org.junit.Assert.assertTrue;
 public class AppendTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
-    private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, eventList) -> { };
 
     @Before
     public void setup() throws Exception {

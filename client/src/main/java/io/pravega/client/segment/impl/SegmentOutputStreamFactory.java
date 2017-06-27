@@ -9,8 +9,11 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.stream.impl.PendingEvent;
+
+import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * Creates {@link SegmentOutputStream} for segments and transactions.
@@ -25,7 +28,8 @@ public interface SegmentOutputStreamFactory {
      * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, BiConsumer<Segment,
+            List<PendingEvent>> segmentSealedCallback);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -38,5 +42,6 @@ public interface SegmentOutputStreamFactory {
      * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, BiConsumer<Segment, List<PendingEvent>>
+            segmentSealedCallback);
 }

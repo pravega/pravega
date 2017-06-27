@@ -40,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -74,7 +73,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final ConnectionFactory connectionFactory;
     private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
     private final UUID writerId;
-    private final Consumer<Segment> callBackForSealed;
+    private final BiConsumer<Segment, List<PendingEvent>> callBackForSealed;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
 
@@ -291,7 +290,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                         - any thread waiting on state.getEmptyInflightFuture() will get SegmentSealedException.
                      */
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
-                    callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                    callBackForSealed.accept(Segment.fromScopedName(getSegmentName()), getUnackedEvents());
                     return null;
                 }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
                     //close connection and update the exception to SegmentSealed.
@@ -452,7 +451,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
 
     @Override
-    public Collection<PendingEvent> getUnackedEvents() {
-        return Collections.unmodifiableCollection(state.getAllInflightEvents());
+    public List<PendingEvent> getUnackedEvents() {
+        return Collections.unmodifiableList(state.getAllInflightEvents());
     }
 }

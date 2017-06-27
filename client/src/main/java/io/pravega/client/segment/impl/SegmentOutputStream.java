@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.impl.PendingEvent;
 
-import java.util.Collection;
+import java.util.List;
 
 /**
  * Defines an OutputStream for a segment.
@@ -53,8 +53,8 @@ public interface SegmentOutputStream extends AutoCloseable {
     public abstract void flush() throws SegmentSealedException;
 
     /**
-     * Returns a collection of all the events that have been passed to write but have not yet been
-     * acknowledged as written. The iteration order in the collection is from oldest to newest.
+     * Returns a List of all the events that have been passed to write but have not yet been
+     * acknowledged as written. The iteration order in the List is from oldest to newest.
      */
-    public abstract Collection<PendingEvent> getUnackedEvents();
+    public abstract List<PendingEvent> getUnackedEvents();
 }

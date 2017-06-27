@@ -25,9 +25,10 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import lombok.Cleanup;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
     private static final int SERVICE_PORT = 12345;
-    private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, eventList) -> { };
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());

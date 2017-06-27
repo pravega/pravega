@@ -12,9 +12,10 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import java.util.Arrays;
+import java.util.List;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -27,7 +28,7 @@ public class SegmentSelectorTest {
 
     private final String scope = "scope";
     private final String streamName = "streamName";
-    private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, events) -> { };
 
     @Test
     public void testUsesAllSegments() {

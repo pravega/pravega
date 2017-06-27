@@ -55,10 +55,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import lombok.Cleanup;
 import org.junit.After;
@@ -74,7 +75,7 @@ public class ReadTest {
 
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
-    private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, eventList) -> { };
 
     @Before
     public void setup() throws Exception {
