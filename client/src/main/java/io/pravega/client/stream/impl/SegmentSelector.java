@@ -79,11 +79,7 @@ public class SegmentSelector {
 
     public void refreshSegmentEventWritersUponSealed(Segment sealedSegment, BiConsumer<Segment,
             List<PendingEvent>> segmentSealedCallback) {
-        StreamSegmentsWithPredecessors successors = FutureHelpers.getAndHandleExceptions(
-                controller.getSuccessors(sealedSegment), RuntimeException::new);
-        currentSegments = currentSegments.withReplacementRange(successors);
-        createMissingWriters(segmentSealedCallback);
-        writers.remove(sealedSegment);
+        updateSegmentsUponSealed(sealedSegment, segmentSealedCallback);
     }
 
     /**
@@ -121,6 +117,16 @@ public class SegmentSelector {
             }
         }
         return toResend;
+    }
+
+    @Synchronized
+    private void updateSegmentsUponSealed(Segment sealedSegment, BiConsumer<Segment, List<PendingEvent>>
+            segmentSealedCallback) {
+        StreamSegmentsWithPredecessors successors = FutureHelpers.getAndHandleExceptions(
+                controller.getSuccessors(sealedSegment), RuntimeException::new);
+        currentSegments = currentSegments.withReplacementRange(successors);
+        createMissingWriters(segmentSealedCallback);
+        writers.remove(sealedSegment);
     }
 
     private void createMissingWriters(BiConsumer<Segment, List<PendingEvent>> segmentSealedCallBack) {
