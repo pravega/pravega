@@ -81,11 +81,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                         });
             } else {
                 return FutureHelpers.
-                        failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
+                        failedFuture(StoreException.create(StoreException.Type.DATA_EXISTS, streamName));
             }
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -101,7 +101,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return CompletableFuture.completedFuture(null);
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Stream not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
         }
     }
 
@@ -116,12 +116,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
                 return FutureHelpers.
-                        failedFuture(new DataNotFoundException("Stream not found: " + scopeStreamName));
+                        failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
             return streams.get(scopeStreamName).updateConfiguration(configuration);
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -165,7 +165,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
         }
     }
 
@@ -190,7 +190,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> streams.stream().map(
                             stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
         }
     }
 

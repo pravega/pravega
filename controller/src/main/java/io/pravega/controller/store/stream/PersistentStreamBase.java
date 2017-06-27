@@ -14,6 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Create;
@@ -144,7 +145,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return setStateData(new Data<>(SerializationUtils.serialize(state), currState.getVersion()))
                                 .thenApply(x -> true);
                     } else {
-                        return FutureHelpers.failedFuture(new OperationNotAllowed(state.name()));
+                        return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                state.name()));
                     }
                 });
     }
@@ -415,7 +417,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .whenComplete((r, e) -> {
                                     if (e != null) {
                                         Throwable ex = ExceptionHelpers.getRealException(e);
-                                        if (ex instanceof DataExistsException) {
+                                        if (ex instanceof StoreException.DataNotEmptyException) {
                                             // cant delete as there are transactions still running under epoch node
                                             result.complete(false);
                                         } else {
@@ -597,17 +599,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (commit) {
                         return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
                     } else {
-                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
                     }
                 case ABORTING:
                 case ABORTED:
                     if (commit) {
-                        throw new OperationOnTxNotAllowedException(txId.toString(), "seal");
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
                     } else {
                         return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
                     }
                 default:
-                    throw new TransactionNotFoundException(txId.toString());
+                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
             }
         });
     }
@@ -623,10 +625,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         case OPEN:
                         case ABORTING:
                         case ABORTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "commit");
+                            throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
                         case UNKNOWN:
                         default:
-                            throw new TransactionNotFoundException(txId.toString());
+                            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
                     }
                 })
                 .thenCompose(x -> {
@@ -655,10 +657,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         case OPEN:
                         case COMMITTING:
                         case COMMITTED:
-                            throw new OperationOnTxNotAllowedException(txId.toString(), "abort");
+                            throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
                         case UNKNOWN:
                         default:
-                            throw new TransactionNotFoundException(txId.toString());
+                            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
                     }
                 })
                 .thenCompose(x -> {
@@ -691,9 +693,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
             if ((commit && status == TxnStatus.COMMITTED) || (!commit && status == TxnStatus.ABORTED)) {
                 return status;
             } else if (status == TxnStatus.UNKNOWN) {
-                throw new TransactionNotFoundException(txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
             } else {
-                throw new OperationOnTxNotAllowedException(txId.toString(), operation);
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
             }
         });
     }
@@ -946,17 +948,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 
-    abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId);
 
     abstract CompletableFuture<Void> updateActiveTx(final int epoch,
-                                                    final UUID txId, final byte[] data) throws DataNotFoundException;
+                                                    final UUID txId, final byte[] data);
 
     abstract CompletableFuture<Void> sealActiveTx(final int epoch,
                                                   final UUID txId, final boolean commit,
                                                   final ActiveTxnRecord txnRecord,
-                                                  final int version) throws DataNotFoundException;
+                                                  final int version);
 
-    abstract CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) throws DataNotFoundException;
+    abstract CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId);
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
 

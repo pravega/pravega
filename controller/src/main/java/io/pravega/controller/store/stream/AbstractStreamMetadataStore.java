@@ -49,9 +49,6 @@ import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
 import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
 import static io.pravega.shared.MetricsNames.nameFromStream;
-import static io.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
-import static io.pravega.controller.store.stream.StoreException.Type.NODE_NOT_EMPTY;
-import static io.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -177,9 +174,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex == null) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SUCCESS).build();
             }
-            if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
-                return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
-            } else if (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_EXISTS) {
+            if (ex instanceof StoreException.DataExistsException ||
+                    ex.getCause() instanceof StoreException.DataExistsException) {
                 return CreateScopeStatus.newBuilder().setStatus(CreateScopeStatus.Status.SCOPE_EXISTS).build();
             } else {
                 log.debug("Create scope failed due to ", ex);
@@ -200,13 +196,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex == null) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
-            if ((ex.getCause() instanceof StoreException
-                    && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND)
-                    || (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_FOUND))) {
+            if (ex.getCause() instanceof StoreException.DataNotFoundException
+                    || ex instanceof StoreException.DataNotFoundException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex.getCause() instanceof StoreException
-                    && ((StoreException) ex.getCause()).getType() == NODE_NOT_EMPTY
-                    || (ex instanceof StoreException && (((StoreException) ex).getType() == NODE_NOT_EMPTY))) {
+            } else if (ex.getCause() instanceof StoreException.DataNotEmptyException
+                    || ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
                 log.debug("DeleteScope failed due to {} ", ex);

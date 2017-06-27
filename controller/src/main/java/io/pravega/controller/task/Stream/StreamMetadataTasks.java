@@ -23,7 +23,6 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.ScaleOpEvent;
 import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
@@ -53,8 +52,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.controller.store.stream.StoreException.Type.NODE_EXISTS;
-import static io.pravega.controller.store.stream.StoreException.Type.NODE_NOT_FOUND;
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 
 /**
@@ -362,9 +359,9 @@ public class StreamMetadataTasks extends TaskBase {
                 .handle((result, ex) -> {
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);
-                        if (cause instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_EXISTS) {
+                        if (cause instanceof StoreException.DataExistsException) {
                             return CreateStreamStatus.Status.STREAM_EXISTS;
-                        } else if (ex.getCause() instanceof StoreException && ((StoreException) ex.getCause()).getType() == NODE_NOT_FOUND) {
+                        } else if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
                             log.warn("Create stream failed due to ", ex);
@@ -548,10 +545,8 @@ public class StreamMetadataTasks extends TaskBase {
 
     private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex) {
         Throwable cause = ExceptionHelpers.getRealException(ex);
-        if (cause instanceof DataNotFoundException) {
+        if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
-        } else if (cause instanceof StoreException && ((StoreException) cause).getType() == NODE_NOT_FOUND) {
-            return UpdateStreamStatus.Status.SCOPE_NOT_FOUND;
         } else {
             log.warn("Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
@@ -560,8 +555,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex) {
         Throwable cause = ExceptionHelpers.getRealException(ex);
-        if (cause instanceof DataNotFoundException ||
-                (ex instanceof StoreException && ((StoreException) ex).getType() == NODE_NOT_FOUND)) {
+        if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
             log.warn("Update stream failed.", ex);
