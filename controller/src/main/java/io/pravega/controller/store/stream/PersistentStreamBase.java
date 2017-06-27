@@ -321,10 +321,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final Data<T> historyTable = pair.getLeft();
                     final int activeEpoch = TableHelper.getActiveEpoch(historyTable.getData()).getKey();
 
-                    final int nextSegmentNumber;
                     if (TableHelper.isScaleOngoing(historyTable.getData(), segmentTable.getData())) {
                         return isScaleRerun(sealedSegments, newRanges, segmentTable, historyTable, activeEpoch);
                     } else {
+                        if (!TableHelper.isScaleInputValid(sealedSegments, newRanges, segmentTable.getData())) {
+                            log.error("scale input invalid {} {}", sealedSegments, newRanges);
+                            throw new ScaleOperationExceptions.ScaleInputInvalidException();
+                        }
+
                         // check input is valid and satisfies preconditions
                         if (!TableHelper.canScaleFor(sealedSegments, historyTable.getData())) {
                             // invalid input, log and ignore

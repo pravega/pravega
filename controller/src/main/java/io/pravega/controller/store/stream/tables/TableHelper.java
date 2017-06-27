@@ -645,4 +645,39 @@ public class TableHelper {
 
         return historyRecordOpt;
     }
+
+    public static boolean isScaleInputValid(final List<Integer> segmentsToSeal,
+                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                            final byte[] segmentTable) {
+
+        List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
+                .map(segment -> SegmentRecord.readRecord(segmentTable, segment)
+                        .map(x -> new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+        return reduce(oldRanges).equals(reduce(newRanges));
+    }
+
+    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> ranges) {
+        List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();
+        double low = -1.0;
+        double high = -1.0;
+        for (AbstractMap.SimpleEntry<Double, Double> range : ranges) {
+            if (high < range.getKey()) {
+                if (low != -1.0 && high != -1.0) {
+                    result.add(new AbstractMap.SimpleEntry<>(low, high));
+                }
+                low = range.getKey();
+                high = range.getValue();
+            } else {
+                high = range.getValue();
+            }
+        }
+        if (low != -1.0 && high != -1.0) {
+            result.add(new AbstractMap.SimpleEntry<>(low, high));
+        }
+        return result;
+    }
 }
