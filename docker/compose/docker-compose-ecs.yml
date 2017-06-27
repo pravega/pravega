@@ -68,7 +68,7 @@ services:
     privileged: true
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
-      TIER2_STORAGE: "ECS"
+      TIER2_STORAGE: "EXTS3"
       ECS_ACCESS_KEY_ID: ${ECS_ACCESS_KEY_ID}
       ECS_BUCKET: ${ECS_BUCKET}
       ECS_SECRET_KEY: ${ECS_SECRET_KEY}

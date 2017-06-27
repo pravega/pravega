@@ -68,7 +68,7 @@ services:
     privileged: true
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
-      TIER2_STORAGE: "FS"
+      TIER2_STORAGE: "FILESYSTEM"
       MOUNT_IN_CONTAINER: "true"
       NFS_SERVER: ${NFS_IP}:${NFS_PATH}
       NFS_MOUNT: /nfs
