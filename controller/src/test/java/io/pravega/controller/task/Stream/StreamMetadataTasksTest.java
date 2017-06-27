@@ -167,7 +167,7 @@ public class StreamMetadataTasksTest {
 
     @Test
     public void eventWriterInitializationTest() throws Exception {
-        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
