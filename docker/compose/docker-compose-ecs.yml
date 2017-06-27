@@ -69,10 +69,10 @@ services:
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
       TIER2_STORAGE: "EXTS3"
-      ECS_ACCESS_KEY_ID: ${ECS_ACCESS_KEY_ID}
-      ECS_BUCKET: ${ECS_BUCKET}
-      ECS_SECRET_KEY: ${ECS_SECRET_KEY}
-      ECS_URI: ${ECS_URI}
+      EXTS3_ACCESS_KEY_ID: ${EXTS3_ACCESS_KEY_ID}
+      EXTS3_BUCKET: ${EXTS3_BUCKET}
+      EXTS3_SECRET_KEY: ${EXTS3_SECRET_KEY}
+      EXTS3_URI: ${EXTS3_URI}
       ZK_URL: zookeeper:2181
       CONTROLLER_URL: tcp://${HOST_IP}:9091
       JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${HOST_IP} -Xmx900m
