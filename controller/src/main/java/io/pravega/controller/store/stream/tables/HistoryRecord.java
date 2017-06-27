@@ -25,12 +25,17 @@ import java.util.Optional;
  * HistoryRecords are of variable length, so we will maintain markers for
  * start of row and end of row. We need it in both directions because we need to traverse
  * in both directions on the history table
- * Row : [length][List-of-active-segment-numbers, [length-so-far], scaleTime][length]
+ * Row : [length][epoch][List-of-active-segment-numbers], [length-so-far], [scaleTime][length]
  */
 public class HistoryRecord {
 
-    private static final int FIXED_FIELDS_LENGTH = Integer.BYTES + Integer.BYTES + Long.BYTES + Integer.BYTES;
+    private static final int PARTIAL_FIELDS_FIXED_LENGTH = Integer.BYTES + Integer.BYTES + Integer.BYTES;
+    private static final int REMAINING_FIELDS_FIXED_LENGTH = Long.BYTES + Integer.BYTES;
+    private static final int FIXED_FIELDS_LENGTH = PARTIAL_FIELDS_FIXED_LENGTH + REMAINING_FIELDS_FIXED_LENGTH;
+
     private final int length;
+    @Getter
+    private final int epoch;
     @Getter
     private final List<Integer> segments;
     @Getter
@@ -40,15 +45,16 @@ public class HistoryRecord {
     @Getter
     private final boolean partial;
 
-    public HistoryRecord(final List<Integer> segments, final int offset) {
-        this(segments, 0L, offset, true);
+    public HistoryRecord(int epoch, final List<Integer> segments, final int offset) {
+        this(epoch, segments, 0L, offset, true);
     }
 
-    public HistoryRecord(final List<Integer> segments, final long scaleTime, final int offset) {
-        this(segments, scaleTime, offset, false);
+    public HistoryRecord(final List<Integer> segments, int epoch, final long scaleTime, final int offset) {
+        this(epoch, segments, scaleTime, offset, false);
     }
 
-    public HistoryRecord(final List<Integer> segments, final long scaleTime, final int offset, boolean partial) {
+    public HistoryRecord(int epoch, final List<Integer> segments, final long scaleTime, final int offset, boolean partial) {
+        this.epoch = epoch;
         this.offset = offset;
         this.length = FIXED_FIELDS_LENGTH + segments.size() * Integer.BYTES;
         this.segments = segments;
@@ -91,7 +97,7 @@ public class HistoryRecord {
      * @return returns the history record if it is found.
      */
     public static Optional<HistoryRecord> readLatestRecord(final byte[] historyTable, boolean ignorePartial) {
-        if (historyTable.length == 0) {
+        if (historyTable.length < PARTIAL_FIELDS_FIXED_LENGTH) {
             return Optional.empty();
         }
 
@@ -131,61 +137,96 @@ public class HistoryRecord {
     }
 
     private static HistoryRecord parsePartial(final byte[] table, final int offset) {
-        final int length = BitConverter.readInt(table, offset);
+        final int length = BitConverter.readInt(table, offset + lengthOffset());
         assert length > FIXED_FIELDS_LENGTH && (length - FIXED_FIELDS_LENGTH) % Integer.BYTES == 0;
-        int count = (length - FIXED_FIELDS_LENGTH) / Integer.BYTES;
+        final int epoch = BitConverter.readInt(table, offset + epochOffset());
+        int count = getCount(length);
         final List<Integer> segments = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            segments.add(BitConverter.readInt(table, offset + (1 + i) * Integer.BYTES));
+            segments.add(BitConverter.readInt(table, offset + segmentOffset() + i * Integer.BYTES));
         }
 
-        final int backToTop = BitConverter.readInt(table, offset + ((1 + count) * Integer.BYTES));
-        assert backToTop == (count + 2) * Integer.BYTES;
+        final int backToTop = BitConverter.readInt(table, offset + offsetOffset(count));
+        assert backToTop == (count + 3) * Integer.BYTES;
 
-        return new HistoryRecord(segments, offset);
+        return new HistoryRecord(epoch, segments, offset);
     }
 
     private static HistoryRecord parse(final byte[] table, final int offset) {
         HistoryRecord partial = parsePartial(table, offset);
 
-        final long eventTime = BitConverter.readLong(table, offset + (2 + partial.segments.size()) * Integer.BYTES);
+        final long eventTime = BitConverter.readLong(table, offset + scaleTimeOffset(partial.getSegments().size()));
 
-        final int backToTop = BitConverter.readInt(table, offset + (2 + partial.segments.size()) * Integer.BYTES + Long.BYTES);
+        final int backToTop = BitConverter.readInt(table, offset + tailLengthOffset(partial.getSegments().size()));
 
         assert backToTop == partial.length;
 
-        return new HistoryRecord(partial.segments, eventTime, offset, false);
+        return new HistoryRecord(partial.epoch, partial.segments, eventTime, offset, false);
     }
 
     public byte[] toBytePartial() {
-        byte[] b = new byte[(2 + segments.size()) * Integer.BYTES];
-
-        BitConverter.writeInt(b, 0, length);
-        for (int i = 0; i < segments.size(); i++) {
-            BitConverter.writeInt(b, (1 + i) * Integer.BYTES, segments.get(i));
-        }
-        BitConverter.writeInt(b, (1 + segments.size()) * Integer.BYTES, length - Long.BYTES - Integer.BYTES);
+        byte[] b = new byte[PARTIAL_FIELDS_FIXED_LENGTH + segments.size() * Integer.BYTES];
+        toBytePartial(b);
         return b;
+    }
+
+    private void toBytePartial(byte[] b) {
+        // length
+        BitConverter.writeInt(b, lengthOffset(), length);
+        // epoch
+        BitConverter.writeInt(b, epochOffset(), epoch);
+        // segments
+        for (int i = 0; i < segments.size(); i++) {
+            BitConverter.writeInt(b, segmentOffset() + i * Integer.BYTES, segments.get(i));
+        }
+        // start offset
+        BitConverter.writeInt(b, offsetOffset(segments.size()), length - Long.BYTES - Integer.BYTES);
     }
 
     public byte[] remainingByteArray() {
-        byte[] b = new byte[Long.BYTES + Integer.BYTES];
-        BitConverter.writeLong(b, 0, scaleTime);
-        BitConverter.writeInt(b, Long.BYTES, length);
+        byte[] b = new byte[REMAINING_FIELDS_FIXED_LENGTH];
+        remainingByteArray(b, 0);
         return b;
     }
 
-    public byte[] toByteArray() {
-        byte[] b = new byte[(segments.size()) * Integer.BYTES + FIXED_FIELDS_LENGTH];
-        BitConverter.writeInt(b, 0, length);
-        for (int i = 0; i < segments.size(); i++) {
-            BitConverter.writeInt(b, (1 + i) * Integer.BYTES, segments.get(i));
-        }
-        BitConverter.writeInt(b, (1 + segments.size()) * Integer.BYTES, (2 + segments.size()) * Integer.BYTES);
-        BitConverter.writeLong(b, (2 + segments.size()) * Integer.BYTES, scaleTime);
-        BitConverter.writeInt(b, (2 + segments.size()) * Integer.BYTES + Long.BYTES, (3 + segments.size()) * Integer.BYTES + Long.BYTES);
+    private void remainingByteArray(byte[] b, int start) {
+        BitConverter.writeLong(b, start, scaleTime);
+        BitConverter.writeInt(b, start + Long.BYTES, length);
+    }
 
+    public byte[] toByteArray() {
+        byte[] b = new byte[FIXED_FIELDS_LENGTH + segments.size() * Integer.BYTES];
+        toBytePartial(b);
+        remainingByteArray(b, PARTIAL_FIELDS_FIXED_LENGTH + segments.size() * Integer.BYTES);
         return b;
+    }
+
+    private static int getCount(int length) {
+        return (length - FIXED_FIELDS_LENGTH) / Integer.BYTES;
+    }
+
+    private static int lengthOffset() {
+        return 0;
+    }
+
+    private static int epochOffset() {
+        return lengthOffset() + Integer.BYTES;
+    }
+
+    private static int segmentOffset() {
+        return epochOffset() + Integer.BYTES;
+    }
+
+    private static int offsetOffset(int count) {
+        return segmentOffset() + count * Integer.BYTES;
+    }
+
+    private static int scaleTimeOffset(int segmentCount) {
+        return offsetOffset(segmentCount) + Integer.BYTES;
+    }
+
+    private static int tailLengthOffset(int segmentCount) {
+        return scaleTimeOffset(segmentCount) + Long.BYTES;
     }
 
     public static List<Pair<Long, List<Integer>>> readAllRecords(byte[] historyTable) {

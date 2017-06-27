@@ -21,6 +21,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Position;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamMetadataTasks streamMetadataTasks;
     private final HostControllerStore hostControllerStore;
     private final ScheduledExecutorService executor;
     private final SegmentHelper segmentHelper;
@@ -46,12 +48,14 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
 
     @VisibleForTesting
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+                               final StreamMetadataTasks streamMetadataTasks,
                                final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory,
                                final BlockingQueue<AbortEvent> queue) {
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -60,11 +64,13 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     }
 
     public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+                               final StreamMetadataTasks streamMetadataTasks,
                                final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory) {
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -81,14 +87,15 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), context, executor)
+        streamMetadataStore.getActiveSegments(event.getScope(), event.getStream(), epoch, context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(
                                 segments.stream()
                                         .parallel()
-                                        .map(segment -> notifyAbortToHost(scope, stream, segment.getNumber(), txId))
+                                        .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
+                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),

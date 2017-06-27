@@ -188,7 +188,7 @@ public class ControllerService {
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
 
-        return streamMetadataTasks.scale(scope,
+        return streamMetadataTasks.manualScale(scope,
                                          stream,
                                          new ArrayList<>(sealedSegments),
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),
