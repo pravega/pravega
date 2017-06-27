@@ -14,17 +14,19 @@ import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
-import com.emc.object.s3.bean.CopyObjectResult;
+import com.emc.object.s3.bean.CompleteMultipartUploadResult;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.DeleteObjectsResult;
+import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.PutObjectResult;
+import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
-import com.google.common.collect.ImmutableList;
-import com.google.inject.Module;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -39,28 +41,33 @@ import io.pravega.segmentstore.storage.impl.exts3.ExtS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.exts3.ExtS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import lombok.SneakyThrows;
+import org.gaul.s3proxy.S3Proxy;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.gaul.s3proxy.AuthenticationType;
-import org.gaul.s3proxy.S3Proxy;
-import org.jclouds.ContextBuilder;
-import org.jclouds.blobstore.BlobStore;
-import org.jclouds.blobstore.BlobStoreContext;
-import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
-import org.junit.After;
-import org.junit.Before;
 
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
@@ -71,6 +78,7 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 3;
     private BookKeeperRunner bookkeeper = null;
     private S3Proxy s3Proxy;
+    String baseDir;
 
     /**
      * Starts BookKeeper.
@@ -87,6 +95,7 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
         properties.setProperty("s3proxy.endpoint", endpoint);
         properties.setProperty("jclouds.provider", "filesystem");
         properties.setProperty("jclouds.filesystem.basedir", "/tmp/s3proxy");
+        baseDir = Files.createTempDirectory("exts3_wrapper").toString();
 /*
         ContextBuilder builder = ContextBuilder
                 .newBuilder("filesystem")
@@ -109,8 +118,7 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
                          .with(ExtS3StorageConfig.EXTS3_BUCKET, "kanpravegatest")
                          .with(ExtS3StorageConfig.EXTS3_ACCESS_KEY_ID, "x")
                          .with(ExtS3StorageConfig.EXTS3_SECRET_KEY, "x")
-                         .with(ExtS3StorageConfig.EXTS3_URI, "http://localhost:9020")
-                         .with(ExtS3StorageConfig.ROOT, "test"));
+                         .with(ExtS3StorageConfig.EXTS3_URI, "http://localhost:9020"));
 
     }
 
@@ -120,7 +128,7 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
     @After
     public void tearDown() throws Exception {
         bookkeeper.close();
-        //s3Proxy.stop();
+        FileHelpers.deleteFileOrDirectory(new File(baseDir));
     }
 
     //endregion
@@ -151,7 +159,6 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
         }
 
 
-
         @Override
         public Storage createStorageAdapter() {
             S3Config exts3Config = null;
@@ -163,7 +170,7 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
             exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
 
 
-            S3JerseyClient client = new S3ClientWrapper(exts3Config);
+            S3JerseyClient client = new S3ClientWrapper(exts3Config, baseDir);
 
             Storage storage = this.wrappedFactory.createStorageAdapter();
             this.storage = storage;
@@ -171,127 +178,198 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
             return storage;
         }
 
-        private class S3ClientWrapper extends S3JerseyClient {
-            private String baseDir;
 
-            public S3ClientWrapper(S3Config exts3Config) {
-                super(exts3Config);
-                try {
-                    this.baseDir = Files.createTempDirectory("exts3_wrapper").toString();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            private final ConcurrentMap<String, EXTS3StorageTest.AclSize> ACL_MAP = new ConcurrentHashMap<>();
-
-
-            @Override
-            public PutObjectResult putObject(PutObjectRequest request) {
-                S3ObjectMetadata metadata = request.getObjectMetadata();
-
-                if ( request.getObjectMetadata() != null ) {
-                    request.setObjectMetadata(null);
-                }
-                try {
-                    Files.createFile(Paths.get(this.baseDir, request.getBucketName(), request.getKey()));
-                } catch (IOException e) {
-                    throw new S3Exception(e.getMessage(),0);
-                }
-                PutObjectResult retVal = new PutObjectResult();
-                if (request.getAcl() != null) {
-                    long size = 0;
-                    if (request.getRange() != null) {
-                        size = request.getRange().getLast() -1;
-                    }
-                    ACL_MAP.put(request.getKey(), new EXTS3StorageTest.AclSize(request.getAcl(),
-                            size));
-                }
-                return retVal;
-            }
-
-            @Override
-            public void putObject(String bucketName, String key, Range range, Object content) {
-                byte[] totalByes = new byte[Math.toIntExact(range.getLast() + 1)];
-                try {
-                    if ( range.getFirst() != 0 ) {
-                        int bytesRead = getObject(bucketName, key).getObject().read(totalByes, 0,
-                                Math.toIntExact(range.getFirst()));
-                        if ( bytesRead != range.getFirst() ) {
-                            throw new CompletionException(new BadOffsetException(key, range.getFirst(), bytesRead));
-                        }
-                    }
-                    int bytesRead = ( (InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
-                            Math.toIntExact(range.getLast() + 1 - range.getFirst()));
-
-                    if ( bytesRead != range.getLast() + 1 - range.getFirst()) {
-                        throw new IllegalArgumentException();
-                    }
-                    Path path = Paths.get(this.baseDir, bucketName, key);
-                    FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
-                   // channel.write()
-                    ACL_MAP.get(key).setSize(range.getLast() -1);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-                EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
-                if ( retVal == null ) {
-                    throw new S3Exception("NoObject", 500, "NoSuchKey", key);
-                }
-                retVal.setAcl(acl);
-            }
-
-            @Override
-            public void setObjectAcl(SetObjectAclRequest request) {
-                EXTS3StorageTest.AclSize retVal = ACL_MAP.get(request.getKey());
-                if ( retVal == null ) {
-                    throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
-                }
-                retVal.setAcl(request.getAcl());
-            }
-
-            @Override
-            public AccessControlList getObjectAcl(String bucketName, String key) {
-                EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
-                if ( retVal == null ) {
-                    throw new S3Exception("NoObject", 500, "NoSuchKey", key);
-                }
-                return retVal.getAcl();
-            }
-
-            public CopyPartResult copyPart(CopyPartRequest request) {
-                if ( ACL_MAP.get(request.getKey()) == null ) {
-                    throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
-                }
-
-                Range range = request.getSourceRange();
-                if ( range.getLast() == -1 ) {
-                    range = Range.fromOffsetLength(0, ACL_MAP.get(request.getSourceKey()).getSize());
-                    request.withSourceRange(range);
-                }
-                CopyObjectResult result = executeRequest(client, request, CopyObjectResult.class);
-                CopyPartResult retVal = new CopyPartResult();
-                retVal.setPartNumber(request.getPartNumber());
-                retVal.setETag(result.getETag());
-                return retVal;
-            }
-
-            @Override
-            public void deleteObject(String bucketName, String key) {
-                super.deleteObject(bucketName, key);
-                ACL_MAP.remove(key);
-            }
-
-            @Override
-            public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
-                request.getDeleteObjects().getKeys().forEach( (key) -> ACL_MAP.remove(key));
-                return super.deleteObjects(request);
-            }
-        }
     }
 
     //endregion
+}
+class S3ClientWrapper extends S3JerseyClient {
+    private String baseDir;
+    private static final ConcurrentMap<String, Map<Integer, CopyPartRequest>> multipartUploads = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, EXTS3StorageTest.AclSize> ACL_MAP = new ConcurrentHashMap<>();
+
+    public S3ClientWrapper(S3Config exts3Config, String baseDir) {
+        super(exts3Config);
+        this.baseDir = baseDir;
+    }
+
+
+    @Override
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
+        return new DeleteObjectsResult();
+    }
+
+
+    @Override
+    public PutObjectResult putObject(PutObjectRequest request) {
+        S3ObjectMetadata metadata = request.getObjectMetadata();
+
+        if (request.getObjectMetadata() != null) {
+            request.setObjectMetadata(null);
+        }
+        try {
+            Path path = Paths.get(this.baseDir, request.getBucketName(), request.getKey());
+            Files.createDirectories(path.getParent());
+            Files.createFile(path);
+        } catch (IOException e) {
+            throw new S3Exception(e.getMessage(), 0);
+        }
+        PutObjectResult retVal = new PutObjectResult();
+        if (request.getAcl() != null) {
+            long size = 0;
+            if (request.getRange() != null) {
+                size = request.getRange().getLast() + 1;
+            }
+            ACL_MAP.put(request.getKey(), new EXTS3StorageTest.AclSize(request.getAcl(),
+                    size));
+        }
+        return retVal;
+    }
+
+    @Override
+    @SneakyThrows
+    public void putObject(String bucketName, String key, Range range, Object content) {
+
+        Path path = Paths.get(this.baseDir, bucketName, key);
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+            if (content instanceof SequenceInputStream) {
+                byte[] buf = new byte[Math.toIntExact(range.getLast() + 1 - range.getFirst())];
+                ((SequenceInputStream) content).read(buf,0,Math.toIntExact(range.getLast() + 1 - range.getFirst()));
+                content = new ByteArrayInputStream(buf);
+            }
+            channel.transferFrom(Channels.newChannel((ByteArrayInputStream) content),
+                    range.getFirst(), range.getLast() + 1 - range.getFirst());
+            ACL_MAP.get(key).setSize(range.getLast() + 1);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new BadOffsetException(key, 0, 0);
+        }
+    }
+
+    @Override
+    public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
+        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
+        if (retVal == null) {
+            throw new S3Exception("NoObject", 500, "NoSuchKey", key);
+        }
+        retVal.setAcl(acl);
+    }
+
+    @Override
+    public void setObjectAcl(SetObjectAclRequest request) {
+        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(request.getKey());
+        if (retVal == null) {
+            throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
+        }
+        retVal.setAcl(request.getAcl());
+    }
+
+    @Override
+    public AccessControlList getObjectAcl(String bucketName, String key) {
+        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
+        if (retVal == null) {
+            throw new S3Exception("NoObject", 500, "NoSuchKey", key);
+        }
+        return retVal.getAcl();
+    }
+
+
+    @Override
+    public void deleteObject(String bucketName, String key) {
+        //super.deleteObject(bucketName, key);
+        Path path = Paths.get(this.baseDir, bucketName, key);
+        try {
+            Files.delete(path);
+        } catch (IOException e) {
+            throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
+        }
+        ACL_MAP.remove(key);
+    }
+
+
+    @Override
+    public ListObjectsResult listObjects(String bucketName, String prefix) {
+        ListObjectsResult result = new ListObjectsResult();
+        ArrayList<S3Object> list = new ArrayList<>();
+        Path path = Paths.get(this.baseDir, bucketName, prefix);
+        try {
+            Files.list(path).forEach((file) -> {
+                S3Object object = new S3Object();
+                object.setKey(file.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
+                list.add(object);
+            });
+        } catch (IOException e) {
+            //     throw new S3Exception("NoSuchKey",0,"NoSuchKey","");
+        }
+        result.setObjects(list);
+        return result;
+    }
+
+    @Override
+    public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
+        S3ObjectMetadata metadata = new S3ObjectMetadata();
+        EXTS3StorageTest.AclSize data = ACL_MAP.get(key);
+        if (data == null) {
+            throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
+        }
+        metadata.setContentLength(data.getSize());
+        Path path = Paths.get(this.baseDir, bucketName, key);
+        metadata.setLastModified(new Date(path.toFile().lastModified()));
+        return metadata;
+    }
+
+    @Override
+    public InputStream readObjectStream(String bucketName, String key, Range range) {
+        byte[] bytes = new byte[Math.toIntExact(range.getLast() + 1 - range.getFirst())];
+        Path path = Paths.get(this.baseDir, bucketName, key);
+        FileInputStream returnStream;
+        try {
+            returnStream = new FileInputStream(path.toFile());
+            returnStream.getChannel().read(ByteBuffer.wrap(bytes), range.getFirst());
+            return new ByteArrayInputStream(bytes);
+        } catch (IOException e) {
+            throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
+        }
+    }
+
+    @Override
+    public String initiateMultipartUpload(String bucketName, String key) {
+       multipartUploads.put(key,new HashMap());
+       return new Integer(multipartUploads.size()).toString();
+    }
+
+    @Override
+    public CopyPartResult copyPart(CopyPartRequest request) {
+        Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
+        if(partMap == null) {
+            throw new S3Exception("NoSuchKey",0,"NoSuchKey","");
+        }
+        partMap.put(request.getPartNumber(), request);
+        return new CopyPartResult();
+    }
+
+    @Override
+    public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
+        Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
+        if(partMap == null) {
+            throw new S3Exception("NoSuchKey",0,"NoSuchKey","");
+        }
+        partMap.forEach((index, copyPart) -> {
+            if (copyPart.getKey() != copyPart.getSourceKey()) {
+                Path sourcePath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getSourceKey());
+                Path targetPath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getKey());
+                try (FileChannel sourceChannel = FileChannel.open(sourcePath,StandardOpenOption.READ);
+                FileChannel targetChannel = FileChannel.open(targetPath,StandardOpenOption.WRITE)) {
+                    targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
+                            copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
+                } catch (IOException e) {
+                    throw new S3Exception("NoSuchKey",0,"NoSuchKey","");
+                }
+            }
+        });
+        return new CompleteMultipartUploadResult();
+    }
+
+    @Override
+    public void destroy() {
+    }
 }

@@ -207,7 +207,7 @@ public class ExtS3Storage implements Storage {
         }
 
         try (InputStream reader = client.readObjectStream(config.getExts3Bucket(),
-                config.getExts3Root() + handle.getSegmentName(), Range.fromOffset(offset))) {
+                config.getExts3Root() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
 
             if (reader == null) {
                 log.info("Object does not exist {} in bucket {} ", config.getExts3Root() + handle.getSegmentName(),
