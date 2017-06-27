@@ -60,7 +60,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWithFailOverTest {
+public class MultiReaderTxnWriterWithFailoverTest  extends  MultiReaderWriterWithFailOverTest {
 
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
@@ -182,7 +182,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         readerName = "reader";
     }
 
-    @After
+   /* @After
     public void tearDown() {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
@@ -199,10 +199,10 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
         readerGroupName = null;
         scalingPolicy = null;
         readerName = null;
-    }
+    }*/
 
     @Test(timeout = 600000)
-    public void multiReaderWriterWithFailOverTest() throws Exception {
+    public void multiReaderTxnWriterWithFailOverTest() throws Exception {
 
         //create a scope
         try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
@@ -400,7 +400,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
             while (!stopWriteFlag.get()) {
                 try {
                     Transaction<Long> transaction = retry
-                            .retryingOn(MultiReaderWriterTxnWithFailoverTest.TxnCreationFailedException.class)
+                            .retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnCreationFailedException.class)
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, stopWriteFlag));
 
@@ -426,9 +426,8 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
 
     private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
                                                    final AtomicLong eventWriteCount) {
-
         return CompletableFuture.runAsync(() -> {
-            Transaction.Status status = retry.retryingOn(MultiReaderWriterTxnWithFailoverTest.TxnNotCompleteException.class)
+            Transaction.Status status = retry.retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnNotCompleteException.class)
                     .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
             log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
             if (status.equals(Transaction.Status.COMMITTED)) {
@@ -453,7 +452,7 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
             if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag.get()) {
                 //Exit flag is true no need to retry.
                 log.warn("Cause for failure is {} and we need to retry", ex.getClass().getName());
-                throw new MultiReaderWriterTxnWithFailoverTest.TxnCreationFailedException(); // we can retry on this exception.
+                throw new TxnCreationFailedException(); // we can retry on this exception.
             } else {
                 throw ex;
             }
@@ -465,7 +464,5 @@ public class MultiReaderWriterTxnWithFailoverTest  extends  MultiReaderWriterWit
     }
 
     private class TxnNotCompleteException extends RuntimeException {
-
     }
-
 }
