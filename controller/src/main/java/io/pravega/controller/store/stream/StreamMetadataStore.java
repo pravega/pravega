@@ -9,11 +9,12 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -58,14 +59,43 @@ public interface StreamMetadataStore {
                                             final OperationContext context,
                                             final Executor executor);
 
+    /**
+     * Api to Delete the stream related metadata.
+     *
+     * @param scopeName       scope name
+     * @param streamName      stream name
+     * @param context         operation context
+     * @param executor        callers executor
+     * @return future
+     */
     CompletableFuture<Void> deleteStream(final String scopeName,
                                          final String streamName,
                                          final OperationContext context,
                                          final Executor executor);
 
+    /**
+     * Api to set the state for stream in metadata.
+     * @param scope scope name
+     * @param name stream name
+     * @param state stream state
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of boolean if state update succeeded.
+     */
     CompletableFuture<Boolean> setState(String scope, String name,
                                         State state, OperationContext context,
                                         Executor executor);
+
+    /**
+     * Api to get the state for stream from metadata.
+     *
+     * @param scope scope name
+     * @param name stream name
+     * @param context operation context
+     * @param executor callers executor
+     * @return Future of boolean if state update succeeded.
+     */
+    CompletableFuture<State> getState(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Creates a new scope with the given name.
@@ -202,6 +232,23 @@ public interface StreamMetadataStore {
     CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor);
 
     /**
+     * Returns the segments in the specified epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param epoch    epoch.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     */
+    CompletableFuture<List<Integer>> getActiveSegments(final String scope,
+                                                       final String stream,
+                                                       final int epoch,
+                                                       final OperationContext context,
+                                                       final Executor executor);
+
+
+    /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
      * mapped to a list of the segments they succeed.
      *
@@ -223,32 +270,37 @@ public interface StreamMetadataStore {
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param sealedSegments segments to be sealed
      * @param scaleTimestamp timestamp at which scale was requested
+     * @param runOnlyIfStarted run only if the scale operation has already been started.
      * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
      */
-    CompletableFuture<List<Segment>> startScale(final String scope, final String name,
-                                                final List<Integer> sealedSegments,
-                                                final List<SimpleEntry<Double, Double>> newRanges,
-                                                final long scaleTimestamp,
-                                                final OperationContext context,
-                                                final Executor executor);
+    CompletableFuture<StartScaleResponse> startScale(final String scope, final String name,
+                                                            final List<Integer> sealedSegments,
+                                                            final List<SimpleEntry<Double, Double>> newRanges,
+                                                            final long scaleTimestamp,
+                                                            final boolean runOnlyIfStarted,
+                                                            final OperationContext context,
+                                                            final Executor executor);
 
     /**
-     * Called after new segments are created in pravega.
+     * Called after new segments are created in SSS.
      *
      * @param scope          stream scope
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments that were created as part of startScale
+     * @param activeEpoch    scale epoch
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
      * @return future
      */
-    CompletableFuture<Void> scaleNewSegmentsCreated(final String scope, final String name,
+    CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
+                                                    final String name,
                                                     final List<Integer> sealedSegments,
                                                     final List<Segment> newSegments,
+                                                    final int activeEpoch,
                                                     final long scaleTimestamp,
                                                     final OperationContext context,
                                                     final Executor executor);
@@ -260,6 +312,7 @@ public interface StreamMetadataStore {
      * @param name           stream name.
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments that were created as part of startScale
+     * @param activeEpoch    scale epoch
      * @param scaleTimestamp timestamp at which scale was requested
      * @param context        operation context
      * @param executor       callers executor
@@ -268,9 +321,25 @@ public interface StreamMetadataStore {
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
                                                 final List<Integer> sealedSegments,
                                                 final List<Segment> newSegments,
+                                                final int activeEpoch,
                                                 final long scaleTimestamp,
                                                 final OperationContext context,
                                                 final Executor executor);
+
+    /**
+     * Method to delete epoch if scale operation is ongoing.
+     * @param scope scope
+     * @param stream stream
+     * @param epoch epoch to delete
+     * @param context context
+     * @param executor executor
+     * @return returns a pair of segments sealed from previous epoch and new segments added in new epoch
+     */
+    CompletableFuture<DeleteEpochResponse> tryDeleteEpochIfScaling(final String scope,
+                                                                   final String stream,
+                                                                   final int epoch,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Method to create a new transaction on a stream.
@@ -413,10 +482,10 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
      */
-    CompletableFuture<SimpleEntry<Integer, List<Integer>>> getActiveEpoch(final String scope,
-                                                                          final String stream,
-                                                                          final OperationContext context,
-                                                                          final Executor executor);
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
+                                                                   final String stream,
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Api to mark a segment as cold.

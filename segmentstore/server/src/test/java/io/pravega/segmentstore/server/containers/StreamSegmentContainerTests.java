@@ -998,6 +998,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val segment0Info = segment0Activation.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertNotNull("Unable to properly activate dormant segment (0).", segment0Info);
 
+        tryActivate(localContainer, segment1, segment3).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         // At this point the active segments should be: 0, 1 and 3.
         Assert.assertNotNull("Pre-activated segment did not stay in metadata (3).",
                 localContainer.getStreamSegmentInfo(segment3, false, TIMEOUT).join());
