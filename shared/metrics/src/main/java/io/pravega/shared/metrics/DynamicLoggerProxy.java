@@ -28,8 +28,8 @@ public class DynamicLoggerProxy implements DynamicLogger {
     }
 
     @Override
-    public long getCounterValue(String name) {
-        return this.instance.get().getCounterValue(name);
+    public void updateCounterValue(String name, long value) {
+        this.instance.get().updateCounterValue(name, value);
     }
 
     @Override

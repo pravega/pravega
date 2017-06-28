@@ -18,8 +18,8 @@ public class NullDynamicLogger implements DynamicLogger {
     }
 
     @Override
-    public long getCounterValue(String name) {
-        return 0;
+    public void updateCounterValue(String name, long value) {
+        // nop
     }
 
     @Override

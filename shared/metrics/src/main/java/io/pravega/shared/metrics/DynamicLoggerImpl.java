@@ -95,21 +95,18 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
-    public long getCounterValue(String name) {
+    public void updateCounterValue(String name, long value) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         String counterName = name + ".Counter";
-        try {
-            Counter counter = countersCache.get(counterName, new Callable<Counter>() {
-                @Override
-                public Counter call() throws Exception {
-                    return underlying.createCounter(counterName);
-                }
-            });
-            return counter.get();
-        } catch (ExecutionException e) {
-            log.error("Error while retrieving the value of countersCache", e);
-            return -1;
+
+        Counter counter = countersCache.getIfPresent(counterName);
+        if (counter != null) {
+            counter.clear();
+        } else {
+            counter = underlying.createCounter(counterName);
         }
+        counter.add(value);
+        countersCache.put(name, counter);
     }
 
     @Override

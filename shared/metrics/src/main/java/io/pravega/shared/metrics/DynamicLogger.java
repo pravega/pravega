@@ -25,10 +25,10 @@ public interface DynamicLogger {
     /**
      * Get the value of counter.
      *
-     * @param name  the name of counter
-     * @return      the value to be counter
+     * @param name              the name of counter
+     * @param value             the value to be updated
      */
-    long getCounterValue(String name);
+    void updateCounterValue(String name, long value);
 
     /**
      * Report gauge value.
