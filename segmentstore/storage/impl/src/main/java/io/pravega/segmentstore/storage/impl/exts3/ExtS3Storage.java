@@ -90,11 +90,6 @@ public class ExtS3Storage implements Storage {
         this.config = config;
         this.executor = executor;
 
-        S3Config exts3Config = new S3Config(config.getExts3Url())
-                .withIdentity(config.getExts3AccessKey())
-                .withSecretKey(config.getExts3SecretKey());
-
-        client = new S3JerseyClient(exts3Config);
     }
 
     //endregion
@@ -108,6 +103,13 @@ public class ExtS3Storage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
+        if (client == null) {
+            S3Config exts3Config = new S3Config(config.getExts3Url())
+                    .withIdentity(config.getExts3AccessKey())
+                    .withSecretKey(config.getExts3SecretKey());
+
+            client = new S3JerseyClient(exts3Config);
+        }
     }
 
     @Override
@@ -234,7 +236,6 @@ public class ExtS3Storage implements Storage {
         S3ObjectMetadata result = client.getObjectMetadata(config.getExts3Bucket(),
                 config.getExts3Root() + streamSegmentName);
 
-        //client.
         AccessControlList acls = client.getObjectAcl(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
 
         boolean canWrite = false;
