@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
 /**
@@ -132,7 +131,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 });
     }
 
-    private CompletionStage<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
+    private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
@@ -179,7 +178,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
 
-        return store.createZNodeIfNotExist(creationPath, b);
+        return store.createZNodeIfNotExist(creationPath, b)
+            .thenApply(x -> cache.invalidateCache(creationPath));
     }
 
     @Override
