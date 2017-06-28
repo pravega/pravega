@@ -31,6 +31,7 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -140,7 +141,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
-            return Collections.singletonList(new ReaderGroupStateInit(config, checkpoint.asImpl().getPositions()));
+            Map<Segment, Long> positions = new HashMap<>();
+            for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
+                positions.putAll(cut.getPositions());
+            }
+            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
         });
     }
 
@@ -165,8 +170,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         long totalLength = 0;
         
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
-            Checkpoint checkpoint = new CheckpointImpl(streamPosition.getKey().getScopedName(), streamPosition.getValue());
-            totalLength += controller.getRemainingBytes(streamPosition.getKey(), checkpoint);
+            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            totalLength += controller.getRemainingBytes(position);
         }
         return totalLength;
     }

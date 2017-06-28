@@ -16,7 +16,6 @@ import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -975,7 +974,7 @@ public class ControllerImplTest {
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(new Segment(scope, stream, 0), 4L);
         segments.put(new Segment(scope, stream, 1), 6L);
-        Checkpoint cp = new CheckpointImpl(s.getScopedName(), segments);
+        StreamCut cut = new StreamCut(s, segments);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -999,7 +998,7 @@ public class ControllerImplTest {
                 Segment.getScopedName(scope, stream, 1))));
         connectionFactory.provideConnection(pravegaNodeUri, connection);
 
-        long remainingBytes = controllerClient.getRemainingBytes(s, cp);
+        long remainingBytes = controllerClient.getRemainingBytes(cut);
         assertEquals(240, remainingBytes);
     }
 }

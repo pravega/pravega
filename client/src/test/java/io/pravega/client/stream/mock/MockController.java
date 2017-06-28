@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -21,6 +20,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -413,7 +413,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public long getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+    public long getRemainingBytes(StreamCut point) {
         throw new NotImplementedException();
     }
 

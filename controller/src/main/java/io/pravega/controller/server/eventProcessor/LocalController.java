@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -19,6 +18,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
@@ -273,7 +273,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public long getRemainingBytes(Stream stream, Checkpoint checkpoint) {
+    public long getRemainingBytes(StreamCut cut) {
         throw new NotImplementedException();
     }
 }

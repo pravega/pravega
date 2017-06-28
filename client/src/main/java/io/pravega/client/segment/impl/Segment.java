@@ -72,7 +72,7 @@ public class Segment implements Serializable {
     }
     
     /**
-     * Parses fully scoped name, and extracts the segment name only.
+     * Parses fully scoped name, and creates the segment.
      *
      * @param qualifiedName Fully scoped segment name
      * @return Segment name.

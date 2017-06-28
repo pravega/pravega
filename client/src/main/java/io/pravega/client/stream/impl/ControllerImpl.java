@@ -19,7 +19,6 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
@@ -634,10 +633,11 @@ public class ControllerImpl implements Controller {
      * https://github.com/pravega/pravega/issues/1436 would fix this.
      */
     @Override
-    public long getRemainingBytes(Stream stream, Checkpoint checkpoint) {
-        CheckpointImpl cp = checkpoint.asImpl();
-        HashSet<Segment> unread = new HashSet<>(cp.getPositions().keySet());
-        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cp.getPositions().keySet());
+    public long getRemainingBytes(StreamCut cutpoint) {
+        Preconditions.checkNotNull(connectionFactory);
+        Stream stream = cutpoint.getStream();
+        HashSet<Segment> unread = new HashSet<>(cutpoint.getPositions().keySet());
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cutpoint.getPositions().keySet());
         val currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());
         unread.addAll(FutureHelpers.getAndHandleExceptions(currentSegments, RuntimeException::new).getSegments());
         while (!toFetchSuccessors.isEmpty()) {
@@ -660,7 +660,7 @@ public class ControllerImpl implements Controller {
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
             totalLength += metadataClient.fetchCurrentStreamLength();
         }
-        for (long bytesRead : checkpoint.asImpl().getPositions().values()) {
+        for (long bytesRead : cutpoint.getPositions().values()) {
             totalLength -= bytesRead;
         }
         return totalLength;

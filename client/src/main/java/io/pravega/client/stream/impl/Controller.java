@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -225,13 +224,9 @@ public interface Controller {
      * Returns the total number of bytes from the provided positions until the stream.
      * TODO: Make this API asynchronous. https://github.com/pravega/pravega/issues/1478
      * 
-     * @param stream The stream being queried.  
-     * @param checkpoint A set of segment/offset pairs for a single stream that represent a
-     *            consistent position in the stream. (IE: Segment 1 and 2 will not both appear in
-     *            the set if 2 succeeds 1, and if 0 appears and is responsible for keyspace 0-0.5
-     *            then other segments covering the range 0.5-1.0 will also be included.)
+     * @param from The position from which to find the remaining bytes.
      * @return The total number of bytes beyond the provided positions.
      */
-    long getRemainingBytes(Stream stream, final Checkpoint checkpoint);
+    long getRemainingBytes(StreamCut from);
 
 }
