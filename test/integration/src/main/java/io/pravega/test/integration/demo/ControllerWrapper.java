@@ -69,6 +69,8 @@ public class ControllerWrapper implements AutoCloseable {
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)
                 .maxRetries(10)
+                .sessionTimeoutMs(30 * 1000)
+                .connectionTimeoutMs(10 * 1000)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
