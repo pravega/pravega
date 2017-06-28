@@ -16,22 +16,20 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.Cache;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
-import io.pravega.controller.store.stream.tables.Create;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
-import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * ZK Stream. It understands the following.
@@ -110,21 +108,56 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> checkStreamExists(final Create create) {
+    public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime) {
+        // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any metadata that is available from a previous run
+        // If the existing stream has already been created successfully earlier,
         return store.checkExists(creationPath)
-                .thenCompose(x -> {
-                    if (x) {
-                        return cache.getCachedData(creationPath)
-                                .thenApply(creationTime -> BitConverter.readLong(creationTime.getData(), 0) != create.getCreationTime());
+                .thenCompose(exists -> {
+                    if (exists) {
+                        return getCreationTime()
+                                .thenCompose(storedCreationTime -> store.checkExists(configurationPath)
+                                        .thenCompose(configExists -> {
+                                            if (configExists) {
+                                                return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
+                                            } else {
+                                                return CompletableFuture.completedFuture(
+                                                        new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
+                                                                configuration, storedCreationTime));
+                                            }
+                                        }));
                     } else {
-                        return CompletableFuture.completedFuture(false);
-                    }
-                })
-                .thenAccept(x -> {
-                    if (x) {
-                        throw StoreException.create(StoreException.Type.DATA_EXISTS, creationPath);
+                        return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
+                                configuration, creationTime));
                     }
                 });
+    }
+
+    private CompletionStage<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
+        CreateStreamResponse.CreateStatus status = creationTimeMatched ?
+                CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
+
+        return getConfiguration().thenCompose(config ->
+                store.checkExists(statePath)
+                        .thenCompose(stateExists -> {
+                            if (stateExists) {
+                                return getState().thenApply(state -> {
+                                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                                        return new CreateStreamResponse(status, config, creationTime);
+                                    } else {
+                                        return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
+                                                config, creationTime);
+                                    }
+                                });
+                            } else {
+                                return CompletableFuture.completedFuture(
+                                        new CreateStreamResponse(status, config, creationTime));
+                            }
+                        }));
+    }
+
+    private CompletableFuture<Long> getCreationTime() {
+        return cache.getCachedData(creationPath)
+                .thenApply(data -> BitConverter.readLong(data.getData(), 0));
     }
 
     /**
@@ -142,33 +175,40 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTime(final Create create) {
+    CompletableFuture<Void> storeCreationTimeIfNotExists(final long creationTime) {
         byte[] b = new byte[Long.BYTES];
-        BitConverter.writeLong(b, 0, create.getCreationTime());
+        BitConverter.writeLong(b, 0, creationTime);
 
         return store.createZNodeIfNotExist(creationPath, b);
     }
 
     @Override
-    public CompletableFuture<Void> createConfiguration(final Create create) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(create.getConfiguration()))
+    public CompletableFuture<Void> createConfigurationIfNotExists(final StreamConfiguration configuration) {
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    public CompletableFuture<Void> createState(final State state) {
+    public CompletableFuture<Void> createStateIfNotExists(final State state) {
         return store.createZNodeIfNotExist(statePath, SerializationUtils.serialize(state))
                 .thenApply(x -> cache.invalidateCache(statePath));
     }
 
     @Override
-    public CompletableFuture<Void> createIndexTable(final Data<Integer> indexTable) {
+    public CompletableFuture<Void> createSegmentTableIfNotExists(final Data<Integer> segmentTable) {
+
+        return store.createZNodeIfNotExist(segmentPath, segmentTable.getData())
+                .thenApply(x -> cache.invalidateCache(segmentPath));
+    }
+
+    @Override
+    public CompletableFuture<Void> createIndexTableIfNotExists(final Data<Integer> indexTable) {
         return store.createZNodeIfNotExist(indexPath, indexTable.getData())
                 .thenApply(x -> cache.invalidateCache(indexPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTable(final Data<Integer> historyTable) {
+    public CompletableFuture<Void> createHistoryTableIfNotExists(final Data<Integer> historyTable) {
         return store.createZNodeIfNotExist(historyPath, historyTable.getData())
                 .thenApply(x -> cache.invalidateCache(historyPath));
     }
@@ -177,27 +217,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Void> updateHistoryTable(final Data<Integer> updated) {
         return store.setData(historyPath, updated)
                 .whenComplete((r, e) -> cache.invalidateCache(historyPath));
-    }
-
-    @Override
-    public CompletableFuture<Void> createSegmentTable(final Create create) {
-        final int numSegments = create.getConfiguration().getScalingPolicy().getMinNumSegments();
-        final double keyRangeChunk = 1.0 / numSegments;
-
-        final int startingSegmentNumber = 0;
-        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, numSegments)
-                .boxed()
-                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                .collect(Collectors.toList());
-
-        final byte[] segmentTable = TableHelper.updateSegmentTable(startingSegmentNumber,
-                new byte[0],
-                newRanges,
-                create.getCreationTime()
-        );
-
-        return store.createZNodeIfNotExist(segmentPath, segmentTable)
-                .thenApply(x -> cache.invalidateCache(segmentPath));
     }
 
     @Override
@@ -427,7 +446,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochNode(int epoch) {
+    CompletableFuture<Void> createEpochNodeIfNotExists(int epoch) {
         return store.createZNodeIfNotExist(getEpochPath(epoch));
     }
 
