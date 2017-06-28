@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -261,6 +262,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
@@ -272,8 +278,4 @@ public class LocalController implements Controller {
         return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
     }
 
-    @Override
-    public long getRemainingBytes(StreamCut cut) {
-        throw new NotImplementedException();
-    }
 }

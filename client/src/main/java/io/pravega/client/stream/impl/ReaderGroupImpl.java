@@ -11,7 +11,11 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Checkpoint;
@@ -59,6 +63,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
     private final ClientFactory clientFactory;
     private final Controller controller;
+    private final ConnectionFactory connectionFactory;
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -167,11 +172,26 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
-        long totalLength = 0;
+        SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         
+        long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
-            totalLength += controller.getRemainingBytes(position);
+            totalLength += getRemainingBytes(metaFactory, position);
+        }
+        return totalLength;
+    }
+    
+    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
+        long totalLength = 0;
+        CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
+        for (Segment s : FutureHelpers.getAndHandleExceptions(unread, RuntimeException::new)) {
+            @Cleanup
+            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
+            totalLength += metadataClient.fetchCurrentStreamLength();
+        }
+        for (long bytesRead : position.getPositions().values()) {
+            totalLength -= bytesRead;
         }
         return totalLength;
     }

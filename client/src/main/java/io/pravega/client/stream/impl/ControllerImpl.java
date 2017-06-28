@@ -14,11 +14,7 @@ import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentMetadataClient;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
@@ -65,7 +61,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,7 +72,6 @@ public class ControllerImpl implements Controller {
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
-    private final ConnectionFactory connectionFactory;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -87,13 +81,12 @@ public class ControllerImpl implements Controller {
      *                          This is used if the controller endpoints are static and can be directly accessed.
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
-     * @param connectionFactory The factory for connections to the pravega Server
      */
-    public ControllerImpl(final URI controllerURI, ConnectionFactory connectionFactory) {
+    public ControllerImpl(final URI controllerURI) {
         this(ManagedChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .usePlaintext(true), connectionFactory);
+                .usePlaintext(true));
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -101,15 +94,13 @@ public class ControllerImpl implements Controller {
      * Creates a new instance of the Controller client class.
      *
      * @param channelBuilder The channel builder to connect to the service instance.
-     * @param connectionFactory The factory for connections to the pravega Server
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, ConnectionFactory connectionFactory) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.
         client = ControllerServiceGrpc.newStub(channelBuilder.build());
-        this.connectionFactory = connectionFactory;
     }
 
     @Override
@@ -414,6 +405,31 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
     }
+    
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        Stream stream = from.getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(from.getPositions().keySet());
+        val currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());
+        unread.addAll(FutureHelpers.getAndHandleExceptions(currentSegments, RuntimeException::new).getSegments());
+        while (!toFetchSuccessors.isEmpty()) {
+            Segment segment = toFetchSuccessors.remove();
+            Set<Segment> successors = FutureHelpers.getAndHandleExceptions(getSuccessors(segment),
+                                                                           RuntimeException::new)
+                                                   .getSegmentToPredecessor()
+                                                   .keySet();
+            for (Segment successor : successors) {
+                if (!unread.contains(successor)) {
+                    unread.add(successor);
+                    toFetchSuccessors.add(successor);
+                }
+            }
+        }
+        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        return CompletableFuture.completedFuture(unread);
+    }
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String stream) {
@@ -628,41 +644,4 @@ public class ControllerImpl implements Controller {
         }
     }
 
-    /**
-     * TODO: This method is both synchronous and very inefficient.
-     * https://github.com/pravega/pravega/issues/1436 would fix this.
-     */
-    @Override
-    public long getRemainingBytes(StreamCut cutpoint) {
-        Preconditions.checkNotNull(connectionFactory);
-        Stream stream = cutpoint.getStream();
-        HashSet<Segment> unread = new HashSet<>(cutpoint.getPositions().keySet());
-        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>(cutpoint.getPositions().keySet());
-        val currentSegments = getCurrentSegments(stream.getScope(), stream.getStreamName());
-        unread.addAll(FutureHelpers.getAndHandleExceptions(currentSegments, RuntimeException::new).getSegments());
-        while (!toFetchSuccessors.isEmpty()) {
-            Segment segment = toFetchSuccessors.remove();
-            Set<Segment> successors = FutureHelpers.getAndHandleExceptions(getSuccessors(segment),
-                                                                           RuntimeException::new)
-                                                   .getSegmentToPredecessor()
-                                                   .keySet();
-            for (Segment successor : successors) {
-                if (!unread.contains(successor)) {
-                    unread.add(successor);
-                    toFetchSuccessors.add(successor);
-                }
-            }
-        }
-        SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(this, connectionFactory);
-        long totalLength = 0;
-        for (Segment s : unread) {
-            @Cleanup
-            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
-            totalLength += metadataClient.fetchCurrentStreamLength();
-        }
-        for (long bytesRead : cutpoint.getPositions().values()) {
-            totalLength -= bytesRead;
-        }
-        return totalLength;
-    }
 }

@@ -179,7 +179,7 @@ public class MultiReaderWriterWithFailOverTest {
         URI controllerUri = controllerURIDirect;
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        Controller controller = new ControllerImpl(controllerUri, connectionFactory);
+        Controller controller = new ControllerImpl(controllerUri);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);

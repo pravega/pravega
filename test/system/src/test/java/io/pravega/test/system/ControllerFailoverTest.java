@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -32,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
@@ -132,9 +130,7 @@ public class ControllerFailoverTest {
 
         // Connect with first controller instance.
         URI controllerUri = getTestControllerServiceURI();
-        @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
-        Controller controller = new ControllerImpl(controllerUri, connectionFactory);
+        Controller controller = new ControllerImpl(controllerUri);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller.createScope(scope).join();
@@ -162,7 +158,7 @@ public class ControllerFailoverTest {
 
         // Connect to another controller instance.
         controllerUri = getControllerURI();
-        controller = new ControllerImpl(controllerUri, connectionFactory);
+        controller = new ControllerImpl(controllerUri);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

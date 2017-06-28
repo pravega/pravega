@@ -43,17 +43,20 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     private final String scope;
     private final ClientFactory clientFactory;
     private final Controller controller;
+    private final ConnectionFactory connectionFactory;
 
     public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri, connectionFactory);
+        this.controller = new ControllerImpl(controllerUri);
+        this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
+        this.connectionFactory = connectionFactory;
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
@@ -76,7 +79,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                                                                   .build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                                                     new JavaSerializer<>(), clientFactory, controller);
+                                                     new JavaSerializer<>(), clientFactory, controller, connectionFactory);
         result.initializeGroup(config, streams);
         return result;
     }
@@ -102,7 +105,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(), new JavaSerializer<>(),
-                                   clientFactory, controller);
+                                   clientFactory, controller, connectionFactory);
     }
 
     @Override

@@ -170,7 +170,7 @@ public class EventProcessorTest {
 
         EventProcessorSystem system = new EventProcessorSystemImpl("Controller", host, scope,
                 new ClientFactoryImpl(scope, controller, connectionFactory),
-                new ReaderGroupManagerImpl(scope, controller, clientFactory));
+                new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory));
 
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()

@@ -36,10 +36,9 @@ abstract class AbstractScaleTests {
     @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
     @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
-    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE,
-            new ControllerImpl(getControllerURI(), getConnectionFactory()), getConnectionFactory());
+    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI()));
     @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
-    private final ControllerImpl controller = new ControllerImpl(getControllerURI(), getConnectionFactory());
+    private final ControllerImpl controller = new ControllerImpl(getControllerURI());
 
     private URI createControllerURI() {
         Service conService = new PravegaControllerService("controller", null);

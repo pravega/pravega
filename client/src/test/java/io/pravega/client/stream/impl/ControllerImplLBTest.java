@@ -9,19 +9,24 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.grpc.Server;
+import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.stub.StreamObserver;
 import io.pravega.common.Exceptions;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
-import io.grpc.Server;
-import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.net.URI;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
@@ -29,13 +34,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
-import java.io.IOException;
-import java.net.URI;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for ControllerImpl with Service Discovery, Loadbalancing and Failover support.
@@ -119,8 +117,7 @@ public class ControllerImplLBTest {
 
         // Use 2 servers to discover all the servers.
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                Mockito.mock(ConnectionFactory.class));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -137,8 +134,7 @@ public class ControllerImplLBTest {
         testRPCServer1.awaitTermination();
         Assert.assertTrue(testRPCServer1.isTerminated());
         ControllerImpl controllerClient = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                Mockito.mock(ConnectionFactory.class));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
 
         // Verify that we can read from the 2 live servers.
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
@@ -158,8 +154,7 @@ public class ControllerImplLBTest {
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
         ControllerImpl client = new ControllerImpl(
-                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                Mockito.mock(ConnectionFactory.class));
+                URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2));
         AssertExtensions.assertThrows(ExecutionException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
@@ -171,7 +166,7 @@ public class ControllerImplLBTest {
 
         // Directly use all 3 servers and verify.
         ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1 + ",localhost:"
-                + serverPort2 + ",localhost:" + serverPort3), Mockito.mock(ConnectionFactory.class));
+                + serverPort2 + ",localhost:" + serverPort3));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -188,7 +183,7 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer1.isTerminated());
 
         ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1 + ",localhost:"
-                + serverPort2 + ",localhost:" + serverPort3), Mockito.mock(ConnectionFactory.class));
+                + serverPort2 + ",localhost:" + serverPort3));
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));

@@ -9,16 +9,13 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.stream.StreamConfiguration;
-import com.google.common.annotations.VisibleForTesting;
-
 import java.net.URI;
 
 /**
@@ -27,16 +24,13 @@ import java.net.URI;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
 
     public StreamManagerImpl(URI controllerUri) {
-        this.connectionFactory = new ConnectionFactoryImpl(false);
-        this.controller = new ControllerImpl(controllerUri, connectionFactory);
+        this.controller = new ControllerImpl(controllerUri);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller) {
-        this.connectionFactory = null;
         this.controller = controller;
     }
 
@@ -90,9 +84,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public void close() {
-        if (connectionFactory != null) {
-            connectionFactory.close();
-        }
+        //Nothing to close
     }
 
 }

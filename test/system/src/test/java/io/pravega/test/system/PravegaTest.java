@@ -128,7 +128,7 @@ public class PravegaTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        ControllerImpl controller = new ControllerImpl(controllerUri, connectionFactory);
+        ControllerImpl controller = new ControllerImpl(controllerUri);
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());

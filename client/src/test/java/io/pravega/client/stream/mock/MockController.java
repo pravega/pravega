@@ -390,6 +390,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         return CompletableFuture.completedFuture(new PravegaNodeUri(endpoint, port));
     }
@@ -410,11 +415,6 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return CompletableFuture.completedFuture(true);
-    }
-
-    @Override
-    public long getRemainingBytes(StreamCut point) {
-        throw new NotImplementedException();
     }
 
 }

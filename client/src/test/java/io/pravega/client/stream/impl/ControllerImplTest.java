@@ -9,18 +9,17 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.stub.StreamObserver;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -35,6 +34,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
+import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
@@ -48,14 +48,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -63,16 +62,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -92,7 +87,6 @@ public class ControllerImplTest {
     // Test implementation for simulating the server responses.
     private ServerImpl fakeServer = null;
 
-    private final MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
 
@@ -243,13 +237,23 @@ public class ControllerImplTest {
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     0,
+                                                                                                     2,
                                                                                                      0.0,
-                                                                                                     0.4))
+                                                                                                     0.25))
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     1,
-                                                                                                     0.4,
+                                                                                                     3,
+                                                                                                     0.25,
+                                                                                                     0.5))
+                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                                                     "stream1",
+                                                                                                     4,
+                                                                                                     0.5,
+                                                                                                     0.75))
+                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
+                                                                                                     "stream1",
+                                                                                                     5,
+                                                                                                     0.75,
                                                                                                      1.0))
                                                     .build());
                     responseObserver.onCompleted();
@@ -301,31 +305,45 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getSegmentsImmediatlyFollowing(SegmentId request,
-                                                       StreamObserver<SuccessorResponse> responseObserver) {
+            public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
+                    SegmentRange a, b;
+                    if (request.getSegmentNumber() >= 2) {
+                        responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                    }
+                    if (request.getSegmentNumber() == 0) {
+                        a = Controller.SegmentRange.newBuilder()
+                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 2))
+                                                   .setMinKey(0.0)
+                                                   .setMaxKey(0.25)
+                                                   .build();
+                        b = Controller.SegmentRange.newBuilder()
+                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 3))
+                                                   .setMinKey(0.25)
+                                                   .setMaxKey(0.5)
+                                                   .build();
+                    } else {
+                        a = Controller.SegmentRange.newBuilder()
+                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 4))
+                                                   .setMinKey(0.5)
+                                                   .setMaxKey(0.75)
+                                                   .build();
+                        b = Controller.SegmentRange.newBuilder()
+                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 5))
+                                                   .setMinKey(0.75)
+                                                   .setMaxKey(1.0)
+                                                   .build();
+                    }
                     responseObserver.onNext(SuccessorResponse.newBuilder()
-                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                    .setSegment(Controller.SegmentRange.newBuilder()
-                                            .setSegmentId(ModelHelper.createSegmentId(
-                                                    "scope1",
-                                                    "stream1",
-                                                    0))
-                                            .setMinKey(0.0)
-                                            .setMaxKey(0.5).build())
-                                    .addValue(10)
-                                    .build())
-                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                    .setSegment(Controller.SegmentRange.newBuilder()
-                                            .setSegmentId(ModelHelper.createSegmentId(
-                                                    "scope1",
-                                                    "stream1",
-                                                    1))
-                                            .setMinKey(0.5)
-                                            .setMaxKey(1.0).build())
-                                    .addValue(20)
-                                    .build())
-                            .build());
+                                                             .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                                                                                        .setSegment(a)
+                                                                                                        .addValue(10)
+                                                                                                        .build())
+                                                             .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                                                                                        .setSegment(b)
+                                                                                                        .addValue(20)
+                                                                                                        .build())
+                                                             .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -547,7 +565,7 @@ public class ControllerImplTest {
                 .directExecutor()
                 .build()
                 .start();
-        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor(), connectionFactory);
+        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
     }
 
     @After
@@ -689,9 +707,11 @@ public class ControllerImplTest {
     public void testGetCurrentSegments() throws Exception {
         CompletableFuture<StreamSegments> streamSegments;
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream1");
-        assertTrue(streamSegments.get().getSegments().size() == 2);
-        assertEquals(new Segment("scope1", "stream1", 0), streamSegments.get().getSegmentForKey(0.2));
-        assertEquals(new Segment("scope1", "stream1", 1), streamSegments.get().getSegmentForKey(0.6));
+        assertTrue(streamSegments.get().getSegments().size() == 4);
+        assertEquals(new Segment("scope1", "stream1", 2), streamSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "stream1", 3), streamSegments.get().getSegmentForKey(0.4));
+        assertEquals(new Segment("scope1", "stream1", 4), streamSegments.get().getSegmentForKey(0.6));
+        assertEquals(new Segment("scope1", "stream1", 5), streamSegments.get().getSegmentForKey(0.8));
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
         AssertExtensions.assertThrows("Should throw Exception", streamSegments, throwable -> true);
@@ -714,9 +734,9 @@ public class ControllerImplTest {
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 0))
+        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 2))
                 .get(0).longValue());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 1))
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 3))
                 .get(0).longValue());
 
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
@@ -730,10 +750,12 @@ public class ControllerImplTest {
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream1"), new ArrayList<>(),
                                                    new HashMap<>());
         assertTrue(scaleStream.get());
-        CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
-        assertEquals(2, segments.get().getSegments().size());
-        assertEquals(new Segment("scope1", "stream1", 0), segments.get().getSegmentForKey(0.25));
-        assertEquals(new Segment("scope1", "stream1", 1), segments.get().getSegmentForKey(0.75));
+        StreamSegments segments = controllerClient.getCurrentSegments("scope1", "stream1").get();
+        assertTrue(segments.getSegments().size() == 4);
+        assertEquals(new Segment("scope1", "stream1", 2), segments.getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "stream1", 3), segments.getSegmentForKey(0.4));
+        assertEquals(new Segment("scope1", "stream1", 4), segments.getSegmentForKey(0.6));
+        assertEquals(new Segment("scope1", "stream1", 5), segments.getSegmentForKey(0.8));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
                                                    new HashMap<>());
@@ -966,7 +988,7 @@ public class ControllerImplTest {
     }
     
     @Test
-    public void testRemainingBytes() throws Exception {
+    public void testCutpointSuccessors() throws Exception {
         PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
         String scope = "scope1";
         String stream = "stream1";
@@ -975,30 +997,10 @@ public class ControllerImplTest {
         segments.put(new Segment(scope, stream, 0), 4L);
         segments.put(new Segment(scope, stream, 1), 6L);
         StreamCut cut = new StreamCut(s, segments);
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                val reply = new StreamSegmentInfo(1, Segment.getScopedName(scope, stream, 0), true, false, false, 0,
-                        100);
-                connectionFactory.getProcessor(pravegaNodeUri).streamSegmentInfo(reply);
-                return null;
-            }
-        }).when(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(1,
-                Segment.getScopedName(scope, stream, 0))));
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                val reply = new StreamSegmentInfo(1, Segment.getScopedName(scope, stream, 1), true, false, false, 0,
-                        150);
-                connectionFactory.getProcessor(pravegaNodeUri).streamSegmentInfo(reply);
-                return null;
-            }
-        }).when(connection).send(Mockito.eq(new WireCommands.GetStreamSegmentInfo(1,
-                Segment.getScopedName(scope, stream, 1))));
-        connectionFactory.provideConnection(pravegaNodeUri, connection);
-
-        long remainingBytes = controllerClient.getRemainingBytes(cut);
-        assertEquals(240, remainingBytes);
+        Set<Segment> successors = controllerClient.getSuccessors(cut).get();
+        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
+                                     new Segment(scope, stream, 2), new Segment(scope, stream, 3),
+                                     new Segment(scope, stream, 4), new Segment(scope, stream, 5)),
+                     successors);
     }
 }
