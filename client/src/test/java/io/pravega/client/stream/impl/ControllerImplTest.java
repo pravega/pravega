@@ -813,10 +813,10 @@ public class ControllerImplTest {
     @Test
     public void testPingTransaction() throws Exception {
         CompletableFuture<Void> transaction;
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0, false);
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
         assertTrue(transaction.get() == null);
 
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID(), 0, false);
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID(), 0);
         AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
     }
 

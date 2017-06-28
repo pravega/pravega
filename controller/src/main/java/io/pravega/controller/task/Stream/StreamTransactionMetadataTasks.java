@@ -210,8 +210,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param stream Stream name.
      * @param txId Transaction identifier.
      * @param lease Amount of time in milliseconds by which to extend the transaction lease.
-     * @param switchOver Boolean indicating whether the previous successful ping request was performed on a different
-     *                   controller process by the client.
      * @param contextOpt       operational context
      * @return Transaction metadata along with the version of it record in the store.
      */
@@ -219,11 +217,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                     final String stream,
                                                     final UUID txId,
                                                     final long lease,
-                                                    final boolean switchOver,
                                                     final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return pingTxnBody(scope, stream, txId, lease, switchOver, context);
+            return pingTxnBody(scope, stream, txId, lease, context);
         }, executor);
     }
 
@@ -394,8 +391,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param stream     stream name.
      * @param txnId      txn id.
      * @param lease      txn lease.
-     * @param switchOver boolean indicating whether the previous successful ping request was performed on a different
-     *                   controller process by the client.
      * @param ctx        context.
      * @return           ping status.
      */
@@ -403,13 +398,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final String stream,
                                                  final UUID txnId,
                                                  final long lease,
-                                                 final boolean switchOver,
                                                  final OperationContext ctx) {
         if (!timeoutService.isRunning()) {
             return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
         }
 
-        if (!switchOver && timeoutService.containsTxn(scope, stream, txnId)) {
+        if (timeoutService.containsTxn(scope, stream, txnId)) {
             // If timeout service knows about this transaction, attempt to increase its lease.
             log.debug("Txn={}, extending lease in timeout service", txnId);
             return CompletableFuture.completedFuture(timeoutService.pingTxn(scope, stream, txnId, lease));

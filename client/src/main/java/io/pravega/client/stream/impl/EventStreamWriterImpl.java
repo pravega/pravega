@@ -243,9 +243,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
-        public void ping(long lease, boolean switchOver) throws PingFailedException {
+        public void ping(long lease) throws PingFailedException {
             Preconditions.checkArgument(lease > 0);
-            getAndHandleExceptions(controller.pingTransaction(stream, txId, lease, switchOver), PingFailedException::new);
+            getAndHandleExceptions(controller.pingTransaction(stream, txId, lease), PingFailedException::new);
         }
 
         @Override

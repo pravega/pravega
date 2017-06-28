@@ -254,7 +254,7 @@ public class StreamTransactionMetadataTasksTest {
         // Ping another txn from failedHost.
         UUID txnId = UUID.randomUUID();
         streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, 30000, null, executor).join();
-        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, false, null).join();
+        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
         VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
 
         // Validate versions of all txn

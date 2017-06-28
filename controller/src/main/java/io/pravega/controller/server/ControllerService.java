@@ -294,14 +294,13 @@ public class ControllerService {
     public CompletableFuture<PingTxnStatus> pingTransaction(final String scope,
                                                             final String stream,
                                                             final TxnId txnId,
-                                                            final long lease,
-                                                            final boolean switchOver) {
+                                                            final long lease) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
 
-        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, switchOver, null);
+        return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null);
     }
 
     public CompletableFuture<TxnState> checkTransactionStatus(final String scope, final String stream,

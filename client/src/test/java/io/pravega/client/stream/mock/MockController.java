@@ -374,7 +374,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease, boolean switchOver) {
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
         throw new NotImplementedException();
     }
 

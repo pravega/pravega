@@ -182,7 +182,7 @@ public class EndToEndTransactionTest {
         Assert.assertEquals(Transaction.Status.OPEN, tx2.checkStatus());
 
         try {
-            tx2.ping(lease, false);
+            tx2.ping(lease);
             Assert.assertTrue(true);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(false);
@@ -211,7 +211,7 @@ public class EndToEndTransactionTest {
 
         try {
             //Assert.assertEquals(PingStatus.OK, pingStatus);
-            tx3.ping(lease, false);
+            tx3.ping(lease);
             Assert.assertTrue(true);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(false);
@@ -223,7 +223,7 @@ public class EndToEndTransactionTest {
 
         try {
             // PingFailedException is expected to be thrown.
-            tx3.ping(lease + 1, false);
+            tx3.ping(lease + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
@@ -244,28 +244,28 @@ public class EndToEndTransactionTest {
         Transaction<String> tx4 = producer.beginTxn(lease, maxExecutionTime, scaleGracePeriod);
 
         try {
-            tx4.ping(scaleGracePeriod + 1, false);
+            tx4.ping(scaleGracePeriod + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
         }
 
         try {
-            tx4.ping(maxExecutionTime + 1, false);
+            tx4.ping(maxExecutionTime + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
         }
 
         try {
-            tx4.ping(MAX_LEASE_VALUE + 1, false);
+            tx4.ping(MAX_LEASE_VALUE + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);
         }
 
         try {
-            tx4.ping(MAX_SCALE_GRACE_PERIOD + 1, false);
+            tx4.ping(MAX_SCALE_GRACE_PERIOD + 1);
             Assert.assertTrue(false);
         } catch (PingFailedException pfe) {
             Assert.assertTrue(true);

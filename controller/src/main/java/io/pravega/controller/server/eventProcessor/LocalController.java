@@ -211,9 +211,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease, boolean switchOver) {
+    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
         return FutureHelpers.toVoidExpecting(
-                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease, switchOver),
+                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
                 PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                 PingFailedException::new);
     }

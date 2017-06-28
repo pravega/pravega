@@ -222,7 +222,7 @@ public class TimeoutServiceTest {
         TxnState txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
 
-        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE, false).join();
+        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
@@ -266,16 +266,16 @@ public class TimeoutServiceTest {
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
-        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, SCALE_GRACE_PERIOD + 1, false).join();
+        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, SCALE_GRACE_PERIOD + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_SCALE_GRACE_PERIOD + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_SCALE_GRACE_PERIOD + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, MAX_EXECUTION_TIME + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, MAX_EXECUTION_TIME + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
         VersionedTransactionData txData = streamStore.createTransaction(SCOPE, STREAM, UUID.randomUUID(), LEASE,
@@ -283,16 +283,16 @@ public class TimeoutServiceTest {
 
         txnId = ModelHelper.decode(txData.getId());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, SCALE_GRACE_PERIOD + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, SCALE_GRACE_PERIOD + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_LEASE_VALUE + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_SCALE_GRACE_PERIOD + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, Config.MAX_SCALE_GRACE_PERIOD + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.LEASE_TOO_LARGE, pingStatus.getStatus());
 
-        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, MAX_EXECUTION_TIME + 1, false).join();
+        pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, MAX_EXECUTION_TIME + 1).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
     }
 
@@ -344,7 +344,7 @@ public class TimeoutServiceTest {
         Assert.assertEquals(TxnState.State.OPEN, txnState.getState());
 
         // 3 * LEASE > MAX_EXECUTION_TIME
-        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, 3 * LEASE, false).join();
+        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, 3 * LEASE).join();
         Assert.assertEquals(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED, pingStatus.getStatus());
 
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
@@ -396,7 +396,7 @@ public class TimeoutServiceTest {
         // Stop timeoutService, and then try pinging the transaction.
         timeoutService.stopAsync();
 
-        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE, false).join();
+        PingTxnStatus pingStatus = controllerService.pingTransaction(SCOPE, STREAM, txnId, LEASE).join();
         Assert.assertEquals(PingTxnStatus.Status.DISCONNECTED, pingStatus.getStatus());
 
         result = timeoutService.getTaskCompletionQueue().poll((long) (0.5 * LEASE), TimeUnit.MILLISECONDS);
@@ -451,7 +451,7 @@ public class TimeoutServiceTest {
                 .setLowBits(txnId.getLeastSignificantBits())
                 .build();
 
-        controllerService.pingTransaction(SCOPE, STREAM, tx, LEASE, false);
+        controllerService.pingTransaction(SCOPE, STREAM, tx, LEASE);
 
         TxnStatus status = streamStore.transactionStatus(SCOPE, STREAM, txData.getId(), null, executor).join();
         Assert.assertEquals(TxnStatus.OPEN, status);

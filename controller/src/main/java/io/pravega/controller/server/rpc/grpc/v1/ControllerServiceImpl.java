@@ -206,8 +206,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId(),
-                                                        request.getLease(),
-                                                        request.getSwitchOver()),
+                                                        request.getLease()),
                       responseObserver);
     }
 

@@ -87,7 +87,6 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Synchronized
     public CompletableFuture<PingTxnStatus> pingTxn(final String scope, final String stream,
                                                                final UUID txId, final long lease,
-                                                               final boolean switchOver,
                                                                final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
