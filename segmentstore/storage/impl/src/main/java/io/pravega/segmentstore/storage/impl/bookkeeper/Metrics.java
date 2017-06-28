@@ -20,6 +20,6 @@ import io.pravega.shared.metrics.StatsLogger;
  */
 final class Metrics {
     static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("durablelog");
-    static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames.TIER1_WRITE_BYTES);
+    static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames.TIER1_WRITE_LATENCY);
     static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(MetricsNames.TIER1_WRITE_BYTES);
 }
