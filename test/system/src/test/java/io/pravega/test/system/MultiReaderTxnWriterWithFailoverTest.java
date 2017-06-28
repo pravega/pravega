@@ -77,13 +77,13 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
     private URI controllerURIDirect = null;
-    private URI controllerUri;
     private Controller controller;
-    private String scope;
-    private String readerGroupName;
-    private ScalingPolicy scalingPolicy;
-    private StreamConfiguration config;
-    private String readerName;
+    private final String scope = "testMultiReaderWriterTxnScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testMultiReaderWriterTxnReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
+    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
+            .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    private final String readerName = "reader";
     private Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis());
 
     @Environment
@@ -164,8 +164,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //executor service
         executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
         //get Controller Uri
-        controllerUri = controllerURIDirect;
-        controller = new ControllerImpl(controllerUri);
+        controller = new ControllerImpl(controllerURIDirect);
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -173,14 +172,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
         eventData = new AtomicLong(0); //data used by each of the writers.
         eventReadCount = new AtomicLong(0); // used by readers to maintain a count of events.
         eventWriteCount = new AtomicLong(0);
-        //scope and scaling policy info
-        scope = "testMultiReaderWriterTxnScope" + new Random().nextInt(Integer.MAX_VALUE);
-        scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
-        config = StreamConfiguration.builder().scope(scope)
-                .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
-
-        readerGroupName = "testMultiReaderWriterTxnReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-        readerName = "reader";
     }
 
     @After
@@ -188,25 +179,14 @@ public class MultiReaderTxnWriterWithFailoverTest {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
-        controllerUri = null;
-        controller = null;
-        eventsReadFromPravega = null;
-        stopReadFlag = null;
-        stopWriteFlag = null;
-        eventData = null;
-        eventReadCount = null;
-        eventWriteCount = null;
-        scope = null;
-        readerGroupName = null;
-        scalingPolicy = null;
-        readerName = null;
+        eventsReadFromPravega.clear();
     }
 
     @Test(timeout = 600000)
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
 
         //create a scope
-        try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
+        try (StreamManager streamManager = new StreamManagerImpl(controllerURIDirect)) {
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Creating scope with scope name {}", scope);
             log.debug("Create scope status {}", createScopeStatus);
@@ -218,7 +198,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //get ClientFactory instance
         log.info("Scope passed to client factory {}", scope);
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
@@ -258,11 +238,11 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
             // start writing asynchronously
             List<CompletableFuture<Void>> writerFutureList = writerList.stream().map(writer ->
-                    startWritingIntoTxn(eventData, writer, stopWriteFlag, eventWriteCount)).collect(Collectors.toList());
+                    startWritingIntoTxn(eventData, writer, stopWriteFlag.get(), eventWriteCount)).collect(Collectors.toList());
 
             //start reading asynchronously
             List<CompletableFuture<Void>> readerFutureList = readerList.stream().map(reader ->
-                    startReading(eventsReadFromPravega, eventWriteCount, eventReadCount, stopReadFlag, reader))
+                    startReading(eventsReadFromPravega, eventWriteCount.get(), eventReadCount, stopReadFlag.get(), reader))
                     .collect(Collectors.toList());
 
             //run the failover test
@@ -396,9 +376,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
 
     private CompletableFuture<Void> startWritingIntoTxn(final AtomicLong data, final EventStreamWriter<Long> writer,
-                                                        final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
+                                                        final Boolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
-            while (!stopWriteFlag.get()) {
+            while (!stopWriteFlag) {
                 Transaction<Long> transaction = null;
                 try {
                     transaction = retry
@@ -443,7 +423,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         });
     }
 
-    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
+    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final Boolean exitFlag) {
         Transaction<Long> txn = null;
         try {
             //Default max scale grace period is 30000
@@ -451,7 +431,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
-            if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag.get()) {
+            if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag) {
                 //Exit flag is true no need to retry.
                 log.warn("Cause for failure is {} and we need to retry", ex.getClass().getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
@@ -462,12 +442,12 @@ public class MultiReaderTxnWriterWithFailoverTest {
         return txn;
     }
 
-    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
-    AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
+    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final Long writeCount, final
+    AtomicLong readCount, final Boolean exitFlag, final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
-            log.info("Exit flag status {}", exitFlag.get());
-            log.info("Read count {} and write count {}", readCount.get(), writeCount.get());
-            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
+            log.info("Exit flag status {}", exitFlag);
+            log.info("Read count {} and write count {}", readCount.get(), writeCount);
+            while (!(exitFlag && readCount.get() == writeCount)) {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -485,8 +465,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     log.error("Test Exception while reading from the stream: ", e);
                 }
             }
+
         }, executorService);
     }
+
 
     private class TxnCreationFailedException extends RuntimeException {
     }
