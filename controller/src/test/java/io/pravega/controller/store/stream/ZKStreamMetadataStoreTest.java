@@ -100,7 +100,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String host = "host";
         TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
         Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException &&
-                ((StoreException) ex).getType() == StoreException.Type.CONNECTION_LOSS;
+                ((StoreException) ex).getType() == StoreException.Type.CONNECTION_ERROR;
 
         zkServer.close();
         AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);

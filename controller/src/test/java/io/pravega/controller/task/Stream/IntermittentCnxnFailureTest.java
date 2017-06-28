@@ -12,13 +12,13 @@ package io.pravega.controller.task.Stream;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -122,7 +122,7 @@ public class IntermittentCnxnFailureTest {
         // we should get illegalStateException
         try {
             Retry.withExpBackoff(10, 10, 4)
-                    .retryingOn(DataNotFoundException.class)
+                    .retryingOn(StoreException.DataNotFoundException.class)
                     .throwingOn(IllegalStateException.class)
                     .run(() -> {
                         FutureHelpers.getAndHandleExceptions(streamStore.getConfiguration(SCOPE, stream1, null, executor),

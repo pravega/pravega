@@ -72,7 +72,7 @@ public class ZKHostIndex implements HostIndex {
         return deleteNode(getHostPath(hostId, entity)).thenCompose(ignore -> {
             if (deleteEmptyHost) {
                 return deleteNode(getHostPath(hostId)).exceptionally(ex -> {
-                    if (ex instanceof StoreException.NodeNotEmptyException) {
+                    if (ex instanceof StoreException.DataNotEmptyException) {
                         return null;
                     } else {
                         throw (StoreException) ex;
@@ -184,15 +184,15 @@ public class ZKHostIndex implements HostIndex {
                 event.getResultCode() == KeeperException.Code.SESSIONEXPIRED.intValue() ||
                 event.getResultCode() == KeeperException.Code.SESSIONMOVED.intValue() ||
                 event.getResultCode() == KeeperException.Code.OPERATIONTIMEOUT.intValue()) {
-            ex = new StoreException.ConnectionLossException();
+            ex = new StoreException.StoreConnectionException();
         } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
-            ex = new StoreException.NodeExistsException();
+            ex = new StoreException.DataExistsException();
         } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
-            ex = new StoreException.BadVersionException();
+            ex = new StoreException.WriteConflictException();
         } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
-            ex = new StoreException.NodeNotFoundException();
+            ex = new StoreException.DataNotFoundException();
         } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
-            ex = new StoreException.NodeNotEmptyException();
+            ex = new StoreException.DataNotEmptyException();
         } else {
             ex = new StoreException.UnknownException();
         }

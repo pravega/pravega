@@ -122,7 +122,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 })
                 .thenAccept(x -> {
                     if (x) {
-                        throw StoreException.create(StoreException.Type.NODE_EXISTS, creationPath);
+                        throw StoreException.create(StoreException.Type.DATA_EXISTS, creationPath);
                     }
                 });
     }
@@ -136,7 +136,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
                     if (!x) {
-                        throw StoreException.create(StoreException.Type.NODE_NOT_FOUND);
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND);
                     }
                 });
     }
@@ -226,7 +226,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);
-                        if (cause instanceof DataNotFoundException) {
+                        if (cause instanceof StoreException.DataNotFoundException) {
                             result.complete(null);
                         } else {
                             result.completeExceptionally(cause);
@@ -266,7 +266,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
                 .whenComplete((value, ex) -> {
                     if (ex != null) {
-                        if (ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+                        if (ExceptionHelpers.getRealException(ex) instanceof StoreException.DataNotFoundException) {
                             FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
                                     maxExecutionExpiryTime, scaleGracePeriod), future);
                         } else {
@@ -309,7 +309,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
             if (opt.isPresent()) {
                 return Integer.parseInt(opt.get().getKey());
             } else {
-                throw new DataNotFoundException(txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
             }
         });
     }

@@ -10,8 +10,11 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -39,6 +42,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -151,5 +155,28 @@ public class StreamMetadataTasksTest {
 
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.FAILURE, scaleOpResult.getStatus());
+    }
+
+    @Test
+    public void eventWriterInitializationTest() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+
+        AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
+                Arrays.asList(), 30, null).get(), e -> e instanceof ScaleOperationExceptions.ScaleRequestNotEnabledException);
+
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
+                newRanges, 30, null).get();
+
+        // scaling operation fails once a stream is sealed.
+        assertEquals(ScaleStreamStatus.SUCCESS, scaleOpResult.getStatus());
     }
 }

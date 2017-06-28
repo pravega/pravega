@@ -376,7 +376,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * 1. If ping request completes successfully, then
      *     (a) txn timeout is set to lease + current time in timeout service,
      *     (b) txn version in timeout service equals version of txn node in store,
-     *     (c) if switchOver is true or if its timeout was not previously tracked in timeout service of current process,
+     *     (c) if txn's timeout was not previously tracked in timeout service of current process,
      *     then version of txn node in store is updated, thus fencing out other processes tracking timeout for this txn,
      *     (d) txn is present in the host-txn index of current host,
      *
@@ -384,8 +384,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * some other controller process shall abort the txn after maxLeaseValue
      *
      * Store read/update operation is not invoked on receiving ping request for a txn that is being tracked in the
-     * timeout service if switchOver is false. Otherwise, if the txn is not being tracked in the timeout service, or
-     * if switchOver is true then txn node in the store is read and updated.
+     * timeout service. Otherwise, if the txn is not being tracked in the timeout service, txn node is read from
+     * the store and updated.
      *
      * @param scope      scope name.
      * @param stream     stream name.

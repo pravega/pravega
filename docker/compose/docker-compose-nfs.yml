@@ -76,7 +76,7 @@ services:
       - nfs:/nfs/
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
-      TIER2_STORAGE: "FS"
+      TIER2_STORAGE: "FILESYSTEM"
       NFS_MOUNT: /nfs
       HDFS_REPLICATION: 1
       HDFS_URL: ${HOST_IP}:8020

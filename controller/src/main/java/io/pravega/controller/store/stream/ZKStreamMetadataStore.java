@@ -51,7 +51,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     if (scopeExists) {
                         return scopeName;
                     } else {
-                        throw StoreException.create(StoreException.Type.NODE_NOT_FOUND, "/store/%s");
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "/store/%s");
                     }
                 });
     }

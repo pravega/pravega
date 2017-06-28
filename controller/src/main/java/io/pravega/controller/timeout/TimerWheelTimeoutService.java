@@ -9,12 +9,9 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.controller.store.stream.DataNotFoundException;
-import io.pravega.controller.store.stream.OperationOnTxNotAllowedException;
-import io.pravega.controller.store.stream.TransactionNotFoundException;
-import io.pravega.controller.store.stream.WriteConflictException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.google.common.annotations.VisibleForTesting;
@@ -95,10 +92,9 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         // at a later point of time.
                         if (ex != null) {
                             Throwable error = getRealCause(ex);
-                            if (error instanceof WriteConflictException ||
-                                    error instanceof DataNotFoundException ||
-                                    error instanceof TransactionNotFoundException ||
-                                    error instanceof OperationOnTxNotAllowedException ) {
+                            if (error instanceof StoreException.WriteConflictException ||
+                                    error instanceof StoreException.DataNotFoundException ||
+                                    error instanceof StoreException.IllegalStateException) {
                                 log.debug("Timeout task for tx {} failed because of {}. Ignoring timeout task.",
                                         key, error.getClass().getName());
                                 map.remove(key, txnData);

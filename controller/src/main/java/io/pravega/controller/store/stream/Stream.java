@@ -271,24 +271,24 @@ interface Stream {
     /**
      * Commits a transaction.
      * If already committed, return TxnStatus.Committed.
-     * If aborting/aborted, return a failed future with OperationOnTxNotAllowedException.
+     * If aborting/aborted, return a failed future with IllegalStateException.
      *
      * @param epoch transaction epoch.
      * @param txId  transaction identifier.
      * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId);
 
     /**
      * Aborts a transaction.
      * If already aborted, return TxnStatus.Aborted.
-     * If committing/committed, return a failed future with OperationOnTxNotAllowedException.
+     * If committing/committed, return a failed future with IllegalStateException.
      *
      * @param epoch transaction epoch.
      * @param txId  transaction identifier.
      * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId);
 
     /**
      * Return whether any transaction is active on the stream.
