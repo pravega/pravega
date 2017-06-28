@@ -238,11 +238,11 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
             // start writing asynchronously
             List<CompletableFuture<Void>> writerFutureList = writerList.stream().map(writer ->
-                    startWritingIntoTxn(eventData, writer, stopWriteFlag.get(), eventWriteCount)).collect(Collectors.toList());
+                    startWritingIntoTxn(eventData, writer, stopWriteFlag, eventWriteCount)).collect(Collectors.toList());
 
             //start reading asynchronously
             List<CompletableFuture<Void>> readerFutureList = readerList.stream().map(reader ->
-                    startReading(eventsReadFromPravega, eventWriteCount.get(), eventReadCount, stopReadFlag.get(), reader))
+                    startReading(eventsReadFromPravega, eventWriteCount, eventReadCount, stopReadFlag, reader))
                     .collect(Collectors.toList());
 
             //run the failover test
@@ -376,9 +376,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
 
     private CompletableFuture<Void> startWritingIntoTxn(final AtomicLong data, final EventStreamWriter<Long> writer,
-                                                        final Boolean stopWriteFlag, final AtomicLong eventWriteCount) {
+                                                        final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
-            while (!stopWriteFlag) {
+            while (!stopWriteFlag.get()) {
                 Transaction<Long> transaction = null;
                 try {
                     transaction = retry
@@ -423,7 +423,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         });
     }
 
-    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final Boolean exitFlag) {
+    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
         Transaction<Long> txn = null;
         try {
             //Default max scale grace period is 30000
@@ -431,7 +431,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
-            if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag) {
+            if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag.get()) {
                 //Exit flag is true no need to retry.
                 log.warn("Cause for failure is {} and we need to retry", ex.getClass().getName());
                 throw new TxnCreationFailedException(); // we can retry on this exception.
@@ -442,12 +442,12 @@ public class MultiReaderTxnWriterWithFailoverTest {
         return txn;
     }
 
-    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final Long writeCount, final
-    AtomicLong readCount, final Boolean exitFlag, final EventStreamReader<Long> reader) {
+    private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
+    AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status {}", exitFlag);
             log.info("Read count {} and write count {}", readCount.get(), writeCount);
-            while (!(exitFlag && readCount.get() == writeCount)) {
+            while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
