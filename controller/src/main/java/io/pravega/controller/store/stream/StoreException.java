@@ -29,6 +29,7 @@ public class StoreException extends RuntimeException {
         DATA_CONTAINS_ELEMENTS,
         WRITE_CONFLICT,
         ILLEGAL_STATE,
+        OPERATION_NOT_ALLOWED,
         CONNECTION_ERROR,
         UNKNOWN
     }
@@ -95,6 +96,9 @@ public class StoreException extends RuntimeException {
             case ILLEGAL_STATE:
                 exception = new IllegalStateException();
                 break;
+            case OPERATION_NOT_ALLOWED:
+                exception = new OperationNotAllowedException();
+                break;
             case CONNECTION_ERROR:
                 exception = new StoreConnectionException();
                 break;
@@ -149,6 +153,15 @@ public class StoreException extends RuntimeException {
     public static class IllegalStateException extends StoreException {
         public IllegalStateException() {
             super(Type.ILLEGAL_STATE);
+        }
+    }
+
+    /**
+     * Exception type when the attempted operation is currently not allowed.
+     */
+    public static class OperationNotAllowedException extends StoreException implements RetryableException {
+        public OperationNotAllowedException() {
+            super(Type.OPERATION_NOT_ALLOWED);
         }
     }
 
