@@ -93,7 +93,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose(x -> createConfigurationIfNotExists(createStreamResponse.getConfiguration()))
                         .thenCompose(x -> createStateIfNotExists(State.CREATING))
                         .thenCompose(x -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
-                        .thenCompose(x -> createNewEpoch(0))
+                        .thenCompose(x -> getState().thenCompose(state -> {
+                            if (state.equals(State.CREATING)) {
+                                return createNewEpoch(0);
+                            } else {
+                                return CompletableFuture.completedFuture(null);
+                            }
+                        }))
                         .thenCompose(x -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
