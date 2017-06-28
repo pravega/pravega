@@ -84,7 +84,7 @@ public class ZkStreamTest {
         try {
             storePartialMock.createStream(SCOPE, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         } catch (ExecutionException e) {
-            assert e.getCause() instanceof StoreConnectionException;
+            assert e.getCause() instanceof StoreException.StoreConnectionException;
         }
         zkTestServer.start();
     }
@@ -196,7 +196,7 @@ public class ZkStreamTest {
         } catch (ExecutionException e) {
             assertTrue("Get non existent scope", e.getCause() instanceof StoreException);
             assertTrue("Get non existent scope",
-                    ((StoreException) e.getCause()).getType() == StoreException.Type.NODE_NOT_FOUND);
+                    ((StoreException) e.getCause()).getType() == StoreException.Type.DATA_NOT_FOUND);
         }
     }
 
@@ -383,7 +383,7 @@ public class ZkStreamTest {
         try {
             store.setSealed(SCOPE, "nonExistentStream", null, executor).get();
         } catch (Exception e) {
-            assertEquals(DataNotFoundException.class, e.getCause().getClass());
+            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
         }
 
         store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
@@ -405,7 +405,7 @@ public class ZkStreamTest {
         final String streamName = "testTx";
         store.createScope(SCOPE).get();
         final Predicate<Throwable> operationNotAllowedPredicate =
-                ex -> ExceptionHelpers.getRealException(ex) instanceof OperationOnTxNotAllowedException;
+                ex -> ExceptionHelpers.getRealException(ex) instanceof StoreException.IllegalStateException;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -487,7 +487,7 @@ public class ZkStreamTest {
 
         assert store.commitTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
-                    if (ex.getCause() instanceof TransactionNotFoundException) {
+                    if (ex.getCause() instanceof StoreException.DataNotFoundException) {
                         return true;
                     } else {
                         throw new RuntimeException("assert failed");
@@ -496,7 +496,7 @@ public class ZkStreamTest {
 
         assert store.abortTransaction(ZkStreamTest.SCOPE, streamName, 0, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
-                    if (ex.getCause() instanceof TransactionNotFoundException) {
+                    if (ex.getCause() instanceof StoreException.DataNotFoundException) {
                         return true;
                     } else {
                         throw new RuntimeException("assert failed");

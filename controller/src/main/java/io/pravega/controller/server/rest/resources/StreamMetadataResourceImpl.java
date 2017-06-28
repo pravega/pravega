@@ -22,7 +22,6 @@ import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -229,7 +228,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         return Response.status(Status.OK).entity(new ScopeProperty().scopeName(scope)).build();
                 })
                 .exceptionally( exception -> {
-                    if (exception.getCause() instanceof StoreException.NodeNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException) {
                         log.warn("Scope: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -258,8 +257,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         .entity(ModelHelper.encodeStreamResponse(streamConfig))
                         .build())
                 .exceptionally(exception -> {
-                    if (exception.getCause() instanceof DataNotFoundException
-                            || exception instanceof DataNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException
+                            || exception instanceof StoreException.DataNotFoundException) {
                         log.warn("Stream: {}/{} not found", scopeName, streamName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -321,10 +320,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     log.info("Successfully fetched streams for scope: {}", scopeName);
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {
-                    if (exception.getCause() instanceof DataNotFoundException
-                            || exception instanceof DataNotFoundException
-                            || exception.getCause() instanceof StoreException.NodeNotFoundException
-                            || exception instanceof StoreException.NodeNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException
+                            || exception instanceof StoreException.DataNotFoundException) {
                         log.warn("Scope name: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -460,10 +457,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
             return Response.status(Status.OK).entity(finalScaleMetadataList).build();
         }).exceptionally(exception -> {
-            if (exception.getCause() instanceof DataNotFoundException
-                    || exception instanceof DataNotFoundException
-                    || exception.getCause() instanceof StoreException.NodeNotFoundException
-                    || exception instanceof StoreException.NodeNotFoundException) {
+            if (exception.getCause() instanceof StoreException.DataNotFoundException
+                    || exception instanceof StoreException.DataNotFoundException) {
                 log.warn("Stream/Scope name: {}/{} not found", scopeName, streamName);
                 return Response.status(Status.NOT_FOUND).build();
             } else {

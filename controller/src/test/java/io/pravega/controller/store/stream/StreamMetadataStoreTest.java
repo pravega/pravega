@@ -158,7 +158,7 @@ public abstract class StreamMetadataStoreTest {
         try {
             store.setSealed(scope, "streamNonExistent", null, executor).join();
         } catch (CompletionException e) {
-            assertEquals(DataNotFoundException.class, e.getCause().getClass());
+            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
         }
         // endregion
 
@@ -171,7 +171,7 @@ public abstract class StreamMetadataStoreTest {
         // Delete a deleted stream, should fail with node not found error.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
+                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
 
         // Delete other stream from the scope.
         assertNull(store.deleteStream(scope, stream2, null, executor).join());
@@ -185,7 +185,7 @@ public abstract class StreamMetadataStoreTest {
         // Deleting non-existing stream should return null.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, "nonExistent", null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
+                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
         // endregion
     }
 
@@ -207,9 +207,9 @@ public abstract class StreamMetadataStoreTest {
             store.listStreamsInScope("Scope1").join();
         } catch (StoreException se) {
             assertTrue("List streams in non-existent scope Scope1",
-                    se.getType() == StoreException.Type.NODE_NOT_FOUND);
+                    se.getType() == StoreException.Type.DATA_NOT_FOUND);
         } catch (CompletionException ce) {
-            checkStoreExceptionType(ce.getCause(), StoreException.Type.NODE_NOT_FOUND);
+            checkStoreExceptionType(ce.getCause(), StoreException.Type.DATA_NOT_FOUND);
         }
     }
 
@@ -247,7 +247,7 @@ public abstract class StreamMetadataStoreTest {
         // get non-existent scope
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.NODE_NOT_FOUND));
+                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
     }
 
     @Test
