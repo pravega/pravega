@@ -46,7 +46,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -202,11 +201,11 @@ public class ExtS3Storage implements Storage {
         return retHandle;
     }
 
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
+    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException, StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
-            throw new CompletionException(new ArrayIndexOutOfBoundsException());
+            throw new ArrayIndexOutOfBoundsException();
         }
 
         try (InputStream reader = client.readObjectStream(config.getExts3Bucket(),
@@ -216,7 +215,7 @@ public class ExtS3Storage implements Storage {
                 log.info("Object does not exist {} in bucket {} ", config.getExts3Root() + handle.getSegmentName(),
                         config.getExts3Bucket());
 
-                throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName(), null));
+                throw new StreamSegmentNotExistsException(handle.getSegmentName(), null);
             }
 
             int originalLength = length;
@@ -261,12 +260,12 @@ public class ExtS3Storage implements Storage {
         return result != null;
     }
 
-    private SegmentProperties syncCreate(String streamSegmentName) {
+    private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
         if (client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
                   .getObjects().size() != 0) {
-            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+            throw new StreamSegmentExistsException(streamSegmentName);
         }
 
         S3ObjectMetadata metadata = new S3ObjectMetadata();
