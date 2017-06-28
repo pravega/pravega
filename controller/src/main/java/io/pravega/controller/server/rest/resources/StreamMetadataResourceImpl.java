@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rest.resources;
 
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.server.rest.ModelHelper;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -21,7 +22,6 @@ import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -35,6 +35,10 @@ import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 
@@ -224,7 +228,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         return Response.status(Status.OK).entity(new ScopeProperty().scopeName(scope)).build();
                 })
                 .exceptionally( exception -> {
-                    if (exception.getCause() instanceof StoreException.NodeNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException) {
                         log.warn("Scope: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -253,8 +257,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                         .entity(ModelHelper.encodeStreamResponse(streamConfig))
                         .build())
                 .exceptionally(exception -> {
-                    if (exception.getCause() instanceof DataNotFoundException
-                            || exception instanceof DataNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException
+                            || exception instanceof StoreException.DataNotFoundException) {
                         log.warn("Stream: {}/{} not found", scopeName, streamName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -316,10 +320,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     log.info("Successfully fetched streams for scope: {}", scopeName);
                     return Response.status(Status.OK).entity(streams).build();
                 }).exceptionally(exception -> {
-                    if (exception.getCause() instanceof DataNotFoundException
-                            || exception instanceof DataNotFoundException
-                            || exception.getCause() instanceof StoreException.NodeNotFoundException
-                            || exception instanceof StoreException.NodeNotFoundException) {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException
+                            || exception instanceof StoreException.DataNotFoundException) {
                         log.warn("Scope name: {} not found", scopeName);
                         return Response.status(Status.NOT_FOUND).build();
                     } else {
@@ -405,6 +407,66 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             log.warn("updateStreamState for {} failed with exception: {}", streamName, exception);
             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
         }).thenApply(asyncResponse::resume)
-                .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStreamState", traceId));
+        .thenAccept(x -> LoggerHelpers.traceLeave(log, "updateStreamState", traceId));
+    }
+
+    /**
+     * Implementation of getScalingEvents REST API.
+     *
+     * @param scopeName         The scope name of stream.
+     * @param streamName        The name of stream.
+     * @param from              DateTime from which scaling events should be displayed.
+     * @param to                DateTime until which scaling events should be displayed.
+     * @param securityContext   The security for API access.
+     * @param asyncResponse     AsyncResponse provides means for asynchronous server side response processing.
+     */
+    @Override
+    public void getScalingEvents(final String scopeName, final String streamName, final Long from, final Long to,
+                                 final SecurityContext securityContext, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getScalingEvents");
+
+        if (from < 0 || to < 0 || from > to) {
+            log.warn("Received invalid request from client for scopeName/streamName: {}/{} ", scopeName, streamName);
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "getScalingEvents", traceId);
+            return;
+        }
+
+        controllerService.getScaleRecords(scopeName, streamName).thenApply(listScaleMetadata -> {
+            Iterator<ScaleMetadata> metadataIterator = listScaleMetadata.iterator();
+            List<ScaleMetadata> finalScaleMetadataList = new ArrayList<ScaleMetadata>();
+
+            // referenceEvent is the Event used as reference for the events between 'from' and 'to'.
+            ScaleMetadata referenceEvent = null;
+
+            while (metadataIterator.hasNext()) {
+                ScaleMetadata scaleMetadata = metadataIterator.next();
+                if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
+                    finalScaleMetadataList.add(scaleMetadata);
+                } else if (scaleMetadata.getTimestamp() < from) {
+                    // This check is required to store a reference event i.e. an event before the 'from' datetime
+                    referenceEvent = scaleMetadata;
+                } else {
+                    break;
+                }
+            }
+
+            if (referenceEvent != null) {
+                finalScaleMetadataList.add(0, referenceEvent);
+            }
+            log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
+            return Response.status(Status.OK).entity(finalScaleMetadataList).build();
+        }).exceptionally(exception -> {
+            if (exception.getCause() instanceof StoreException.DataNotFoundException
+                    || exception instanceof StoreException.DataNotFoundException) {
+                log.warn("Stream/Scope name: {}/{} not found", scopeName, streamName);
+                return Response.status(Status.NOT_FOUND).build();
+            } else {
+                log.warn("getScalingEvents for scopeName/streamName: {}/{} failed with exception ",
+                        scopeName, streamName, exception);
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "getScalingEvents", traceId));
     }
 }

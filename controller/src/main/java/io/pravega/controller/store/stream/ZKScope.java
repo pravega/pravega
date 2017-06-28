@@ -42,7 +42,7 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return store.getStreamsInPath(scopePath);
+        return store.getChildren(scopePath);
     }
 
     @Override

@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import io.pravega.controller.store.stream.DataNotFoundException;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -22,7 +21,7 @@ public class Cache<T> {
 
     @FunctionalInterface
     public interface Loader<U> {
-        CompletableFuture<Data<U>> get(final String key) throws DataNotFoundException;
+        CompletableFuture<Data<U>> get(final String key);
     }
 
     private final LoadingCache<String, CompletableFuture<Data<T>>> cache;

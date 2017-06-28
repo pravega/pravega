@@ -16,6 +16,7 @@ USE_MOUNT=${USE_MOUNT:-0}
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
+BK_AUTORECOVERY=${BK_AUTORECOVERY:-"false"}
 
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 
@@ -36,6 +37,9 @@ sed -i 's|journalDirectory=/tmp/bk-txn|journalDirectory='${BK_DIR}'/journal|' /o
 sed -i 's|ledgerDirectories=/tmp/bk-data|ledgerDirectories='${BK_DIR}'/ledgers|' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories='${BK_DIR}'/index|' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+
+sed -i '/autoRecoveryDaemonEnabled/d' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 
 echo "wait for zookeeper"
 until /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL ls /; do sleep 2; done

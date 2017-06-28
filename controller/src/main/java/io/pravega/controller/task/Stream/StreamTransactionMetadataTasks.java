@@ -9,8 +9,12 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.AckFuture;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
@@ -28,10 +32,6 @@ import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
-import io.pravega.client.stream.AckFuture;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import com.google.common.annotations.VisibleForTesting;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -224,9 +224,12 @@ public class StreamTransactionMetadataTasks extends TaskBase {
         UUID txnId = UUID.randomUUID();
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                 scaleGracePeriod, ctx, executor)
-                .thenComposeAsync(txData -> streamMetadataStore.getActiveSegments(scope, stream, ctx, executor)
-                        .thenComposeAsync(segments -> notifyTxnCreation(scope, stream, segments, txnId)
-                                .thenApplyAsync(v -> new ImmutablePair<>(txData, segments), executor), executor), executor);
+                .thenComposeAsync(txData -> streamMetadataStore.getActiveSegments(scope, stream, txData.getEpoch(), ctx, executor)
+                        .thenComposeAsync(segmentNumbers -> notifyTxnCreation(scope, stream, segmentNumbers, txnId)
+                                .thenComposeAsync(v -> FutureHelpers.allOfWithResults(segmentNumbers.stream()
+                                        .map(s -> streamMetadataStore.getSegment(scope, stream, s, ctx, executor))
+                                        .collect(Collectors.toList()))
+                                        .thenApply(segments -> new ImmutablePair<>(txData, segments)), executor), executor), executor);
     }
 
     private CompletableFuture<VersionedTransactionData> pingTxnBody(String scope, String stream, UUID txId, long lease,
@@ -301,10 +304,10 @@ public class StreamTransactionMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId) {
+                                                      final List<Integer> segments, final UUID txnId) {
         return FutureHelpers.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxCreation(scope, stream, segment, txnId))
                 .collect(Collectors.toList()));
     }
 

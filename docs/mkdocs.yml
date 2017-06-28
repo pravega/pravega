@@ -26,6 +26,7 @@ pages:
       - 'Pravega FAQ': 'faq.md'
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
+      - 'REST API - Controller': 'rest/restapis.md'
       - 'Working with Reader and Writer': 'basic-reader-and-writer.md'
       - 'Working with State Synchronizer': 'state-synchronizer.md'
       - 'Working with Transactions': 'transactions.md'

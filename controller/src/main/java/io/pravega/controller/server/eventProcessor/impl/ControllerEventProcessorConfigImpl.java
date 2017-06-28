@@ -107,22 +107,22 @@ public class ControllerEventProcessorConfigImpl implements ControllerEventProces
     }
 
     @Override
-    public String getScaleStreamName() {
+    public String getRequestStreamName() {
         return scaleStreamName;
     }
 
     @Override
-    public String getScaleReaderGroupName() {
+    public String getRequestReaderGroupName() {
         return scaleReaderGroupName;
     }
 
     @Override
-    public ScalingPolicy getScaleStreamScalingPolicy() {
+    public ScalingPolicy getRequestStreamScalingPolicy() {
         return scaleStreamScalingPolicy;
     }
 
     @Override
-    public CheckpointConfig getScaleCheckpointConfig() {
+    public CheckpointConfig getRequestStreamCheckpointConfig() {
         return scaleCheckpointConfig;
     }
 }

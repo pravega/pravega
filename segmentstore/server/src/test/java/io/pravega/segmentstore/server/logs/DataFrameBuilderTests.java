@@ -31,7 +31,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -152,18 +151,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         val asyncInjector = new ErrorInjector<Exception>(count -> count >= failAt, IntentionalException::new);
         dataLog.setAppendErrorInjectors(null, asyncInjector);
 
-        // lastCommitIndex is an index inside the records array that indicate what we think we have committed so far.
-        // We may use the array index interchangeably with the LogItem.SequenceNumber. The only reason this works
-        // is because the array index equals the LogItem.SequenceNumber - this simplifies things a lot.
-        AtomicInteger lastCommitIndex = new AtomicInteger(-1);
         AtomicInteger failCount = new AtomicInteger();
         List<DataFrameBuilder.CommitArgs> successCommits = Collections.synchronizedList(new ArrayList<>());
-        Consumer<DataFrameBuilder.CommitArgs> commitCallback = cc -> {
-            successCommits.add(cc);
-            synchronized (lastCommitIndex) {
-                lastCommitIndex.set(Math.max(lastCommitIndex.get(), (int) cc.getLastFullySerializedSequenceNumber()));
-            }
-        };
 
         // Keep a reference to the builder (once created) so we can inspect its failure cause).
         val builderRef = new AtomicReference<DataFrameBuilder>();
@@ -187,7 +176,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             failCount.incrementAndGet();
         };
 
-        val args = new DataFrameBuilder.Args(ca -> attemptCount.incrementAndGet(), commitCallback, errorCallback, executorService());
+        val args = new DataFrameBuilder.Args(ca -> attemptCount.incrementAndGet(), successCommits::add, errorCallback, executorService());
         try (DataFrameBuilder<TestLogItem> b = new DataFrameBuilder<>(dataLog, args)) {
             builderRef.set(b);
             try {
@@ -197,7 +186,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
                 b.close();
             } catch (ObjectClosedException ex) {
-                attemptCount.decrementAndGet();
                 await(() -> b.failureCause() != null, 20);
 
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
@@ -216,7 +204,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             readItems.add(readItem.getItem());
         }
 
-        val expectedItems = records.stream().filter(r -> r.getSequenceNumber() <= lastCommitIndex.get()).collect(Collectors.toList());
+        val lastCommitSeqNo = successCommits.stream().mapToLong(DataFrameBuilder.CommitArgs::getLastFullySerializedSequenceNumber).max().orElse(-1);
+        val expectedItems = records.stream().filter(r -> r.getSequenceNumber() <= lastCommitSeqNo).collect(Collectors.toList());
         AssertExtensions.assertListEquals("Items read back do not match expected values.", expectedItems, readItems, TestLogItem::equals);
 
         // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
@@ -238,19 +227,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFlush() throws Exception {
-        testWithAction(DataFrameBuilder::flush);
-    }
-
-    /**
-     * Tests the fact that, upon calling close() on DataFrameBuilder, it auto-flushes all its contents.
-     * This may already be covered in the other cases, but it makes sense to explicitly test it.
-     */
-    @Test
-    public void testClose() throws Exception {
-        testWithAction(DataFrameBuilder::close);
-    }
-
-    private void testWithAction(Consumer<DataFrameBuilder> action) throws Exception {
         // Append two records, make sure they are not flushed, close the Builder, then make sure they are flushed.
         try (TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, FRAME_SIZE, executorService())) {
             dataLog.initialize(TIMEOUT);
@@ -270,8 +246,8 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Check the correctness of the commit callback.
             Assert.assertEquals("A Data Frame was generated but none was expected yet.", 0, commitFrames.size());
 
-            // Invoke custom action.
-            action.accept(b);
+            // Invoke flush.
+            b.flush();
 
             // Wait for all the frames commit callbacks to be invoked.
             await(() -> commitFrames.size() >= 1, 20);

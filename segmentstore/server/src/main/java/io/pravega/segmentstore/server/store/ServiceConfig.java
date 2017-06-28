@@ -35,9 +35,22 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
+                                                        "INMEMORY");
+
     private static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
+    public enum StorageTypes {
+        HDFS("HDFS"),
+        FILESYSTEM("FILESYSTEM"),
+        INMEMORY("INMEMORY");
+
+        private final String type;
+        private StorageTypes(final String type) {
+            this.type = type;
+        }
+    }
 
     //region Members
 
@@ -108,6 +121,12 @@ public class ServiceConfig {
     @Getter
     private final String clusterName;
 
+    /**
+     * The Storage Implementation to use.
+     */
+    @Getter
+    private final String storageImplementation;
+
     //endregion
 
     //region Constructor
@@ -147,6 +166,7 @@ public class ServiceConfig {
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.clusterName = properties.get(CLUSTER_NAME);
+        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
     }
 
     /**

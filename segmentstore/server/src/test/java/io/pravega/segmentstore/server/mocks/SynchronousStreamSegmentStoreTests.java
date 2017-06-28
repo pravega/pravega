@@ -10,13 +10,10 @@
 package io.pravega.segmentstore.server.mocks;
 
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.store.StreamSegmentServiceTests;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
-import io.pravega.segmentstore.storage.Storage;
-
-import java.util.concurrent.atomic.AtomicReference;
+import io.pravega.segmentstore.server.store.StreamSegmentServiceTests;
 
 /**
  * Unit tests for the SynchronousStreamSegmentStore class.
@@ -30,8 +27,8 @@ public class SynchronousStreamSegmentStoreTests extends StreamSegmentServiceTest
     }
 
     @Override
-    protected synchronized ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig, AtomicReference<Storage> storage) {
-        return super.createBuilder(builderConfig, storage)
+    protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
+        return super.createBuilder(builderConfig)
                     .withStreamSegmentStore(setup -> {
                         StreamSegmentStore base = new StreamSegmentService(setup.getContainerRegistry(), setup.getSegmentToContainerMapper());
                         return new SynchronousStreamSegmentStore(base);
