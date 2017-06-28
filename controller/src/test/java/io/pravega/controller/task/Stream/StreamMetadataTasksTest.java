@@ -10,6 +10,7 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -139,6 +140,9 @@ public class StreamMetadataTasksTest {
         List<Controller.SegmentRange> segmentRanges = consumer.getCurrentSegments(SCOPE, stream1).get();
         assertNotEquals(0, segmentRanges.size());
 
+        // Set scale event stream writer.
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
+
         //seal a stream.
         ScaleResponse scaleResponse = streamMetadataTasks.manualScale(SCOPE, stream1,
                 segmentRanges.stream()
@@ -163,7 +167,6 @@ public class StreamMetadataTasksTest {
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
 
-        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock());
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
                 Arrays.asList(segment3, segment4, segment5), 30, null).get();
 
