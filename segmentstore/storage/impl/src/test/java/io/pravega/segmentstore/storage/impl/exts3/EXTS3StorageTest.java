@@ -149,7 +149,6 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
             storage.setClient(client);
             return storage;
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
     }
@@ -164,7 +163,9 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
         }
     }
 
-
+    /**
+     * Wrapper over S3JerseyClient. This implements ACLs, multipart copy and multiple writes to the same object on top of S3Proxy implementation.
+     */
     public static class S3JerseyClientWrapper extends S3JerseyClient {
         private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
@@ -211,7 +212,6 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
                 super.putObject( new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
                 ACL_MAP.get(key).setSize(range.getLast() -1);
             } catch (IOException e) {
-                e.printStackTrace();
             }
         }
 

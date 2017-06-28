@@ -29,6 +29,7 @@ import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -179,16 +180,16 @@ public class ExtS3Storage implements Storage {
 
     //region private sync implementation
     private SegmentHandle syncOpenRead(String streamSegmentName) {
-        log.trace("Opening {} for read.", streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
 
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
         ExtS3SegmentHandle retHandle = ExtS3SegmentHandle.getReadHandle(streamSegmentName);
-        log.trace("Created read handle for segment {} ", streamSegmentName);
+        LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
         return retHandle;
     }
 
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
-        log.trace("Opening {} for write.", streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
         ExtS3SegmentHandle retHandle;
         if (info.isSealed()) {
@@ -197,12 +198,12 @@ public class ExtS3Storage implements Storage {
             retHandle = ExtS3SegmentHandle.getWriteHandle(streamSegmentName);
         }
 
-        log.trace("Created read handle for segment {} ", streamSegmentName);
+        LoggerHelpers.traceLeave(log, "openWrite", traceId);
         return retHandle;
     }
 
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
-        log.info("Creating a inputstream at offset {} for stream {}", offset, handle.getSegmentName());
+        long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new CompletionException(new ArrayIndexOutOfBoundsException());
@@ -220,19 +221,19 @@ public class ExtS3Storage implements Storage {
 
             int originalLength = length;
 
+            int bytesRead = 0;
             while (length != 0) {
-                log.info("Reading {} ", length);
-                int bytesRead = reader.read(buffer, bufferOffset, length);
-                log.info("Read {} bytes out of requested {} from segment {}", bytesRead, length,
-                        handle.getSegmentName());
+                bytesRead = reader.read(buffer, bufferOffset, length);
                 length -= bytesRead;
                 bufferOffset += bytesRead;
             }
+            LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return originalLength;
         }
     }
 
     private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         S3ObjectMetadata result = client.getObjectMetadata(config.getExts3Bucket(),
                 config.getExts3Root() + streamSegmentName);
 
@@ -246,6 +247,7 @@ public class ExtS3Storage implements Storage {
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
                 result.getContentLength(), !canWrite, false,
                 new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
+        LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return information;
     }
 
@@ -260,7 +262,7 @@ public class ExtS3Storage implements Storage {
     }
 
     private SegmentProperties syncCreate(String streamSegmentName) {
-        log.info("Creating Segment {}", streamSegmentName);
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
         if (client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
                   .getObjects().size() != 0) {
@@ -284,12 +286,12 @@ public class ExtS3Storage implements Storage {
 
         client.putObject(request);
 
-        log.info("Created Segment {}", streamSegmentName);
+        LoggerHelpers.traceLeave(log, "create", traceId);
         return syncGetStreamSegmentInfo(streamSegmentName);
     }
 
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException {
-        log.trace("Writing {} to segment {} at offset {}", length, handle.getSegmentName(), offset);
+        long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
@@ -303,10 +305,12 @@ public class ExtS3Storage implements Storage {
 
         client.putObject(this.config.getExts3Bucket(), this.config.getExts3Root() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
+        LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
     }
 
     private Void syncSeal(SegmentHandle handle) {
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
 
         if (handle.isReadOnly()) {
             log.info("Seal called on a read handle for segment {}", handle.getSegmentName());
@@ -321,11 +325,13 @@ public class ExtS3Storage implements Storage {
 
         client.setObjectAcl(
                 new SetObjectAclRequest(config.getExts3Bucket(), config.getExts3Root() + handle.getSegmentName()).withAcl(acl));
-        log.info("Successfully sealed segment {}", handle.getSegmentName());
+        LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
+        long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
+                offset, sourceSegment);
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         String targetPath = config.getExts3Root() + targetHandle.getSegmentName();
@@ -371,10 +377,8 @@ public class ExtS3Storage implements Storage {
         client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getExts3Bucket(),
                 targetPath, uploadId).withParts(partEtags));
 
-        si = syncGetStreamSegmentInfo(targetHandle.getSegmentName());
-        log.trace("Properties after concat completion : length is {} ", si.getLength());
-
         client.deleteObject(config.getExts3Bucket(), config.getExts3Root() + sourceSegment);
+        LoggerHelpers.traceLeave(log, "concat", traceId);
 
         return null;
     }

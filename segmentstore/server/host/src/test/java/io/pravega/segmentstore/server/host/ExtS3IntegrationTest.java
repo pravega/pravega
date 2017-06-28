@@ -70,7 +70,7 @@ import org.junit.Before;
 /**
  * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
  */
-public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
+public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final int BOOKIE_COUNT = 3;
@@ -93,24 +93,6 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
         properties.setProperty("jclouds.provider", "filesystem");
         properties.setProperty("jclouds.filesystem.basedir", "/tmp/s3proxy");
         baseDir = Files.createTempDirectory("exts3_wrapper").toString();
-        /*
-        ContextBuilder builder = ContextBuilder
-                .newBuilder("filesystem")
-                .credentials("x", "x")
-                .modules(ImmutableList.<Module>of(new SLF4JLoggingModule()))
-                .overrides(properties);
-        BlobStoreContext context = builder.build(BlobStoreContext.class);
-        BlobStore blobStore = context.getBlobStore();
-
-        s3Proxy = S3Proxy.builder().awsAuthentication( AuthenticationType.AWS_V2_OR_V4, "x", "x")
-                         .endpoint(uri)
-                         .keyStore("", "")
-                         .blobStore(blobStore)
-                         .ignoreUnknownHeaders(true)
-                         .build();
-
-        s3Proxy.start();
-        */
 
         this.configBuilder.include(ExtS3StorageConfig.builder()
                                                      .with(ExtS3StorageConfig.EXTS3_BUCKET, "kanpravegatest")
@@ -178,6 +160,9 @@ public class ECSIntegrationTest extends StreamSegmentStoreTestBase {
     //endregion
 }
 
+/**
+ * Client wrapper for S3JerseyClient.
+ */
 class S3ClientWrapper extends S3JerseyClient {
     private static final ConcurrentMap<String, EXTS3StorageTest.AclSize> ACL_MAP = new ConcurrentHashMap<>();
     private String baseDir;
@@ -195,7 +180,6 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public PutObjectResult putObject(PutObjectRequest request) {
-        S3ObjectMetadata metadata = request.getObjectMetadata();
 
         if (request.getObjectMetadata() != null) {
             request.setObjectMetadata(null);
@@ -228,9 +212,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
             long bytesTransferred = channel.transferFrom(Channels.newChannel((InputStream) content),
                     range.getFirst(), range.getLast() + 1 - range.getFirst());
-            if ( bytesTransferred != range.getLast() + 1 - range.getFirst()) {
-                System.out.println("Error transferring the full data");
-            }
+
             ACL_MAP.get(key).setSize(range.getLast() + 1);
         } catch (IOException | IllegalArgumentException e) {
             throw new BadOffsetException(key, 0, 0);
@@ -266,7 +248,6 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public void deleteObject(String bucketName, String key) {
-        //super.deleteObject(bucketName, key);
         Path path = Paths.get(this.baseDir, bucketName, key);
         try {
             Files.delete(path);
@@ -288,7 +269,6 @@ class S3ClientWrapper extends S3JerseyClient {
                 list.add(object);
             });
         } catch (IOException e) {
-            //     throw new S3Exception("NoSuchKey",0,"NoSuchKey","");
         }
         result.setObjects(list);
         return result;
