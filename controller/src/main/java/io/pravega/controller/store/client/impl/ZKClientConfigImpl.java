@@ -23,20 +23,28 @@ public class ZKClientConfigImpl implements ZKClientConfig {
     private final String namespace;
     private final int initialSleepInterval;
     private final int maxRetries;
+    private final int sessionTimeoutMs;
+    private final int connectionTimeoutMs;
 
     @Builder
     ZKClientConfigImpl(final String connectionString,
                    final String namespace,
                    final int initialSleepInterval,
-                   final int maxRetries) {
+                   final int maxRetries,
+                   final int sessionTimeoutMs,
+                   final int connectionTimeoutMs) {
         Exceptions.checkNotNullOrEmpty(connectionString, "connectionString");
         Exceptions.checkNotNullOrEmpty(namespace, "namespace");
         Exceptions.checkArgument(initialSleepInterval > 0, "retryInterval", "Should be a positive integer");
         Exceptions.checkArgument(maxRetries > 0, "maxRetries", "Should be a positive integer");
+        Exceptions.checkArgument(sessionTimeoutMs > 0, "sessionTimeoutMs", "Should be a positive integer");
+        Exceptions.checkArgument(connectionTimeoutMs > 0, "connectionTimeoutMs", "Should be a positive integer");
 
         this.connectionString = connectionString;
         this.namespace = namespace;
         this.initialSleepInterval = initialSleepInterval;
         this.maxRetries = maxRetries;
+        this.sessionTimeoutMs = sessionTimeoutMs;
+        this.connectionTimeoutMs = connectionTimeoutMs;
     }
 }
