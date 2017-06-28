@@ -44,8 +44,7 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import lombok.val;
 
-import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class ClientFactoryImpl implements ClientFactory {
@@ -136,7 +135,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
-        BiConsumer<Segment, List<PendingEvent>> segmentSealedCallBack = (s, l) -> {
+        Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);

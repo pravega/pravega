@@ -16,21 +16,19 @@ import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
-import io.pravega.client.stream.impl.PendingEvent;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, SegmentMetadataClientFactory {
 
     private final Map<Segment, MockSegmentIoStreams> segments = new ConcurrentHashMap<>();
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, BiConsumer<Segment,
-            List<PendingEvent>> segmentSealedCallback) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
+                                                                Consumer<Segment> segmentSealedCallback) {
         throw new UnsupportedOperationException();
     }
 
@@ -41,8 +39,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, BiConsumer<Segment, List<PendingEvent>>
-            segmentSealedCallback) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback) {
         return getMockStream(segment);
     }
 

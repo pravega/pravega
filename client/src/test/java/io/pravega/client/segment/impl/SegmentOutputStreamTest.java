@@ -25,10 +25,9 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import lombok.Cleanup;
 import org.junit.Test;
@@ -51,7 +50,7 @@ public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
     private static final int SERVICE_PORT = 12345;
-    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, eventList) -> { };
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
@@ -347,6 +346,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
+
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
@@ -358,6 +358,7 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        output.seal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
 
@@ -384,6 +385,7 @@ public class SegmentOutputStreamTest {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            output.seal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }

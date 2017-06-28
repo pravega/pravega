@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class EventStreamReaderTest {
-    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallback = (segment, eventList) -> { };
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Test(timeout = 10000)
     public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReinitializationRequiredException {

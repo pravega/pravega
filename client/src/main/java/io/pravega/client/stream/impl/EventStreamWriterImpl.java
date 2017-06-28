@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -77,7 +77,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final EventWriterConfig config;
     @GuardedBy("lock")
     private final SegmentSelector selector;
-    private final BiConsumer<Segment, List<PendingEvent>> segmentSealedCallBack;
+    private final Consumer<Segment> segmentSealedCallBack;
 
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
             Serializer<Type> serializer, EventWriterConfig config) {
@@ -155,7 +155,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * message find which new segment it should go to and send it there. This can happen recursively if segments turn
      * over very quickly.
      */
-    private void handleLogSealed(Segment segment, List<PendingEvent> unackedEvents) {
+    private void handleLogSealed(Segment segment) {
         lock.readLock().lock();
         /* Using segmentSealedLock the following behaviour is enforced
             - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
@@ -164,8 +164,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
          */
         segmentSealedLock.lock();
         try {
-            selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
-            resend(unackedEvents);
+            List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
+            resend(toResend);
         } finally {
             segmentSealedLock.unlock();
             lock.readLock().unlock();

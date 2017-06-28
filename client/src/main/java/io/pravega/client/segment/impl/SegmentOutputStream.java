@@ -53,8 +53,10 @@ public interface SegmentOutputStream extends AutoCloseable {
     public abstract void flush() throws SegmentSealedException;
 
     /**
+     * Change the state of SegmentOutputStream to sealed to prevent future writes and return the list of unackedEvents.
+     * Any new writes will throw a SegmentSealedException.
      * Returns a List of all the events that have been passed to write but have not yet been
      * acknowledged as written. The iteration order in the List is from oldest to newest.
      */
-    public abstract List<PendingEvent> getUnackedEvents();
+    public abstract List<PendingEvent> seal();
 }
