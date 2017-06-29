@@ -629,18 +629,42 @@ public class TableHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
 
-        // 10. invalid input range low > high
+        // 11. invalid input range low > high
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
 
-        // 11. invalid overlapping key ranges
+        // 12. invalid overlapping key ranges
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 3 * keyRangeChunk));
         assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1, 2), newRanges, segmentTable));
+
+        // 13. invalid overlapping key ranges -- a contains b
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.33));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 14. invalid overlapping key ranges -- b contains a (with b.low == a.low)
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.33));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 15. invalid overlapping key ranges b.low < a.high
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.35));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 16. invalid overlapping key ranges.. a.high < b.low
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
     }
 
     private byte[] createSegmentTable(int numSegments, long eventTime) {
