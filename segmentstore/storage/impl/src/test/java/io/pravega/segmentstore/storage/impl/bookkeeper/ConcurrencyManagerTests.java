@@ -29,19 +29,20 @@ public class ConcurrencyManagerTests {
      */
     @Test
     public void testIncreasingThroughput() {
-        final int steps = MAX_PARALLELISM + 1;
+        final int maxParallelism = 10; // Much smaller value, otherwise this test would never end.
+        final int steps = maxParallelism + 1;
         final int writeSize = BookKeeperConfig.MAX_APPEND_LENGTH / 10;
         val time = new AtomicLong(0);
-        val m = create(time::get);
+        val m = new ConcurrencyManager(MIN_PARALLELISM, maxParallelism, time::get);
         int previousParallelism = m.getCurrentParallelism();
         Assert.assertTrue("Parallelism out of bounds: " + previousParallelism,
-                MIN_PARALLELISM <= previousParallelism && previousParallelism <= MAX_PARALLELISM);
+                MIN_PARALLELISM <= previousParallelism && previousParallelism <= maxParallelism);
         long previousTotalWriteLength = 1;
         for (int i = 0; i < steps; i++) {
             // Record a bunch of writes, but make sure we always record significantly more than last time, otherwise no
             // change would happen.
             long totalWriteLength = 0;
-            while (totalWriteLength < (1 + ConcurrencyManager.SIGNIFICANT_DIFFERENCE) * previousTotalWriteLength) {
+            while (totalWriteLength < 1 + (1 + ConcurrencyManager.SIGNIFICANT_DIFFERENCE) * previousTotalWriteLength) {
                 m.writeCompleted(writeSize);
                 totalWriteLength += writeSize;
             }
@@ -50,7 +51,7 @@ public class ConcurrencyManagerTests {
             time.addAndGet(TIME_INCREMENT);
 
             int newParallelism = m.updateParallelism();
-            int expectedParallelism = Math.min(previousParallelism + 1, MAX_PARALLELISM);
+            int expectedParallelism = Math.min(previousParallelism + 1, maxParallelism);
             Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
             previousParallelism = newParallelism;
@@ -186,6 +187,47 @@ public class ConcurrencyManagerTests {
         int parallelism = m.updateParallelism();
         Assert.assertEquals("Unexpected new value of parallelism when data is stale.", expectedParallelism, parallelism);
         Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
+    }
+
+    /**
+     * Tests the ability to nudge the degree of parallelism in either direction if it gets stuck at the same value for too
+     * long.
+     */
+    @Test
+    public void testStagnation() {
+        final int maxParallelism = 5;
+        final int steps = maxParallelism * ConcurrencyManager.MAX_STAGNATION_AGE * 2 + 1;
+        final int writeSize = 12345;
+        val time = new AtomicLong(0);
+        val m = new ConcurrencyManager(MIN_PARALLELISM, maxParallelism, time::get);
+
+        // Initial write, so we have something to compare against.
+        m.writeCompleted(writeSize);
+        time.addAndGet(TIME_INCREMENT);
+        int previousParallelism = m.updateParallelism();
+        int currentAge = 1;
+        for (int i = 0; i < steps; i++) {
+            m.writeCompleted(writeSize);
+            time.addAndGet(TIME_INCREMENT);
+
+            int newParallelism = m.updateParallelism();
+            int expectedParallelism = previousParallelism;
+            if (currentAge >= ConcurrencyManager.MAX_STAGNATION_AGE) {
+                if (expectedParallelism == maxParallelism) {
+                    expectedParallelism--;
+                } else {
+                    expectedParallelism++;
+                }
+                currentAge = 1;
+            } else {
+                currentAge++;
+            }
+
+            Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
+            Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
+            previousParallelism = newParallelism;
+        }
+
     }
 
     private ConcurrencyManager create(Supplier<Long> timeSupplier) {

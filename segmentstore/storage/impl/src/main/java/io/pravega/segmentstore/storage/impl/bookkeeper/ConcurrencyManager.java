@@ -27,11 +27,13 @@ class ConcurrencyManager {
     //region Members
 
     @VisibleForTesting
-    static final double SIGNIFICANT_DIFFERENCE = 0.1;
+    static final double SIGNIFICANT_DIFFERENCE = 0.25;
     @VisibleForTesting
     static final long MIN_FREQUENCY_MILLIS = 1000;
     @VisibleForTesting
-    static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 4;
+    static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 10;
+    @VisibleForTesting
+    static final int MAX_STAGNATION_AGE = 20;
     private final int minParallelism;
     private final int maxParallelism;
     private final Supplier<Long> timeSupplier;
@@ -147,15 +149,28 @@ class ConcurrencyManager {
                 // Update the degree of parallelism, but make sure we don't exceed the given bounds.
                 parallelism = MathHelpers.minMax(parallelism + (int) Math.signum(throughputDifference), this.minParallelism, this.maxParallelism);
             }
+        } else if (parallelism == this.minParallelism) {
+            parallelism = Math.min(this.maxParallelism, parallelism + 1);
+        }
+
+        int age = lastSnapshot.age;
+        if (parallelism == lastSnapshot.parallelism && age >= MAX_STAGNATION_AGE) {
+            // If we have been stuck at this degree of parallelism for too long, nudge the parallelism up or down by a bit.
+            parallelism = MathHelpers.minMax(parallelism + (parallelism == this.maxParallelism ? -1 : 1), this.minParallelism, this.maxParallelism);
+        }
+
+        if (parallelism != lastSnapshot.parallelism) {
+            // Degree of parallelism changed - reset age.
+            age = 0;
         }
 
         // Update stats and reset counters.
-        this.lastSnapshot.set(new Snapshot(recentFillRatio, recentThroughput, time, parallelism));
+        this.lastSnapshot.set(new Snapshot(recentFillRatio, recentThroughput, time, parallelism, age + 1));
         return parallelism;
     }
 
     private void resetSnapshot() {
-        this.lastSnapshot.set(new Snapshot(0, 0, this.timeSupplier.get(), Math.min(this.minParallelism * 2, this.maxParallelism)));
+        this.lastSnapshot.set(new Snapshot(0, 0, this.timeSupplier.get(), Math.min(this.minParallelism * 2, this.maxParallelism), 1));
     }
 
     //endregion
@@ -168,10 +183,12 @@ class ConcurrencyManager {
         final double throughput;
         final long timeStamp;
         final int parallelism;
+        final int age;
 
         @Override
         public String toString() {
-            return String.format("Throughput = %.1f B/ms, FillRatio = %.2f, Parallelism = %d", this.throughput, this.fillRatio, this.parallelism);
+            return String.format("Throughput = %.1f B/ms, FillRatio = %.2f, Parallelism = %d, Age = %d",
+                    this.throughput, this.fillRatio, this.parallelism, this.age);
         }
     }
 
