@@ -28,7 +28,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 /**
  * Unit tests for FileSystemStorage.
  */
-public abstract class IdempotentStorageTest extends StorageTestBase {
+public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
 
     //region Fencing tests

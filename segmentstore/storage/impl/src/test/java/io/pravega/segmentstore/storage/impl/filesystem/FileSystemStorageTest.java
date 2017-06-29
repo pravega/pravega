@@ -22,7 +22,7 @@ import java.nio.file.Files;
 /**
  * Unit tests for FileSystemStorage.
  */
-public class FileSystemStorageTest extends IdempotentStorageTest {
+public class FileSystemStorageTest extends IdempotentStorageTestBase {
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
     private FileSystemStorageFactory storageFactory;

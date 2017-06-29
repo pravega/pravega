@@ -29,7 +29,7 @@ import com.google.inject.Module;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageTest;
+import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageTestBase;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +58,7 @@ import java.util.stream.Collectors;
  * Unit tests for ExtS3Storage.
  */
 @Slf4j
-public class EXTS3StorageTest extends IdempotentStorageTest {
+public class EXTS3StorageTest extends IdempotentStorageTestBase {
     private ExtS3StorageFactory storageFactory;
     private ExtS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
