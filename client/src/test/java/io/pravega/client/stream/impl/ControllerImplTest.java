@@ -34,7 +34,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
-import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
@@ -54,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -62,7 +62,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -237,23 +239,13 @@ public class ControllerImplTest {
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     2,
+                                                                                                     6,
                                                                                                      0.0,
-                                                                                                     0.25))
+                                                                                                     0.4))
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     3,
-                                                                                                     0.25,
-                                                                                                     0.5))
-                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
-                                                                                                     "stream1",
-                                                                                                     4,
-                                                                                                     0.5,
-                                                                                                     0.75))
-                                                    .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
-                                                                                                     "stream1",
-                                                                                                     5,
-                                                                                                     0.75,
+                                                                                                     7,
+                                                                                                     0.4,
                                                                                                      1.0))
                                                     .build());
                     responseObserver.onCompleted();
@@ -307,43 +299,31 @@ public class ControllerImplTest {
             @Override
             public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    SegmentRange a, b;
-                    if (request.getSegmentNumber() >= 2) {
-                        responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                    }
+                    Map<SegmentId, Pair<Double,Double>> result = new HashMap<>();
                     if (request.getSegmentNumber() == 0) {
-                        a = Controller.SegmentRange.newBuilder()
-                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 2))
-                                                   .setMinKey(0.0)
-                                                   .setMaxKey(0.25)
-                                                   .build();
-                        b = Controller.SegmentRange.newBuilder()
-                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 3))
-                                                   .setMinKey(0.25)
-                                                   .setMaxKey(0.5)
-                                                   .build();
-                    } else {
-                        a = Controller.SegmentRange.newBuilder()
-                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 4))
-                                                   .setMinKey(0.5)
-                                                   .setMaxKey(0.75)
-                                                   .build();
-                        b = Controller.SegmentRange.newBuilder()
-                                                   .setSegmentId(ModelHelper.createSegmentId("scope1", "stream1", 5))
-                                                   .setMinKey(0.75)
-                                                   .setMaxKey(1.0)
-                                                   .build();
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 2), Pair.of(0.0, 0.25));
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 3), Pair.of(0.25, 0.5));
+                    } else if (request.getSegmentNumber() == 1) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 4), Pair.of(0.5, 0.75));
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 5), Pair.of(0.75, 1.0));
+                    } else if (request.getSegmentNumber() == 2 || request.getSegmentNumber() == 3) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 6), Pair.of(0.0, 0.5));
                     }
-                    responseObserver.onNext(SuccessorResponse.newBuilder()
-                                                             .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                                                        .setSegment(a)
-                                                                                                        .addValue(10)
-                                                                                                        .build())
-                                                             .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                                                                                        .setSegment(b)
-                                                                                                        .addValue(20)
-                                                                                                        .build())
-                                                             .build());
+                    else if (request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 7), Pair.of(0.5, 0.25));
+                    }
+                    val builder = SuccessorResponse.newBuilder();
+                    for (Entry<SegmentId, Pair<Double, Double>> entry : result.entrySet()) {
+                        builder.addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                            .setSegment(Controller.SegmentRange.newBuilder()
+                                                        .setSegmentId(entry.getKey())
+                                                        .setMinKey(entry.getValue().getLeft())
+                                                        .setMaxKey(entry.getValue().getRight())
+                                                        .build())
+                                            .addValue(10 * entry.getKey().getSegmentNumber())
+                                            .build());
+                    }
+                    responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -707,11 +687,9 @@ public class ControllerImplTest {
     public void testGetCurrentSegments() throws Exception {
         CompletableFuture<StreamSegments> streamSegments;
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream1");
-        assertTrue(streamSegments.get().getSegments().size() == 4);
-        assertEquals(new Segment("scope1", "stream1", 2), streamSegments.get().getSegmentForKey(0.2));
-        assertEquals(new Segment("scope1", "stream1", 3), streamSegments.get().getSegmentForKey(0.4));
-        assertEquals(new Segment("scope1", "stream1", 4), streamSegments.get().getSegmentForKey(0.6));
-        assertEquals(new Segment("scope1", "stream1", 5), streamSegments.get().getSegmentForKey(0.8));
+        assertTrue(streamSegments.get().getSegments().size() == 2);
+        assertEquals(new Segment("scope1", "stream1", 6), streamSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "stream1", 7), streamSegments.get().getSegmentForKey(0.6));
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
         AssertExtensions.assertThrows("Should throw Exception", streamSegments, throwable -> true);
@@ -734,9 +712,9 @@ public class ControllerImplTest {
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 2))
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 2))
                 .get(0).longValue());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 3))
+        assertEquals(30, successors.get().get(new Segment("scope1", "stream1", 3))
                 .get(0).longValue());
 
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
@@ -750,12 +728,10 @@ public class ControllerImplTest {
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream1"), new ArrayList<>(),
                                                    new HashMap<>());
         assertTrue(scaleStream.get());
-        StreamSegments segments = controllerClient.getCurrentSegments("scope1", "stream1").get();
-        assertTrue(segments.getSegments().size() == 4);
-        assertEquals(new Segment("scope1", "stream1", 2), segments.getSegmentForKey(0.2));
-        assertEquals(new Segment("scope1", "stream1", 3), segments.getSegmentForKey(0.4));
-        assertEquals(new Segment("scope1", "stream1", 4), segments.getSegmentForKey(0.6));
-        assertEquals(new Segment("scope1", "stream1", 5), segments.getSegmentForKey(0.8));
+        CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
+        assertEquals(2, segments.get().getSegments().size());
+        assertEquals(new Segment("scope1", "stream1", 6), segments.get().getSegmentForKey(0.25));
+        assertEquals(new Segment("scope1", "stream1", 7), segments.get().getSegmentForKey(0.75));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
                                                    new HashMap<>());
@@ -1000,7 +976,8 @@ public class ControllerImplTest {
         Set<Segment> successors = controllerClient.getSuccessors(cut).get();
         assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
                                      new Segment(scope, stream, 2), new Segment(scope, stream, 3),
-                                     new Segment(scope, stream, 4), new Segment(scope, stream, 5)),
+                                     new Segment(scope, stream, 4), new Segment(scope, stream, 5),
+                                     new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
                      successors);
     }
 }
