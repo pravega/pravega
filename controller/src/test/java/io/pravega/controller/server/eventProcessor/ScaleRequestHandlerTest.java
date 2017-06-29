@@ -138,7 +138,7 @@ public class ScaleRequestHandlerTest {
         executor.shutdown();
     }
 
-    @Test(timeout = 20000)
+    @Test(timeout = 30000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
         ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
