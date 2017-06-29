@@ -199,7 +199,11 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0, 1, 5),
+        // make it throw a non retryable failure so that test does not wait for number of retries.
+        // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
+        // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
+        // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
+        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
