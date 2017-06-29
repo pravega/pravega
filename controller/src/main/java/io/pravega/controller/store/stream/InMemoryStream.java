@@ -100,13 +100,15 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                         State stateVal = (State) SerializationUtils.deserialize(this.state.getData());
                         if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
                             CreateStreamResponse.CreateStatus status;
-                            status = time == timestamp ? CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
+                            status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
+                                    CreateStreamResponse.CreateStatus.EXISTS_CREATING;
                             result.complete(new CreateStreamResponse(status, this.configuration, time));
                         } else {
                             result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, this.configuration, time));
                         }
                     } else {
-                        CreateStreamResponse.CreateStatus status = time == timestamp ? CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
+                        CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
+                                CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
                         result.complete(new CreateStreamResponse(status, this.configuration, time));
                     }
