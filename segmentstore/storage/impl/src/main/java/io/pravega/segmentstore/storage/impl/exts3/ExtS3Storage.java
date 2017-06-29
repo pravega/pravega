@@ -48,7 +48,7 @@ import java.util.concurrent.ExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Storage adapter for extended S3 based Tier2.
+ * Storage adapter for extended S3 based storage.
  *
  * Each segment is represented as a single Object on the underlying storage.
  *
