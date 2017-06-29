@@ -128,7 +128,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public List<PendingEvent> seal() {
+    public List<PendingEvent> getUnackedEventsOnSeal() {
         return Collections.emptyList();
     }
 

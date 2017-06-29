@@ -122,7 +122,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
             segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
         } catch (SegmentSealedException e) {
-            log.warn("Connection failed due to {}, write will be retried", e.getMessage());
+            log.warn("Event write failed due to {}, it will be retried", e.getMessage());
         } finally {
             lock.writeLock().unlock();
         }

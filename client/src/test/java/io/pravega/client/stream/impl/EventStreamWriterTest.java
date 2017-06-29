@@ -155,7 +155,7 @@ public class EventStreamWriterTest {
         }
 
         @Override
-        public List<PendingEvent> seal() {
+        public List<PendingEvent> getUnackedEventsOnSeal() {
             return Collections.unmodifiableList(writes);
         }
 
@@ -201,7 +201,7 @@ public class EventStreamWriterTest {
         }
 
         @Override
-        public List<PendingEvent> seal() {
+        public List<PendingEvent> getUnackedEventsOnSeal() {
             return Collections.unmodifiableList(writes);
         }
 
@@ -260,9 +260,9 @@ public class EventStreamWriterTest {
         writer.writeEvent(routingKey, "Bar");
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
-        assertEquals(2, outputStream2.seal().size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.seal().get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream2.seal().get(1).getData()));
+        assertEquals(2, outputStream2.getUnackedEventsOnSeal().size());
+        assertEquals("Foo", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(1).getData()));
     }
 
     @Test
@@ -310,17 +310,17 @@ public class EventStreamWriterTest {
         writer.writeEvent(routingKey, "Bar");
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
-        assertEquals(2, outputStream1.seal().size());
-        assertEquals("Foo", serializer.deserialize(outputStream1.seal().get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream1.seal().get(1).getData()));
+        assertEquals(2, outputStream1.getUnackedEventsOnSeal().size());
+        assertEquals("Foo", serializer.deserialize(outputStream1.getUnackedEventsOnSeal().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream1.getUnackedEventsOnSeal().get(1).getData()));
 
         outputStream1.invokeSealedCallBack(); // simulate a segment sealed callback.
         writer.writeEvent(routingKey, "TestData");
         //This time the actual handleLogSealed is invoked and the resend method resends data to outputStream2.
-        assertEquals(3, outputStream2.seal().size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.seal().get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream2.seal().get(1).getData()));
-        assertEquals("TestData", serializer.deserialize(outputStream2.seal().get(2).getData()));
+        assertEquals(3, outputStream2.getUnackedEventsOnSeal().size());
+        assertEquals("Foo", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(1).getData()));
+        assertEquals("TestData", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(2).getData()));
 
     }
 
@@ -359,11 +359,11 @@ public class EventStreamWriterTest {
         Transaction<String> txn = writer.beginTxn(0, 0, 0);
         txn.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(bad.seal().isEmpty());
-        assertEquals(1, outputStream.seal().size());
+        assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
+        assertEquals(1, outputStream.getUnackedEventsOnSeal().size());
         txn.flush();
-        assertTrue(bad.seal().isEmpty());
-        assertTrue(outputStream.seal().isEmpty());
+        assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
+        assertTrue(outputStream.getUnackedEventsOnSeal().isEmpty());
     }
 
     @Test
@@ -400,8 +400,8 @@ public class EventStreamWriterTest {
             // Expected
         }
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(bad.seal().isEmpty());
-        assertEquals(1, outputStream.seal().size());
+        assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
+        assertEquals(1, outputStream.getUnackedEventsOnSeal().size());
     }
 
     @Test
@@ -426,9 +426,9 @@ public class EventStreamWriterTest {
                                                                        config);
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(outputStream.seal().size() > 0);
+        assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
         writer.flush();
-        assertTrue(outputStream.seal().isEmpty());
+        assertTrue(outputStream.getUnackedEventsOnSeal().isEmpty());
     }
 
     @Test
@@ -460,7 +460,7 @@ public class EventStreamWriterTest {
                                                                        config);
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(outputStream.seal().size() > 0);
+        assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
@@ -502,7 +502,7 @@ public class EventStreamWriterTest {
                 config);
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(outputStream.seal().size() > 0);
+        assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
@@ -548,7 +548,7 @@ public class EventStreamWriterTest {
                 config);
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(outputStream.seal().size() > 0);
+        assertTrue(outputStream.getUnackedEventsOnSeal().size() > 0);
 
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
@@ -596,7 +596,7 @@ public class EventStreamWriterTest {
                 config);
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertTrue(outputStream1.seal().size() > 0);
+        assertTrue(outputStream1.getUnackedEventsOnSeal().size() > 0);
 
         MockSegmentIoStreams outputStream2 = new MockSegmentIoStreams(segment2);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any())).thenReturn(outputStream2);
@@ -653,8 +653,8 @@ public class EventStreamWriterTest {
                                                                        config);
         writer.writeEvent(routingKey, "Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
-        assertEquals(1, outputStream1.seal().size());
-        assertTrue(outputStream2.seal().isEmpty());
+        assertEquals(1, outputStream1.getUnackedEventsOnSeal().size());
+        assertTrue(outputStream2.getUnackedEventsOnSeal().isEmpty());
 
         outputStream1.invokeSealedCallBack();
         outputStream2.invokeSealedCallBack();
@@ -663,10 +663,10 @@ public class EventStreamWriterTest {
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
-        assertEquals(1, outputStream2.seal().size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.seal().get(0).getData()));
-        assertEquals(2, outputStream3.seal().size());
-        assertEquals("Foo", serializer.deserialize(outputStream3.seal().get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream3.seal().get(1).getData()));
+        assertEquals(1, outputStream2.getUnackedEventsOnSeal().size());
+        assertEquals("Foo", serializer.deserialize(outputStream2.getUnackedEventsOnSeal().get(0).getData()));
+        assertEquals(2, outputStream3.getUnackedEventsOnSeal().size());
+        assertEquals("Foo", serializer.deserialize(outputStream3.getUnackedEventsOnSeal().get(0).getData()));
+        assertEquals("Bar", serializer.deserialize(outputStream3.getUnackedEventsOnSeal().get(1).getData()));
     }
 }

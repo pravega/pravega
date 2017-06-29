@@ -115,7 +115,7 @@ public class SegmentSelector {
                 } catch (SegmentSealedException e) {
                     log.info("Caught segment sealed while refreshing on segment {}", entry.getKey());
                 }
-                toResend.addAll(writer.seal());
+                toResend.addAll(writer.getUnackedEventsOnSeal());
             }
         }
         return toResend;
@@ -127,7 +127,7 @@ public class SegmentSelector {
         currentSegments = newStreamSegments;
         createMissingWriters(segmentSealedCallback);
         log.trace("Fetch unacked events for segment :{}", sealedSegment);
-        List<PendingEvent> toResend = writers.get(sealedSegment).seal();
+        List<PendingEvent> toResend = writers.get(sealedSegment).getUnackedEventsOnSeal();
         writers.remove(sealedSegment); //remove this sealed segment writer.
         return toResend;
     }

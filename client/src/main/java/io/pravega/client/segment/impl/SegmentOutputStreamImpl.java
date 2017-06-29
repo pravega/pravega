@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -274,6 +275,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             state.failConnection(new ConnectionFailedException()); // TODO: Probably something else.
         }
 
+        /**
+         * Invariants for segment sealed:
+         *   - SegmentSealed callback and write will not run concurrently.
+         *   - During the execution of the call back no new writes will be executed.
+         * Once the segment Sealed callback is executed successfully
+         *  - there will be no new writes to this segment.
+         *  - any write to this segment will throw a SegmentSealedException.
+         *  - any thread waiting on state.getEmptyInflightFuture() will get SegmentSealedException.
+         * @param segmentIsSealed SegmentIsSealed WireCommand.
+         */
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
@@ -295,7 +306,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
                     if (ex != null) {
                         log.error("Unexpected Error while execution SealedSegment CallBack", ex);
-                        throw new RuntimeException(ex);
+                        state.segmentSealed.set(false);
+                        state.failConnection(new CompletionException(ex));
                     }
                 });
             }
@@ -448,12 +460,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
+    /**
+     * This function is invoked by SegmentSealedCallback i.e. when SegmentSealedCallback or getUnackedEventsOnSeal()
+     * is invoked there are no writes happening to the Segment.
+     * @see SegmentOutputStream#getUnackedEventsOnSeal()
+     *
+     */
     @Override
-    public List<PendingEvent> seal() {
-        // Seal function is invoked by SegmentSealedCallback. i.e. when SegmentSealedCallback / Seal function is
-        // invoked there are no writes happening to the Segment.
-
-        //close connection and update the exception to SegmentSealed, this ensures further writes receive a
+    public List<PendingEvent> getUnackedEventsOnSeal() {
+        //close connection and update the exception to SegmentSealed, this ensures future writes receive a
         // SegmentSealedException.
         state.failConnection(new SegmentSealedException(this.segmentName));
         return Collections.unmodifiableList(state.getAllInflightEvents());

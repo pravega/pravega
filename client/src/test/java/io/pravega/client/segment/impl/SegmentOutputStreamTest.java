@@ -358,7 +358,7 @@ public class SegmentOutputStreamTest {
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
-        output.seal(); // this is invoked by the segmentSealedCallback.
+        output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
 
@@ -385,7 +385,7 @@ public class SegmentOutputStreamTest {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
-            output.seal();
+            output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
