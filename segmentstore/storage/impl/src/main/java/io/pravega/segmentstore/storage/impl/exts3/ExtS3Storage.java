@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -212,20 +213,13 @@ public class ExtS3Storage implements Storage {
                 config.getExts3Root() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
 
             if (reader == null) {
-                log.info("Object does not exist {} in bucket {} ", config.getExts3Root() + handle.getSegmentName(),
-                        config.getExts3Bucket());
-
-                throw new StreamSegmentNotExistsException(handle.getSegmentName(), null);
+                throw new StreamSegmentNotExistsException(handle.getSegmentName());
             }
 
             int originalLength = length;
 
-            int bytesRead = 0;
-            while (length != 0) {
-                bytesRead = reader.read(buffer, bufferOffset, length);
-                length -= bytesRead;
-                bufferOffset += bytesRead;
-            }
+            int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
+
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return originalLength;
         }
@@ -251,12 +245,7 @@ public class ExtS3Storage implements Storage {
     }
 
     private boolean syncExists(String streamSegmentName) {
-        GetObjectResult<InputStream> result = null;
-        try {
-            result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
-        } catch (Exception e) {
-            log.warn("Exception {} observed while getting segment info {}", e.getMessage(), streamSegmentName);
-        }
+        GetObjectResult<InputStream> result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
         return result != null;
     }
 
