@@ -72,14 +72,11 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
  */
 @Slf4j
-public class FileSystemStorage implements Storage {
-    private static final int NUM_RETRIES = 3;
+public class FileSystemStorage extends IdempotentStorageBase {
 
     //region members
 
     private final FileSystemStorageConfig config;
-    private final ExecutorService executor;
-    private final AtomicBoolean closed;
 
     //endregion
 
@@ -92,25 +89,14 @@ public class FileSystemStorage implements Storage {
      * @param executor The executor to use for running async operations.
      */
     public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
+        super(executor);
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
-        this.closed = new AtomicBoolean(false);
         this.config = config;
-        this.executor = executor;
     }
 
     //endregion
 
     //region Storage implementation
-
-    /**
-     * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
-     *
-     * @param containerEpoch The Container Epoch to initialize with (ignored here).
-     */
-    @Override
-    public void initialize(long containerEpoch) {
-    }
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
@@ -174,14 +160,6 @@ public class FileSystemStorage implements Storage {
 
     //endregion
 
-    //region AutoClosable
-
-    @Override
-    public void close() {
-        this.closed.set(true);
-    }
-
-    //endregion
 
     //region private sync implementation
 
@@ -362,29 +340,8 @@ public class FileSystemStorage implements Storage {
         return null;
     }
 
-    /**
-     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
-     */
-    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-
-        CompletableFuture<R> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                result.complete(operation.call());
-            } catch (Throwable e) {
-                handleException(e, segmentName, result);
-            }
-        });
-
-        return result;
-    }
-
-    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
-        result.completeExceptionally(translateException(segmentName, e));
-    }
-
-    private Throwable translateException(String segmentName, Throwable e) {
+    @Override
+    protected Throwable translateException(String segmentName, Throwable e) {
         Throwable retVal = e;
         if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
             retVal = new StreamSegmentNotExistsException(segmentName);

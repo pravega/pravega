@@ -36,6 +36,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
@@ -70,12 +71,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtS3Storage implements Storage {
+public class ExtS3Storage extends IdempotentStorageBase {
 
     //region members
 
     private final ExtS3StorageConfig config;
-    private final ExecutorService executor;
     private S3Client client = null;
 
     //endregion
@@ -83,10 +83,9 @@ public class ExtS3Storage implements Storage {
     //region constructor
 
     public ExtS3Storage(S3Client client, ExtS3StorageConfig config, ExecutorService executor) {
+        super(executor);
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
         this.config = config;
-        this.executor = executor;
         this.client = client;
 
     }
@@ -370,28 +369,9 @@ public class ExtS3Storage implements Storage {
         return null;
     }
 
-    /**
-     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
-     */
-    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
-        CompletableFuture<R> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                result.complete(operation.call());
-            } catch (Exception e) {
-                handleException(e, segmentName, result);
-            }
-        });
-
-        return result;
-    }
-
-    private <R> void handleException(Exception e, String segmentName, CompletableFuture<R> result) {
-        result.completeExceptionally(translateException(segmentName, e));
-    }
-
-    private Exception translateException(String segmentName, Exception e) {
-        Exception retVal = e;
+    @Override
+    protected Throwable translateException(String segmentName, Throwable e) {
+        Throwable retVal = e;
 
         if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
             if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
