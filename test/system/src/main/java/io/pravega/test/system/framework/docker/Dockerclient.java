@@ -18,12 +18,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Dockerclient {
 
-       public static DockerClient getClient() {
+    private static final String MASTER_IP = System.getProperty("masterIP");
+
+    public static DockerClient getClient() {
         return createDockerClient();
     }
 
     private static DockerClient createDockerClient() {
-        DockerClient dockerClient = DefaultDockerClient.builder().uri("http://localhost:2375").build();
+        DockerClient dockerClient = DefaultDockerClient.builder().uri("http://" + MASTER_IP + ":2375").build();
         try {
             dockerClient.createNetwork(NetworkConfig.builder().driver("overlay").name("network-name").build());
         } catch (DockerException | InterruptedException e) {

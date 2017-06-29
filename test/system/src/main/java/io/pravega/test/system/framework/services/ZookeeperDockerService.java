@@ -32,24 +32,24 @@ import static org.junit.Assert.assertThat;
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
 
-     static final int ZKSERVICE_ZKPORT = 2181;
-     private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
-     private int instances = 1;
-     private double cpu = 1.0;
-     private double mem = 1024;
+    static final int ZKSERVICE_ZKPORT = 2181;
+    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.2-alpha";
+    private int instances = 1;
+    private double cpu = 1.0;
+    private double mem = 1024;
 
-     public ZookeeperDockerService(String serviceName) {
-     super(serviceName);
-     }
+    public ZookeeperDockerService(String serviceName) {
+        super(serviceName);
+    }
 
-     @Override
-     public void stop() {
-         try {
-             docker.removeService(getID());
-         } catch (DockerException | InterruptedException e) {
-             log.error("unable to remove service {}", e);
-         }
-     }
+    @Override
+    public void stop() {
+        try {
+            docker.removeService(getID());
+        } catch (DockerException | InterruptedException e) {
+            log.error("unable to remove service {}", e);
+        }
+    }
 
     @Override
     public void clean() {
@@ -62,7 +62,7 @@ public class ZookeeperDockerService extends DockerBasedService {
             if (wait) {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
-           assertThat(serviceCreateResponse.id(), is(notNullValue()));
+            assertThat(serviceCreateResponse.id(), is(notNullValue()));
         } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
             log.error("unable to create service {}", e);
         }
@@ -73,22 +73,17 @@ public class ZookeeperDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE).command("/opt/zookeeper/bin/zkServer.sh", "start-foreground")
-                .healthcheck(ContainerConfig.Healthcheck.create(null,
-                        1000000000L, 1000000000L, 3)).build())
+                        .healthcheck(ContainerConfig.Healthcheck.create(null,
+                                1000000000L, 1000000000L, 3)).build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder().memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+        ServiceSpec spec = ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder()
                         .targetPort(ZKSERVICE_ZKPORT).protocol("TCP").build())
                         .build()).build();
 
         return spec;
-    }
-
-    public static void main(String[] args) {
-         ZookeeperDockerService zookeeperDockerService = new ZookeeperDockerService("zookeeper");
-         zookeeperDockerService.start(true);
     }
 }
