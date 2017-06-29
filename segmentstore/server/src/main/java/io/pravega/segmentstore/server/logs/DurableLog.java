@@ -47,12 +47,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -147,29 +147,29 @@ public class DurableLog extends AbstractService implements OperationLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
-        this.executor.execute(() -> {
-            try {
-                boolean anyItemsRecovered = performRecovery();
-                this.operationProcessor.startAsync().awaitRunning();
-                if (!anyItemsRecovered) {
-                    // If the DurableLog is empty, need to queue a MetadataCheckpointOperation so we have a valid starting state (and wait for it).
-                    queueMetadataCheckpoint().get(RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                }
-            } catch (Exception ex) {
-                if (this.operationProcessor.isRunning()) {
-                    // Make sure we stop the operation processor if we started it.
-                    this.operationProcessor.stopAsync();
-                }
+        // Initiate recovery.
+        CompletableFuture
+                .supplyAsync(() -> {
+                    boolean anyItemsRecovered = performRecovery();
+                    this.operationProcessor.startAsync().awaitRunning();
+                    return anyItemsRecovered;
+                }, this.executor)
+                .thenComposeAsync(r -> r ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor)
+                .thenRunAsync(() -> {
+                    // If we got here, all is good. We were able to start successfully.
+                    log.info("{}: Started.", this.traceObjectId);
+                    notifyStarted();
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    if (this.operationProcessor.isRunning()) {
+                        // Make sure we stop the operation processor if we started it.
+                        this.operationProcessor.stopAsync();
+                    }
 
-                notifyFailed(ExceptionHelpers.getRealException(ex));
-                return;
-            }
-
-            // If we got here, all is good. We were able to start successfully.
-            log.info("{}: Started.", this.traceObjectId);
-            notifyStarted();
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-        });
+                    notifyFailed(ExceptionHelpers.getRealException(ex));
+                    return null;
+                });
     }
 
     @Override
@@ -309,7 +309,8 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     //region Recovery
 
-    private boolean performRecovery() throws Exception {
+    @SneakyThrows
+    private boolean performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
