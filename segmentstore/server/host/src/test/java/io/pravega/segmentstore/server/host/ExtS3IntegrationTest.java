@@ -68,7 +68,7 @@ import org.junit.After;
 import org.junit.Before;
 
 /**
- * End-to-end tests for SegmentStore, with integrated Storage and DurableDataLog.
+ * End-to-end tests for SegmentStore, with integrated Extended S3 Storage and DurableDataLog.
  */
 public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup

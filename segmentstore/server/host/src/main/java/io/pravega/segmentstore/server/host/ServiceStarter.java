@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server.host;
 
@@ -192,7 +192,8 @@ public final class ServiceStarter {
         builder.withContainerManager(setup ->
                 new ZKSegmentContainerManager(setup.getContainerRegistry(),
                         this.zkClient,
-                        new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
+                        new Host(this.serviceConfig.getPublishedIPAddress(),
+                                this.serviceConfig.getPublishedPort(), null),
                         setup.getExecutor()));
     }
 
@@ -223,7 +224,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                                                                 .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
+                    .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -257,7 +258,6 @@ public final class ServiceStarter {
     @Builder
     public static class Options {
         final boolean bookKeeper;
-        final boolean hdfs;
         final boolean rocksDb;
         final boolean zkSegmentManager;
     }
