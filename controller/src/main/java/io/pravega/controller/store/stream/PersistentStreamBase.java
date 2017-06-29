@@ -89,9 +89,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return checkScopeExists()
                 .thenCompose(x -> checkStreamExists(configuration, createTimestamp))
-                .thenCompose(createStreamResponse -> storeCreationTimeIfNotExists(createStreamResponse.getTimestamp())
-                        .thenCompose(x -> createConfigurationIfNotExists(createStreamResponse.getConfiguration()))
-                        .thenCompose(x -> createStateIfNotExists(State.CREATING))
+                .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
+                        .thenCompose(x -> createConfigurationIfAbsent(createStreamResponse.getConfiguration()))
+                        .thenCompose(x -> createStateIfAbsent(State.CREATING))
                         .thenCompose(x -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
                         .thenCompose(x -> getState().thenCompose(state -> {
                             if (state.equals(State.CREATING)) {
@@ -105,9 +105,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
                                     IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
-                            return createHistoryTableIfNotExists(new Data<>(historyTable, null));
+                            return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
-                        .thenCompose(x -> createIndexTableIfNotExists(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
+                        .thenCompose(x -> createIndexTableIfAbsent(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
                         .thenApply(x -> createStreamResponse));
     }
 
@@ -127,7 +127,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 timestamp
         );
 
-        return createSegmentTableIfNotExists(new Data<>(segmentTable, null));
+        return createSegmentTableIfAbsent(new Data<>(segmentTable, null));
     }
 
     @Override
@@ -800,7 +800,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {
-        return createEpochNodeIfNotExists(epoch);
+        return createEpochNodeIfAbsent(epoch);
     }
 
     /**
@@ -921,21 +921,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime);
 
-    abstract CompletableFuture<Void> storeCreationTimeIfNotExists(final long creationTime);
+    abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
-    abstract CompletableFuture<Void> createConfigurationIfNotExists(final StreamConfiguration configuration);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration);
 
     abstract CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration);
 
     abstract CompletableFuture<StreamConfiguration> getConfigurationData();
 
-    abstract CompletableFuture<Void> createStateIfNotExists(final State state);
+    abstract CompletableFuture<Void> createStateIfAbsent(final State state);
 
     abstract CompletableFuture<Void> setStateData(final Data<T> state);
 
     abstract CompletableFuture<Data<T>> getStateData();
 
-    abstract CompletableFuture<Void> createSegmentTableIfNotExists(final Data<T> data);
+    abstract CompletableFuture<Void> createSegmentTableIfAbsent(final Data<T> data);
 
     abstract CompletableFuture<Segment> getSegmentRow(final int number);
 
@@ -945,13 +945,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> setSegmentTable(final Data<T> data);
 
-    abstract CompletableFuture<Void> createIndexTableIfNotExists(final Data<T> data);
+    abstract CompletableFuture<Void> createIndexTableIfAbsent(final Data<T> data);
 
     abstract CompletableFuture<Data<T>> getIndexTable();
 
     abstract CompletableFuture<Void> updateIndexTable(final Data<T> updated);
 
-    abstract CompletableFuture<Void> createHistoryTableIfNotExists(final Data<T> data);
+    abstract CompletableFuture<Void> createHistoryTableIfAbsent(final Data<T> data);
 
     abstract CompletableFuture<Void> updateHistoryTable(final Data<T> updated);
 
@@ -959,7 +959,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Data<T>> getHistoryTableFromStore();
 
-    abstract CompletableFuture<Void> createEpochNodeIfNotExists(int epoch);
+    abstract CompletableFuture<Void> createEpochNodeIfAbsent(int epoch);
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
 

@@ -71,7 +71,7 @@ public class StreamTest {
 
         CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
-        stream.storeCreationTimeIfNotExists(creationTime1).get();
+        stream.storeCreationTimeIfAbsent(creationTime1).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -80,7 +80,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfNotExists(streamConfig1).get();
+        stream.createConfigurationIfAbsent(streamConfig1).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -89,7 +89,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.createStateIfNotExists(State.UNKNOWN).get();
+        stream.createStateIfAbsent(State.UNKNOWN).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());

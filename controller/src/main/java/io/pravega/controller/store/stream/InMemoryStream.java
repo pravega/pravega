@@ -130,13 +130,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfNotExists(long timestamp) {
+    CompletableFuture<Void> storeCreationTimeIfAbsent(long timestamp) {
         creationTime.compareAndSet(Long.MIN_VALUE, timestamp);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfNotExists(StreamConfiguration config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfiguration config) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
@@ -176,7 +176,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createStateIfNotExists(State state) {
+    CompletableFuture<Void> createStateIfAbsent(State state) {
         Preconditions.checkNotNull(state);
 
         synchronized (lock) {
@@ -216,7 +216,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentTableIfNotExists(final Data<Integer> data) {
+    CompletableFuture<Void> createSegmentTableIfAbsent(final Data<Integer> data) {
         synchronized (lock) {
             if (segmentTable == null) {
                 segmentTable = new Data<>(data.getData(), 0);
@@ -268,7 +268,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createIndexTableIfNotExists(Data<Integer> data) {
+    CompletableFuture<Void> createIndexTableIfAbsent(Data<Integer> data) {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(data.getData());
 
@@ -310,7 +310,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createHistoryTableIfNotExists(Data<Integer> data) {
+    CompletableFuture<Void> createHistoryTableIfAbsent(Data<Integer> data) {
         Preconditions.checkNotNull(data);
         Preconditions.checkNotNull(data.getData());
 
@@ -362,7 +362,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochNodeIfNotExists(int epoch) {
+    CompletableFuture<Void> createEpochNodeIfAbsent(int epoch) {
         Preconditions.checkArgument(epochTxnMap.size() <= 2);
         activeEpoch.compareAndSet(epoch - 1, epoch);
         synchronized (txnsLock) {

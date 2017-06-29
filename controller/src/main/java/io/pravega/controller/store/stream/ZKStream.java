@@ -174,7 +174,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> storeCreationTimeIfNotExists(final long creationTime) {
+    CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime) {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
 
@@ -183,32 +183,32 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createConfigurationIfNotExists(final StreamConfiguration configuration) {
+    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
         return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    public CompletableFuture<Void> createStateIfNotExists(final State state) {
+    public CompletableFuture<Void> createStateIfAbsent(final State state) {
         return store.createZNodeIfNotExist(statePath, SerializationUtils.serialize(state))
                 .thenApply(x -> cache.invalidateCache(statePath));
     }
 
     @Override
-    public CompletableFuture<Void> createSegmentTableIfNotExists(final Data<Integer> segmentTable) {
+    public CompletableFuture<Void> createSegmentTableIfAbsent(final Data<Integer> segmentTable) {
 
         return store.createZNodeIfNotExist(segmentPath, segmentTable.getData())
                 .thenApply(x -> cache.invalidateCache(segmentPath));
     }
 
     @Override
-    public CompletableFuture<Void> createIndexTableIfNotExists(final Data<Integer> indexTable) {
+    public CompletableFuture<Void> createIndexTableIfAbsent(final Data<Integer> indexTable) {
         return store.createZNodeIfNotExist(indexPath, indexTable.getData())
                 .thenApply(x -> cache.invalidateCache(indexPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTableIfNotExists(final Data<Integer> historyTable) {
+    public CompletableFuture<Void> createHistoryTableIfAbsent(final Data<Integer> historyTable) {
         return store.createZNodeIfNotExist(historyPath, historyTable.getData())
                 .thenApply(x -> cache.invalidateCache(historyPath));
     }
@@ -446,7 +446,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochNodeIfNotExists(int epoch) {
+    CompletableFuture<Void> createEpochNodeIfAbsent(int epoch) {
         return store.createZNodeIfNotExist(getEpochPath(epoch));
     }
 
