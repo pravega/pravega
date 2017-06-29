@@ -347,17 +347,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
-        future.thenAccept(result -> {
-            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                    newSegments.size() - sealedSegments.size());
-            getSealedRanges(scope, name, sealedSegments, context, executor)
-                    .thenAccept(sealedRanges -> {
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
-                                findSplits(sealedRanges, newRanges));
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
-                                findSplits(newRanges, sealedRanges));
-                    });
-        });
+        future.thenCompose(result -> CompletableFuture.allOf(
+                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
+                findNumSplits(scope, name, executor).thenAccept(numSplits ->
+                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits)),
+                findNumMerges(scope, name, executor).thenAccept( numMerges ->
+                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges))));
 
         return future;
     }
@@ -575,22 +571,34 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         .collect(Collectors.toList()));
     }
 
-    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
-                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
-        int splits = 0;
-        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
-            int overlaps = 0;
-            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
-                if (Segment.overlaps(sealedRange, newRange)) {
-                    overlaps++;
-                }
-                if (overlaps > 1) {
-                    splits++;
-                    break;
-                }
+    private CompletableFuture<Long> findNumSplits(String scopeName, String streamName, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
+            long size = scaleMetadataList.size();
+            long totalNumSplits = 0;
+
+            for (int i = 0, j = 1; j < size; j++) {
+                long countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
+                long countSplitsEventJ = scaleMetadataList.get(j).getSegments().size();
+                totalNumSplits = (countSplitsEventI < countSplitsEventJ) ? (countSplitsEventJ - countSplitsEventI) : 0;
             }
-        }
-        return splits;
+
+            return totalNumSplits;
+        });
+    }
+
+    private CompletableFuture<Long> findNumMerges(String scopeName, String streamName, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
+            long size = scaleMetadataList.size();
+            long totalNumMerges = 0;
+
+            for (int i = 0, j = 1; j < size; j++) {
+                long countMergesEventI = scaleMetadataList.get(i).getSegments().size();
+                long countMergesEventJ = scaleMetadataList.get(j).getSegments().size();
+                totalNumMerges = (countMergesEventI > countMergesEventJ) ? (countMergesEventI - countMergesEventJ) : 0;
+            }
+
+            return totalNumMerges;
+        });
     }
 
     abstract Stream newStream(final String scope, final String name);

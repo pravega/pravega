@@ -104,6 +104,21 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
+    public void updateCounterValue(String name, long value) {
+        Exceptions.checkNotNullOrEmpty(name, "name");
+        String counterName = name + ".Counter";
+
+        Counter counter = countersCache.getIfPresent(counterName);
+        if (counter != null) {
+            counter.clear();
+        } else {
+            counter = underlying.createCounter(counterName);
+        }
+        counter.add(value);
+        countersCache.put(name, counter);
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
