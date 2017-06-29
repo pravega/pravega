@@ -245,7 +245,16 @@ public class ExtS3Storage implements Storage {
     }
 
     private boolean syncExists(String streamSegmentName) {
-        GetObjectResult<InputStream> result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
+        GetObjectResult<InputStream> result = null;
+        try {
+            result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
+        } catch (S3Exception e) {
+            if ( e.getErrorCode().equals("NoSuchKey")) {
+                result = null;
+            } else {
+                throw e;
+            }
+        }
         return result != null;
     }
 
