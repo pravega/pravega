@@ -48,7 +48,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class SegmentOutputStreamTest {
 
-    private static final String SEGMENT = "segment";
+    private static final String SEGMENT = "test/0";
     private static final int SERVICE_PORT = 12345;
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
 

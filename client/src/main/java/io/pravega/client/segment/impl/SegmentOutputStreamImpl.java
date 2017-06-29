@@ -55,6 +55,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
+import static io.pravega.common.ExceptionHelpers.getRealException;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
@@ -307,7 +308,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     if (ex != null) {
                         log.error("Unexpected Error while execution SealedSegment CallBack", ex);
                         state.segmentSealed.set(false);
-                        state.failConnection(new CompletionException(ex));
+                        state.failConnection(new CompletionException(getRealException(ex)));
                     }
                 });
             }
