@@ -100,7 +100,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
-        private AtomicBoolean segmentSealed = new AtomicBoolean();
+        private AtomicBoolean sealEncountered = new AtomicBoolean();
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
@@ -289,7 +289,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
-            if (state.segmentSealed.compareAndSet(false, true)) {
+            if (state.sealEncountered.compareAndSet(false, true)) {
                 CompletableFuture.<Void>supplyAsync(() -> {
                     /*
                       Invariants for segment sealed:
@@ -307,7 +307,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
                     if (ex != null) {
                         log.error("Unexpected Error while execution SealedSegment CallBack", ex);
-                        state.segmentSealed.set(false);
+                        state.sealEncountered.set(false);
                         state.failConnection(new CompletionException(getRealException(ex)));
                     }
                 });
