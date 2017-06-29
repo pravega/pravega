@@ -16,6 +16,9 @@ public class ScaleOperationExceptions {
         private static final long serialVersionUID = 1L;
     }
 
+    public static class ScaleInputInvalidException extends ScaleOperationException {
+    }
+
     public static class ScalePreConditionFailureException extends ScaleOperationException {
     }
 
