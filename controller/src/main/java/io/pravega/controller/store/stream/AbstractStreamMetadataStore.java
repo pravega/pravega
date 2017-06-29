@@ -333,17 +333,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
-        future.thenAccept(result -> {
-            getActiveSegments(scope, name, System.currentTimeMillis(), null, null).thenAccept(list -> {
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size());
-            });
-
-            findNumSplits(scope, name, executor).thenAccept(numSplits ->
-                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits));
-
-            findNumMerges(scope, name, executor).thenAccept( numMerges ->
-                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges));
-        });
+        future.thenCompose(result -> CompletableFuture.allOf(
+                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
+                findNumSplits(scope, name, executor).thenAccept(numSplits ->
+                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits)),
+                findNumMerges(scope, name, executor).thenAccept( numMerges ->
+                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges))));
 
         return future;
     }
