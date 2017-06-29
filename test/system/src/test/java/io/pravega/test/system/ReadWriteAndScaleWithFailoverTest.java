@@ -265,11 +265,22 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
             List<CompletableFuture<Void>> writerFutureList1 = writerList1.stream().map(writer ->
                     startWriting(eventData, writer, stopWriteFlag, eventWriteCount)).collect(Collectors.toList());
 
+
+            //bring the instances back to 3 before performing failover
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+
             //run the failover test while scaling
             performFailoverTest();
 
             //wait for scaling
             waitForScaling();
+
+            //bring the instances back to 3 before performing failover
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
 
             //run the failover test after scaling
             performFailoverTest();
