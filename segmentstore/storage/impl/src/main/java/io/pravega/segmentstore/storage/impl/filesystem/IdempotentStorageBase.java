@@ -52,6 +52,11 @@ public abstract class IdempotentStorageBase implements Storage {
 
     /**
      * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     *
+     * @param segmentName   Full name of the StreamSegment.
+     * @param operation     The function to execute.
+     * @param <R>           Return type of the operation.
+     * @return              Instance of the return type of the operation.
      */
     protected <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
         Exceptions.checkNotClosed(this.closed.get(), this);
