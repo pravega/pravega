@@ -141,7 +141,7 @@ public class EventStreamWriterTest {
         }
 
         @Override
-        public void write(PendingEvent event) throws SegmentSealedException {
+        public void write(PendingEvent event) {
             writes.add(event);
         }
 
@@ -184,7 +184,7 @@ public class EventStreamWriterTest {
         }
 
         @Override
-        public void write(PendingEvent event) throws SegmentSealedException {
+        public void write(PendingEvent event) {
             writes.add(event);
         }
 

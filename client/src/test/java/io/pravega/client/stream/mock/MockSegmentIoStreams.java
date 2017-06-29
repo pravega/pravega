@@ -90,7 +90,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public void write(PendingEvent event) throws SegmentSealedException {
+    public void write(PendingEvent event) {
         if (event.getExpectedOffset() == null || event.getExpectedOffset() == writeOffset) {
             dataWritten.add(event.getData().slice());
             offsetList.add(writeOffset);

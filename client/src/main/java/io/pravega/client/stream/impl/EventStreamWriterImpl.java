@@ -121,8 +121,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             }
             segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
-        } catch (SegmentSealedException e) {
-            log.warn("Event write failed due to {}, it will be retried", e.getMessage());
         } finally {
             lock.writeLock().unlock();
         }
@@ -186,11 +184,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         unsent.addAll(selector.refreshSegmentEventWriters(segmentSealedCallBack));
                         sendFailed = true;
                     } else {
-                        try {
-                            segmentWriter.write(event);
-                        } catch (SegmentSealedException e) {
-                            log.warn("Event write failed during resend due to {}, it will be retried", e.getMessage());
-                        }
+                        segmentWriter.write(event);
                     }
                 }
             }

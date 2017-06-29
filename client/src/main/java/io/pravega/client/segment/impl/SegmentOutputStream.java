@@ -34,9 +34,8 @@ public interface SegmentOutputStream extends AutoCloseable {
      * The associated callback will be invoked when the operation is complete.
      * 
      * @param event The event to be added to the segment.
-     * @throws SegmentSealedException If the segment is closed for modifications.
      */
-    public abstract void write(PendingEvent event) throws SegmentSealedException;
+    public abstract void write(PendingEvent event);
 
     /**
      * Flushes and then closes the output stream.

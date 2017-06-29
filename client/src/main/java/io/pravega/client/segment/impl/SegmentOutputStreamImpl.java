@@ -34,6 +34,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -378,10 +379,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     /**
      * @see SegmentOutputStream#write(PendingEvent)
+     *
      */
     @Override
     @Synchronized
-    public void write(PendingEvent event) throws SegmentSealedException {
+    @SneakyThrows(SegmentSealedException.class) // We should never encounter SegmentSealedException during a write
+    public void write(PendingEvent event) {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         ClientConnection connection = getConnection();
         long eventNumber = state.addToInflight(event);
