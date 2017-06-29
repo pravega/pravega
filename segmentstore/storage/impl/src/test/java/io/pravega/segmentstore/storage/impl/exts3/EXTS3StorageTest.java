@@ -164,7 +164,7 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
     /**
      * Wrapper over S3JerseyClient. This implements ACLs, multipart copy and multiple writes to the same object on top of S3Proxy implementation.
      */
-    public static class S3JerseyClientWrapper extends S3JerseyClient {
+    static class S3JerseyClientWrapper extends S3JerseyClient {
         private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
         public S3JerseyClientWrapper(S3Config exts3Config) {
@@ -217,7 +217,7 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
         public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
             AclSize retVal = ACL_MAP.get(key);
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", 500, "NoSuchKey", key);
+                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
             }
             retVal.setAcl(acl);
         }
@@ -226,7 +226,7 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
         public void setObjectAcl(SetObjectAclRequest request) {
             AclSize retVal = ACL_MAP.get(request.getKey());
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
             }
             retVal.setAcl(request.getAcl());
         }
@@ -235,14 +235,14 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
         public AccessControlList getObjectAcl(String bucketName, String key) {
             AclSize retVal = ACL_MAP.get(key);
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", 500, "NoSuchKey", key);
+                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
             }
             return retVal.getAcl();
         }
 
         public CopyPartResult copyPart(CopyPartRequest request) {
             if ( ACL_MAP.get(request.getKey()) == null ) {
-                throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
             }
 
             Range range = request.getSourceRange();
