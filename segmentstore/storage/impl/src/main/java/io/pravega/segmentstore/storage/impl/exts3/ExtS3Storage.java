@@ -326,9 +326,7 @@ public class ExtS3Storage implements Storage {
         }
         // check whether the source is sealed
         SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
-        if (!si.isSealed()) {
-            throw new IllegalStateException(sourceSegment);
-        }
+        Preconditions.checkState(si.isSealed(), "source segment must be sealed.");
 
         //Upload the first part
         CopyPartRequest copyRequest = new CopyPartRequest(config.getExts3Bucket(),
