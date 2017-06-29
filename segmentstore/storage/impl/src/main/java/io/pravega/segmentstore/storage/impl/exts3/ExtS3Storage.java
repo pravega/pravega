@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.exts3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
@@ -21,12 +20,10 @@ import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
-import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
@@ -85,11 +82,12 @@ public class ExtS3Storage implements Storage {
 
     //region constructor
 
-    public ExtS3Storage(ExtS3StorageConfig config, ExecutorService executor) {
+    public ExtS3Storage(S3Client client, ExtS3StorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
+        this.client = client;
 
     }
 
@@ -104,13 +102,6 @@ public class ExtS3Storage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
-        if (client == null) {
-            S3Config exts3Config = new S3Config(config.getExts3Url())
-                    .withIdentity(config.getExts3AccessKey())
-                    .withSecretKey(config.getExts3SecretKey());
-
-            client = new S3JerseyClient(exts3Config);
-        }
     }
 
     @Override
@@ -290,9 +281,7 @@ public class ExtS3Storage implements Storage {
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
-        if (handle.isReadOnly()) {
-            throw new IllegalArgumentException(handle.getSegmentName());
-        }
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         SegmentProperties si = syncGetStreamSegmentInfo(handle.getSegmentName());
 
@@ -309,10 +298,7 @@ public class ExtS3Storage implements Storage {
     private Void syncSeal(SegmentHandle handle) {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
 
-        if (handle.isReadOnly()) {
-            log.info("Seal called on a read handle for segment {}", handle.getSegmentName());
-            throw new IllegalArgumentException(handle.getSegmentName());
-        }
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         AccessControlList acl = client.getObjectAcl(config.getExts3Bucket(),
                 config.getExts3Root() + handle.getSegmentName());
@@ -431,12 +417,4 @@ public class ExtS3Storage implements Storage {
 
     //endregion
 
-    //region testing entry
-
-    @VisibleForTesting
-    public void setClient(S3JerseyClient client) {
-        this.client = client;
-    }
-
-    //endregion
 }

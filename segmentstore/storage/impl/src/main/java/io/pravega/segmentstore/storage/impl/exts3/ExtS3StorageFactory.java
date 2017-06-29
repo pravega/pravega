@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.storage.impl.exts3;
 
+import com.emc.object.s3.S3Config;
+import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -37,6 +39,11 @@ public class ExtS3StorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new ExtS3Storage(this.config, this.executor);
+        S3Config exts3Config = new S3Config(config.getExts3Url())
+                .withIdentity(config.getExts3AccessKey())
+                .withSecretKey(config.getExts3SecretKey());
+
+        S3JerseyClient client = new S3JerseyClient(exts3Config);
+        return new ExtS3Storage(client, this.config, this.executor);
     }
 }

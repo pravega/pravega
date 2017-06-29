@@ -144,9 +144,7 @@ public class EXTS3StorageTest extends IdempotentStorageTest {
 
             client = new S3JerseyClientWrapper(exts3Config);
 
-            storageFactory = new ExtS3StorageFactory(adapterConfig, this.executorService());
-            ExtS3Storage storage = (ExtS3Storage) storageFactory.createStorageAdapter();
-            storage.setClient(client);
+            ExtS3Storage storage = new ExtS3Storage(client, adapterConfig, executorService());
             return storage;
         } catch (Exception e) {
             return null;

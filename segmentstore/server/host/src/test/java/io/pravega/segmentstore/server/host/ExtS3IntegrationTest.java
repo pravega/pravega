@@ -149,10 +149,7 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
                                      .withRetryEnabled( false).withInitialRetryDelay( 1).withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(exts3Config, baseDir);
-
-            Storage storage = this.wrappedFactory.createStorageAdapter();
-            this.storage = storage;
-            ((ExtS3Storage) storage).setClient(client);
+            storage = new ExtS3Storage(client, adapterConfig, executorService());
             return storage;
         }
     }
