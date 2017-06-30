@@ -16,6 +16,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
 import java.io.Serializable;
 import java.util.HashMap;
@@ -136,6 +137,20 @@ class ReaderGroupState implements Revisioned {
             return null;
         }
         return new HashSet<>(segments.keySet());
+    }
+    
+    @Synchronized
+    Map<Stream, Map<Segment, Long>> getPositions() {
+        Map<Stream, Map<Segment, Long>> result = new HashMap<>();
+        for (Entry<Segment, Long> entry : unassignedSegments.entrySet()) {
+            result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+        }
+        for (Map<Segment, Long> assigned : assignedSegments.values()) {
+            for (Entry<Segment, Long> entry : assigned.entrySet()) {
+                result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
     }
     
     @Synchronized

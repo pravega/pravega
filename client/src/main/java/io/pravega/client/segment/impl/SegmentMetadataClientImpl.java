@@ -241,29 +241,33 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(getSegmentInfo()).getSegmentLength();
+                                 return FutureHelpers.getThrowingException(getSegmentInfo())
+                                                     .getSegmentLength();
                              });
     }
 
-    
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue())).getValue();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue()))
+                                                     .getValue();
+                             });
     }
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)).isSuccess();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(),
+                                                                                                 expectedValue,
+                                                                                                 newValue))
+                                                     .isSuccess();
+                             });
     }
 
     @Override

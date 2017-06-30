@@ -18,6 +18,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -196,6 +197,14 @@ public interface Controller {
      * @return A mapping from Successor to the list of all of the Successor's predecessors
      */
     CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(final Segment segment);
+    
+    /**
+     * Returns all the segments that come after the provided cutpoint. 
+     * 
+     * @param from The position from which to find the remaining bytes.
+     * @return The total number of bytes beyond the provided positions.
+     */
+    CompletableFuture<Set<Segment>> getSuccessors(StreamCut from);
 
     // Controller Apis that are called by writers and readers
 

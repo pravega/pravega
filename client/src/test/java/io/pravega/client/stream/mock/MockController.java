@@ -20,6 +20,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -386,6 +387,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap()));
+    }
+
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
     }
 
     @Override
