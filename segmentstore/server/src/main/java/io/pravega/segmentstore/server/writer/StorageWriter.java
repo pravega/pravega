@@ -13,16 +13,17 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
-import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
+import io.pravega.segmentstore.server.logs.operations.MetadataOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
+import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
 import java.util.HashMap;
@@ -127,7 +128,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private Void iterationErrorHandler(Throwable ex) {
-        if (ExceptionHelpers.getRealException(ex) instanceof CancellationException && !canRun()) {
+        if (isShutdownException(ex) && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
             log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId, ExceptionHelpers.getRealException(ex).getClass().getSimpleName());
@@ -378,6 +379,11 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     private boolean isCriticalError(Throwable ex) {
         return ExceptionHelpers.mustRethrow(ex)
                 || ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
+    }
+
+    private boolean isShutdownException(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
     /**
