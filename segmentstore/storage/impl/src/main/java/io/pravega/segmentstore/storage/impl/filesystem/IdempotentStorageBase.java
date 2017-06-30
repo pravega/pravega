@@ -73,6 +73,13 @@ public abstract class IdempotentStorageBase implements Storage {
         return result;
     }
 
+    /**
+     * Method defining implementation specific handling of exceptions thrown during call to supplyAsync.
+     * @param e             The exception thrown during supplyAsync.
+     * @param segmentName   Full name of the StreamSegment.
+     * @param result        The CompletableFuture that needs to be responded to.
+     * @param <R>           Return type of the operation.
+     */
     private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
         result.completeExceptionally(translateException(segmentName, e));
     }

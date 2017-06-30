@@ -100,36 +100,30 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
                                                .with(ExtS3StorageConfig.EXTS3_URI, "http://127.0.0.1:9020")
                                                .build();
         if (client == null) {
+            createStorage();
+
             try {
-                createStorage();
-
-                try {
-                    client.createBucket("kanpravegatest");
-                } catch (Exception e) {
-                    if (!( e instanceof S3Exception && ((S3Exception) e).getErrorCode().
-                            equals("BucketAlreadyOwnedByYou"))) {
-                        throw e;
-                    }
+                client.createBucket("kanpravegatest");
+            } catch (S3Exception e) {
+                if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
+                    throw e;
                 }
-                List<ObjectKey> keys = client.listObjects("kanpravegatest").getObjects().stream().map((object) -> {
-                    return new ObjectKey(object.getKey());
-                }).collect(Collectors.toList());
+            }
+            List<ObjectKey> keys = client.listObjects("kanpravegatest").getObjects().stream().map((object) -> {
+                return new ObjectKey(object.getKey());
+            }).collect(Collectors.toList());
 
+            if (!keys.isEmpty()) {
                 client.deleteObjects(new DeleteObjectsRequest("kanpravegatest").withKeys(keys));
-            } catch (Exception e) {
-                log.error("Wrong EXTS3 URI {}. Can not continue.");
             }
         }
     }
 
     @After
-    public void tearDown() {
-        try {
+    public void tearDown() throws Exception {
             client.shutdown();
             client = null;
             s3Proxy.stop();
-        } catch (Exception e) {
-        }
     }
 
     @Override
@@ -137,9 +131,6 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
         S3Config exts3Config = null;
         try {
             exts3Config = new S3Config(new URI("http://localhost:9020"));
-            if (adapterConfig == null) {
-                setUp();
-            }
             exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
 
             client = new S3JerseyClientWrapper(exts3Config);
