@@ -704,8 +704,6 @@ public class StreamMetaDataTests {
         scaleMetadataList.add(scaleMetadata2);
         scaleMetadataList.add(scaleMetadata1);
 
-        log.warn("#### Scale metadata list size: " + scaleMetadataList.size());
-
         when(mockControllerService.getScaleRecords(scope1, stream1)).
                 thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
         Response response = client.target(resourceURI).queryParam("from", fromDateTime).
