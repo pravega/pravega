@@ -12,13 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
@@ -148,13 +147,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         log.info("{}: Starting.", this.traceObjectId);
 
         // Initiate recovery.
-        CompletableFuture
-                .supplyAsync(() -> {
-                    boolean anyItemsRecovered = performRecovery();
-                    this.operationProcessor.startAsync().awaitRunning();
-                    return anyItemsRecovered;
-                }, this.executor)
-                .thenComposeAsync(r -> r ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor)
+        CompletableFuture.supplyAsync(this::performRecovery, this.executor)
+                .thenCompose(anyItemsRecovered -> ServiceHelpers.startAsync(this.operationProcessor, this.executor)
+                        .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
                 .thenRunAsync(() -> {
                     // If we got here, all is good. We were able to start successfully.
                     log.info("{}: Started.", this.traceObjectId);
@@ -176,30 +171,31 @@ public class DurableLog extends AbstractService implements OperationLog {
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
-        this.operationProcessor.stopAsync();
+        ServiceHelpers.stopAsync(this.operationProcessor, this.executor)
+                .thenRunAsync(() -> {
+                    cancelTailReads();
 
-        ExecutorServiceHelpers.execute(() -> {
-            ServiceShutdownListener.awaitShutdown(this.operationProcessor, false);
+                    this.durableDataLog.close();
+                    Throwable cause = this.stopException.get();
+                    if (cause == null && this.operationProcessor.state() == State.FAILED) {
+                        cause = this.operationProcessor.failureCause();
+                    }
 
-            cancelTailReads();
+                    if (cause == null) {
+                        // Normal shutdown.
+                        notifyStopped();
+                    } else {
+                        // Shutdown caused by some failure.
+                        notifyFailed(cause);
+                    }
 
-            this.durableDataLog.close();
-            Throwable cause = this.stopException.get();
-            if (cause == null && this.operationProcessor.state() == State.FAILED) {
-                cause = this.operationProcessor.failureCause();
-            }
-
-            if (cause == null) {
-                // Normal shutdown.
-                notifyStopped();
-            } else {
-                // Shutdown caused by some failure.
-                notifyFailed(cause);
-            }
-
-            log.info("{}: Stopped.", this.traceObjectId);
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-        }, this::notifyFailed, Runnables.doNothing(), this.executor);
+                    log.info("{}: Stopped.", this.traceObjectId);
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    notifyFailed(ex);
+                    return null;
+                });
     }
 
     //endregion

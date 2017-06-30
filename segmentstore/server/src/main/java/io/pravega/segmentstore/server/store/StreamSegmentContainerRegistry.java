@@ -9,23 +9,17 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
-import io.pravega.segmentstore.contracts.ContainerNotFoundException;
-import io.pravega.segmentstore.server.SegmentContainer;
-import io.pravega.segmentstore.server.ContainerHandle;
-import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerRegistry;
-import io.pravega.common.concurrent.ServiceShutdownListener;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.function.CallbackHelpers;
+import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.server.ContainerHandle;
+import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -33,7 +27,12 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Registry for SegmentContainers.
@@ -131,13 +130,8 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
                 () -> unregisterContainer(newContainer),
                 ex -> handleContainerFailure(newContainer, ex));
         newContainer.container.addListener(shutdownListener, this.executor);
-        newContainer.container.startAsync();
-
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    newContainer.container.awaitRunning();
-                    return newContainer.handle;
-                }, this.executor);
+        return ServiceHelpers.startAsync(newContainer.container, this.executor)
+                .thenApply(v -> newContainer.handle);
     }
 
     @Override
@@ -149,8 +143,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         }
 
         // Stop the container and then unregister it.
-        result.container.stopAsync();
-        return CompletableFuture.runAsync(result.container::awaitTerminated, this.executor);
+        return ServiceHelpers.stopAsync(result.container, this.executor);
     }
 
     //endregion

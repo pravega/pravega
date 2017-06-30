@@ -409,7 +409,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("DurableLog is not in a failed state after fence-out detected.",
                 Service.State.FAILED, durableLog.state());
         Assert.assertTrue("DurableLog did not fail with the correct exception.",
-                durableLog.failureCause() instanceof DataLogWriterNotPrimaryException);
+                ExceptionHelpers.getRealException(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
