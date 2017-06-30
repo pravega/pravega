@@ -299,7 +299,7 @@ public class ControllerImplTest {
             @Override
             public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    Map<SegmentId, Pair<Double,Double>> result = new HashMap<>();
+                    Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
                     if (request.getSegmentNumber() == 0) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 2), Pair.of(0.0, 0.25));
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 3), Pair.of(0.25, 0.5));
@@ -308,8 +308,7 @@ public class ControllerImplTest {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 5), Pair.of(0.75, 1.0));
                     } else if (request.getSegmentNumber() == 2 || request.getSegmentNumber() == 3) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 6), Pair.of(0.0, 0.5));
-                    }
-                    else if (request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
+                    } else if (request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
                         result.put(ModelHelper.createSegmentId("scope1", "stream1", 7), Pair.of(0.5, 0.25));
                     }
                     val builder = SuccessorResponse.newBuilder();
