@@ -242,7 +242,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public GetObjectResult<InputStream> getObject(String bucketName, String key) {
-        if (ACL_MAP.get(key) != null) {
+        if (ACL_MAP.containsKey(key)) {
             return new GetObjectResult<>();
         } else {
             return null;

@@ -93,6 +93,7 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
                         bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
+
     private class ExtS3ListenableStorageFactory extends ListenableStorageFactory {
 
         private final ExtS3StorageConfig adapterConfig;
@@ -104,20 +105,18 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
 
         @Override
         public Storage createStorageAdapter() {
-            S3Config exts3Config = null;
-            try {
-                exts3Config = new S3Config(new URI("http://localhost:9020"));
-            } catch (URISyntaxException e) {
-                throw new IllegalArgumentException("Wrong URI");
-            }
-            exts3Config = exts3Config.withIdentity( adapterConfig.getExts3AccessKey()).withSecretKey( adapterConfig.getExts3SecretKey())
-                                     .withRetryEnabled( false).withInitialRetryDelay( 1).withProperty("com.sun.jersey.client.property.connectTimeout", 100);
+            URI uri = URI.create("http://localhost:9020");
+            S3Config exts3Config = new S3Config(uri);
+
+            exts3Config = exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey())
+                                     .withRetryEnabled(false).withInitialRetryDelay(1).withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(exts3Config, baseDir);
             storage = new ExtS3Storage(client, adapterConfig, executorService());
             return storage;
         }
     }
+
 
     //endregion
 }
