@@ -129,17 +129,14 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
     @Override
     protected Storage createStorage() {
         S3Config exts3Config = null;
-        try {
-            exts3Config = new S3Config(new URI("http://localhost:9020"));
-            exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
+        URI uri = URI.create("http://localhost:9020");
+        exts3Config = new S3Config(uri);
+        exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
 
-            client = new S3JerseyClientWrapper(exts3Config);
+        client = new S3JerseyClientWrapper(exts3Config);
 
-            ExtS3Storage storage = new ExtS3Storage(client, adapterConfig, executorService());
-            return storage;
-        } catch (Exception e) {
-            return null;
-        }
+        ExtS3Storage storage = new ExtS3Storage(client, adapterConfig, executorService());
+        return storage;
     }
 
     @Override
