@@ -29,6 +29,7 @@ import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -51,8 +52,6 @@ import lombok.extern.slf4j.Slf4j;
  *
  * Each segment is represented as a single Object on the underlying storage.
  *
- * Approach to fencing:
- *
  * This implementation works under the assumption that data is only appended and never modified.
  * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
  *
@@ -62,10 +61,8 @@ import lombok.extern.slf4j.Slf4j;
  * As PutObject calls to with the same start-offset to an Exts3 object are idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), fencing is not required.
  *
- *
- * In the absence of locking this is the expected behavior in case of ownership change: both the hosts will keep
- * writing the same data at the same offset till the time the earlier owner gets a notification that it is not the
- * current owner. Once the earlier owner received this notification, it stops writing to the segment.
+ * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the same offset till the time the
+ * earlier owner gets a notification that it is not the current owner. Once the earlier owner received this notification, it stops writing to the segment.
  */
 
 @Slf4j
@@ -74,7 +71,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
     //region members
 
     private final ExtS3StorageConfig config;
-    private S3Client client = null;
+    private final S3Client client;
 
     //endregion
 
@@ -204,12 +201,10 @@ public class ExtS3Storage extends IdempotentStorageBase {
                 throw new StreamSegmentNotExistsException(handle.getSegmentName());
             }
 
-            int originalLength = length;
-
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
-            return originalLength;
+            return length;
         }
     }
 
@@ -220,8 +215,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
 
         AccessControlList acls = client.getObjectAcl(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
 
-        boolean canWrite = false;
-        canWrite = acls.getGrants().stream().filter((grant) -> {
+        boolean canWrite = acls.getGrants().stream().filter((grant) -> {
             return grant.getPermission().compareTo(Permission.WRITE) >= 0;
         }).count() > 0;
 
@@ -249,8 +243,8 @@ public class ExtS3Storage extends IdempotentStorageBase {
     private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
-        if (client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
-                  .getObjects().size() != 0) {
+        if (!client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
+                  .getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
 
@@ -275,7 +269,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
         return syncGetStreamSegmentInfo(streamSegmentName);
     }
 
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException {
+    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException, BadOffsetException {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
@@ -284,6 +278,10 @@ public class ExtS3Storage extends IdempotentStorageBase {
 
         if (si.isSealed()) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
+        }
+
+        if (si.getLength() < offset) {
+            throw new BadOffsetException(handle.getSegmentName(), si.getLength(), offset);
         }
 
         client.putObject(this.config.getExts3Bucket(), this.config.getExts3Root() + handle.getSegmentName(),

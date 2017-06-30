@@ -26,12 +26,20 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Module;
-import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageTestBase;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.nio.channels.FileChannel;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
@@ -41,18 +49,6 @@ import org.jclouds.blobstore.BlobStoreContext;
 import org.jclouds.logging.slf4j.config.SLF4JLoggingModule;
 import org.junit.After;
 import org.junit.Before;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.nio.channels.FileChannel;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 
 /**
  * Unit tests for ExtS3Storage.
@@ -178,6 +174,7 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
            return retVal;
         }
 
+        @Synchronized
         @Override
         public void putObject(String bucketName, String key, Range range, Object content) {
             byte[] totalByes = new byte[Math.toIntExact(range.getLast() + 1)];
@@ -186,37 +183,40 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
                     int bytesRead = getObject(bucketName, key).getObject().read(totalByes, 0,
                             Math.toIntExact(range.getFirst()));
                     if ( bytesRead != range.getFirst() ) {
-                        throw new CompletionException(new BadOffsetException(key, range.getFirst(), bytesRead));
+                        throw new IllegalStateException();
                     }
                 }
                 int bytesRead = ( (InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
                         Math.toIntExact(range.getLast() + 1 - range.getFirst()));
 
                 if ( bytesRead != range.getLast() + 1 - range.getFirst()) {
-                    throw new IllegalArgumentException();
+                    throw new IllegalStateException();
                 }
                 super.putObject( new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
-                ACL_MAP.get(key).setSize(range.getLast() -1);
+                ACL_MAP.put( key, ACL_MAP.get(key).withSize(range.getLast() -1));
             } catch (IOException e) {
+                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
             }
         }
 
+        @Synchronized
         @Override
         public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
             AclSize retVal = ACL_MAP.get(key);
             if ( retVal == null ) {
                 throw new S3Exception("NoObject", 404, "NoSuchKey", key);
             }
-            retVal.setAcl(acl);
+            ACL_MAP.put(key, retVal.withAcl(acl));
         }
 
+        @Synchronized
         @Override
         public void setObjectAcl(SetObjectAclRequest request) {
             AclSize retVal = ACL_MAP.get(request.getKey());
             if ( retVal == null ) {
                 throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
             }
-            retVal.setAcl(request.getAcl());
+            ACL_MAP.put(request.getKey(), retVal.withAcl(request.getAcl()));
         }
 
         @Override
@@ -258,10 +258,5 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
         }
     }
 
-    @Data
-    @AllArgsConstructor
-    public static class AclSize {
-       private  AccessControlList acl;
-       private  long size;
-    }
+
 }

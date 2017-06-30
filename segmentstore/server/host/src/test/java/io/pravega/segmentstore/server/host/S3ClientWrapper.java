@@ -28,6 +28,7 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.storage.impl.exts3.AclSize;
 import io.pravega.segmentstore.storage.impl.exts3.EXTS3StorageTest;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
@@ -47,12 +48,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.SneakyThrows;
+import lombok.Synchronized;
 
 /**
  * Client wrapper for S3JerseyClient.
  */
 class S3ClientWrapper extends S3JerseyClient {
-    private static final ConcurrentMap<String, EXTS3StorageTest.AclSize> ACL_MAP = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
     private String baseDir;
     private final ConcurrentMap<String, Map<Integer, CopyPartRequest>> multipartUploads = new ConcurrentHashMap<>();
 
@@ -66,6 +68,7 @@ class S3ClientWrapper extends S3JerseyClient {
         return new DeleteObjectsResult();
     }
 
+    @Synchronized
     @Override
     public PutObjectResult putObject(PutObjectRequest request) {
 
@@ -85,7 +88,7 @@ class S3ClientWrapper extends S3JerseyClient {
             if (request.getRange() != null) {
                 size = request.getRange().getLast() + 1;
             }
-            ACL_MAP.put(request.getKey(), new EXTS3StorageTest.AclSize(request.getAcl(),
+            ACL_MAP.put(request.getKey(), new AclSize(request.getAcl(),
                     size));
         }
         return retVal;
@@ -101,33 +104,37 @@ class S3ClientWrapper extends S3JerseyClient {
             long bytesTransferred = channel.transferFrom(Channels.newChannel((InputStream) content),
                     range.getFirst(), range.getLast() + 1 - range.getFirst());
 
-            ACL_MAP.get(key).setSize(range.getLast() + 1);
+            AclSize aclKey = ACL_MAP.get(key);
+            ACL_MAP.put(key, aclKey.withSize(range.getLast() + 1));
         } catch (IOException | IllegalArgumentException e) {
             throw new BadOffsetException(key, 0, 0);
         }
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
+        AclSize retVal = ACL_MAP.get(key);
         if (retVal == null) {
             throw new S3Exception("NoObject", 500, "NoSuchKey", key);
         }
-        retVal.setAcl(acl);
+        ACL_MAP.put(key, retVal.withAcl(acl));
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
-        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(request.getKey());
+        AclSize retVal = ACL_MAP.get(request.getKey());
         if (retVal == null) {
             throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
         }
-        retVal.setAcl(request.getAcl());
+        ACL_MAP.put(request.getKey(), retVal.withAcl(request.getAcl()));
     }
 
+    @Synchronized
     @Override
     public AccessControlList getObjectAcl(String bucketName, String key) {
-        EXTS3StorageTest.AclSize retVal = ACL_MAP.get(key);
+        AclSize retVal = ACL_MAP.get(key);
         if (retVal == null) {
             throw new S3Exception("NoObject", 500, "NoSuchKey", key);
         }
@@ -165,7 +172,7 @@ class S3ClientWrapper extends S3JerseyClient {
     @Override
     public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
-        EXTS3StorageTest.AclSize data = ACL_MAP.get(key);
+        AclSize data = ACL_MAP.get(key);
         if (data == null) {
             throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
         }
@@ -208,6 +215,7 @@ class S3ClientWrapper extends S3JerseyClient {
         return result;
     }
 
+    @Synchronized
     @Override
     public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
         Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
@@ -223,7 +231,8 @@ class S3ClientWrapper extends S3JerseyClient {
                     targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
                             copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
                     targetChannel.close();
-                    ACL_MAP.get(copyPart.getKey()).setSize(Files.size(targetPath));
+                    AclSize aclMap = ACL_MAP.get(copyPart.getKey());
+                    ACL_MAP.put(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
                 } catch (IOException e) {
                     throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
                 }

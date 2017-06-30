@@ -10,15 +10,13 @@
 package io.pravega.segmentstore.storage.impl.exts3;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
+import lombok.AllArgsConstructor;
 
+@AllArgsConstructor
 public class ExtS3SegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
-    public ExtS3SegmentHandle(String streamSegmentName, boolean isReadOnly) {
-        this.segmentName = streamSegmentName;
-        this.isReadOnly = isReadOnly;
-    }
 
     @Override
     public String getSegmentName() {
