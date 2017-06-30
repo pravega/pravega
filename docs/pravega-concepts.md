@@ -261,18 +261,22 @@ as scale events occur over time.
 
 ### Ordering Guarantees
 
+A stream comprises a set of segments that can change over time. Segments that overlap in their area of keyspace have a defined order.
 
-Pravega provides the following ordering guarantees:
+An event written to a stream is written to a single segment and it is totally ordered with respect to the events of that segment. The existance and position of an event within a segment is strongly consistant.
 
-1.  Events with the same Routing Key are consumed in the order they were
-    written.
+Readers can be assigned multiple parallel segments (From different parts of keyspace). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment respects the one of the segment. Specifically, if s is a segment, events e1 and e2 of s are such that e1 precedes e2, and a reader reads both e1 and e2, then the reader will read e1 before e2.
+
+This results in the following ordering guarantees:
+
+1.  Events with the same Routing Key are consumed in the order they were written.
 
 2.  Events with different Routing Keys sent to a specific segment will always be
     seen in the same order even if the Reader backs up and re-reads them.
 
-3.  If there are multiple Readers reading a Stream and they all backup to any given point, they will never see any reordering with respect to that point. IE: It will never be the case that a event that they read before the chosen point now comes after or vice versa.
+3.  If an event has been acked to it's writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
 
-4.  The existence and position of an event in a stream is strongly consistent. IE: If an event has been acked to it's writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
+4.  If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa.)
 
 ## ReaderGroup Checkpoints
 
