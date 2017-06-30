@@ -439,15 +439,18 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             // referenceEvent is the Event used as reference for the events between 'from' and 'to'.
             ScaleMetadata referenceEvent = null;
 
+            log.warn("### List scale metadata size: " + listScaleMetadata.size());
             while (metadataIterator.hasNext()) {
                 ScaleMetadata scaleMetadata = metadataIterator.next();
                 if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
                     finalScaleMetadataList.add(scaleMetadata);
-                } else if (scaleMetadata.getTimestamp() < from) {
+                } else if ((scaleMetadata.getTimestamp() < from) &&
+                            !(referenceEvent != null && referenceEvent.getTimestamp() > scaleMetadata.getTimestamp())) {
                     // This check is required to store a reference event i.e. an event before the 'from' datetime
+                    scaleMetadata.getSegments().forEach( segment -> {
+                        log.warn("### Segment number: " + segment.getNumber());
+                    });
                     referenceEvent = scaleMetadata;
-                } else {
-                    break;
                 }
             }
 
