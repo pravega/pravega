@@ -386,7 +386,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @SneakyThrows(SegmentSealedException.class) // We should never encounter SegmentSealedException during a write
     public void write(PendingEvent event) {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
-        ClientConnection connection = getConnection();
+        ClientConnection connection;
+        try {
+            connection = getConnection();
+        } catch (SegmentSealedException e) {
+            //Add the event to inflight and indicate to the caller that the segment is sealed.
+            state.addToInflight(event);
+            throw e;
+        }
         long eventNumber = state.addToInflight(event);
         try {
             connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
