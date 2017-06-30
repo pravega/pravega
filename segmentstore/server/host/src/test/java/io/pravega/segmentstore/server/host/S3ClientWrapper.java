@@ -191,7 +191,13 @@ class S3ClientWrapper extends S3JerseyClient {
         FileInputStream returnStream;
         try {
             returnStream = new FileInputStream(path.toFile());
-            StreamHelpers.readAll(returnStream, bytes, range.getFirst().intValue(), bytes.length);
+            if ( range.getFirst() != 0) {
+                long bytesSkipped = 0;
+                do {
+                    bytesSkipped += returnStream.skip(range.getFirst());
+                } while (bytesSkipped < range.getFirst());
+            }
+            StreamHelpers.readAll(returnStream, bytes, 0, bytes.length);
             return new ByteArrayInputStream(bytes);
         } catch (IOException e) {
             throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");
