@@ -7,13 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.exts3;
+package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
-public class ExtS3SegmentHandle implements SegmentHandle {
+public class ExtendedS3SegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
@@ -28,11 +28,11 @@ public class ExtS3SegmentHandle implements SegmentHandle {
         return isReadOnly;
     }
 
-    public static ExtS3SegmentHandle getReadHandle(String streamSegmentName) {
-        return new ExtS3SegmentHandle(streamSegmentName, true);
+    public static ExtendedS3SegmentHandle getReadHandle(String streamSegmentName) {
+        return new ExtendedS3SegmentHandle(streamSegmentName, true);
     }
 
-    public static ExtS3SegmentHandle getWriteHandle(String streamSegmentName) {
-        return new ExtS3SegmentHandle(streamSegmentName, false);
+    public static ExtendedS3SegmentHandle getWriteHandle(String streamSegmentName) {
+        return new ExtendedS3SegmentHandle(streamSegmentName, false);
     }
 }

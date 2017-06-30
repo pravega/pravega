@@ -29,12 +29,11 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.storage.impl.exts3.AclSize;
+import io.pravega.segmentstore.storage.impl.extendeds3.AclSize;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -43,7 +42,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -57,8 +55,8 @@ class S3ClientWrapper extends S3JerseyClient {
     private final String baseDir;
     private final ConcurrentMap<String, ConcurrentMap<Integer, CopyPartRequest>> multipartUploads = new ConcurrentHashMap<>();
 
-    public S3ClientWrapper(S3Config exts3Config, ConcurrentMap<String, AclSize> aclMap, String baseDir) {
-        super(exts3Config);
+    public S3ClientWrapper(S3Config s3Config, ConcurrentMap<String, AclSize> aclMap, String baseDir) {
+        super(s3Config);
         this.aclMap = aclMap;
         this.baseDir = baseDir;
     }
@@ -71,7 +69,7 @@ class S3ClientWrapper extends S3JerseyClient {
     @Override
     public PutObjectResult putObject(PutObjectRequest request) {
 
-        synchronized(this.aclMap) {
+        synchronized (this.aclMap) {
             if (request.getObjectMetadata() != null) {
                 request.setObjectMetadata(null);
             }
@@ -114,7 +112,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-        synchronized(this.aclMap) {
+        synchronized (this.aclMap) {
             AclSize retVal = aclMap.get(key);
             if (retVal == null) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", key);
@@ -125,7 +123,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
-        synchronized(this.aclMap) {
+        synchronized (this.aclMap) {
             AclSize retVal = aclMap.get(request.getKey());
             if (retVal == null) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", request.getKey());
@@ -136,7 +134,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public AccessControlList getObjectAcl(String bucketName, String key) {
-        synchronized(this.aclMap) {
+        synchronized (this.aclMap) {
             AclSize retVal = aclMap.get(key);
             if (retVal == null) {
                 throw new S3Exception("NoObject", 500, "NoSuchKey", key);
@@ -222,7 +220,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Override
     public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
-        synchronized(this.aclMap) {
+        synchronized (this.aclMap) {
             Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
             if (partMap == null) {
                 throw new S3Exception("NoSuchKey", 0, "NoSuchKey", "");

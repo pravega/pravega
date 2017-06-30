@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.exts3;
+package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Config;
@@ -51,12 +51,12 @@ import org.junit.After;
 import org.junit.Before;
 
 /**
- * Unit tests for ExtS3Storage.
+ * Unit tests for ExtendedS3Storage.
  */
 @Slf4j
-public class EXTS3StorageTest extends IdempotentStorageTestBase {
-    private ExtS3StorageFactory storageFactory;
-    private ExtS3StorageConfig adapterConfig;
+public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
+    private ExtendedS3StorageFactory storageFactory;
+    private ExtendedS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
     private S3Proxy s3Proxy;
 
@@ -88,13 +88,13 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
 
         s3Proxy.start();
 
-        this.adapterConfig = ExtS3StorageConfig.builder()
-                                               .with(ExtS3StorageConfig.EXTS3_BUCKET, "kanpravegatest")
-                                               .with(ExtS3StorageConfig.EXTS3_ACCESS_KEY_ID, "x")
-                                               .with(ExtS3StorageConfig.EXTS3_SECRET_KEY, "x")
-                                               .with(ExtS3StorageConfig.ROOT, "test")
-                                               .with(ExtS3StorageConfig.EXTS3_URI, "http://127.0.0.1:9020")
-                                               .build();
+        this.adapterConfig = ExtendedS3StorageConfig.builder()
+                                                    .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
+                                                    .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
+                                                    .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
+                                                    .with(ExtendedS3StorageConfig.ROOT, "test")
+                                                    .with(ExtendedS3StorageConfig.URI, "http://127.0.0.1:9020")
+                                                    .build();
         if (client == null) {
             createStorage();
 
@@ -124,14 +124,14 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        S3Config exts3Config = null;
+        S3Config s3Config = null;
         URI uri = URI.create("http://localhost:9020");
-        exts3Config = new S3Config(uri);
-        exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey());
+        s3Config = new S3Config(uri);
+        s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
 
-        client = new S3JerseyClientWrapper(exts3Config);
+        client = new S3JerseyClientWrapper(s3Config);
 
-        ExtS3Storage storage = new ExtS3Storage(client, adapterConfig, executorService());
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService());
         return storage;
     }
 
@@ -139,9 +139,9 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         FileChannel channel = null;
         if (readOnly) {
-            return ExtS3SegmentHandle.getReadHandle(segmentName);
+            return ExtendedS3SegmentHandle.getReadHandle(segmentName);
         } else {
-            return ExtS3SegmentHandle.getWriteHandle(segmentName);
+            return ExtendedS3SegmentHandle.getWriteHandle(segmentName);
         }
     }
 
@@ -151,8 +151,8 @@ public class EXTS3StorageTest extends IdempotentStorageTestBase {
     static class S3JerseyClientWrapper extends S3JerseyClient {
         private static final ConcurrentMap<String, AclSize> ACL_MAP = new ConcurrentHashMap<>();
 
-        public S3JerseyClientWrapper(S3Config exts3Config) {
-            super(exts3Config);
+        public S3JerseyClientWrapper(S3Config s3Config) {
+            super(s3Config);
         }
 
         @Override

@@ -57,14 +57,14 @@ configure_tier2() {
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
     ;;
-    EXTS3)
-    EXTS3_ROOT=${EXTS3_ROOT:-"/"}
-    add_system_property "exts3.Root" "${EXTS3_ROOT}"
-    add_system_property "exts3.exts3AccessKey" "${EXTS3_ACCESS_KEY_ID}"
-    add_system_property "exts3.exts3SecretKey" "${EXTS3_SECRET_KEY}"
-    add_system_property "exts3.exts3Url" "${EXTS3_URI}"
-    add_system_property "exts3.exts3Bucket" "${EXTS3_BUCKET}"
-    add_system_property "exts3.exts3Namespace" "${EXTS3_NAMESPACE}"
+    EXTENDEDS3)
+    EXTENDEDS3_ROOT=${EXTENDEDS3_ROOT:-"/"}
+    add_system_property "extendeds3.Root" "${EXTENDEDS3_ROOT}"
+    add_system_property "extendeds3.accessKey" "${EXTENDEDS3_ACCESS_KEY_ID}"
+    add_system_property "extendeds3.secretKey" "${EXTENDEDS3_SECRET_KEY}"
+    add_system_property "extendeds3.url" "${EXTENDEDS3_URI}"
+    add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
+    add_system_property "extendeds3.namespace" "${EXTENDEDS3_NAMESPACE}"
     ;;
     esac
 }

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.exts3;
+package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
@@ -18,10 +18,10 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for ExtS3 Storage adapters.
+ * Factory for ExtendedS3 Storage adapters.
  */
-public class ExtS3StorageFactory implements StorageFactory {
-    private final ExtS3StorageConfig config;
+public class ExtendedS3StorageFactory implements StorageFactory {
+    private final ExtendedS3StorageConfig config;
     private final ExecutorService executor;
 
     /**
@@ -30,7 +30,7 @@ public class ExtS3StorageFactory implements StorageFactory {
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public ExtS3StorageFactory(ExtS3StorageConfig config, ExecutorService executor) {
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -39,11 +39,11 @@ public class ExtS3StorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        S3Config exts3Config = new S3Config(config.getExts3Url())
-                .withIdentity(config.getExts3AccessKey())
-                .withSecretKey(config.getExts3SecretKey());
+        S3Config s3Config = new S3Config(config.getUrl())
+                .withIdentity(config.getAccessKey())
+                .withSecretKey(config.getSecretKey());
 
-        S3JerseyClient client = new S3JerseyClient(exts3Config);
-        return new ExtS3Storage(client, this.config, this.executor);
+        S3JerseyClient client = new S3JerseyClient(s3Config);
+        return new ExtendedS3Storage(client, this.config, this.executor);
     }
 }

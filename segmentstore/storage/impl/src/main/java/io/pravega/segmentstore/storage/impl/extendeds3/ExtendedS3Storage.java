@@ -7,7 +7,7 @@
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.exts3;
+package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Client;
@@ -58,7 +58,7 @@ import lombok.extern.slf4j.Slf4j;
  * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
- * As PutObject calls to with the same start-offset to an Exts3 object are idempotent (any attempt to re-write data with the same file offset does not
+ * As PutObject calls to with the same start-offset to an Extended S3 object are idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), fencing is not required.
  *
  * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the same offset till the time the
@@ -66,18 +66,18 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtS3Storage extends IdempotentStorageBase {
+public class ExtendedS3Storage extends IdempotentStorageBase {
 
     //region members
 
-    private final ExtS3StorageConfig config;
+    private final ExtendedS3StorageConfig config;
     private final S3Client client;
 
     //endregion
 
     //region constructor
 
-    public ExtS3Storage(S3Client client, ExtS3StorageConfig config, ExecutorService executor) {
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor) {
         super(executor);
         Preconditions.checkNotNull(config, "config");
         this.config = config;
@@ -168,7 +168,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
 
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        ExtS3SegmentHandle retHandle = ExtS3SegmentHandle.getReadHandle(streamSegmentName);
+        ExtendedS3SegmentHandle retHandle = ExtendedS3SegmentHandle.getReadHandle(streamSegmentName);
         LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
         return retHandle;
     }
@@ -176,11 +176,11 @@ public class ExtS3Storage extends IdempotentStorageBase {
     private SegmentHandle syncOpenWrite(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
-        ExtS3SegmentHandle retHandle;
+        ExtendedS3SegmentHandle retHandle;
         if (info.isSealed()) {
-            retHandle = ExtS3SegmentHandle.getReadHandle(streamSegmentName);
+            retHandle = ExtendedS3SegmentHandle.getReadHandle(streamSegmentName);
         } else {
-            retHandle = ExtS3SegmentHandle.getWriteHandle(streamSegmentName);
+            retHandle = ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
         }
 
         LoggerHelpers.traceLeave(log, "openWrite", traceId);
@@ -194,8 +194,8 @@ public class ExtS3Storage extends IdempotentStorageBase {
             throw new ArrayIndexOutOfBoundsException();
         }
 
-        try (InputStream reader = client.readObjectStream(config.getExts3Bucket(),
-                config.getExts3Root() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
+        try (InputStream reader = client.readObjectStream(config.getBucket(),
+                config.getRoot() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
 
             if (reader == null) {
                 throw new StreamSegmentNotExistsException(handle.getSegmentName());
@@ -210,10 +210,10 @@ public class ExtS3Storage extends IdempotentStorageBase {
 
     private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
-        S3ObjectMetadata result = client.getObjectMetadata(config.getExts3Bucket(),
-                config.getExts3Root() + streamSegmentName);
+        S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
+                config.getRoot() + streamSegmentName);
 
-        AccessControlList acls = client.getObjectAcl(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
+        AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
 
         boolean canWrite = acls.getGrants().stream().filter((grant) -> {
             return grant.getPermission().compareTo(Permission.WRITE) >= 0;
@@ -229,7 +229,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
     private boolean syncExists(String streamSegmentName) {
         GetObjectResult<InputStream> result = null;
         try {
-            result = client.getObject(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName);
+            result = client.getObject(config.getBucket(), config.getRoot() + streamSegmentName);
         } catch (S3Exception e) {
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 result = null;
@@ -243,7 +243,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
     private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
-        if (!client.listObjects(config.getExts3Bucket(), config.getExts3Root() + streamSegmentName)
+        if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName)
                   .getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
@@ -251,13 +251,13 @@ public class ExtS3Storage extends IdempotentStorageBase {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         metadata.setContentLength((long) 0);
 
-        PutObjectRequest request = new PutObjectRequest(config.getExts3Bucket(),
-                config.getExts3Root() + streamSegmentName,
+        PutObjectRequest request = new PutObjectRequest(config.getBucket(),
+                config.getRoot() + streamSegmentName,
                 (Object) null);
 
         AccessControlList acl = new AccessControlList();
         acl.addGrants(new Grant[]{
-                new Grant(new CanonicalUser(config.getExts3AccessKey(), config.getExts3AccessKey()),
+                new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()),
                         Permission.FULL_CONTROL)
         });
 
@@ -284,7 +284,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
             throw new BadOffsetException(handle.getSegmentName(), si.getLength(), offset);
         }
 
-        client.putObject(this.config.getExts3Bucket(), this.config.getExts3Root() + handle.getSegmentName(),
+        client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
@@ -295,14 +295,14 @@ public class ExtS3Storage extends IdempotentStorageBase {
 
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
-        AccessControlList acl = client.getObjectAcl(config.getExts3Bucket(),
-                config.getExts3Root() + handle.getSegmentName());
+        AccessControlList acl = client.getObjectAcl(config.getBucket(),
+                config.getRoot() + handle.getSegmentName());
         acl.getGrants().clear();
-        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getExts3AccessKey(), config.getExts3AccessKey()),
+        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()),
                 Permission.READ)});
 
         client.setObjectAcl(
-                new SetObjectAclRequest(config.getExts3Bucket(), config.getExts3Root() + handle.getSegmentName()).withAcl(acl));
+                new SetObjectAclRequest(config.getBucket(), config.getRoot() + handle.getSegmentName()).withAcl(acl));
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
@@ -312,8 +312,8 @@ public class ExtS3Storage extends IdempotentStorageBase {
                 offset, sourceSegment);
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
-        String targetPath = config.getExts3Root() + targetHandle.getSegmentName();
-        String uploadId = client.initiateMultipartUpload(config.getExts3Bucket(), targetPath);
+        String targetPath = config.getRoot() + targetHandle.getSegmentName();
+        String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
 
         // check whether the target exists
         if (!syncExists(targetHandle.getSegmentName())) {
@@ -324,9 +324,9 @@ public class ExtS3Storage extends IdempotentStorageBase {
         Preconditions.checkState(si.isSealed(), "source segment must be sealed.");
 
         //Upload the first part
-        CopyPartRequest copyRequest = new CopyPartRequest(config.getExts3Bucket(),
+        CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
                 targetPath,
-                config.getExts3Bucket(),
+                config.getBucket(),
                 targetPath,
                 uploadId,
                 1).withSourceRange(Range.fromOffsetLength(0, offset));
@@ -335,13 +335,13 @@ public class ExtS3Storage extends IdempotentStorageBase {
         partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
         //Upload the second part
-        S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getExts3Bucket(),
-                config.getExts3Root() + sourceSegment);
+        S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
+                config.getRoot() + sourceSegment);
         long objectSize = metadataResult.getContentLength(); // in bytes
 
-        copyRequest = new CopyPartRequest(config.getExts3Bucket(),
-                config.getExts3Root() + sourceSegment,
-                config.getExts3Bucket(),
+        copyRequest = new CopyPartRequest(config.getBucket(),
+                config.getRoot() + sourceSegment,
+                config.getBucket(),
                 targetPath,
                 uploadId,
                 2).withSourceRange(Range.fromOffsetLength(0, objectSize));
@@ -350,10 +350,10 @@ public class ExtS3Storage extends IdempotentStorageBase {
         partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
         //Close the upload
-        client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getExts3Bucket(),
+        client.completeMultipartUpload(new CompleteMultipartUploadRequest(config.getBucket(),
                 targetPath, uploadId).withParts(partEtags));
 
-        client.deleteObject(config.getExts3Bucket(), config.getExts3Root() + sourceSegment);
+        client.deleteObject(config.getBucket(), config.getRoot() + sourceSegment);
         LoggerHelpers.traceLeave(log, "concat", traceId);
 
         return null;
@@ -361,7 +361,7 @@ public class ExtS3Storage extends IdempotentStorageBase {
 
     private Void syncDelete(SegmentHandle handle) {
 
-        client.deleteObject(config.getExts3Bucket(), config.getExts3Root() + handle.getSegmentName());
+        client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
         return null;
     }
 
