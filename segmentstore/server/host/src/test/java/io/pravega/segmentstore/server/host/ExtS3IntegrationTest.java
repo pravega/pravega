@@ -19,6 +19,7 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.exts3.AclSize;
 import io.pravega.segmentstore.storage.impl.exts3.ExtS3Storage;
 import io.pravega.segmentstore.storage.impl.exts3.ExtS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.exts3.ExtS3StorageFactory;
@@ -28,6 +29,8 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,6 +43,7 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 3;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;
+    private ConcurrentMap<String,AclSize> aclMap = new ConcurrentHashMap<>();
 
     /**
      * Starts BookKeeper.
@@ -86,7 +90,7 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
                 .withStorageFactory(setup -> {
                     StorageFactory f = new ExtS3StorageFactory(
                             setup.getConfig(ExtS3StorageConfig::builder), setup.getExecutor());
-                    return new ExtS3ListenableStorageFactory(f, builderConfig.getConfig(ExtS3StorageConfig::builder));
+                    return new ExtS3ListenableStorageFactory(f, builderConfig.getConfig(ExtS3StorageConfig::builder), this.aclMap);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         bookkeeper.getZkClient(), setup.getExecutor()));
@@ -96,10 +100,12 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
     private class ExtS3ListenableStorageFactory extends ListenableStorageFactory {
 
         private final ExtS3StorageConfig adapterConfig;
+        private final ConcurrentMap<String, AclSize> aclMap;
 
-        public ExtS3ListenableStorageFactory(StorageFactory wrappedFactory, ExtS3StorageConfig adapterConfig) {
+        public ExtS3ListenableStorageFactory(StorageFactory wrappedFactory, ExtS3StorageConfig adapterConfig, ConcurrentMap<String, AclSize> aclMap) {
             super(wrappedFactory);
             this.adapterConfig = adapterConfig;
+            this.aclMap = aclMap;
         }
 
         @Override
@@ -110,7 +116,7 @@ public class ExtS3IntegrationTest extends StreamSegmentStoreTestBase {
             exts3Config = exts3Config.withIdentity(adapterConfig.getExts3AccessKey()).withSecretKey(adapterConfig.getExts3SecretKey())
                                      .withRetryEnabled(false).withInitialRetryDelay(1).withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new S3ClientWrapper(exts3Config, baseDir);
+            S3JerseyClient client = new S3ClientWrapper(exts3Config, this.aclMap, baseDir);
             storage = new ExtS3Storage(client, adapterConfig, executorService());
             return storage;
         }
