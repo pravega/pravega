@@ -388,6 +388,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         ClientConnection connection;
         try {
+            //if connection is null getConnection() establishes a connection and retransmits all events in inflight list.
             connection = getConnection();
         } catch (SegmentSealedException e) {
             //Add the event to inflight and indicate to the caller that the segment is sealed.
