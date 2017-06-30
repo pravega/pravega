@@ -9,14 +9,12 @@
  */
 package io.pravega.test.integration.segmentstore.selftest;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
