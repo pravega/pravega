@@ -50,7 +50,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
      * Deletes an already SEALED stream.

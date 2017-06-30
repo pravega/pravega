@@ -127,7 +127,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final String scope,
+    public CompletableFuture<CreateStreamResponse> createStream(final String scope,
                                                    final String name,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp,

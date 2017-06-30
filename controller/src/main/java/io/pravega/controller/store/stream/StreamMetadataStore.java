@@ -54,7 +54,7 @@ public interface StreamMetadataStore {
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String scopeName,
+    CompletableFuture<CreateStreamResponse> createStream(final String scopeName,
                                             final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp,
