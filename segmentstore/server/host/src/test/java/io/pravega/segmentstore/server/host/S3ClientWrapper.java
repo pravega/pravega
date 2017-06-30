@@ -29,7 +29,6 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.impl.exts3.AclSize;
-import io.pravega.segmentstore.storage.impl.exts3.EXTS3StorageTest;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
