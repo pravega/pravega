@@ -121,7 +121,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
-                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory)) : system;
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
         this.requestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
 

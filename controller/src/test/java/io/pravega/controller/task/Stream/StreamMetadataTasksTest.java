@@ -30,9 +30,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -76,7 +73,6 @@ public class StreamMetadataTasksTest {
     private StreamMetadataStore streamStorePartialMock;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private TimeoutService timeoutService;
     private ConnectionFactoryImpl connectionFactory;
 
     @Before
@@ -102,12 +98,10 @@ public class StreamMetadataTasksTest {
                 executor, "host", connectionFactory);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory);
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
@@ -127,8 +121,6 @@ public class StreamMetadataTasksTest {
 
     @After
     public void tearDown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         zkClient.close();
@@ -167,7 +159,7 @@ public class StreamMetadataTasksTest {
 
     @Test
     public void eventWriterInitializationTest() throws Exception {
-        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 

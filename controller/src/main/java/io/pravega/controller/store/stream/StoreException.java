@@ -29,6 +29,7 @@ public class StoreException extends RuntimeException {
         DATA_CONTAINS_ELEMENTS,
         WRITE_CONFLICT,
         ILLEGAL_STATE,
+        OPERATION_NOT_ALLOWED,
         CONNECTION_ERROR,
         UNKNOWN
     }
@@ -51,6 +52,17 @@ public class StoreException extends RuntimeException {
 
     /**
      * Construct a StoreException.
+     *
+     * @param type  Type of Exception.
+     * @param cause Exception cause.
+     */
+    public StoreException(final Type type, Throwable cause) {
+        super(cause);
+        this.type = type;
+    }
+
+    /**
+     * Constructs a StoreException.
      *
      * @param type  Type of Exception.
      */
@@ -94,6 +106,9 @@ public class StoreException extends RuntimeException {
                 break;
             case ILLEGAL_STATE:
                 exception = new IllegalStateException();
+                break;
+            case OPERATION_NOT_ALLOWED:
+                exception = new OperationNotAllowedException();
                 break;
             case CONNECTION_ERROR:
                 exception = new StoreConnectionException();
@@ -153,6 +168,15 @@ public class StoreException extends RuntimeException {
     }
 
     /**
+     * Exception type when the attempted operation is currently not allowed.
+     */
+    public static class OperationNotAllowedException extends StoreException implements RetryableException {
+        public OperationNotAllowedException() {
+            super(Type.OPERATION_NOT_ALLOWED);
+        }
+    }
+
+    /**
      * Exception type due to failure in connecting to the store.
      */
     public static class StoreConnectionException extends StoreException implements RetryableException {
@@ -171,6 +195,10 @@ public class StoreException extends RuntimeException {
 
         public UnknownException() {
             super(Type.UNKNOWN);
+        }
+
+        public UnknownException(Throwable cause) {
+            super(Type.UNKNOWN, cause);
         }
     }
 }

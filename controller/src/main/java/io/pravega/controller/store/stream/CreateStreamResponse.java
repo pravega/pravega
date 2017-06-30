@@ -7,13 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
+package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
 import lombok.Data;
 
 @Data
-public class Create {
-    private final long creationTime;
+public class CreateStreamResponse {
+    public enum CreateStatus {
+        NEW,
+        EXISTS_CREATING,
+        EXISTS_ACTIVE,
+        FAILED
+    }
+
+    private final CreateStatus status;
     private final StreamConfiguration configuration;
+    private final long timestamp;
 }

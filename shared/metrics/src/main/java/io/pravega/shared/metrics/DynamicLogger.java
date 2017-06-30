@@ -23,6 +23,14 @@ public interface DynamicLogger {
     void incCounterValue(String name, long delta);
 
     /**
+     * Get the value of counter.
+     *
+     * @param name              the name of counter
+     * @param value             the value to be updated
+     */
+    void updateCounterValue(String name, long value);
+
+    /**
      * Report gauge value.
      *
      * @param <T>   the type of value
