@@ -44,13 +44,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -303,7 +303,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     //region Recovery
 
-    @SneakyThrows
     private boolean performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
@@ -324,18 +323,21 @@ public class DurableLog extends AbstractService implements OperationLog {
         boolean successfulRecovery = false;
         boolean anyItemsRecovered;
         try {
-            this.durableDataLog.initialize(timer.getRemaining());
-            anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
-            this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-            log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
-            successfulRecovery = true;
+            try {
+                this.durableDataLog.initialize(timer.getRemaining());
+                anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+                this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
+                successfulRecovery = true;
+            } finally {
+                // We must exit recovery mode when done, regardless of outcome.
+                this.metadata.exitRecoveryMode();
+                this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
+            }
         } catch (Exception ex) {
+            // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
-            throw ex;
-        } finally {
-            // We must exit recovery mode when done, regardless of outcome.
-            this.metadata.exitRecoveryMode();
-            this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
+            throw new CompletionException(ex);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
