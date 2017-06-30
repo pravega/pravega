@@ -179,7 +179,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 ServiceHelpers.stopAsync(this.metadataCleaner, this.executor),
                 ServiceHelpers.stopAsync(this.writer, this.executor),
                 ServiceHelpers.stopAsync(this.durableLog, this.executor))
-                .thenRunAsync(() -> {
+                .whenCompleteAsync((r, ex) -> {
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
                     if (failureCause == null) {
                         failureCause = cause;

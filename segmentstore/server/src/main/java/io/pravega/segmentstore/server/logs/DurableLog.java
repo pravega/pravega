@@ -170,7 +170,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         ServiceHelpers.stopAsync(this.operationProcessor, this.executor)
-                .thenRunAsync(() -> {
+                .whenCompleteAsync((r, ex) -> {
                     cancelTailReads();
 
                     this.durableDataLog.close();
