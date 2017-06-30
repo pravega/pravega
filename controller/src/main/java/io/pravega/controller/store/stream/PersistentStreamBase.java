@@ -88,27 +88,28 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, long createTimestamp) {
 
         return checkScopeExists()
-                .thenCompose(x -> checkStreamExists(configuration, createTimestamp))
+                .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp))
                 .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
-                        .thenCompose(x -> createConfigurationIfAbsent(createStreamResponse.getConfiguration()))
-                        .thenCompose(x -> createStateIfAbsent(State.CREATING))
-                        .thenCompose(x -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
-                        .thenCompose(x -> getState().thenCompose(state -> {
+                        .thenCompose((Void v) -> createConfigurationIfAbsent(createStreamResponse.getConfiguration()))
+                        .thenCompose((Void v) -> createStateIfAbsent(State.CREATING))
+                        .thenCompose((Void v) -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
+                        .thenCompose((Void v) -> getState())
+                        .thenCompose(state -> {
                             if (state.equals(State.CREATING)) {
                                 return createNewEpoch(0);
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
-                        }))
-                        .thenCompose(x -> {
+                        })
+                        .thenCompose((Void v) -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
                                     IntStream.range(0, numSegments).boxed().collect(Collectors.toList()));
 
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
-                        .thenCompose(x -> createIndexTableIfAbsent(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
-                        .thenApply(x -> createStreamResponse));
+                        .thenCompose((Void v) -> createIndexTableIfAbsent(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
+                        .thenApply((Void v) -> createStreamResponse));
     }
 
     private CompletableFuture<Void> createNewSegmentTable(final StreamConfiguration configuration, long timestamp) {

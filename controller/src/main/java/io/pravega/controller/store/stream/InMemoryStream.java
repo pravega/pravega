@@ -103,22 +103,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                if (currentState != null) {
-                    State stateVal = (State) SerializationUtils.deserialize(currentState.getData());
-                    if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
-                        CreateStreamResponse.CreateStatus status;
-                        status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
-                                CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-                        result.complete(new CreateStreamResponse(status, config, time));
-                    } else {
-                        result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time));
-                    }
-                } else {
-                    CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
-                            CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-
-                    result.complete(new CreateStreamResponse(status, config, time));
-                }
+                handleStreamMetadataExists(timestamp, result, time, config, currentState);
             } else {
                 result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
             }
@@ -127,6 +112,26 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         }
 
         return result;
+    }
+
+    private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
+                                            final StreamConfiguration config, Data<Integer> currentState) {
+        if (currentState != null) {
+            State stateVal = (State) SerializationUtils.deserialize(currentState.getData());
+            if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
+                CreateStreamResponse.CreateStatus status;
+                status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
+                        CreateStreamResponse.CreateStatus.EXISTS_CREATING;
+                result.complete(new CreateStreamResponse(status, config, time));
+            } else {
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time));
+            }
+        } else {
+            CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
+                    CreateStreamResponse.CreateStatus.EXISTS_CREATING;
+
+            result.complete(new CreateStreamResponse(status, config, time));
+        }
     }
 
     @Override

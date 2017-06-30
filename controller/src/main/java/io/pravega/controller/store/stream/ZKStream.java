@@ -108,50 +108,45 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime) {
-        // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any metadata that is available from a previous run
-        // If the existing stream has already been created successfully earlier,
-        return store.checkExists(creationPath)
-                .thenCompose(exists -> {
-                    if (exists) {
-                        return getCreationTime()
-                                .thenCompose(storedCreationTime -> store.checkExists(configurationPath)
-                                        .thenCompose(configExists -> {
-                                            if (configExists) {
-                                                return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
-                                            } else {
-                                                return CompletableFuture.completedFuture(
-                                                        new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                                                configuration, storedCreationTime));
-                                            }
-                                        }));
-                    } else {
-                        return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
-                                configuration, creationTime));
-                    }
-                });
+        // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
+        // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
+        return store.checkExists(creationPath).thenCompose(exists -> {
+            if (!exists) {
+                return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
+                        configuration, creationTime));
+            }
+
+            return getCreationTime().thenCompose(storedCreationTime ->
+                    store.checkExists(configurationPath).thenCompose(configExists -> {
+                        if (configExists) {
+                            return handleConfigExists(storedCreationTime, storedCreationTime == creationTime);
+                        } else {
+                            return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
+                                    configuration, storedCreationTime));
+                        }
+                    }));
+        });
     }
 
     private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
-        return getConfiguration().thenCompose(config ->
-                store.checkExists(statePath)
-                        .thenCompose(stateExists -> {
-                            if (stateExists) {
-                                return getState().thenApply(state -> {
-                                    if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                                        return new CreateStreamResponse(status, config, creationTime);
-                                    } else {
-                                        return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
-                                                config, creationTime);
-                                    }
-                                });
-                            } else {
-                                return CompletableFuture.completedFuture(
-                                        new CreateStreamResponse(status, config, creationTime));
-                            }
-                        }));
+        return getConfiguration().thenCompose(config -> store.checkExists(statePath)
+                .thenCompose(stateExists -> {
+                    if (!stateExists) {
+                        return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime));
+                    }
+
+                    return getState().thenApply(state -> {
+                        if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                            return new CreateStreamResponse(status, config, creationTime);
+                        } else {
+                            return new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE,
+                                    config, creationTime);
+                        }
+                    });
+                }));
     }
 
     private CompletableFuture<Long> getCreationTime() {
