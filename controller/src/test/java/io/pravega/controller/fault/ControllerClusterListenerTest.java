@@ -9,9 +9,20 @@
  */
 package io.pravega.controller.fault;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -23,11 +34,10 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -52,13 +62,9 @@ public class ControllerClusterListenerTest {
 
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         // 1. Start ZK server.
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            Assert.fail("Failed starting ZK test server");
-        }
+        zkServer = new TestingServerStarter().start();
 
         // 2. Start ZK client.
         curatorClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -71,72 +77,58 @@ public class ControllerClusterListenerTest {
         // 4. start cluster event listener
         clusterZK = new ClusterZKImpl(curatorClient, ClusterType.CONTROLLER);
 
-        try {
-            clusterZK.addListener((eventType, host) -> {
-                switch (eventType) {
-                    case HOST_ADDED:
-                        nodeAddedQueue.offer(host.getHostId());
-                        break;
-                    case HOST_REMOVED:
-                        nodeRemovedQueue.offer(host.getHostId());
-                        break;
-                    case ERROR:
-                    default:
-                        break;
-                }
-            });
-        } catch (Exception e) {
-            log.error("Error adding listener to cluster", e);
-            Assert.fail();
-        }
+        clusterZK.addListener((eventType, host) -> {
+            switch (eventType) {
+                case HOST_ADDED:
+                    nodeAddedQueue.offer(host.getHostId());
+                    break;
+                case HOST_REMOVED:
+                    nodeRemovedQueue.offer(host.getHostId());
+                    break;
+                case ERROR:
+                default:
+                    break;
+            }
+        });
     }
 
     @After
-    public void shutdown() {
-        try {
-            clusterZK.close();
-        } catch (Exception e) {
-            log.error("Error closing cluster listener");
-            Assert.fail();
-        }
-
+    public void shutdown() throws Exception {
+        clusterZK.close();
         executor.shutdownNow();
-        try {
-            executor.awaitTermination(2, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            log.error("Failed terminating executor service", e);
-            Assert.fail();
-        }
-
+        executor.awaitTermination(2, TimeUnit.SECONDS);
         curatorClient.close();
-
-        try {
-            zkServer.close();
-        } catch (IOException e) {
-            log.error("Error shutting down ZK test server");
-            Assert.fail();
-        }
+        zkServer.close();
     }
 
     @Test(timeout = 60000L)
-    public void clusterListenerTest() {
+    public void clusterListenerTest() throws InterruptedException {
         String hostName = "localhost";
         Host host = new Host(hostName, 10, "host1");
+
+        // Create task sweeper.
         TaskMetadataStore taskStore = TaskStoreFactory.createInMemoryStore(executor);
         TaskSweeper taskSweeper = new TaskSweeper(taskStore, host.getHostId(), executor,
                 new TestTasks(taskStore, executor, host.getHostId()));
 
+        // Create txn sweeper.
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactory connectionFactory = Mockito.mock(ConnectionFactory.class);
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                segmentHelper, executor, host.getHostId(), connectionFactory);
+        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
+                new EventStreamWriterMock<>());
+        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
+
+        // Create ControllerClusterListener.
         ControllerClusterListener clusterListener =
                 new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, executor);
+                        taskSweeper, Optional.of(txnSweeper), executor);
         clusterListener.startAsync();
 
-        try {
-            clusterListener.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Error starting cluster listener", e);
-            Assert.fail();
-        }
+        clusterListener.awaitRunning();
 
         validateAddedNode(host.getHostId());
 
@@ -150,30 +142,15 @@ public class ControllerClusterListenerTest {
 
         clusterListener.stopAsync();
 
-        try {
-            clusterListener.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Error stopping cluster listener", e);
-            Assert.fail();
-        }
+        clusterListener.awaitTerminated();
         validateRemovedNode(host.getHostId());
     }
 
-    private void validateAddedNode(String host) {
-        try {
-            assertEquals(host, nodeAddedQueue.poll(2, TimeUnit.SECONDS));
-        } catch (InterruptedException e) {
-            log.error("Error validating added node {}", host, e);
-            Assert.fail();
-        }
+    private void validateAddedNode(String host) throws InterruptedException {
+        assertEquals(host, nodeAddedQueue.poll(2, TimeUnit.SECONDS));
     }
 
-    private void validateRemovedNode(String host) {
-        try {
-            assertEquals(host, nodeRemovedQueue.poll(2, TimeUnit.SECONDS));
-        } catch (InterruptedException e) {
-            log.error("Error validating removed node {}", host, e);
-            Assert.fail();
-        }
+    private void validateRemovedNode(String host) throws InterruptedException {
+        assertEquals(host, nodeRemovedQueue.poll(2, TimeUnit.SECONDS));
     }
 }

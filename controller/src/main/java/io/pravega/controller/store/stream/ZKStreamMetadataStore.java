@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.index.ZKHostIndex;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
@@ -24,6 +25,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final ZKStoreHelper storeHelper;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
+        super(new ZKHostIndex(client, "/hostTxnIndex", executor));
         initialize();
         storeHelper = new ZKStoreHelper(client, executor);
     }
@@ -49,7 +51,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     if (scopeExists) {
                         return scopeName;
                     } else {
-                        throw StoreException.create(StoreException.Type.NODE_NOT_FOUND, "/store/%s");
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "/store/%s");
                     }
                 });
     }

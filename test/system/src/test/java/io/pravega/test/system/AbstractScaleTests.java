@@ -35,8 +35,7 @@ abstract class AbstractScaleTests {
     @Getter(lazy = true)
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
     @Getter(lazy = true)
-    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE,
-            new ControllerImpl(getControllerURI()), getConnectionFactory());
+    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI()));
     @Getter(lazy = true)
     private final ControllerImpl controller = new ControllerImpl(getControllerURI());
 

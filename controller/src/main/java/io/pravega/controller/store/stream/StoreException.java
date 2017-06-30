@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.retryable.RetryableException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,33 +24,50 @@ public class StoreException extends RuntimeException {
      * Enum to describe the type of exception.
      */
     public enum Type {
-        NODE_EXISTS,
-        NODE_NOT_FOUND,
-        NODE_NOT_EMPTY,
+        DATA_EXISTS,
+        DATA_NOT_FOUND,
+        DATA_CONTAINS_ELEMENTS,
+        WRITE_CONFLICT,
+        ILLEGAL_STATE,
+        OPERATION_NOT_ALLOWED,
+        CONNECTION_ERROR,
         UNKNOWN
     }
 
+    protected String path;
     private Type type;
-    private String path;
 
     /**
      * Construct a StoreException.
      *
-     * @param type Type of Exception.
+     * @param type  Type of Exception.
+     * @param path  The ZooKeeper path being operated on.
+     * @param cause The underlying cause for the exception.
      */
-    public StoreException(final Type type) {
+    private StoreException(final Type type, final String path, final Throwable cause) {
+        super(cause);
+        this.type = type;
+        this.path = path;
+    }
+
+    /**
+     * Construct a StoreException.
+     *
+     * @param type  Type of Exception.
+     * @param cause Exception cause.
+     */
+    public StoreException(final Type type, Throwable cause) {
+        super(cause);
         this.type = type;
     }
 
     /**
      * Constructs a StoreException.
      *
-     * @param type Type of Exception.
-     * @param path The ZooKeeper path being operated on.
+     * @param type  Type of Exception.
      */
-    public StoreException(final Type type, final String path) {
+    private StoreException(final Type type) {
         this.type = type;
-        this.path = path;
     }
 
     /**
@@ -72,44 +90,98 @@ public class StoreException extends RuntimeException {
      * @return Instance of type of StoreException.
      */
     public static StoreException create(final Type type) {
+        StoreException exception;
         switch (type) {
-            case NODE_EXISTS:
-                return new NodeExistsException();
-            case NODE_NOT_FOUND:
-                return new NodeNotFoundException();
-            case NODE_NOT_EMPTY:
-                return new NodeNotEmptyException();
+            case DATA_EXISTS:
+                exception = new DataExistsException();
+                break;
+            case DATA_NOT_FOUND:
+                exception = new DataNotFoundException();
+                break;
+            case DATA_CONTAINS_ELEMENTS:
+                exception = new DataNotEmptyException();
+                break;
+            case WRITE_CONFLICT:
+                exception = new WriteConflictException();
+                break;
+            case ILLEGAL_STATE:
+                exception = new IllegalStateException();
+                break;
+            case OPERATION_NOT_ALLOWED:
+                exception = new OperationNotAllowedException();
+                break;
+            case CONNECTION_ERROR:
+                exception = new StoreConnectionException();
+                break;
             case UNKNOWN:
-                return new UnknownException();
+                exception = new UnknownException();
+                break;
             default:
                 throw new IllegalArgumentException("Invalid exception type");
         }
+        return exception;
     }
 
     /**
      * Exception type when node exists, and duplicate node is created.
      */
-    public static class NodeExistsException extends StoreException {
-        public NodeExistsException() {
-            super(Type.NODE_EXISTS);
+    public static class DataExistsException extends StoreException {
+        public DataExistsException() {
+            super(Type.DATA_EXISTS);
         }
     }
 
     /**
      * Exception type when node does not exist and is operated on.
      */
-    public static class NodeNotFoundException extends StoreException {
-        public NodeNotFoundException() {
-            super(Type.NODE_NOT_FOUND);
+    public static class DataNotFoundException extends StoreException {
+        public DataNotFoundException() {
+            super(Type.DATA_NOT_FOUND);
         }
     }
 
     /**
      * Exception type when deleting a non empty node.
      */
-    public static class NodeNotEmptyException extends StoreException {
-        public NodeNotEmptyException() {
-            super(Type.NODE_NOT_EMPTY);
+    public static class DataNotEmptyException extends StoreException {
+        public DataNotEmptyException() {
+            super(Type.DATA_CONTAINS_ELEMENTS);
+        }
+    }
+
+    /**
+     * Exception type when you are attempting to update a stale value.
+     */
+    public static class WriteConflictException extends StoreException implements RetryableException {
+        public WriteConflictException() {
+            super(Type.WRITE_CONFLICT);
+        }
+    }
+
+    /**
+     * Exception type when you are attempting a disallowed operation.
+     */
+    public static class IllegalStateException extends StoreException {
+        public IllegalStateException() {
+            super(Type.ILLEGAL_STATE);
+        }
+    }
+
+    /**
+     * Exception type when the attempted operation is currently not allowed.
+     */
+    public static class OperationNotAllowedException extends StoreException implements RetryableException {
+        public OperationNotAllowedException() {
+            super(Type.OPERATION_NOT_ALLOWED);
+        }
+    }
+
+    /**
+     * Exception type due to failure in connecting to the store.
+     */
+    public static class StoreConnectionException extends StoreException implements RetryableException {
+        public StoreConnectionException() {
+            super(Type.CONNECTION_ERROR);
         }
     }
 
@@ -117,9 +189,16 @@ public class StoreException extends RuntimeException {
      * Exception type when the cause is not known.
      */
     public static class UnknownException extends StoreException {
+        public UnknownException(final String path, final Throwable cause) {
+            super(Type.UNKNOWN, path, cause);
+        }
+
         public UnknownException() {
             super(Type.UNKNOWN);
         }
-    }
 
+        public UnknownException(Throwable cause) {
+            super(Type.UNKNOWN, cause);
+        }
+    }
 }

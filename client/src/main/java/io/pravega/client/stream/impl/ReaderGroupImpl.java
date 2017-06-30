@@ -11,7 +11,11 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Checkpoint;
@@ -19,7 +23,9 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReaderGroupMetrics;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
@@ -29,8 +35,10 @@ import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,7 +54,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @Slf4j
 @Data
-public class ReaderGroupImpl implements ReaderGroup {
+public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private final String scope;
     private final String groupName;
@@ -55,6 +63,7 @@ public class ReaderGroupImpl implements ReaderGroup {
     private final Serializer<ReaderGroupStateUpdate> updateSerializer;
     private final ClientFactory clientFactory;
     private final Controller controller;
+    private final ConnectionFactory connectionFactory;
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -137,7 +146,11 @@ public class ReaderGroupImpl implements ReaderGroup {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateState(state -> {
             ReaderGroupConfig config = state.getConfig();
-            return Collections.singletonList(new ReaderGroupStateInit(config, checkpoint.asImpl().getPositions()));
+            Map<Segment, Long> positions = new HashMap<>();
+            for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
+                positions.putAll(cut.getPositions());
+            }
+            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
         });
     }
 
@@ -147,6 +160,40 @@ public class ReaderGroupImpl implements ReaderGroup {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         Map<Segment, Long> segments = getSegmentsForStreams(streamNames);
         synchronizer.updateStateUnconditionally(new ReaderGroupStateInit(config, segments));
+    }
+
+    @Override
+    public ReaderGroupMetrics getMetrics() {
+        return this;
+    }
+
+    @Override
+    public long unreadBytes() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
+        SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        
+        long totalLength = 0;
+        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
+            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            totalLength += getRemainingBytes(metaFactory, position);
+        }
+        return totalLength;
+    }
+    
+    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
+        long totalLength = 0;
+        CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
+        for (Segment s : FutureHelpers.getAndHandleExceptions(unread, RuntimeException::new)) {
+            @Cleanup
+            SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
+            totalLength += metadataClient.fetchCurrentStreamLength();
+        }
+        for (long bytesRead : position.getPositions().values()) {
+            totalLength -= bytesRead;
+        }
+        return totalLength;
     }
 
 }

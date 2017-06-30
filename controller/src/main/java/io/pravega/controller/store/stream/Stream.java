@@ -50,7 +50,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
      * Deletes an already SEALED stream.
@@ -136,8 +136,9 @@ interface Stream {
 
     /**
      * Returns the active segments in the specified epoch.
-     * @param epoch epoch number
-     * @return currently active stream epoch.
+     *
+     * @param epoch epoch number.
+     * @return list of numbers of segments active in the specified epoch.
      */
     CompletableFuture<List<Integer>> getActiveSegments(int epoch);
 
@@ -233,11 +234,11 @@ interface Stream {
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txId  Transaction identifier.
+     * @param txnData Transaction data.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease);
+    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -256,8 +257,8 @@ interface Stream {
      * @return        a pair containing transaction status and its epoch.
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
-                                                                                   final boolean commit,
-                                                                                   final Optional<Integer> version);
+                                                                       final boolean commit,
+                                                                       final Optional<Integer> version);
 
     /**
      * Returns transaction's status
@@ -270,24 +271,24 @@ interface Stream {
     /**
      * Commits a transaction.
      * If already committed, return TxnStatus.Committed.
-     * If aborting/aborted, return a failed future with OperationOnTxNotAllowedException.
+     * If aborting/aborted, return a failed future with IllegalStateException.
      *
      * @param epoch transaction epoch.
      * @param txId  transaction identifier.
      * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId);
 
     /**
      * Aborts a transaction.
      * If already aborted, return TxnStatus.Aborted.
-     * If committing/committed, return a failed future with OperationOnTxNotAllowedException.
+     * If committing/committed, return a failed future with IllegalStateException.
      *
      * @param epoch transaction epoch.
      * @param txId  transaction identifier.
      * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId);
 
     /**
      * Return whether any transaction is active on the stream.

@@ -9,9 +9,8 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.SegmentNotFoundException;
+import io.pravega.controller.store.stream.StoreException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -51,7 +50,7 @@ public class TableHelper {
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else {
-            throw new SegmentNotFoundException(number);
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.valueOf(number));
         }
     }
 
@@ -509,7 +508,8 @@ public class TableHelper {
             record = HistoryRecord.fetchPrevious(record.get(), historyTableData);
         }
 
-        return record.orElseThrow(() -> new DataNotFoundException("epoch not found in history table")).getSegments();
+        return record.orElseThrow(() -> StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                "epoch not found in history table")).getSegments();
     }
 
     /**
@@ -644,5 +644,62 @@ public class TableHelper {
         }
 
         return historyRecordOpt;
+    }
+
+    public static boolean isScaleInputValid(final List<Integer> segmentsToSeal,
+                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                            final byte[] segmentTable) {
+        boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() &&
+                x.getKey() >= 0 && x.getValue() > 0);
+
+        List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
+                .map(segment -> SegmentRecord.readRecord(segmentTable, segment).map(x ->
+                        new AbstractMap.SimpleEntry<>(x.getRoutingKeyStart(), x.getRoutingKeyEnd())))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+        return newRangesPredicate && reduce(oldRanges).equals(reduce(newRanges));
+    }
+
+    /**
+     * Helper method to compute list of continuous ranges. For example, two neighbouring key ranges where,
+     * range1.high == range2.low then they are considered neighbours.
+     * This method reduces input range into distinct continuous blocks.
+     * @param input list of key ranges.
+     * @return reduced list of key ranges.
+     */
+    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
+        List<AbstractMap.SimpleEntry<Double, Double>> ranges = new ArrayList<>(input);
+        ranges.sort(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
+        List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();
+        double low = -1.0;
+        double high = -1.0;
+        for (AbstractMap.SimpleEntry<Double, Double> range : ranges) {
+            if (high < range.getKey()) {
+                // add previous result and start a new result if prev.high is less than next.low
+                if (low != -1.0 && high != -1.0) {
+                    result.add(new AbstractMap.SimpleEntry<>(low, high));
+                }
+                low = range.getKey();
+                high = range.getValue();
+            } else if (high == range.getKey()) {
+                // if adjacent (prev.high == next.low) then update only high
+                high = range.getValue();
+            } else {
+                // if prev.high > next.low.
+                // [Note: next.low cannot be less than 0] which means prev.high > 0
+                assert low >= 0;
+                assert high > 0;
+                result.add(new AbstractMap.SimpleEntry<>(low, high));
+                low = range.getKey();
+                high = range.getValue();
+            }
+        }
+        // add the last range
+        if (low != -1.0 && high != -1.0) {
+            result.add(new AbstractMap.SimpleEntry<>(low, high));
+        }
+        return result;
     }
 }

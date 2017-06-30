@@ -9,8 +9,18 @@
  */
 package io.pravega.test.system;
 
-import static org.junit.Assert.assertTrue;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -20,24 +30,6 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.pravega.client.stream.impl.Controller;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -46,18 +38,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class AutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
     private final static String SCALE_UP_STREAM_NAME = "testScaleUp";
     private final static String SCALE_UP_TXN_STREAM_NAME = "testTxnScaleUp";
     private final static String SCALE_DOWN_STREAM_NAME = "testScaleDown";
@@ -74,7 +71,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void setup() {
 
         //1. check if zk is running, if not start it
         Service zkService = new ZookeeperService("zookeeper");
@@ -126,8 +123,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         //create a scope
-        URI controllerUri = getControllerURI();
-        Controller controller = getController(controllerUri);
+        Controller controller = getController();
 
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
         log.debug("create scope status {}", createScopeStatus);
@@ -157,10 +153,9 @@ public class AutoScaleTest extends AbstractScaleTests {
 
     @Test
     public void scaleTests() throws URISyntaxException, InterruptedException {
-        URI controllerUri = getControllerURI();
-        CompletableFuture<Void> scaleup = scaleUpTest(controllerUri);
-        CompletableFuture<Void> scaleDown = scaleDownTest(controllerUri);
-        CompletableFuture<Void> scalewithTxn = scaleUpTxnTest(controllerUri);
+        CompletableFuture<Void> scaleup = scaleUpTest();
+        CompletableFuture<Void> scaleDown = scaleDownTest();
+        CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
         FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
                 .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
@@ -178,12 +173,11 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTest(final URI controllerUri) throws InterruptedException,
+    private CompletableFuture<Void> scaleUpTest() throws InterruptedException,
             URISyntaxException {
 
-        ClientFactory clientFactory = getClientFactory(SCOPE);
-
-        ControllerImpl controller = getController(controllerUri);
+        ClientFactory clientFactory = getClientFactory();
+        ControllerImpl controller = getController();
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
@@ -220,9 +214,9 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleDownTest(final URI controllerUri) throws InterruptedException, URISyntaxException {
+    private CompletableFuture<Void> scaleDownTest() throws InterruptedException, URISyntaxException {
 
-        final ControllerImpl controller = getController(controllerUri);
+        final ControllerImpl controller = getController();
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
@@ -253,14 +247,14 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    private CompletableFuture<Void> scaleUpTxnTest(final URI controllerUri) throws InterruptedException,
+    private CompletableFuture<Void> scaleUpTxnTest() throws InterruptedException,
             URISyntaxException {
 
-        ControllerImpl controller = getController(controllerUri);
+        ControllerImpl controller = getController();
 
         final AtomicBoolean exit = new AtomicBoolean(false);
 
-        ClientFactory clientFactory = getClientFactory(SCOPE);
+        ClientFactory clientFactory = getClientFactory();
         startNewTxnWriter(clientFactory, exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.

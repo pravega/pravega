@@ -9,6 +9,7 @@
  */
 package io.pravega.client;
 
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -26,6 +27,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import java.net.URI;
+import lombok.val;
 
 /**
  * Used to create Writers, Readers, and Synchronizers operating on a stream.
@@ -57,7 +59,8 @@ public interface ClientFactory extends AutoCloseable {
      * @return Instance of ClientFactory implementation.
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri));
+        val connectionFactory = new ConnectionFactoryImpl(false);
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri), connectionFactory);
     }
 
     /**

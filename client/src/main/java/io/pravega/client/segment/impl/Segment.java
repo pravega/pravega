@@ -10,7 +10,8 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Strings;
-
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.StreamImpl;
 import java.io.Serializable;
 
 import lombok.Data;
@@ -66,8 +67,12 @@ public class Segment implements Serializable {
         return sb.toString();
     }
 
+    public Stream getStream() {
+        return new StreamImpl(scope, streamName);
+    }
+    
     /**
-     * Parses fully scoped name, and extracts the segment name only.
+     * Parses fully scoped name, and creates the segment.
      *
      * @param qualifiedName Fully scoped segment name
      * @return Segment name.

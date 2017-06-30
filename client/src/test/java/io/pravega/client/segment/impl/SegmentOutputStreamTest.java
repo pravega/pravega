@@ -57,7 +57,7 @@ public class SegmentOutputStreamTest {
     public void testConnectAndSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -74,7 +74,7 @@ public class SegmentOutputStreamTest {
     public void testConditionalSend() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -91,7 +91,7 @@ public class SegmentOutputStreamTest {
     public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
@@ -148,7 +148,7 @@ public class SegmentOutputStreamTest {
     public void testClose() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -175,7 +175,7 @@ public class SegmentOutputStreamTest {
     public void testFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -210,7 +210,7 @@ public class SegmentOutputStreamTest {
     public void testConnectionFailure() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -260,7 +260,7 @@ public class SegmentOutputStreamTest {
     public void testFailOnClose() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -312,7 +312,7 @@ public class SegmentOutputStreamTest {
     public void testOverSizedWriteFails() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -338,7 +338,7 @@ public class SegmentOutputStreamTest {
     public void testSealedBeforeFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -361,7 +361,7 @@ public class SegmentOutputStreamTest {
     public void testSealedAfterFlush() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
