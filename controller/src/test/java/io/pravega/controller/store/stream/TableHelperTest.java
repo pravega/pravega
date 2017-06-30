@@ -9,11 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
-import static org.junit.Assert.assertEquals;
+import com.google.common.collect.Lists;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -22,6 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class TableHelperTest {
     @Test
@@ -60,6 +63,11 @@ public class TableHelperTest {
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
         activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, startSegments);
+
+        int epoch = TableHelper.getActiveEpoch(historyTable).getKey();
+        assertEquals(0, epoch);
+        epoch = TableHelper.getLatestEpoch(historyTable).getKey();
+        assertEquals(1, epoch);
 
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
@@ -509,6 +517,156 @@ public class TableHelperTest {
         assertEquals(successors, new ArrayList<>());
     }
 
+    @Test
+    public void scaleTest() {
+        long timestamp = System.currentTimeMillis();
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+
+        // start new scale
+        List<Integer> newSegments = Lists.newArrayList(5, 6, 7, 8, 9);
+        final double keyRangeChunk = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = IntStream.range(0, 5)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
+                .collect(Collectors.toList());
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        final double keyRangeChunkInvalid = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRangesInvalid = IntStream.range(0, 2)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunkInvalid, (x + 1) * keyRangeChunkInvalid))
+                .collect(Collectors.toList());
+        assertFalse(TableHelper.isRerunOf(Lists.newArrayList(5, 6), newRangesInvalid, historyTable, segmentTable));
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+
+        assertFalse(TableHelper.isScaleOngoing(historyTable, segmentTable));
+    }
+
+    @Test
+    public void scaleInputValidityTest() {
+        long timestamp = System.currentTimeMillis();
+
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+        final double keyRangeChunk = 1.0 / 5;
+
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        // 1. empty newRanges
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
+
+        // 2. simple mismatch
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, keyRangeChunk));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
+
+        // 3. simple valid match
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
+
+        // 4. valid 2 disjoint merges
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 1.0));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1, 3, 4), newRanges, segmentTable));
+
+        // 5. valid 1 merge and 1 disjoint
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(keyRangeChunk, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 1.0));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(1, 3, 4), newRanges, segmentTable));
+
+        // 6. valid 1 merge, 2 splits
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 0.7));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 1.0));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1, 3, 4), newRanges, segmentTable));
+
+        // 7. 1 merge, 1 split and 1 invalid split
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 0.7));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 0.99));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1, 3, 4), newRanges, segmentTable));
+
+        // 8. valid unsorted segments to seal
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 0.7));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 1.0));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(4, 0, 1, 3), newRanges, segmentTable));
+
+        // 9. valid unsorted new ranges
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 1.0));
+        newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 0.7));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(4, 0, 1, 3), newRanges, segmentTable));
+
+        // 10. invalid input range low == high
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.2));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
+
+        // 11. invalid input range low > high
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.2));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1), newRanges, segmentTable));
+
+        // 12. invalid overlapping key ranges
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 3 * keyRangeChunk));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1, 2), newRanges, segmentTable));
+
+        // 13. invalid overlapping key ranges -- a contains b
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.33));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 14. invalid overlapping key ranges -- b contains a (with b.low == a.low)
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.33));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 15. invalid overlapping key ranges b.low < a.high
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.35));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 16. invalid overlapping key ranges.. a.high < b.low
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+    }
+
     private byte[] createSegmentTable(int numSegments, long eventTime) {
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -528,7 +686,14 @@ public class TableHelperTest {
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
+        return updateSegmentTable(segmentTable, newRanges, eventTime);
+    }
+
+    private byte[] updateSegmentTable(byte[] segmentTable, List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long eventTime) {
+        final int startingSegNum = segmentTable.length / SegmentRecord.SEGMENT_RECORD_SIZE;
+
         return TableHelper.updateSegmentTable(startingSegNum, segmentTable, newRanges, eventTime);
     }
+
 }
 

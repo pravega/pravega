@@ -144,6 +144,10 @@ public class ReaderGroupStateManager {
             return Collections.singletonList(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl()));
         });
     }
+    
+    void close() {
+        sync.close();
+    }
 
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.

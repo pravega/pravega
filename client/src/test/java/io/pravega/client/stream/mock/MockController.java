@@ -20,6 +20,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -34,6 +35,7 @@ import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
@@ -131,7 +133,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> alterStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
         throw new NotImplementedException();
     }
 
@@ -146,8 +148,18 @@ public class MockController implements Controller {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<Boolean> deleteStream(String scope, String streamName) {
-        throw new NotImplementedException();
+        Stream stream = new StreamImpl(scope, streamName);
+        if (createdStreams.get(stream) == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        for (Segment segment : getSegmentsForStream(stream)) {
+            deleteSegment(segment.getScopedName(), new PravegaNodeUri(endpoint, port));
+        }
+        createdStreams.remove(stream);
+        createdScopes.get(scope).remove(stream);
+        return CompletableFuture.completedFuture(true);
     }
 
     private boolean createSegment(String name, PravegaNodeUri uri) {
@@ -180,6 +192,40 @@ public class MockController implements Controller {
             }
         };
         CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), name, WireCommands.CreateSegment.NO_SCALE, 0);
+        sendRequestOverNewConnection(command, replyProcessor, result);
+        return getAndHandleExceptions(result, RuntimeException::new);
+    }
+    
+    private boolean deleteSegment(String name, PravegaNodeUri uri) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new ConnectionClosedException());
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new NotImplementedException());
+            }
+
+            @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+                result.complete(true);
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                result.complete(false);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
+        };
+        DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), name);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -341,6 +387,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap()));
+    }
+
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
     }
 
     @Override

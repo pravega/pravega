@@ -9,16 +9,15 @@
  */
 package io.pravega.segmentstore.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.ErrorInjector;
-import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-
 import lombok.Setter;
 
 /**
@@ -76,8 +75,8 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
+                () -> this.wrappedStorage.create(streamSegmentName, timeout));
     }
 
     @Override
@@ -93,8 +92,7 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.writeSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector)
-                            .thenCompose(v -> {
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.writeAsyncErrorInjector, () -> {
                                 WriteInterceptor wi = this.writeInterceptor;
                                 CompletableFuture<Void> result = null;
                                 if (wi != null) {
@@ -109,8 +107,7 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.sealSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector)
-                            .thenCompose(v -> {
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.sealAsyncErrorInjector, () -> {
                                 SealInterceptor si = this.sealInterceptor;
                                 CompletableFuture<Void> result = null;
                                 if (si != null) {
@@ -124,8 +121,7 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.concatSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector)
-                            .thenCompose(v -> {
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.concatAsyncErrorInjector, () -> {
                                 ConcatInterceptor ci = this.concatInterceptor;
                                 CompletableFuture<Void> result = null;
                                 if (ci != null) {
@@ -138,27 +134,27 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.deleteErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.delete(handle, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.deleteErrorInjector,
+                () -> this.wrappedStorage.delete(handle, timeout));
     }
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.read(handle, offset, buffer, bufferOffset, length, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector,
+                () -> this.wrappedStorage.read(handle, offset, buffer, bufferOffset, length, timeout));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.getErrorInjector,
+                () -> this.wrappedStorage.getStreamSegmentInfo(streamSegmentName, timeout));
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector)
-                            .thenCompose(v -> this.wrappedStorage.exists(streamSegmentName, timeout));
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.existsErrorInjector,
+                () -> this.wrappedStorage.exists(streamSegmentName, timeout));
     }
 
     public void append(SegmentHandle handle, InputStream data, int length) {

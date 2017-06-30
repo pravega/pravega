@@ -12,6 +12,8 @@ package io.pravega.controller.server.v1;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
+import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -25,9 +27,6 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import java.util.Collections;
@@ -49,7 +48,6 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
-    private TimeoutService timeoutService;
 
     @Override
     public void setup() throws Exception {
@@ -64,27 +62,22 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
-
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executorService));
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
-
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                "abortStream", new EventStreamWriterMock<>());
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      timeoutService, new SegmentHelper(), executorService, mockCluster));
+                                      new SegmentHelper(), executorService, mockCluster));
     }
 
     @Override
     public void tearDown() throws Exception {
         executorService.shutdown();
-        if (timeoutService != null) {
-            timeoutService.stopAsync();
-            timeoutService.awaitTerminated();
-        }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();
         }

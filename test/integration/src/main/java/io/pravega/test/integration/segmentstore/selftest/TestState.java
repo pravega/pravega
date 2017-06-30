@@ -10,10 +10,6 @@
 package io.pravega.test.integration.segmentstore.selftest;
 
 import com.google.common.base.Preconditions;
-import lombok.Getter;
-import lombok.Setter;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -25,6 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Represents the current State of the SelfTest.
@@ -39,6 +38,7 @@ class TestState {
             ProducerOperationType.SEAL,
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ};
+    private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
 
     private final AtomicInteger generatedOperationCount;
     private final AtomicInteger successfulOperationCount;
@@ -51,6 +51,7 @@ class TestState {
     private final ArrayList<String> allSegmentNames;
     @GuardedBy("durations")
     private final AbstractMap<OperationType, List<Integer>> durations;
+    private final AtomicLong startTimeNanos;
 
     //endregion
 
@@ -69,6 +70,8 @@ class TestState {
         this.verifiedCatchupLength = new AtomicLong();
         this.verifiedStorageLength = new AtomicLong();
         this.durations = new HashMap<>();
+        this.startTimeNanos = new AtomicLong();
+        resetClock();
 
         synchronized (this.durations) {
             for (OperationType ot : SUMMARY_OPERATION_TYPES) {
@@ -82,10 +85,11 @@ class TestState {
     //region Properties
 
     /**
-     * Gets a value indicating the total number of operations that were generated.
+     * Gets the throughput since the last time resetClock() was called in Bytes/Second.
      */
-    int getGeneratedOperationCount() {
-        return this.generatedOperationCount.get();
+    double getThroughput() {
+        double durationSeconds = (System.nanoTime() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
+        return this.producedLength.get() / durationSeconds;
     }
 
     /**
@@ -232,6 +236,13 @@ class TestState {
     //endregion
 
     //region Operations
+
+    /**
+     * Resets the clock used for estimating Producing Throughput.
+     */
+    void resetClock() {
+        this.startTimeNanos.set(System.nanoTime());
+    }
 
     /**
      * Records the creation (but not the completion) of a new Operation.

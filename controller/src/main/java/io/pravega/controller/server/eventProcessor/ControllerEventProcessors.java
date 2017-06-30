@@ -25,7 +25,6 @@ import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.ScaleEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -60,7 +59,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
-    public static final Serializer<ScaleEvent> SCALE_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final Serializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new JavaSerializer<>();
 
     // Retry configuration
     private static final long DELAY = 100;
@@ -71,6 +70,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private final ControllerEventProcessorConfig config;
     private final CheckpointStore checkpointStore;
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamMetadataTasks streamMetadataTasks;
     private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
     private final SegmentHelper segmentHelper;
@@ -81,8 +81,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
-    private EventProcessorGroup<ScaleEvent> scaleEventProcessors;
-    private ScaleRequestHandler scaleRequestHandler;
+    private EventProcessorGroup<ControllerEvent> requestEventProcessors;
+    private RequestHandlerMultiplexer requestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -114,14 +114,16 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.config = config;
         this.checkpointStore = checkpointStore;
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
-                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory)) : system;
-        this.scaleRequestHandler = new ScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor);
+                new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
+        this.requestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
+                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
 
         this.executor = executor;
     }
@@ -148,10 +150,10 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 }
             }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
-        if (scaleEventProcessors != null) {
+        if (requestEventProcessors != null) {
             futures.add(withRetriesAsync(() -> CompletableFuture.runAsync(() -> {
                 try {
-                    scaleEventProcessors.notifyProcessFailure(process);
+                    requestEventProcessors.notifyProcessFailure(process);
                 } catch (CheckpointStoreException e) {
                     throw new CompletionException(e);
                 }
@@ -199,7 +201,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .scalingPolicy(config.getAbortStreamScalingPolicy())
                         .build();
 
-        StreamConfiguration scaleStreamConfig =
+        StreamConfiguration requestStreamConfig =
                 StreamConfiguration.builder()
                         .scope(config.getScopeName())
                         .streamName(Config.SCALE_STREAM_NAME)
@@ -210,7 +212,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                 .thenCompose(ignore ->
                         CompletableFuture.allOf(createStream(commitStreamConfig),
                                 createStream(abortStreamConfig),
-                                createStream(scaleStreamConfig)));
+                                createStream(requestStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
@@ -229,10 +231,12 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         executor));
     }
 
-    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks) {
+    public CompletableFuture<Void> bootstrap(final StreamTransactionMetadataTasks streamTransactionMetadataTasks, StreamMetadataTasks streamMetadataTasks) {
         log.info("Bootstrapping controller event processors");
-        return createStreams().thenAcceptAsync(x ->
-                streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config), executor);
+        return createStreams().thenAcceptAsync(x -> {
+            streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
+            streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
+        }, executor);
     }
 
     public CompletableFuture<Void> handleOrphanedReaders(final Supplier<Set<String>> processes) {
@@ -244,8 +248,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
         if (this.abortEventProcessors != null) {
             futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
         }
-        if (this.scaleEventProcessors != null) {
-            futures.add(handleOrphanedReaders(this.scaleEventProcessors, processes));
+        if (this.requestEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
         }
         return FutureHelpers.allOf(futures);
     }
@@ -316,7 +320,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         log.info("Creating commit event processors");
@@ -344,7 +348,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         log.info("Creating abort event processors");
@@ -357,31 +361,31 @@ public class ControllerEventProcessors extends AbstractIdleService {
 
         // endregion
 
-        // region Create scale event processor
+        // region Create request event processor
 
-        EventProcessorGroupConfig scaleReadersConfig =
+        EventProcessorGroupConfig requestReadersConfig =
                 EventProcessorGroupConfigImpl.builder()
-                        .streamName(config.getScaleStreamName())
-                        .readerGroupName(config.getScaleReaderGroupName())
+                        .streamName(config.getRequestStreamName())
+                        .readerGroupName(config.getRequestReaderGroupName())
                         .eventProcessorCount(1)
-                        .checkpointConfig(config.getScaleCheckpointConfig())
+                        .checkpointConfig(config.getRequestStreamCheckpointConfig())
                         .build();
 
-        EventProcessorConfig<ScaleEvent> scaleConfig =
-                EventProcessorConfig.<ScaleEvent>builder()
-                        .config(scaleReadersConfig)
+        EventProcessorConfig<ControllerEvent> requestConfig =
+                EventProcessorConfig.builder()
+                        .config(requestReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                        .serializer(SCALE_EVENT_SERIALIZER)
+                        .serializer(CONTROLLER_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(
-                                scaleRequestHandler,
+                                requestHandler,
                                 executor))
                         .build();
 
-        log.info("Creating scale event processors");
+        log.info("Creating request event processors");
         Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating scale event processor group", e))
+                e -> log.warn("Error creating request event processor group", e))
                 .run(() -> {
-                    scaleEventProcessors = system.createEventProcessorGroup(scaleConfig, checkpointStore);
+                    requestEventProcessors = system.createEventProcessorGroup(requestConfig, checkpointStore);
                     return null;
                 });
 
@@ -391,8 +395,8 @@ public class ControllerEventProcessors extends AbstractIdleService {
         commitEventProcessors.awaitRunning();
         log.info("Awaiting start of abort event processors");
         abortEventProcessors.awaitRunning();
-        log.info("Awaiting start of scale event processors");
-        scaleEventProcessors.awaitRunning();
+        log.info("Awaiting start of request event processors");
+        requestEventProcessors.awaitRunning();
     }
 
     private void stopEventProcessors() {
@@ -404,9 +408,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
             log.info("Stopping abort event processors");
             abortEventProcessors.stopAsync();
         }
-        if (scaleEventProcessors != null) {
-            log.info("Stopping scale event processors");
-            scaleEventProcessors.stopAsync();
+        if (requestEventProcessors != null) {
+            log.info("Stopping request event processors");
+            requestEventProcessors.stopAsync();
         }
         if (commitEventProcessors != null) {
             log.info("Awaiting termination of commit event processors");
@@ -416,9 +420,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
             log.info("Awaiting termination of abort event processors");
             abortEventProcessors.awaitTerminated();
         }
-        if (scaleEventProcessors != null) {
-            log.info("Awaiting termination of scale event processors");
-            scaleEventProcessors.awaitTerminated();
+        if (requestEventProcessors != null) {
+            log.info("Awaiting termination of request event processors");
+            requestEventProcessors.awaitTerminated();
         }
     }
 }

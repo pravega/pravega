@@ -9,15 +9,15 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import lombok.Cleanup;
-import org.junit.Assert;
-import org.junit.Test;
-
 import io.pravega.test.common.AssertExtensions;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import lombok.Cleanup;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for FutureReadResultEntryCollection class.
@@ -25,6 +25,8 @@ import java.util.List;
 public class FutureReadResultEntryCollectionTests {
     private static final int ENTRY_COUNT = 100;
     private static final int OFFSET_MULTIPLIER = 1000;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests the ability to poll entries based on their offsets.

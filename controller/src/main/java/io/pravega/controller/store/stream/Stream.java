@@ -12,8 +12,10 @@ package io.pravega.controller.store.stream;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.client.stream.StreamConfiguration;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +50,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
      * Deletes an already SEALED stream.
@@ -107,6 +109,8 @@ interface Stream {
      */
     CompletableFuture<List<Integer>> getSuccessors(final int number);
 
+    CompletableFuture<List<ScaleMetadata>> getScaleMetadata();
+
     /**
      * @param number segment number.
      * @return successors of specified segment mapped to the list of their predecessors
@@ -131,26 +135,45 @@ interface Stream {
     CompletableFuture<List<Integer>> getActiveSegments(final long timestamp);
 
     /**
+     * Returns the active segments in the specified epoch.
+     *
+     * @param epoch epoch number.
+     * @return list of numbers of segments active in the specified epoch.
+     */
+    CompletableFuture<List<Integer>> getActiveSegments(int epoch);
+
+    /**
      * Called to start metadata updates to stream store wrt new scale event.
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
+     * @param runOnlyIfStarted run only if scale is started
      * @return sequence of newly created segments
      */
-    CompletableFuture<List<Segment>> startScale(final List<Integer> sealedSegments,
-                                                final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                final long scaleTimestamp);
+    CompletableFuture<StartScaleResponse> startScale(final List<Integer> sealedSegments,
+                                                     final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                     final long scaleTimestamp,
+                                                     final boolean runOnlyIfStarted);
 
     /**
      * Called after new segment creation is complete.
      *
+     * @param epoch epoch
+     * @return future
+     */
+    CompletableFuture<Boolean> scaleTryDeleteEpoch(final int epoch);
+
+    /**
+     * Called after new segment creation is complete and previous epoch is successfully deleted.
+     *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
-     * @param scaleTimestamp scaling timestamp
-     * @return future
+     * @param epoch
+     *@param scaleTimestamp scaling timestamp  @return future
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(final List<Integer> sealedSegments,
                                                     final List<Integer> newSegments,
+                                                    final int epoch,
                                                     final long scaleTimestamp);
 
     /**
@@ -158,12 +181,18 @@ interface Stream {
      *
      * @param sealedSegments segments to be sealed
      * @param newSegments    segments created
-     * @param scaleTimestamp scaling timestamp
-     * @return future
+     * @param activeEpoch    activeEpoch
+     *@param scaleTimestamp scaling timestamp  @return future
      */
     CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
                                                    final List<Integer> newSegments,
-                                                   final long scaleTimestamp);
+                                                   int activeEpoch, final long scaleTimestamp);
+
+    /**
+     * Returns the latest sets of segments created and removed by doing a diff of last two epochs.
+     * @return returns a pair of list of segments sealed and list of segments created in latest(including ongoing) scale event.
+     */
+    CompletableFuture<Pair<List<Integer>, List<Integer>>> latestScaleData();
 
     /**
      * Sets cold marker which is valid till the specified time stamp.
@@ -194,20 +223,22 @@ interface Stream {
     /**
      * Method to start new transaction creation
      *
-     * @return
+     * @return Details of created transaction.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final long lease, final long maxExecutionTime,
+    CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
+                                                                  final long lease,
+                                                                  final long maxExecutionTime,
                                                                   final long scaleGracePeriod);
 
 
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txId  Transaction identifier.
+     * @param txnData Transaction data.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease);
+    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -218,40 +249,46 @@ interface Stream {
     CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId);
 
     /**
-     * Seal given transaction
+     * Seal a given transaction.
      *
-     * @param txId
-     * @return
+     * @param txId    transaction identifier.
+     * @param commit  whether to commit or abort the specified transaction.
+     * @param version optional expected version of transaction data node to validate before updating it.
+     * @return        a pair containing transaction status and its epoch.
      */
-    CompletableFuture<TxnStatus> sealTransaction(final UUID txId, final boolean commit, final Optional<Integer> version);
+    CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
+                                                                       final boolean commit,
+                                                                       final Optional<Integer> version);
 
     /**
      * Returns transaction's status
      *
-     * @param txId
-     * @return
+     * @param txId transaction identifier.
+     * @return     transaction status.
      */
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
     /**
-     * Commits a transaction
-     * If already committed, return TxnStatus.Committed
-     * If aborted, throw OperationOnTxNotAllowedException
+     * Commits a transaction.
+     * If already committed, return TxnStatus.Committed.
+     * If aborting/aborted, return a failed future with IllegalStateException.
      *
-     * @param txId
-     * @return
+     * @param epoch transaction epoch.
+     * @param txId  transaction identifier.
+     * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> commitTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> commitTransaction(final int epoch, final UUID txId);
 
     /**
-     * Commits a transaction
-     * If already aborted, return TxnStatus.Aborted
-     * If committed, throw OperationOnTxNotAllowedException
+     * Aborts a transaction.
+     * If already aborted, return TxnStatus.Aborted.
+     * If committing/committed, return a failed future with IllegalStateException.
      *
-     * @param txId
-     * @return
+     * @param epoch transaction epoch.
+     * @param txId  transaction identifier.
+     * @return      transaction status.
      */
-    CompletableFuture<TxnStatus> abortTransaction(final UUID txId) throws OperationOnTxNotAllowedException;
+    CompletableFuture<TxnStatus> abortTransaction(final int epoch, final UUID txId);
 
     /**
      * Return whether any transaction is active on the stream.
@@ -262,6 +299,18 @@ interface Stream {
     CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
+
+    /**
+     * Returns the latest stream epoch.
+     * @return latest stream epoch.
+     */
+    CompletableFuture<Pair<Integer, List<Integer>>> getLatestEpoch();
+
+    /**
+     * Returns the currently active stream epoch.
+     * @return currently active stream epoch.
+     */
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

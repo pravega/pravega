@@ -17,7 +17,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -110,14 +109,14 @@ class Producer extends Actor {
             }
         }
 
-        return result.whenComplete((r, ex) -> {
+        return result.whenCompleteAsync((r, ex) -> {
             op.completed(timer.getElapsed());
 
             // Catch and handle async errors.
             if (ex != null && !handleOperationError(ex, op)) {
                 throw new CompletionException(ex);
             }
-        });
+        }, this.executorService);
     }
 
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {

@@ -15,6 +15,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -49,15 +50,23 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -204,17 +213,17 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> alterStream(final StreamConfiguration streamConfig) {
-        long traceId = LoggerHelpers.traceEnter(log, "alterStream", streamConfig);
+    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
+        long traceId = LoggerHelpers.traceEnter(log, "updateStream", streamConfig);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
 
         RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
-        client.alterStream(ModelHelper.decode(streamConfig), callback);
+        client.updateStream(ModelHelper.decode(streamConfig), callback);
         return callback.getFuture().thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn("Failed to alter stream: {}", streamConfig.getStreamName());
-                throw new ControllerFailureException("Failed to alter stream: " + streamConfig);
+                log.warn("Failed to update stream: {}", streamConfig.getStreamName());
+                throw new ControllerFailureException("Failed to update stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
                 log.warn("Scope not found: {}", streamConfig.getScope());
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
@@ -222,18 +231,18 @@ public class ControllerImpl implements Controller {
                 log.warn("Stream does not exist: {}", streamConfig.getStreamName());
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
-                log.info("Successfully altered stream: {}", streamConfig.getStreamName());
+                log.info("Successfully updated stream: {}", streamConfig.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:
-                throw new ControllerFailureException("Unknown return status altering stream " + streamConfig
+                throw new ControllerFailureException("Unknown return status updating stream " + streamConfig
                                                      + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("alterStream failed: ", e);
+                log.warn("updateStream failed: ", e);
             }
-            LoggerHelpers.traceLeave(log, "alterStream", traceId);
+            LoggerHelpers.traceLeave(log, "updateStream", traceId);
         });
     }
 
@@ -299,10 +308,10 @@ public class ControllerImpl implements Controller {
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
             case SCOPE_NOT_FOUND:
                 log.warn("Scope not found: {}", scope);
-                throw new IllegalArgumentException("Scope does not exist: " + scope);
+                throw new InvalidStreamException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
                 log.warn("Stream does not exist: {}", streamName);
-                throw new IllegalArgumentException("Stream does not exist: " + streamName);
+                throw new InvalidStreamException("Stream does not exist: " + streamName);
             case SUCCESS:
                 log.info("Successfully sealed stream: {}", streamName);
                 return true;
@@ -399,6 +408,49 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
+    }
+    
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        Stream stream = from.getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
+        val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
+                                                     RuntimeException::new);
+        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
+        for (Segment toFetch : from.getPositions().keySet()) {
+            if (!unread.contains(toFetch)) {
+                toFetchSuccessors.add(toFetch);
+            }
+        }
+        unread.addAll(currentSegments.getSegments());
+        while (!toFetchSuccessors.isEmpty()) {
+            Segment segment = toFetchSuccessors.remove();
+            Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new).getSegmentToPredecessor()
+                                                                                                           .keySet();
+            for (Segment successor : successors) {
+                if (!unread.contains(successor)) {
+                    unread.add(successor);
+                    toFetchSuccessors.add(successor);
+                }
+            }
+        }
+        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        return CompletableFuture.completedFuture(unread);
+    }
+    
+    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
+        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+        if (highestCut >= lowestCurrent) {
+            return Collections.emptyList();
+        }
+        List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
+        for (int num = highestCut + 1; num < lowestCurrent; num++) {
+            result.add(new Segment(from.getStream().getScope(), from.getStream().getStreamName(), num));
+        }
+        return result;
     }
 
     @Override
@@ -613,4 +665,5 @@ public class ControllerImpl implements Controller {
             return future;
         }
     }
+
 }

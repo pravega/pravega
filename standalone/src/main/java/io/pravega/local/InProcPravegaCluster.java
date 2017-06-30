@@ -9,11 +9,14 @@
  */
 package io.pravega.local;
 
+import com.google.common.base.Preconditions;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
+import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -31,15 +34,6 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import com.google.common.base.Preconditions;
-import java.io.IOException;
-import java.net.URI;
-import java.util.Arrays;
-import java.util.Optional;
-import java.util.UUID;
-import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Synchronized;
@@ -48,6 +42,13 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+
+import javax.annotation.concurrent.GuardedBy;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 public class InProcPravegaCluster implements AutoCloseable {
@@ -64,6 +65,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private int[] controllerPorts = null;
 
     private String controllerURI = null;
+
+    /*REST server related variables*/
+    private int restServerPort;
 
     /*SegmentStore related variables*/
     private boolean isInProcSegmentStore;
@@ -91,13 +95,14 @@ public class InProcPravegaCluster implements AutoCloseable {
     private ControllerServiceMain[] controllerServers;
 
     private String zkUrl;
-    private boolean startRestServer = false;
+    private boolean startRestServer = true;
 
     @Builder
     public InProcPravegaCluster(boolean isInProcZK, String zkUrl, int zkPort, boolean isInMemStorage,
                                 boolean isInProcHDFS,
                                 boolean isInProcController, int controllerCount, String controllerURI,
-                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount, boolean startRestServer) {
+                                boolean isInProcSegmentStore, int segmentStoreCount, int containerCount,
+                                boolean startRestServer, int restServerPort) {
 
         //Check for valid combinations of flags
         //For ZK
@@ -128,6 +133,7 @@ public class InProcPravegaCluster implements AutoCloseable {
         this.segmentStoreCount = segmentStoreCount;
         this.containerCount = containerCount;
         this.startRestServer = startRestServer;
+        this.restServerPort = restServerPort;
     }
 
     @Synchronized
@@ -233,7 +239,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
-                                          .with(ServiceConfig.CLUSTER_NAME, this.clusterName))
+                                          .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
+                                          .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
+                                                 ServiceConfig.StorageTypes.INMEMORY.toString() :
+                                                 ServiceConfig.StorageTypes.FILESYSTEM.toString()))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                                           .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
@@ -244,18 +253,11 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .include(AutoScalerConfig.builder()
                                              .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]));
 
-            if ( !isInMemStorage ) {
-                    configBuilder = configBuilder
-                            .include(HDFSStorageConfig.builder()
-                                                      .with(HDFSStorageConfig.URL,
-                                                              String.format("hdfs://localhost:%d/", localHdfs.getNameNodePort())));
-            }
-
             ServiceStarter.Options.OptionsBuilder optBuilder = ServiceStarter.Options.builder().rocksDb(true)
                     .zkSegmentManager(true);
 
-            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(), optBuilder.hdfs(!isInMemStorage)
-                    .bookKeeper(!isInMemStorage).build());
+            nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build(),
+                    optBuilder.bookKeeper(!isInMemStorage).build());
         } catch (Exception e) {
             throw e;
         }
@@ -302,19 +304,20 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .build();
 
+        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
+                .host("localhost")
+                .port(this.restServerPort)
+                .build();
+
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
-                .serviceThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .taskThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .storeThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
-                .eventProcThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
-                .requestHandlerThreadPoolSize(Config.ASYNC_TASK_POOL_SIZE / 2)
+                .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
                 .storeClientConfig(storeClientConfig)
                 .hostMonitorConfig(hostMonitorConfig)
-                .controllerClusterListenerConfig(Optional.empty())
+                .controllerClusterListenerEnabled(false)
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.empty())
+                .restServerConfig(Optional.of(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

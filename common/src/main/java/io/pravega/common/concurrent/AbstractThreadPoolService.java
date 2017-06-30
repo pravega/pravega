@@ -154,12 +154,12 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
     protected abstract CompletableFuture<Void> doRun();
 
     /**
-     * Gets a value indicating whether a stop exception has been set.
+     * Gets a pointer to the current Stop Exception, if any is set.
      *
      * @return The result.
      */
-    protected boolean hasStopException() {
-        return this.stopException.get() != null;
+    protected Throwable getStopException() {
+        return this.stopException.get();
     }
 
     /**

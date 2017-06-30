@@ -13,8 +13,9 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.test.common.TestingServerStarter;
-import io.pravega.controller.mocks.MockStreamTransactionMetadataTasks;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -31,9 +32,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -59,18 +57,18 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
     private StoreClient storeClient;
-    private TaskMetadataStore taskMetadataStore;
-    private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private StreamMetadataStore streamStore;
-    private SegmentHelper segmentHelper;
-    private TimeoutService timeoutService;
     private Cluster cluster;
 
     @Override
     public void setup() throws Exception {
+        final StreamMetadataStore streamStore;
+        final HostControllerStore hostStore;
+        final TaskMetadataStore taskMetadataStore;
+        final SegmentHelper segmentHelper;
+
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -88,11 +86,12 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executorService));
 
-        streamTransactionMetadataTasks = new MockStreamTransactionMetadataTasks(
-                streamStore, hostStore, taskMetadataStore, segmentHelper, executorService, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
+                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                "abortStream", new EventStreamWriterMock<>());
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -101,7 +100,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), executorService, cluster);
+                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
         controllerService = new ControllerServiceImpl(controller);
     }
 
@@ -109,10 +108,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     public void tearDown() throws Exception {
         if (executorService != null) {
             executorService.shutdown();
-        }
-        if (timeoutService != null) {
-            timeoutService.stopAsync();
-            timeoutService.awaitTerminated();
         }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();
@@ -123,6 +118,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         if (cluster != null) {
             cluster.close();
         }
+        storeClient.close();
         zkClient.close();
         zkServer.close();
     }
@@ -138,7 +134,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     @Test
     public void transactionTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(4));
-        Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, STREAM1);
         Controller.TxnId txnId1 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
         Controller.TxnId txnId2 = createTransaction(SCOPE1, STREAM1, 10000, 10000, 10000).getTxnId();
 
@@ -176,9 +171,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         Controller.StreamInfo streamInfo = ModelHelper.createStreamInfo(scope, stream);
         Controller.CreateTxnRequest request = Controller.CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
-                .setLease(10000)
-                .setMaxExecutionTime(10000)
-                .setScaleGracePeriod(10000).build();
+                .setLease(lease)
+                .setMaxExecutionTime(maxExecutionTime)
+                .setScaleGracePeriod(scaleGracePeriod).build();
         ResultObserver<Controller.CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);
         Controller.CreateTxnResponse response = resultObserver.get();

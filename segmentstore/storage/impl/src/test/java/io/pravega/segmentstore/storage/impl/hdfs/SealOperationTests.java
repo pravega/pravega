@@ -15,19 +15,23 @@ import java.io.ByteArrayInputStream;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the SealOperation class.
  */
 public class SealOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
 
     /**
      * Tests the case when the last file is non-empty non-read-only. This is a normal operation.
      * Expected outcome: Last file is made read-only and marked as 'sealed'.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testLastFileNonReadOnly() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -45,7 +49,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
      * Tests the case when the last file is empty (read-only or not).
      * Expected outcome: Last file is deleted and previous one is set as sealed (except when only one file)
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testLastFileEmpty() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -79,7 +83,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
      * fenced out by a higher-epoch instance.
      * Expected outcome: StorageNotPrimaryException.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testLastFileEmptyNonReadOnlyFencedOut() throws Exception {
         final String emptySegment = SEGMENT_NAME;
         final String nonEmptySegment = SEGMENT_NAME + "nonempty";

@@ -9,12 +9,11 @@
  */
 package io.pravega.test.common;
 
+import io.pravega.test.common.AssertExtensions.RunnableWithException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import io.pravega.test.common.AssertExtensions.RunnableWithException;
-
 import org.junit.Assert;
 
 public class Async {
@@ -35,14 +34,25 @@ public class Async {
         });
         t.start();
         try {
-            Assert.assertFalse(isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS));
+            if (isBlocked.tryAcquire(200, TimeUnit.MILLISECONDS)) {
+                if (exception.get() != null) {
+                    throw new RuntimeException("Blocking code threw an exception", exception.get());
+                } else {
+                    throw new RuntimeException("Failed to block.");
+                }
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
         unblocker.run();
         try {
-            isBlocked.acquire();
+            if (!isBlocked.tryAcquire(2000, TimeUnit.MILLISECONDS)) {
+                RuntimeException e = new RuntimeException("Failed to unblock");
+                e.setStackTrace(t.getStackTrace());
+                t.interrupt();
+                throw new RuntimeException(e);
+            }
             t.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

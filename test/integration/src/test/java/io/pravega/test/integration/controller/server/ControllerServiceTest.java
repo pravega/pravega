@@ -17,7 +17,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.store.stream.DataNotFoundException;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -180,7 +180,7 @@ public class ControllerServiceTest {
 
         updataMinSegmentes(controller, scope1, streamName1);
 
-        alterConfigOfNonExistantStream(controller);
+        updateConfigOfNonExistantStream(controller);
 
         //get currently active segments
 
@@ -221,10 +221,10 @@ public class ControllerServiceTest {
             CompletableFuture<Map<Segment, Long>> segments = controller.getSegmentsAtTime(stream, System.currentTimeMillis());
             assertTrue("FAILURE: Fetching positions for non existent stream", segments.get().isEmpty());
             
-            System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
+            log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching positions for non existent stream", e.getCause() instanceof DataNotFoundException);
-            System.err.println("SUCCESS: Positions cannot be fetched for non existent stream");
+            assertTrue("FAILURE: Fetching positions for non existent stream", e.getCause() instanceof StoreException.DataNotFoundException);
+            log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         }
     }
 
@@ -239,7 +239,7 @@ public class ControllerServiceTest {
             CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments("scope", "streamName");
             assertTrue("FAILURE: Fetching active segments for non existent stream", getActiveSegments.get().getSegments().isEmpty());
         } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching active segments for non existent stream", e.getCause() instanceof DataNotFoundException);
+            assertTrue("FAILURE: Fetching active segments for non existent stream", e.getCause() instanceof StoreException.DataNotFoundException);
         }
     }
 
@@ -251,8 +251,8 @@ public class ControllerServiceTest {
     }
 
 
-    private static void alterConfigOfNonExistantStream(Controller controller) {
-        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+    private static void updateConfigOfNonExistantStream(Controller controller) {
+        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
                                                                .scope("scope")
                                                                .streamName("streamName")
                                                                .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
@@ -261,7 +261,7 @@ public class ControllerServiceTest {
 
     private static void updataMinSegmentes(Controller controller, final String scope,
                                            final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
@@ -270,7 +270,7 @@ public class ControllerServiceTest {
 
     private static void updateScaleFactor(Controller controller, final String scope,
                                           final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(100, 3, 2))
@@ -279,7 +279,7 @@ public class ControllerServiceTest {
 
     private static void updateTargetRate(Controller controller, final String scope,
                                          final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 2))
@@ -288,7 +288,7 @@ public class ControllerServiceTest {
 
     private static void updateScalingPolicy(Controller controller, final String scope,
                                             final String streamName) throws InterruptedException, ExecutionException {
-        assertTrue(controller.alterStream(StreamConfiguration.builder()
+        assertTrue(controller.updateStream(StreamConfiguration.builder()
                                           .scope(scope)
                                           .streamName(streamName)
                                           .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
@@ -297,7 +297,7 @@ public class ControllerServiceTest {
 
     private static void updateStreamName(Controller controller, final String scope,
                                          final ScalingPolicy scalingPolicy) {
-        assertFalse(FutureHelpers.await(controller.alterStream(StreamConfiguration.builder()
+        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
                                                                .scope(scope)
                                                                .streamName("stream4")
                                                                .scalingPolicy(scalingPolicy)

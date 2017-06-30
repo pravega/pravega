@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import java.util.concurrent.Callable;
@@ -44,9 +45,11 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     @Override
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
-                        Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
-                        metrics.remove(counter.getName());
-                        log.debug("Removed Counter: {}.", counter.getName());
+                        if (removal.getCause() != RemovalCause.REPLACED) {
+                            Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
+                            metrics.remove(counter.getName());
+                            log.debug("Removed Counter: {}.", counter.getName());
+                        }
                     }
                 }).
                 build();
@@ -57,8 +60,11 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     @Override
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
-                        metrics.remove(gauge.getName());
-                        log.debug("Removed Gauge: {}.", gauge.getName());
+                        if (removal.getCause() != RemovalCause.REPLACED) {
+                            Exceptions.checkNotNullOrEmpty(gauge.getName(), "gauge");
+                            metrics.remove(gauge.getName());
+                            log.debug("Removed Gauge: {}.", gauge.getName());
+                        }
                     }
                 }).
                 build();
@@ -69,8 +75,11 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 @Override
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
-                    metrics.remove(meter.getName());
-                    log.debug("Removed Meter: {}.", meter.getName());
+                    if (removal.getCause() != RemovalCause.REPLACED) {
+                        Exceptions.checkNotNullOrEmpty(meter.getName(), "meter");
+                        metrics.remove(meter.getName());
+                        log.debug("Removed Meter: {}.", meter.getName());
+                    }
                 }
             }).
             build();
@@ -95,11 +104,27 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
+    public void updateCounterValue(String name, long value) {
+        Exceptions.checkNotNullOrEmpty(name, "name");
+        String counterName = name + ".Counter";
+
+        Counter counter = countersCache.getIfPresent(counterName);
+        if (counter != null) {
+            counter.clear();
+        } else {
+            counter = underlying.createCounter(counterName);
+        }
+        counter.add(value);
+        countersCache.put(name, counter);
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
         Gauge newGauge = null;
         String gaugeName = name + ".Gauge";
+
         if (value instanceof Float) {
             newGauge = underlying.registerGauge(gaugeName, value::floatValue);
         } else if (value instanceof Double) {
@@ -117,9 +142,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         if (null == newGauge) {
             log.error("Unsupported Number type: {}.", value.getClass().getName());
         } else {
-            if (null == gaugesCache.getIfPresent(gaugeName)) {
-                gaugesCache.put(gaugeName, newGauge);
-            }
+            gaugesCache.put(gaugeName, newGauge);
         }
     }
 

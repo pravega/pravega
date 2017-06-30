@@ -10,7 +10,15 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.controller.util.Config;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -35,15 +43,20 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Slf4j
 public class EndToEndAutoScaleUpWithTxnTest {
     static final StreamConfiguration CONFIG =
             StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 3)).build();
+                    ScalingPolicy.byEventRate(10, 2, 1)).build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -56,7 +69,9 @@ public class EndToEndAutoScaleUpWithTxnTest {
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+            @Cleanup
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -84,6 +99,42 @@ public class EndToEndAutoScaleUpWithTxnTest {
             EventStreamWriter<String> test = clientFactory.createEventWriter(
                     "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
 
+            // region Successful commit tests
+            Transaction<String> txn1 = test.beginTxn(30000, 30000, 30000);
+
+            txn1.writeEvent("1");
+            txn1.flush();
+
+            Map<Double, Double> map = new HashMap<>();
+            map.put(0.0, 1.0 / 3.0);
+            map.put(1.0 / 3.0, 2.0 / 3.0);
+            map.put(2.0 / 3.0, 1.0);
+            Stream stream = new StreamImpl("test", "test");
+            controller.scaleStream(stream, Collections.singletonList(0), map).get();
+
+            Transaction<String> txn2 = test.beginTxn(30000, 30000, 30000);
+
+            txn2.writeEvent("2");
+            txn2.flush();
+            txn2.commit();
+            txn1.commit();
+
+            Thread.sleep(1000);
+
+            @Cleanup
+            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
+            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().startingTime(0).build(),
+                    Collections.singleton("test"));
+
+            final EventStreamReader<String> reader = clientFactory.createReader("1",
+                    "readergrp",
+                    new JavaSerializer<>(),
+                    ReaderConfig.builder().build());
+
+            String event1 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+            String event2 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+            assert event1.equals("1");
+            assert event2.equals("2");
             final AtomicBoolean done = new AtomicBoolean(false);
 
             startWriter(test, done);
@@ -107,7 +158,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
                         System.exit(1);
                         return null;
                     }).get();
-
         } catch (Throwable e) {
             System.err.print("Test failed with exception: " + e.getMessage());
             log.error("Test failed with exception: {}", e);

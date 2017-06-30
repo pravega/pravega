@@ -21,10 +21,13 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -72,9 +75,7 @@ public final class ServiceStarter {
             attachRocksDB(builder);
         }
 
-        if (options.hdfs) {
-            attachHDFS(builder);
-        }
+        attachStorage(builder);
 
         if (options.zkSegmentManager) {
             attachZKSegmentManager(builder);
@@ -148,18 +149,34 @@ public final class ServiceStarter {
 
     private void attachBookKeeper(ServiceBuilder builder) {
         builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient,
+                        setup.getExecutor()));
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
         builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
-    private void attachHDFS(ServiceBuilder builder) {
+    private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                ServiceConfig.StorageTypes storageChoice = ServiceConfig.StorageTypes.valueOf(this.serviceConfig
+                        .getStorageImplementation());
+                switch (storageChoice) {
+                    case HDFS:
+                        HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+
+                    case FILESYSTEM:
+                        FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+
+                    case INMEMORY:
+                        return new InMemoryStorageFactory(setup.getExecutor());
+
+                    default:
+                        throw new IllegalStateException("Undefined storage implementation");
+                }
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
@@ -170,7 +187,8 @@ public final class ServiceStarter {
         builder.withContainerManager(setup ->
                 new ZKSegmentContainerManager(setup.getContainerRegistry(),
                         this.zkClient,
-                        new Host(this.serviceConfig.getPublishedIPAddress(), this.serviceConfig.getPublishedPort(), null),
+                        new Host(this.serviceConfig.getPublishedIPAddress(),
+                                this.serviceConfig.getPublishedPort(), null),
                         setup.getExecutor()));
     }
 
@@ -201,7 +219,8 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                                                                 .bookKeeper(true).hdfs(true).rocksDb(true).zkSegmentManager(true).build()));
+                    .bookKeeper(true).rocksDb(true)
+                    .zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -235,7 +254,6 @@ public final class ServiceStarter {
     @Builder
     public static class Options {
         final boolean bookKeeper;
-        final boolean hdfs;
         final boolean rocksDb;
         final boolean zkSegmentManager;
     }

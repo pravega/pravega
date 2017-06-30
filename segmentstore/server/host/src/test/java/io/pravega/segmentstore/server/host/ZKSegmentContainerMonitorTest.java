@@ -141,7 +141,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
         // Container finished starting.
         startupFuture.complete(containerHandle);
-        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
 
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
@@ -154,7 +154,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
         // Verify that stop is called and only the newly added container is in running state.
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
+        verify(containerRegistry, timeout(1000).atLeastOnce()).stopContainer(any(), any());
 
         // Using wait here to ensure the private data structure is updated.
         // TODO: Removing dependency on sleep here and other places in this class
@@ -189,7 +189,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
         // Verify it's not yet started.
-        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
         assertEquals(0, segMonitor.getRegisteredContainers().size());
 
         // Now simulate shutting it down.
@@ -225,7 +225,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
 
         // Verify that it does not start.
-        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
         assertEquals(0, segMonitor.getRegisteredContainers().size());
 
         // Now simulate success for the same container.
@@ -235,7 +235,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(CompletableFuture.completedFuture(containerHandle));
 
         // Verify that it retries and starts the same container again.
-        verify(containerRegistry, timeout(10000).atLeastOnce()).startContainer(eq(2), any());
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
         Thread.sleep(2000);
         assertEquals(1, segMonitor.getRegisteredContainers().size());
     }

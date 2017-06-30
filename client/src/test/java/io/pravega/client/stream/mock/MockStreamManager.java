@@ -78,7 +78,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public boolean alterStream(String scopeName, String streamName, StreamConfiguration config) {
+    public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
                                         .scope(scopeName)
@@ -87,7 +87,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return FutureHelpers.getAndHandleExceptions(controller.alterStream(StreamConfiguration.builder()
+        return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                                                                                               .scope(scopeName)
                                                                                               .streamName(streamName)
                                                                                               .scalingPolicy(config.getScalingPolicy())
@@ -125,13 +125,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                               .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        ReaderGroupImpl result = new ReaderGroupImpl(scope,
-                                                     groupName,
-                                                     synchronizerConfig,
-                                                     new JavaSerializer<>(),
-                                                     new JavaSerializer<>(),
-                                                     clientFactory,
-                                                     controller);
+        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
+                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
         result.initializeGroup(config, streamNames);
         return result;
     }
@@ -150,5 +145,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
         throw new NotImplementedException();
+    }
+
+    @Override
+    public void deleteReaderGroup(String groupName) {
+        FutureHelpers.getAndHandleExceptions(controller.deleteStream(scope,
+                                                                     NameUtils.getStreamForReaderGroup(groupName)),
+                                             RuntimeException::new);
     }
 }

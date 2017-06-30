@@ -14,10 +14,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executor;
 
 public class StreamStoreFactory {
-    public static StreamMetadataStore createStore(final StoreClient storeClient, final ScheduledExecutorService executor) {
+    public static StreamMetadataStore createStore(final StoreClient storeClient, final Executor executor) {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
@@ -30,12 +30,12 @@ public class StreamStoreFactory {
 
     @VisibleForTesting
     public static StreamMetadataStore createZKStore(final CuratorFramework client,
-                                                    final ScheduledExecutorService executor) {
+                                                    final Executor executor) {
         return new ZKStreamMetadataStore(client, executor);
     }
 
     @VisibleForTesting
-    public static StreamMetadataStore createInMemoryStore(final ScheduledExecutorService executor) {
+    public static StreamMetadataStore createInMemoryStore(final Executor executor) {
         return new InMemoryStreamMetadataStore(executor);
     }
 }

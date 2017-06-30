@@ -19,7 +19,9 @@ import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ConcatOperation class.
@@ -28,12 +30,14 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     private static final String TARGET_SEGMENT = "target" + FileSystemOperation.PART_SEPARATOR + "segment";
     private static final String SOURCE_SEGMENT = "source" + FileSystemOperation.PART_SEPARATOR + "segment#1234";
     private static final int WRITE_LENGTH = 100;
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
     private final Random rnd = new Random(0);
 
     /**
      * Tests various combinations of bad input to the Concat command.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testInvalidInput() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -74,7 +78,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for single-file sources.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcatSingleFile() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -100,7 +104,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for empty source segment.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcatEmptySource() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -120,7 +124,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for empty target segment (files).
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcatEmptyTarget() throws Exception {
         @Cleanup
         val fs = new MockFileSystem();
@@ -139,7 +143,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     /**
      * Tests a normal concatenation for multi-file sources.
      */
-    @Test (timeout = TEST_TIMEOUT_MILLIS)
+    @Test
     public void testConcatMultipleFiles() throws Exception {
         final int epochs = 50;
         @Cleanup

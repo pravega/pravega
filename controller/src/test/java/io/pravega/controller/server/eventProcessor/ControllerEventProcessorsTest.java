@@ -49,8 +49,8 @@ public class ControllerEventProcessorsTest {
         UUID txid = UUID.randomUUID();
         String scope = "test";
         String stream = "test";
-        AbortEvent abortEvent = new AbortEvent(scope, stream, txid);
-        CommitEvent commitEvent = new CommitEvent(scope, stream, txid);
+        AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
+        CommitEvent commitEvent = new CommitEvent(scope, stream, 0, txid);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
     }

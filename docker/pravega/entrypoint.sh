@@ -26,12 +26,35 @@ configure_controller() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-configure_segmentstore() {
-    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
-    add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
+configure_tier2() {
+    add_system_property "pravegaservice.storageImplementation" "${TIER2_STORAGE}"
+
+    echo "Checking whether NFS mounting is required"
+    if [ "${TIER2_STORAGE}" = "FILESYSTEM" ] && [ "${MOUNT_IN_CONTAINER}"  = "true" ]; then
+        while [ -z ${NFS_SERVER} ]
+        do
+            echo "NFS_SERVER not set. Looping till the container is restarted with NFS_SERVER set."
+            sleep 60
+        done
+
+        NFS_MOUNT=${NFS_MOUNT:-"/fs/"}
+        echo "Mounting the NFS share"
+        mkdir -p ${NFS_MOUNT}
+        while [ true ]
+        do
+            mount -t nfs ${NFS_SERVER} ${NFS_MOUNT} -o nolock && break
+            echo "Mount failed. Retrying after 5 sec ..."
+            sleep 5
+        done
+    fi
+    add_system_property "filesystem.root" "${NFS_MOUNT}"
     add_system_property "hdfs.hdfsUrl" "${HDFS_URL}"
     add_system_property "hdfs.hdfsRoot" "${HDFS_ROOT}"
     add_system_property "hdfs.replication" "${HDFS_REPLICATION}"
+}
+configure_segmentstore() {
+    add_system_property "pravegaservice.zkURL" "${ZK_URL}"
+    add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
@@ -55,6 +78,7 @@ controller)
     exec /opt/pravega/bin/pravega-controller
     ;;
 segmentstore)
+    configure_tier2
     configure_segmentstore
     exec /opt/pravega/bin/pravega-segmentstore
     ;;

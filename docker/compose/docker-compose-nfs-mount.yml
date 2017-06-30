@@ -1,0 +1,84 @@
+#
+# Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+version: '2'
+services:
+  zookeeper:
+    image: jplock/zookeeper:3.5.2-alpha
+    ports:
+      - "2181:2181"
+
+  bookie1:
+    image: pravega/bookkeeper
+    ports:
+      - "3181:3181"
+    environment:
+      ZK_URL: zookeeper:2181
+      bookiePort: 3181
+    links:
+      - zookeeper
+
+  bookie2:
+      image: pravega/bookkeeper
+      ports:
+        - "3182:3182"
+      environment:
+        ZK_URL: zookeeper:2181
+        bookiePort: 3182
+      links:
+        - zookeeper
+
+  bookie3:
+      image: pravega/bookkeeper
+      ports:
+        - "3183:3183"
+      environment:
+        ZK_URL: zookeeper:2181
+        bookiePort: 3183
+      links:
+        - zookeeper
+
+  controller:
+    image: pravega/pravega
+    ports:
+      - "9090:9090"
+      - "10080:10080"
+    command: controller
+    environment:
+      WAIT_FOR: zookeeper:2181
+      REST_SERVER_PORT: 10080
+      CONTROLLER_SERVER_PORT: 9090
+      ZK_URL: zookeeper:2181
+      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+      SERVICE_HOST_IP: segmentstore
+    links:
+      - zookeeper
+
+  segmentstore:
+    image: pravega/pravega
+    ports:
+      - "12345:12345"
+    command: segmentstore
+    privileged: true
+    environment:
+      WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183
+      TIER2_STORAGE: "FILESYSTEM"
+      MOUNT_IN_CONTAINER: "true"
+      NFS_SERVER: ${NFS_IP}:${NFS_PATH}
+      NFS_MOUNT: /nfs
+      HDFS_REPLICATION: 1
+      HDFS_URL: ${HOST_IP}:8020
+      ZK_URL: zookeeper:2181
+      CONTROLLER_URL: tcp://${HOST_IP}:9090
+      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${HOST_IP} -Xmx900m
+    links:
+      - zookeeper
+      - bookie1
+      - bookie2
+      - bookie3

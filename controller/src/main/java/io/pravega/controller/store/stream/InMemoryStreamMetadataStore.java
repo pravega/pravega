@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.StreamConfiguration;
@@ -17,7 +18,6 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,53 +38,51 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
-    @GuardedBy("$lock")
-    private final Map<String, ByteBuffer> checkpoints = new HashMap<>();
-
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
+        super(new InMemoryHostIndex());
         this.executor = executor;
     }
 
     @Override
     @Synchronized
     Stream newStream(String scope, String name) {
-        Stream stream = streams.get(scopedStreamName(scope, name));
-        if (stream != null) {
-            return stream;
+        if (streams.containsKey(scopedStreamName(scope, name))) {
+            return streams.get(scopedStreamName(scope, name));
         } else {
-            return new InMemoryStream.NonExistentStream(scope, name);
+            return new InMemoryStream(scope, name);
         }
     }
 
     @Override
     @Synchronized
     Scope newScope(final String scopeName) {
-        return scopes.get(scopeName);
+        if (scopes.containsKey(scopeName)) {
+            return scopes.get(scopeName);
+        } else {
+            return new InMemoryScope(scopeName);
+        }
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
+    public CompletableFuture<CreateStreamResponse> createStream(final String scopeName, final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long timeStamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
         if (scopes.containsKey(scopeName)) {
-            if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                InMemoryStream stream = new InMemoryStream(scopeName, streamName);
-                stream.create(configuration, timeStamp);
-                streams.put(scopedStreamName(scopeName, streamName), stream);
-                scopes.get(scopeName).addStreamToScope(streamName);
-                return CompletableFuture.completedFuture(true);
-            } else {
-                return FutureHelpers.
-                        failedFuture(new StoreException(StoreException.Type.NODE_EXISTS, "Stream already exists."));
-            }
+            InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
+            return stream.create(configuration, timeStamp)
+                    .thenApply(x -> {
+                        streams.put(scopedStreamName(scopeName, streamName), stream);
+                        scopes.get(scopeName).addStreamToScope(streamName);
+                        return x;
+                    });
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -100,7 +98,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return CompletableFuture.completedFuture(null);
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Stream not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
         }
     }
 
@@ -115,12 +113,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
                 return FutureHelpers.
-                        failedFuture(new DataNotFoundException("Stream not found: " + scopeStreamName));
+                        failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
             return streams.get(scopeStreamName).updateConfiguration(configuration);
         } else {
             return FutureHelpers.
-                    failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -159,11 +157,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    @Synchronized
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
         }
     }
 
@@ -188,7 +187,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> streams.stream().map(
                             stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.NODE_NOT_FOUND));
+            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
         }
     }
 

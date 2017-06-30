@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.zookeeper.ZooKeeperClient;
 import org.apache.commons.io.FileUtils;
 import org.apache.zookeeper.CreateMode;
@@ -67,11 +69,35 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     //region BookKeeper operations
 
     /**
+     * Suspends the BookieService with the given index (does not stop it).
+     *
+     * @param bookieIndex The index of the bookie to stop.
+     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     */
+    public void suspendBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        val bk = this.servers.get(bookieIndex);
+        bk.suspendProcessing();
+    }
+
+    /**
+     * Resumes the BookieService with the given index.
+     *
+     * @param bookieIndex The index of the bookie to start.
+     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     */
+    public void resumeBookie(int bookieIndex) {
+        Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        val bk = this.servers.get(bookieIndex);
+        bk.resumeProcessing();
+    }
+
+    /**
      * Starts the BookKeeper cluster in-process.
      *
      * @throws Exception If an exception occurred.
      */
-    public void start() throws Exception {
+    public void startAll() throws Exception {
         if (this.startZk) {
             val zk = new ZooKeeperServiceRunner(this.zkPort);
             zk.start();
@@ -91,11 +117,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
                                  .sessionTimeoutMs(10000)
                                  .build();
 
-        String[] znodes = ledgersPath.split("/");
         String znode;
         StringBuilder znodePath = new StringBuilder();
-        for ( int i = 0; i < znodes.length; i++ ) {
-            znodePath.append(znodes[i]);
+        for (String z : ledgersPath.split("/")) {
+            znodePath.append(z);
             znode = znodePath.toString();
             if (!znode.isEmpty()) {
                 zkc.create(znode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
@@ -111,7 +136,9 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Starting Bookie(s) ...");
         // Create Bookie Servers (B1, B2, B3)
         for (int bkPort : this.bookiePorts) {
-            val tmpDir = File.createTempFile("bookie_" + bkPort, "test");
+            val tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
+            tmpDir.deleteOnExit();
+            this.tempDirs.add(tmpDir);
             log.info("Created " + tmpDir);
             if (!tmpDir.delete() || !tmpDir.mkdir()) {
                 throw new IOException("Couldn't create bookie dir " + tmpDir);

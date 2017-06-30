@@ -35,7 +35,7 @@ public class AsyncSegmentInputStreamTest {
     public void testRetry() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
@@ -61,7 +61,7 @@ public class AsyncSegmentInputStreamTest {
     public void testRead() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
 
         @Cleanup
@@ -82,7 +82,7 @@ public class AsyncSegmentInputStreamTest {
     public void testWrongOffsetReturned() throws ConnectionFailedException {
         Segment segment = new Segment("scope", "testWrongOffsetReturned", 0);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         @Cleanup
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
