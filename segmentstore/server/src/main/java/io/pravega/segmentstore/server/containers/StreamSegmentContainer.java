@@ -18,7 +18,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -125,9 +124,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
-
+            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
             this.durableLog.close();
@@ -465,7 +462,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 stopAsync();
             }
         };
-        component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);
+        ServiceHelpers.onStop(component, stoppedHandler, failedHandler, this.executor);
     }
 
     //endregion

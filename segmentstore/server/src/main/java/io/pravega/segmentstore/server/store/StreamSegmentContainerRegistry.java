@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ServiceHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.server.ContainerHandle;
@@ -126,10 +125,11 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         log.info("Registered SegmentContainer {}.", containerId);
 
         // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when it's stopped.
-        ServiceShutdownListener shutdownListener = new ServiceShutdownListener(
+        ServiceHelpers.onStop(
+                newContainer.container,
                 () -> unregisterContainer(newContainer),
-                ex -> handleContainerFailure(newContainer, ex));
-        newContainer.container.addListener(shutdownListener, this.executor);
+                ex -> handleContainerFailure(newContainer, ex),
+                this.executor);
         return ServiceHelpers.startAsync(newContainer.container, this.executor)
                 .thenApply(v -> newContainer.handle);
     }
