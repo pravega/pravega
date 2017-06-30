@@ -714,7 +714,7 @@ public class StreamMetaDataTests {
         scaleMetadataListResponse.forEach(data -> {
             log.warn("Here");
             data.getSegments().forEach( segment -> {
-                log.warn("### Segment number: " + segment.getNumber());
+               log.debug("Checking segment number: " + segment.getNumber());
                assertTrue("Event 1 shouldn't be included", segment.getNumber() != 0);
             });
         });
