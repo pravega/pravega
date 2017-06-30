@@ -451,7 +451,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateActiveTx(int epoch, UUID txId, byte[] data) {
+    CompletableFuture<Void> updateActiveTx(int epoch, UUID txId, Data<Integer> data) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -459,7 +459,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "active txn"));
             } else {
-                activeTxns.compute(txId.toString(), (x, y) -> new Data<>(y.getData(), y.getVersion() + 1));
+                activeTxns.compute(txId.toString(), (x, y) -> new Data<>(data.getData(), y.getVersion() + 1));
                 result.complete(null);
             }
         }

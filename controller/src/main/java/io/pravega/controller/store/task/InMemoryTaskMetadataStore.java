@@ -9,17 +9,15 @@
  */
 package io.pravega.controller.store.task;
 
+import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -29,16 +27,12 @@ import java.util.concurrent.ScheduledExecutorService;
 @Slf4j
 class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
 
-    @GuardedBy("itself")
+    @GuardedBy("lockTable")
     private final Map<Resource, LockData> lockTable;
 
-    @GuardedBy("itself")
-    private final Map<String, Set<TaggedResource>> hostTable;
-
     InMemoryTaskMetadataStore(ScheduledExecutorService executor) {
-        super(executor);
+        super(new InMemoryHostIndex(), executor);
         lockTable = new HashMap<>();
-        hostTable = new HashMap<>();
     }
 
     @Override
@@ -107,15 +101,15 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
+    public CompletableFuture<Optional<TaskData>> getTask(final Resource resource,
                                                          final String owner,
                                                          final String tag) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(resource);
-                Preconditions.checkNotNull(owner);
-                Preconditions.checkNotNull(tag);
+        return CompletableFuture.supplyAsync(() -> {
+            Preconditions.checkNotNull(resource);
+            Preconditions.checkNotNull(owner);
+            Preconditions.checkNotNull(tag);
 
+            synchronized (lockTable) {
                 LockData lockData = lockTable.get(resource);
 
                 if (lockData == null) {
@@ -128,85 +122,7 @@ class InMemoryTaskMetadataStore extends AbstractTaskMetadataStore {
                         return Optional.empty();
                     }
                 }
-            }, executor);
-        }
-    }
-
-    @Override
-    public synchronized CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-                Preconditions.checkNotNull(child);
-
-                if (hostTable.containsKey(parent)) {
-                    hostTable.get(parent).add(child);
-                } else {
-                    Set<TaggedResource> taggedResources = new HashSet<>();
-                    taggedResources.add(child);
-                    hostTable.put(parent, taggedResources);
-                }
-                return null;
-            }, executor);
-        }
-    }
-
-    @Override
-    public synchronized CompletableFuture<Void> removeChild(final String parent,
-                                               final TaggedResource child,
-                                               final boolean deleteEmptyParent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-                Preconditions.checkNotNull(child);
-
-                if (hostTable.containsKey(parent)) {
-                    Set<TaggedResource> taggedResources = hostTable.get(parent);
-                    if (taggedResources.contains(child)) {
-                        if (deleteEmptyParent && taggedResources.size() == 1) {
-                            hostTable.remove(parent);
-                        } else {
-                            taggedResources.remove(child);
-                        }
-                    }
-                }
-                return null;
-            }, executor);
-        }
-    }
-
-    @Override
-    public synchronized CompletableFuture<Void> removeNode(final String parent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-
-                hostTable.remove(parent);
-                return null;
-
-            }, executor);
-        }
-    }
-
-    @Override
-    public synchronized CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
-        synchronized (hostTable) {
-            return CompletableFuture.supplyAsync(() -> {
-                Preconditions.checkNotNull(parent);
-
-                Set<TaggedResource> taggedResources = hostTable.get(parent);
-                if (taggedResources == null) {
-                    return Optional.empty();
-                } else {
-                    return taggedResources.stream().findAny();
-                }
-
-            }, executor);
-        }
-    }
-
-    @Override
-    public CompletableFuture<Set<String>> getHosts() {
-        return CompletableFuture.completedFuture(Collections.unmodifiableSet(hostTable.keySet()));
+            }
+        }, executor);
     }
 }

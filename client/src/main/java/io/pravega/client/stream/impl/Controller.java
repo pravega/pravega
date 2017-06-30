@@ -124,10 +124,10 @@ public interface Controller {
     /**
      * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
      *
-     * @param stream Stream name
-     * @param txId   Transaction id
-     * @param lease  Time for which transaction shall remain open with sending any heartbeat.
-     * @return       Void or PingFailedException
+     * @param stream     Stream name
+     * @param txId       Transaction id
+     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
+     * @return           Void or PingFailedException
      */
     CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
 

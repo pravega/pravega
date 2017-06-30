@@ -115,7 +115,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory);
 
         long createTimestamp = System.currentTimeMillis();
