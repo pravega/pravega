@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -137,6 +138,27 @@ public class StreamMetadataTasks extends TaskBase {
                 () -> updateStreamConfigBody(scope, stream, config, contextOpt));
     }
 
+    public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
+        return streamMetadataStore.getActiveSegments(scope, stream, null, executor).thenCompose(segments -> {
+            if (segments.isEmpty()) {
+                return CompletableFuture.completedFuture(ScaleResponse.newBuilder()
+                        .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS).build());
+            } else {
+                return this.manualScale(scope,
+                        stream,
+                        segments.stream().map(Segment::getNumber).collect(Collectors.toList()),
+                        Collections.emptyList(),
+                        System.currentTimeMillis(),
+                        null);
+            }
+        }).thenApply(scaleResponse -> {
+            switch (scaleResponse.getStatus()) {
+                case SUCCESS: return UpdateStreamStatus.Status.SUCCESS;
+                default: return UpdateStreamStatus.Status.FAILURE;
+            }
+        }).exceptionally(ex -> handleUpdateStreamError(ex));
+    }
+
     /**
      * Delete a stream. Precondition for deleting a stream is that the stream sholud be sealed.
      *
@@ -183,7 +205,6 @@ public class StreamMetadataTasks extends TaskBase {
                         })
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
-
                             if (e != null) {
                                 Throwable cause = ExceptionHelpers.getRealException(e);
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
@@ -279,12 +300,11 @@ public class StreamMetadataTasks extends TaskBase {
                 executor), executor)
                 .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
                         .thenCompose(x -> {
-                            assert !response.getSegmentsCreated().isEmpty();
+                            long scaleTs = response.getCreationTimestamp();
 
-                            long scaleTs = response.getSegmentsCreated().get(0).getStart();
-
-                            return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
-                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
+                            return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(),
+                                    scaleInput.getStream(), scaleInput.getSegmentsToSeal(),
+                                    response.getSegmentsCreated(), response.getActiveEpoch(),
                                     scaleTs, context, executor), executor);
                         })
                         .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context))
@@ -308,9 +328,7 @@ public class StreamMetadataTasks extends TaskBase {
                     if (!response.isDeleted()) {
                         return CompletableFuture.completedFuture(true);
                     }
-                    assert !response.getSegmentsCreated().isEmpty() && !response.getSegmentsSealed().isEmpty();
-
-                    long scaleTs = response.getSegmentsCreated().get(0).getStart();
+                    long scaleTs = response.getCreationTimestamp();
                     return notifySealedSegments(scope, stream, response.getSegmentsSealed())
                             .thenCompose(y ->
                                     withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, response.getSegmentsSealed(),
@@ -419,7 +437,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Segment> segmentNumbers, OperationContext context) {
-        return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
+        return segmentNumbers.isEmpty()
+                ? CompletableFuture.completedFuture(null)
+                : withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration,
                         segmentNumbers.stream().map(Segment::getNumber).collect(Collectors.toList())));
     }

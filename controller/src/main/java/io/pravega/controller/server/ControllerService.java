@@ -39,7 +39,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -54,9 +53,6 @@ import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-
-import static io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus.Status.FAILURE;
-import static io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus.Status.SUCCESS;
 
 /**
  * Stream controller RPC server implementation.
@@ -124,24 +120,8 @@ public class ControllerService {
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.getActiveSegments(scope, stream, null, executor).thenCompose(segments -> {
-            if (segments.isEmpty()) {
-                return CompletableFuture.completedFuture(ScaleResponse.newBuilder()
-                        .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS).build());
-            } else {
-                return streamMetadataTasks.manualScale(scope,
-                        stream,
-                        segments.stream().map(Segment::getNumber).collect(Collectors.toList()),
-                        Collections.emptyList(),
-                        System.currentTimeMillis(),
-                        null);
-            }
-        }).thenApply(scaleResponse -> {
-            switch (scaleResponse.getStatus()) {
-                case SUCCESS: return UpdateStreamStatus.newBuilder().setStatus(SUCCESS).build();
-                default: return UpdateStreamStatus.newBuilder().setStatus(FAILURE).build();
-            }
-        });
+        return streamMetadataTasks.sealStream(scope, stream, null)
+                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String stream) {

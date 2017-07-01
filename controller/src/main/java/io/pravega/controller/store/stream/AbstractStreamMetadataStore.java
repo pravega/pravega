@@ -26,6 +26,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -364,17 +365,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.scaleTryDeleteEpoch(epoch), executor)
                 .thenCompose(deleted -> {
                     if (deleted) {
-                        return stream.latestScaleData()
-                                .thenCompose(pair -> {
-                                    List<Integer> segmentsSealed = pair.getLeft();
-                                    return FutureHelpers.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
-                                            .collect(Collectors.toList()))
-                                            .thenApply(segmentsCreated ->
-                                                    new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
-                                });
+                        return stream.latestScaleData().thenCompose(pair -> {
+                            List<Integer> segmentsSealed = pair.getLeft();
+                            CompletableFuture<List<Segment>> segmentsCreated = FutureHelpers.allOfWithResults(
+                                    pair.getRight().stream().map(stream::getSegment).collect(Collectors.toList()));
+                            CompletableFuture<Long> scaleTimestamp = pair.getRight().isEmpty() ?
+                                    stream.getSegment(segmentsSealed.stream().max(Comparator.naturalOrder()).get())
+                                            .thenApply(Segment::getStart) :
+                                    segmentsCreated
+                                            .thenApply(x -> x.get(0).getStart());
+                            return scaleTimestamp.thenApply(ts -> new DeleteEpochResponse(true, segmentsSealed, ts, segmentsCreated.join()));
+                        });
                     } else {
                         return CompletableFuture.completedFuture(
-                                new DeleteEpochResponse(false, null, null));
+                                new DeleteEpochResponse(false, null, 0, null));
                     }
                 });
     }

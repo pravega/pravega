@@ -17,5 +17,6 @@ import java.util.List;
 public class DeleteEpochResponse {
     private final boolean deleted;
     private final List<Integer> segmentsSealed;
+    private final long creationTimestamp;
     private final List<Segment> segmentsCreated;
 }

@@ -321,7 +321,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final Data<T> historyTable = pair.getLeft();
                     final int activeEpoch = TableHelper.getActiveEpoch(historyTable.getData()).getKey();
 
-                    final int nextSegmentNumber;
                     if (TableHelper.isScaleOngoing(historyTable.getData(), segmentTable.getData())) {
                         return isScaleRerun(sealedSegments, newRanges, segmentTable, historyTable, activeEpoch);
                     } else {
@@ -344,7 +343,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         epochStartSegmentpair.getRight() + newRanges.size())
                         .boxed()
                         .collect(Collectors.toList()))
-                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments))),
+                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), scaleTimestamp, newSegments))),
                 Lists.newArrayList(State.ACTIVE, State.SCALING)
         );
     }

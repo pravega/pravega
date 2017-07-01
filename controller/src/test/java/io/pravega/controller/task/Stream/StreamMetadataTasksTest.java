@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
@@ -98,6 +97,7 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
@@ -140,9 +140,6 @@ public class StreamMetadataTasksTest {
         List<Controller.SegmentRange> segmentRanges = consumer.getCurrentSegments(SCOPE, stream1).get();
         assertNotEquals(0, segmentRanges.size());
 
-        // Set scale event stream writer.
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
-
         //seal a stream.
         ScaleResponse scaleResponse = streamMetadataTasks.manualScale(SCOPE, stream1,
                 segmentRanges.stream()
@@ -155,8 +152,8 @@ public class StreamMetadataTasksTest {
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
 
-        //reseal a sealed stream.
-        assertEquals(ScaleStreamStatus.SUCCESS, streamMetadataTasks.manualScale(SCOPE, stream1,
+        //Scaling a sealed stream should return a pre-condition failure.
+        assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, streamMetadataTasks.manualScale(SCOPE, stream1,
                 segmentRanges.stream()
                         .map(range -> range.getSegmentId().getSegmentNumber())
                         .collect(Collectors.toList()),
@@ -171,6 +168,6 @@ public class StreamMetadataTasksTest {
                 Arrays.asList(segment3, segment4, segment5), 30, null).get();
 
         // scaling operation fails once a stream is sealed.
-        assertEquals(ScaleStreamStatus.FAILURE, scaleOpResult.getStatus());
+        assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, scaleOpResult.getStatus());
     }
 }
