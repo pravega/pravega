@@ -27,6 +27,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.timeout.TimeoutService;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
@@ -169,5 +170,14 @@ public class StreamMetadataTasksTest {
 
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, scaleOpResult.getStatus());
+
+        // Updating config of a sealed stream should fail.
+        final StreamConfiguration newConfig = StreamConfiguration.builder()
+                .scope(SCOPE)
+                .streamName(stream1)
+                .scalingPolicy(ScalingPolicy.fixed(4))
+                .build();
+        assertEquals(UpdateStreamStatus.Status.FAILURE,
+                streamMetadataTasks.updateStream(SCOPE, stream1, newConfig, null).join());
     }
 }

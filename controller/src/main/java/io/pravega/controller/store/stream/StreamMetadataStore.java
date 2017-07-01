@@ -144,11 +144,12 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration.
      * @param context       operation context
      * @param executor      callers executor
-     * @return boolean indicating whether the stream was updated
+     * @return List of active stream segments if the stream is not sealed, else return IllegalStateException.
      */
-    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration,
-                                                   final OperationContext context,
-                                                   final Executor executor);
+    CompletableFuture<List<Integer>> updateConfiguration(final String scope, final String name,
+                                                         final StreamConfiguration configuration,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Fetches the current stream configuration.

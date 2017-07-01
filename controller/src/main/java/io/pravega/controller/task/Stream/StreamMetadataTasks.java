@@ -383,23 +383,19 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.updateConfiguration(scope, stream, config, context, executor)
-                .thenCompose(updated -> {
-                    log.debug("{}/{} created in metadata store", scope, stream);
-                    if (updated) {
-                        // we are at a point of no return. Metadata has been updated, we need to notify hosts.
-                        // wrap subsequent steps in retries.
-                        return withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
-                                .thenCompose(activeSegments -> notifyPolicyUpdates(config.getScope(), stream, activeSegments, config.getScalingPolicy()))
-                                .handle((res, ex) -> {
-                                    if (ex == null) {
-                                        return true;
-                                    } else {
-                                        throw new CompletionException(ex);
-                                    }
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(false);
-                    }
+                .thenCompose(segments -> {
+                    log.debug("Updated configuration for {}/{}", scope, stream);
+                    // we are at a point of no return. Metadata has been updated, we need to notify hosts.
+                    // wrap subsequent steps in retries.
+                    return withRetries(() -> streamMetadataStore.getActiveSegments(scope, stream, context, executor), executor)
+                            .thenCompose(activeSegments -> notifyPolicyUpdates(config.getScope(), stream, activeSegments, config.getScalingPolicy()))
+                            .handle((res, ex) -> {
+                                if (ex == null) {
+                                    return true;
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            });
                 }).thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor))
                 .handle((result, ex) -> {
                     if (ex != null) {

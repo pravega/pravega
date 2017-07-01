@@ -233,10 +233,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String scope,
-                                                          final String name,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context, final Executor executor) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final String scope,
+                                                                final String name,
+                                                                final StreamConfiguration configuration,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
     }
 

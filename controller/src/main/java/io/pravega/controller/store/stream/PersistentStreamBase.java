@@ -115,15 +115,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * Update configuration at configurationPath.
      *
      * @param configuration new stream configuration.
-     * @return : future of boolean
+     * @return List of active segment in the stream if stream is not sealed, otherwise returns IllegalStateException.
      */
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final StreamConfiguration configuration) {
         // replace the configurationPath with new configurationPath
-        return verifyState(() -> updateState(State.UPDATING)
-                .thenApply(x -> setConfigurationData(configuration))
-                .thenApply(x -> true),
-                Lists.newArrayList(State.ACTIVE));
+        return verifyState(() -> getActiveSegments().thenCompose(segments -> {
+            if (segments.isEmpty()) {
+                // Stream is sealed.
+                return FutureHelpers.failedFuture(new IllegalStateException("Sealed"));
+            } else {
+                // Otherwise update stream configuration.
+                return updateState(State.UPDATING).thenCompose(x -> {
+                    return setConfigurationData(configuration).thenApply(y -> segments);
+                });
+            }
+        }), Lists.newArrayList(State.ACTIVE));
     }
 
     /**

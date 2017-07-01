@@ -345,6 +345,14 @@ public abstract class ControllerServiceImplTest {
         updateStreamStatus = result5.get();
         assertEquals("Seal non-existent stream",
                 UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
+
+        // Update of sealed stream should fail
+        final StreamConfiguration newConfig = StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1)
+                .scalingPolicy(ScalingPolicy.fixed(5)).build();
+        ResultObserver<UpdateStreamStatus> updateResult = new ResultObserver<>();
+        this.controllerService.updateStream(ModelHelper.decode(newConfig), updateResult);
+        UpdateStreamStatus updateStatus = updateResult.get();
+        Assert.assertEquals(UpdateStreamStatus.Status.FAILURE, updateStatus.getStatus());
     }
 
     @Test

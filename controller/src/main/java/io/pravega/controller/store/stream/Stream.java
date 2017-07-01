@@ -65,7 +65,7 @@ interface Stream {
      * @param configuration new stream configuration.
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration);
+    CompletableFuture<List<Integer>> updateConfiguration(final StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.

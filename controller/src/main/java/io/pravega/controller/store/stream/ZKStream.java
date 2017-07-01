@@ -285,17 +285,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
                                                                 final long maxExecutionExpiryTime,
                                                                 final long scaleGracePeriod) {
         return getLatestEpoch().thenCompose(pair -> {
-            if (pair.getValue().isEmpty()) {
-                // No active segments in the epoch implies sealed stream. Hence fail transaction creation.
-                return FutureHelpers.failedFuture(new OperationNotAllowed("Sealed stream"));
-            } else {
-                final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
-                final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                        scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-                return store.createZNodeIfNotExist(activePath, txnRecord, false)
-                        .thenApply(x -> cache.invalidateCache(activePath))
-                        .thenApply(y -> pair.getKey());
-            }
+            final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
+            final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                    scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+            return store.createZNodeIfNotExist(activePath, txnRecord, false)
+                    .thenApply(x -> cache.invalidateCache(activePath))
+                    .thenApply(y -> pair.getKey());
         });
     }
 

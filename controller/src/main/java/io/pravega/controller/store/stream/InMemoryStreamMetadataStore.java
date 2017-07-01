@@ -107,18 +107,26 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
-                                                          final String streamName,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context,
-                                                          final Executor executor) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final String scopeName,
+                                                                final String streamName,
+                                                                final StreamConfiguration configuration,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
                 return FutureHelpers.
                         failedFuture(new DataNotFoundException("Stream not found: " + scopeStreamName));
             }
-            return streams.get(scopeStreamName).updateConfiguration(configuration);
+            Stream stream = streams.get(scopeStreamName);
+            return stream.getActiveSegments().thenCompose(segments -> {
+                if (segments.isEmpty()) {
+                    // Stream is sealed.
+                    return FutureHelpers.failedFuture(new IllegalStateException("Sealed"));
+                } else {
+                    return stream.updateConfiguration(configuration).thenApply(x -> segments);
+                }
+            });
         } else {
             return FutureHelpers.
                     failedFuture(new StoreException(StoreException.Type.NODE_NOT_FOUND, "Scope not found."));
