@@ -633,11 +633,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
             long size = scaleMetadataList.size();
             long totalNumSplits = 0;
+            long countSplitsEventI, countSplitsEventI1;
 
-            for (int i = 0, j = 1; j < size; j++) {
-                long countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
-                long countSplitsEventJ = scaleMetadataList.get(j).getSegments().size();
-                totalNumSplits = (countSplitsEventI < countSplitsEventJ) ? (countSplitsEventJ - countSplitsEventI) : 0;
+            if (isDescendingOrder(scaleMetadataList)) {
+                for (int i = 0; i < size; i++) {
+                    countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
+                    countSplitsEventI1 = scaleMetadataList.get(i+1).getSegments().size();
+                    totalNumSplits += (countSplitsEventI > countSplitsEventI1) ? (countSplitsEventI - countSplitsEventI1) : 0;
+                }
+            } else {
+                for (int i = 0; i < size; i++) {
+                    countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
+                    countSplitsEventI1 = scaleMetadataList.get(i+1).getSegments().size();
+                    totalNumSplits += (countSplitsEventI1 > countSplitsEventI) ? (countSplitsEventI1 - countSplitsEventI) : 0;
+                }
             }
 
             return totalNumSplits;
@@ -648,15 +657,36 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
             long size = scaleMetadataList.size();
             long totalNumMerges = 0;
+            long countMergesEventI, countMergesEventI1;
 
-            for (int i = 0, j = 1; j < size; j++) {
-                long countMergesEventI = scaleMetadataList.get(i).getSegments().size();
-                long countMergesEventJ = scaleMetadataList.get(j).getSegments().size();
-                totalNumMerges = (countMergesEventI > countMergesEventJ) ? (countMergesEventI - countMergesEventJ) : 0;
+            if (isDescendingOrder(scaleMetadataList)) {
+                for (int i = 0; i < size; i++) {
+                    countMergesEventI = scaleMetadataList.get(i).getSegments().size();
+                    countMergesEventI1 = scaleMetadataList.get(i + 1).getSegments().size();
+                    totalNumMerges += (countMergesEventI1 > countMergesEventI) ? (countMergesEventI1 - countMergesEventI) : 0;
+                }
+            } else {
+                for (int i = 0; i < size; i++) {
+                    countMergesEventI = scaleMetadataList.get(i).getSegments().size();
+                    countMergesEventI1 = scaleMetadataList.get(i + 1).getSegments().size();
+                    totalNumMerges += (countMergesEventI > countMergesEventI1) ? (countMergesEventI - countMergesEventI1) : 0;
+                }
             }
 
             return totalNumMerges;
         });
+    }
+
+    private boolean isDescendingOrder(List<ScaleMetadata> scaleMetadataList) {
+        int size = scaleMetadataList.size();
+        boolean isDescendingOrder = true;
+        for (int i = 0; i < size - 1; i++) {
+            if (scaleMetadataList.get(i).getTimestamp() < scaleMetadataList.get(i+1).getTimestamp()) {
+                isDescendingOrder = false;
+                break;
+            }
+        }
+        return isDescendingOrder;
     }
 
     abstract Stream newStream(final String scope, final String name);
