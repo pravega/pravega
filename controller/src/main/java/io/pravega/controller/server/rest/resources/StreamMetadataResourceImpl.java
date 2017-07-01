@@ -443,11 +443,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 ScaleMetadata scaleMetadata = metadataIterator.next();
                 if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
                     finalScaleMetadataList.add(scaleMetadata);
-                } else if (scaleMetadata.getTimestamp() < from) {
+                } else if ((scaleMetadata.getTimestamp() < from) &&
+                            !(referenceEvent != null && referenceEvent.getTimestamp() > scaleMetadata.getTimestamp())) {
                     // This check is required to store a reference event i.e. an event before the 'from' datetime
                     referenceEvent = scaleMetadata;
-                } else {
-                    break;
                 }
             }
 
