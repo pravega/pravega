@@ -95,7 +95,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                     .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                     .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
                                                     .with(ExtendedS3StorageConfig.ROOT, "test")
-                                                    .with(ExtendedS3StorageConfig.URI, "http://127.0.0.1:9020")
+                                                    .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
         if (client == null) {
             createStorage();
@@ -127,7 +127,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     @Override
     protected Storage createStorage() {
         S3Config s3Config = null;
-        URI uri = URI.create("http://localhost:9020");
+        URI uri = URI.create(endpoint);
         s3Config = new S3Config(uri);
         s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
 
