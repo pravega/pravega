@@ -176,7 +176,7 @@ public class AppendTest {
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, EventWriterConfig.builder().build());
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));

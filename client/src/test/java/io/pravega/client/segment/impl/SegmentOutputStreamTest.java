@@ -17,6 +17,8 @@ import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -48,6 +50,7 @@ public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "segment";
     private static final int SERVICE_PORT = 12345;
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
 
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
@@ -61,7 +64,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -78,7 +81,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -97,7 +100,7 @@ public class SegmentOutputStreamTest {
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         
         output.setupConnection();
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -153,7 +156,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -180,7 +183,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -214,7 +217,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
@@ -264,7 +267,7 @@ public class SegmentOutputStreamTest {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         InOrder inOrder = Mockito.inOrder(connection);
         inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
@@ -317,7 +320,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -343,7 +346,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
@@ -366,7 +369,7 @@ public class SegmentOutputStreamTest {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, RETRY_SCHEDULE);
         output.setupConnection();
         order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));

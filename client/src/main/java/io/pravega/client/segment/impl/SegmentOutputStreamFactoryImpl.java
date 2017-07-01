@@ -12,9 +12,11 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -37,7 +39,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -79,12 +81,15 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             getAndHandleExceptions(connectionFuture, RuntimeException::new).close();
         });
         return new SegmentOutputStreamImpl(getAndHandleExceptions(name, RuntimeException::new), controller, cf,
-                UUID.randomUUID());
+                UUID.randomUUID(), Retry.withExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+                                                        config.getRetryAttempts(), config.getMaxBackoffMillis()));
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf,
+                UUID.randomUUID(), Retry.withExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+                                                        config.getRetryAttempts(), config.getMaxBackoffMillis()));
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException e) {

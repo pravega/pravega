@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.stream.EventWriterConfig;
 import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -25,12 +26,13 @@ public class SegmentSelectorTest {
 
     private final String scope = "scope";
     private final String streamName = "streamName";
+    private final EventWriterConfig config = EventWriterConfig.builder().build();
 
     @Test
     public void testUsesAllSegments() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -57,7 +59,7 @@ public class SegmentSelectorTest {
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
@@ -84,7 +86,7 @@ public class SegmentSelectorTest {
     public void testSameRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
         TreeMap<Double, Segment> segments = new TreeMap<>();
         segments.put(0.25, new Segment(scope, streamName, 0));
         segments.put(0.5, new Segment(scope, streamName, 1));
