@@ -13,6 +13,8 @@ import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.store.stream.ScaleOperationExceptions;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -28,9 +30,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -43,6 +42,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -74,7 +74,6 @@ public class StreamMetadataTasksTest {
     private StreamMetadataStore streamStorePartialMock;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private TimeoutService timeoutService;
     private ConnectionFactoryImpl connectionFactory;
 
     @Before
@@ -98,15 +97,12 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory);
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock, executor, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory);
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, timeoutService, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
@@ -126,8 +122,6 @@ public class StreamMetadataTasksTest {
 
     @After
     public void tearDown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
         zkClient.close();
@@ -138,6 +132,8 @@ public class StreamMetadataTasksTest {
 
     @Test(timeout = 10000)
     public void sealStreamTest() throws Exception {
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
+
         List<Controller.SegmentRange> segmentRanges = consumer.getCurrentSegments(SCOPE, stream1).get();
         assertNotEquals(0, segmentRanges.size());
 
@@ -160,17 +156,6 @@ public class StreamMetadataTasksTest {
                         .collect(Collectors.toList()),
                 Collections.emptyList(), System.currentTimeMillis(), null).get().getStatus());
 
-        //scale operation on the sealed stream.
-        AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
-        AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.3, 0.4);
-        AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
-
-        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
-                Arrays.asList(segment3, segment4, segment5), 30, null).get();
-
-        // scaling operation fails once a stream is sealed.
-        assertEquals(ScaleStreamStatus.PRECONDITION_FAILED, scaleOpResult.getStatus());
-
         // Updating config of a sealed stream should fail.
         final StreamConfiguration newConfig = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -179,5 +164,28 @@ public class StreamMetadataTasksTest {
                 .build();
         assertEquals(UpdateStreamStatus.Status.FAILURE,
                 streamMetadataTasks.updateStream(SCOPE, stream1, newConfig, null).join());
+    }
+
+    @Test
+    public void eventWriterInitializationTest() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+
+        AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
+                Arrays.asList(), 30, null).get(), e -> e instanceof ScaleOperationExceptions.ScaleRequestNotEnabledException);
+
+        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
+                newRanges, 30, null).get();
+
+        // scaling operation fails once a stream is sealed.
+        assertEquals(ScaleStreamStatus.SUCCESS, scaleOpResult.getStatus());
     }
 }

@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import org.apache.commons.lang3.tuple.Pair;
@@ -20,6 +21,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -52,7 +54,7 @@ public interface StreamMetadataStore {
      * @param executor        callers executor
      * @return boolean indicating whether the stream was created
      */
-    CompletableFuture<Boolean> createStream(final String scopeName,
+    CompletableFuture<CreateStreamResponse> createStream(final String scopeName,
                                             final String streamName,
                                             final StreamConfiguration configuration,
                                             final long createTimestamp,
@@ -229,14 +231,29 @@ public interface StreamMetadataStore {
      * @param epoch    epoch.
      * @param context  operation context
      * @param executor callers executor
-     * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
+     * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<List<Integer>> getActiveSegments(final String scope,
+    CompletableFuture<List<Segment>> getActiveSegments(final String scope,
                                                        final String stream,
                                                        final int epoch,
                                                        final OperationContext context,
                                                        final Executor executor);
 
+    /**
+     * Returns the segments in the specified epoch of the specified stream.
+     *
+     * @param scope    scope.
+     * @param stream   stream.
+     * @param epoch    epoch.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return         list of active segments in specified epoch.
+     */
+    CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
+                                                         final String stream,
+                                                         final int epoch,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Given a segment return a map containing the numbers of the segments immediately succeeding it
@@ -357,14 +374,14 @@ public interface StreamMetadataStore {
      *
      * @param scopeName  Scope
      * @param streamName Stream
-     * @param txId       Transaction identifier
+     * @param txData     Transaction data
      * @param lease      Lease duration in ms
      * @param context    operation context
      * @param executor   callers executor
      * @return Transaction data along with version information.
      */
     CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                final UUID txId, final long lease,
+                                                                final VersionedTransactionData txData, final long lease,
                                                                 final OperationContext context, final Executor executor);
 
     /**
@@ -462,6 +479,62 @@ public interface StreamMetadataStore {
      * @return map of txId to TxRecord
      */
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns(final String scope, final String stream, final OperationContext context, final Executor executor);
+
+    /**
+     * Adds specified resource as a child of current host's hostId node.
+     * This is idempotent operation.
+     *
+     * @param hostId      Host identifier.
+     * @param txn         Tracked transaction resource.
+     * @param version     Version of tracked transaction's node.
+     * @return            A future that completes on completion of the operation.
+     */
+    CompletableFuture<Void> addTxnToIndex(final String hostId, final TxnResource txn, final int version);
+
+    /**
+     * Removes the specified child node from the specified parent node.
+     * This is idempotent operation.
+     * If deleteEmptyParent is true and parent has no child after deletion of given child then parent is also deleted.
+     *
+     * @param hostId            Node whose child is to be removed.
+     * @param txn               Transaction resource to remove.
+     * @param deleteEmptyParent To delete or not to delete.
+     * @return void in future.
+     */
+    CompletableFuture<Void> removeTxnFromIndex(final String hostId, final TxnResource txn,
+                                               final boolean deleteEmptyParent);
+
+    /**
+     * Returns a transaction managed by specified host, if one exists.
+     *
+     * @param hostId Host identifier.
+     * @return A transaction managed by specified host, if one exists.
+     */
+    CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId);
+
+    /**
+     * Fetches version of specified txn stored in the index under specified host.
+     *
+     * @param hostId    Host identifier.
+     * @param resource  Txn resource.
+     * @return txn version stored in the index under specified host.
+     */
+    CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource);
+
+    /**
+     * Remove the specified host from the index.
+     *
+     * @param hostId Host identifier.
+     * @return A future indicating completion of removal of the host from index.
+     */
+    CompletableFuture<Void> removeHostFromIndex(String hostId);
+
+    /**
+     * Fetches set of hosts that own some txn.
+     *
+     * @return set of hosts owning some txn.
+     */
+    CompletableFuture<Set<String>> listHostsOwningTxn();
 
     /**
      * Returns the currently active epoch of the specified stream.
