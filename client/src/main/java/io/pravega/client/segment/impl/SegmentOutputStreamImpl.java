@@ -292,16 +292,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             log.trace("Received SegmentSealed {}", segmentIsSealed);
             if (state.sealEncountered.compareAndSet(false, true)) {
                 CompletableFuture.<Void>supplyAsync(() -> {
-                    /*
-                      Invariants for segment sealed:
-                      * SegmentSealed callback and write will not run concurrently.
-                      * During the execution of the call back
-                        - no new writes will be executed.
-                      * Once the segment Sealed callback is executed successfully
-                        - there will be no new writes to this segment.
-                        - any write to this segment will throw a SegmentSealedException.
-                        - any thread waiting on state.getEmptyInflightFuture() will get SegmentSealedException.
-                     */
                     log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
                     callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
                     return null;
@@ -388,10 +378,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         ClientConnection connection;
         try {
-            //if connection is null getConnection() establishes a connection and retransmits all events in inflight list.
+            // if connection is null getConnection() establishes a connection and retransmits all events in inflight
+            // list.
             connection = getConnection();
         } catch (SegmentSealedException e) {
-            //Add the event to inflight and indicate to the caller that the segment is sealed.
+            // Add the event to inflight and indicate to the caller that the segment is sealed.
             state.addToInflight(event);
             throw e;
         }
@@ -473,14 +464,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
 
     /**
-     * This function is invoked by SegmentSealedCallback i.e. when SegmentSealedCallback or getUnackedEventsOnSeal()
+     * This function is invoked by SegmentSealedCallback, i.e., when SegmentSealedCallback or getUnackedEventsOnSeal()
      * is invoked there are no writes happening to the Segment.
      * @see SegmentOutputStream#getUnackedEventsOnSeal()
      *
      */
     @Override
     public List<PendingEvent> getUnackedEventsOnSeal() {
-        //close connection and update the exception to SegmentSealed, this ensures future writes receive a
+        // close connection and update the exception to SegmentSealed, this ensures future writes receive a
         // SegmentSealedException.
         state.failConnection(new SegmentSealedException(this.segmentName));
         return Collections.unmodifiableList(state.getAllInflightEvents());

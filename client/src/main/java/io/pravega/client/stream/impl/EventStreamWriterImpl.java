@@ -53,21 +53,22 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     /**
-     * The lock here is used to enforce the following behaviour
+     * This lock is used to enforce the following behaviour
      *
      * a. When a Write is happening, segmentSealedCallback cannot be executed concurrently, this is used to handle
      * missing event.
-     * b. When a Write is happening, a newer write cannot be execute concurrently.
+     * b. When a Write is happening, a newer write cannot be executed concurrently.
      * c. When a Write is happening, flush cannot be executed concurrently.
      * d. When a Flush is being invoked, segmentSealedCallback can be executed concurrently.
      * e. When a Flush is being invoked, write cannot be executed concurrently.
      * f. When a Close is being invoked, write cannot be executed concurrently.
      * g. When a Close is being invoked, Flush and segmentSealedCallback can be executed concurrently.
      */
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReadWriteLock writeFlushLock = new ReentrantReadWriteLock();
     /*
      * This lock is to ensure two segmentSealed Callbacks (for different segments) are not invoked simultaneously.
      */
+    @GuardedBy("writeFlushLock")
     private final ReentrantLock segmentSealedLock = new ReentrantLock();
     private final Stream stream;
     private final Serializer<Type> serializer;
@@ -75,7 +76,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
-    @GuardedBy("lock")
+    @GuardedBy("writeFlushLock")
     private final SegmentSelector selector;
     private final Consumer<Segment> segmentSealedCallBack;
 
@@ -112,7 +113,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer data = serializer.serialize(event);
         CompletableFuture<Boolean> ackFuture = new CompletableFuture<Boolean>();
-        lock.writeLock().lock();
+        writeFlushLock.writeLock().lock();
         try {
             SegmentOutputStream segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
             while (segmentWriter == null) {
@@ -122,7 +123,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             }
             segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
         } finally {
-            lock.writeLock().unlock();
+            writeFlushLock.writeLock().unlock();
         }
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -142,7 +143,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         return result;
     }
     
-    @GuardedBy("lock")
+    @GuardedBy("writeFlushLock")
     private void handleMissingLog() {
         List<PendingEvent> toResend = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         resend(toResend);
@@ -154,7 +155,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
      * over very quickly.
      */
     private void handleLogSealed(Segment segment) {
-        lock.readLock().lock();
+        writeFlushLock.readLock().lock();
         /* Using segmentSealedLock the following behaviour is enforced
             - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
             - Ensure waiting segmentSealedCallbacks are invoked before the next write is invoked.
@@ -166,11 +167,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             resend(toResend);
         } finally {
             segmentSealedLock.unlock();
-            lock.readLock().unlock();
+            writeFlushLock.readLock().unlock();
         }
     }
 
-    @GuardedBy("lock")
+    @GuardedBy("writeFlushLock")
     private void resend(List<PendingEvent> toResend) {
         while (!toResend.isEmpty()) {
             List<PendingEvent> unsent = new ArrayList<>();
@@ -337,7 +338,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
     
     private void flushInternal() {
-        lock.readLock().lock();
+        writeFlushLock.readLock().lock();
         boolean success = false;
         try {
             while (!success) {
@@ -346,14 +347,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     try {
                         writer.flush();
                     } catch (SegmentSealedException e) {
-                        //Segment sealed exception observed during a flush. Re-run flush on all the available writers.
+                        // Segment sealed exception observed during a flush. Re-run flush on all the available writers.
                         success = false;
                         log.warn("Flush failed due to {}, it will be retried.", e.getMessage());
                     }
                 }
             }
         } finally {
-            lock.readLock().unlock();
+            writeFlushLock.readLock().unlock();
         }
     }
 
@@ -362,7 +363,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         if (closed.getAndSet(true)) {
             return;
         }
-        lock.readLock().lock();
+        writeFlushLock.readLock().lock();
         try {
             boolean success = false;
             while (!success) {
@@ -371,14 +372,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     try {
                         writer.close();
                     } catch (SegmentSealedException e) {
-                        //Segment sealed exception observed during a close. Re-run close on all the available writers.
+                        // Segment sealed exception observed during a close. Re-run close on all the available writers.
                         success = false;
                         log.warn("Close failed due to {}, it will be retried.", e.getMessage());
                     }
                 }
             }
         } finally {
-            lock.readLock().unlock();
+            writeFlushLock.readLock().unlock();
         }
     }
 

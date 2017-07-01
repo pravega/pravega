@@ -391,10 +391,10 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testExceptionSealedCallBack() throws ConnectionFailedException, SegmentSealedException {
+    public void testExceptionSealedCallback() throws ConnectionFailedException, SegmentSealedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
