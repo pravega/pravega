@@ -65,7 +65,7 @@ interface Stream {
      * @param configuration new stream configuration.
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration);
+    CompletableFuture<List<Integer>> updateConfiguration(final StreamConfiguration configuration);
 
     /**
      * Fetches the current stream configuration.
@@ -225,10 +225,10 @@ interface Stream {
      *
      * @return Details of created transaction.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
-                                                                  final long lease,
-                                                                  final long maxExecutionTime,
-                                                                  final long scaleGracePeriod);
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final UUID txnId,
+                                                                                       final long lease,
+                                                                                       final long maxExecutionTime,
+                                                                                       final long scaleGracePeriod);
 
 
     /**

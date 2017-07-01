@@ -140,15 +140,23 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * Update configuration at configurationPath.
      *
      * @param configuration new stream configuration.
-     * @return : future of boolean
+     * @return List of active segment in the stream if stream is not sealed, otherwise returns IllegalStateException.
      */
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final StreamConfiguration configuration) {
         // replace the configurationPath with new configurationPath
-        return verifyState(() -> updateState(State.UPDATING)
-                .thenApply(x -> setConfigurationData(configuration))
-                .thenApply(x -> true),
-                Lists.newArrayList(State.ACTIVE));
+        return verifyState(() -> getActiveSegments().thenCompose(segments -> {
+            if (segments.isEmpty()) {
+                // Stream is sealed.
+                return FutureHelpers.failedFuture(
+                        StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "SEALED"));
+            } else {
+                // Otherwise update stream configuration.
+                return updateState(State.UPDATING).thenCompose(x -> {
+                    return setConfigurationData(configuration).thenApply(y -> segments);
+                });
+            }
+        }), Lists.newArrayList(State.ACTIVE));
     }
 
     /**
@@ -374,7 +382,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         epochStartSegmentpair.getRight() + newRanges.size())
                         .boxed()
                         .collect(Collectors.toList()))
-                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments))),
+                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), scaleTimestamp, newSegments))),
                 Lists.newArrayList(State.ACTIVE, State.SCALING)
         );
     }
@@ -495,16 +503,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
-                                                                         final long lease,
-                                                                         final long maxExecutionTime,
-                                                                         final long scaleGracePeriod) {
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final UUID txnId,
+                                                                                              final long lease,
+                                                                                              final long maxExecutionTime,
+                                                                                              final long scaleGracePeriod) {
         final long current = System.currentTimeMillis();
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
         return verifyLegalState(() -> createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod)
-                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
-                        current + maxExecutionTime, scaleGracePeriod)));
+                .thenCompose(pair -> {
+                    VersionedTransactionData txnData = new VersionedTransactionData(pair.getKey(), txnId, 0,
+                            TxnStatus.OPEN, current, current + maxExecutionTime, scaleGracePeriod);
+                    CompletableFuture<List<Segment>> segFuture = FutureHelpers.allOfWithResults(
+                            pair.getValue().stream().map(number -> getSegment(number)).collect(Collectors.toList()));
+                    return segFuture.thenApply(segments -> new ImmutablePair<>(txnData, segments));
+                }));
     }
 
     @Override
@@ -948,11 +961,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
 
-    abstract CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                             final long timestamp,
-                                                             final long leaseExpiryTime,
-                                                             final long maxExecutionExpiryTime,
-                                                             final long scaleGracePeriod);
+    abstract CompletableFuture<Pair<Integer, List<Integer>>> createNewTransaction(final UUID txId,
+                                                                                  final long timestamp,
+                                                                                  final long leaseExpiryTime,
+                                                                                  final long maxExecutionExpiryTime,
+                                                                                  final long scaleGracePeriod);
 
     abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 

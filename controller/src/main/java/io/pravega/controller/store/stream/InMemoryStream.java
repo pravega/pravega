@@ -19,12 +19,15 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -391,30 +394,38 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime,
-                                                    long scaleGracePeriod) {
+    CompletableFuture<Pair<Integer, List<Integer>>> createNewTransaction(UUID txId,
+                                                                         long timestamp,
+                                                                         long leaseExpiryTime,
+                                                                         long maxExecutionExpiryTime,
+                                                                         long scaleGracePeriod) {
         Preconditions.checkNotNull(txId);
 
-        final CompletableFuture<Integer> result = new CompletableFuture<>();
+        final CompletableFuture<Pair<Integer, List<Integer>>> result = new CompletableFuture<>();
         final Data<Integer> txnData = new Data<>(
                 new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod, TxnStatus.OPEN)
                 .toByteArray(), 0);
-        synchronized (txnsLock) {
-            activeTxns.putIfAbsent(txId.toString(), txnData);
-        }
         int epoch = activeEpoch.get();
         synchronized (txnsLock) {
             if (!epochTxnMap.containsKey(epoch)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "epoch"));
             } else {
-                epochTxnMap.compute(epoch, (x, y) -> {
-                    y.add(txId.toString());
-                    return y;
+                getActiveSegments().thenAccept(segments -> {
+                    if (segments.isEmpty()) {
+                        // Stream is sealed
+                        result.completeExceptionally(
+                                StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "SEALED"));
+                    } else {
+                        activeTxns.putIfAbsent(txId.toString(), txnData);
+                        epochTxnMap.compute(epoch, (x, y) -> {
+                            y.add(txId.toString());
+                            return y;
+                        });
+                        result.complete(new ImmutablePair<>(epoch, segments));
+                    }
                 });
-                result.complete(epoch);
             }
         }
-
         return result;
     }
 

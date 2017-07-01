@@ -146,11 +146,12 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration.
      * @param context       operation context
      * @param executor      callers executor
-     * @return boolean indicating whether the stream was updated
+     * @return List of active stream segments if the stream is not sealed, else return IllegalStateException.
      */
-    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration,
-                                                   final OperationContext context,
-                                                   final Executor executor);
+    CompletableFuture<List<Integer>> updateConfiguration(final String scope, final String name,
+                                                         final StreamConfiguration configuration,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Fetches the current stream configuration.
@@ -164,17 +165,6 @@ public interface StreamMetadataStore {
     CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name,
                                                             final OperationContext context,
                                                             final Executor executor);
-
-    /**
-     * Set the stream state to sealed.
-     *
-     * @param scope    stream scope
-     * @param name     stream name.
-     * @param context  operation context
-     * @param executor callers executor
-     * @return boolean indicating whether the stream was updated.
-     */
-    CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get the stream sealed status.
@@ -372,12 +362,14 @@ public interface StreamMetadataStore {
      * @param executor         callers executor
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
-                                                                  final UUID txnId,
-                                                                  final long lease, final long maxExecutionTime,
-                                                                  final long scaleGracePeriod,
-                                                                  final OperationContext context,
-                                                                  final Executor executor);
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final String scopeName,
+                                                                                       final String streamName,
+                                                                                       final UUID txnId,
+                                                                                       final long lease,
+                                                                                       final long maxExecutionTime,
+                                                                                       final long scaleGracePeriod,
+                                                                                       final OperationContext context,
+                                                                                       final Executor executor);
 
     /**
      * Heartbeat to keep the transaction open for at least lease amount of time.

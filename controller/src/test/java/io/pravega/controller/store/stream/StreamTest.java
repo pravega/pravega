@@ -115,15 +115,6 @@ public class StreamTest {
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-
-        stream.updateState(State.SEALING).get();
-
-        response = stream.checkStreamExists(streamConfig1, creationTime1).get();
-        assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime1).get();
-        assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
-        response = stream.checkStreamExists(streamConfig2, creationTime2).get();
-        assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
     }
 
 }

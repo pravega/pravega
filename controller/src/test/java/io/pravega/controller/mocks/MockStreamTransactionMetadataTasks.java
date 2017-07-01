@@ -60,10 +60,10 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
         final UUID txnId = UUID.randomUUID();
         return streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionTime, scaleGracePeriod,
                 context, executor)
-                .thenCompose(txData -> {
-                    log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
-                    return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                            .thenApply(segmentList -> new ImmutablePair<>(txData, segmentList));
+                .thenApply(pair -> {
+                    VersionedTransactionData txnData = pair.getKey();
+                    log.info("Created transaction {} with version {}", txnData.getId(), txnData.getVersion());
+                    return new ImmutablePair<>(txnData, pair.getValue());
                 });
     }
 

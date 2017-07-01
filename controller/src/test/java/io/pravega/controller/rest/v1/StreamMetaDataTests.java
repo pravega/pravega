@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.rest.v1;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
@@ -709,7 +708,7 @@ public class StreamMetaDataTests {
         Response response = client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
-        final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(new GenericType<List<ScaleMetadata>>(){});
+        final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(new GenericType<List<ScaleMetadata>>() { });
         assertEquals("List Size", 3, scaleMetadataListResponse.size());
         scaleMetadataListResponse.forEach(data -> {
             log.warn("Here");

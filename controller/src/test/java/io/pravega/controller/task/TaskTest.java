@@ -227,10 +227,6 @@ public class TaskTest {
         // Update stream test.
         completePartialTask(mockStreamTasks.updateStream(SCOPE, stream, configuration1, null), deadHost, sweeper);
 
-        // Seal stream test.
-        completePartialTask(mockStreamTasks.sealStream(SCOPE, stream, null), deadHost, sweeper);
-        Assert.assertEquals(0, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
-
         // Delete stream test.
         completePartialTask(mockStreamTasks.deleteStream(SCOPE, stream, null), deadHost, sweeper);
         List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();

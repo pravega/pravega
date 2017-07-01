@@ -36,12 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * Stream metadata test.
@@ -141,27 +136,9 @@ public abstract class StreamMetadataStoreTest {
 
         // endregion
 
-        // region seal stream
-
+        // region isSealed
         assertFalse(store.isSealed(scope, stream1, null, executor).get());
         assertNotEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus);
-        assertTrue(store.isSealed(scope, stream1, null, executor).get());
-        assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-
-        //Sealing an already seal stream should return success.
-        Boolean sealOperationStatus1 = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus1);
-        assertTrue(store.isSealed(scope, stream1, null, executor).get());
-        assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-
-        // seal a non-existent stream.
-        try {
-            store.setSealed(scope, "streamNonExistent", null, executor).join();
-        } catch (CompletionException e) {
-            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
-        }
         // endregion
 
         // region delete scope and stream
@@ -446,7 +423,7 @@ public abstract class StreamMetadataStoreTest {
 
         // scale with transaction test
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(0, tx1.getEpoch());
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
@@ -457,14 +434,14 @@ public abstract class StreamMetadataStoreTest {
 
         // assert that txn is created on old epoch
         VersionedTransactionData tx2 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(0, tx2.getEpoch());
 
         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                 response.getActiveEpoch(), scaleTs, null, executor).join();
 
         VersionedTransactionData tx3 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(1, tx3.getEpoch());
 
         DeleteEpochResponse deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch

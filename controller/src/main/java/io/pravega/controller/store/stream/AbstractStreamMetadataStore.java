@@ -30,7 +30,7 @@ import com.google.common.cache.LoadingCache;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -237,10 +237,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String scope,
-                                                          final String name,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context, final Executor executor) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final String scope,
+                                                                final String name,
+                                                                final StreamConfiguration configuration,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
     }
 
@@ -253,18 +254,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
+        return withCompletion(getStream(scope, name, context).getActiveSegments().thenApply(list -> list.isEmpty()), executor);
     }
-
-    @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
-            SEAL_STREAM.reportSuccessValue(1);
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-            return result;
-        });
-    }
-
 
     @Override
     public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor) {
@@ -279,18 +270,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor) {
         final Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getState()
-                        .thenComposeAsync(state -> {
-                            if (State.SEALED.equals(state)) {
-                                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
-                            } else {
-                                return stream.getActiveSegments();
-                            }
-                        }, executor)
-                        .thenComposeAsync(currentSegments ->
-                                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
-                                        .collect(Collectors.toList())), executor),
-                executor);
+        return withCompletion(stream.getActiveSegments().thenComposeAsync(currentSegments ->
+                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                        .collect(Collectors.toList())), executor), executor);
     }
 
 
@@ -372,14 +354,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
-        future.thenCompose(result -> CompletableFuture.allOf(
-                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
-                findNumSplits(scope, name, executor).thenAccept(numSplits ->
-                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits)),
-                findNumMerges(scope, name, executor).thenAccept( numMerges ->
-                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges))));
-
+        future.thenAccept(result -> {
+            if (newSegments.isEmpty()) {
+                // No new segments implies completion of sealing operation.
+                SEAL_STREAM.reportSuccessValue(1);
+            } else {
+                // It is a normal scaling operation and we can change split or merge counters.
+                CompletableFuture.allOf(
+                        getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
+                        findNumSplits(scope, name, executor).thenAccept(numSplits ->
+                                DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits)),
+                        findNumMerges(scope, name, executor).thenAccept( numMerges ->
+                                DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges)));
+            }
+        });
         return future;
     }
 
@@ -393,23 +382,26 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.scaleTryDeleteEpoch(epoch), executor)
                 .thenCompose(deleted -> {
                     if (deleted) {
-                        return stream.latestScaleData()
-                                .thenCompose(pair -> {
-                                    List<Integer> segmentsSealed = pair.getLeft();
-                                    return FutureHelpers.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
-                                            .collect(Collectors.toList()))
-                                            .thenApply(segmentsCreated ->
-                                                    new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
-                                });
+                        return stream.latestScaleData().thenCompose(pair -> {
+                            List<Integer> segmentsSealed = pair.getLeft();
+                            CompletableFuture<List<Segment>> segmentsCreated = FutureHelpers.allOfWithResults(
+                                    pair.getRight().stream().map(stream::getSegment).collect(Collectors.toList()));
+                            CompletableFuture<Long> scaleTimestamp = pair.getRight().isEmpty() ?
+                                    stream.getSegment(segmentsSealed.stream().max(Comparator.naturalOrder()).get())
+                                            .thenApply(Segment::getStart) :
+                                    segmentsCreated
+                                            .thenApply(x -> x.get(0).getStart());
+                            return scaleTimestamp.thenApply(ts -> new DeleteEpochResponse(true, segmentsSealed, ts, segmentsCreated.join()));
+                        });
                     } else {
                         return CompletableFuture.completedFuture(
-                                new DeleteEpochResponse(false, null, null));
+                                new DeleteEpochResponse(false, null, 0, null));
                     }
                 });
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final String scopeName,
                                                                          final String streamName,
                                                                          final UUID txnId,
                                                                          final long lease,

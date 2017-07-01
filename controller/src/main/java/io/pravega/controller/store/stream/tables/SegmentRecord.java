@@ -25,6 +25,8 @@ import java.util.Optional;
  */
 public class SegmentRecord {
     public static final int SEGMENT_RECORD_SIZE = Integer.BYTES + Long.BYTES + Double.BYTES + Double.BYTES;
+    public static final double SEAL_SENTINAL_KEY_START = 0.0;
+    public static final double SEAL_SENTINAL_KEY_END = 0.0;
 
     private final int segmentNumber;
     private final long startTime;
@@ -62,6 +64,15 @@ public class SegmentRecord {
             }
         }
         return result;
+    }
+
+    static SegmentRecord getSealSentinal(final int segmentNumber, final long timestamp) {
+        return new SegmentRecord(segmentNumber, timestamp, 0.0, 0.0);
+    }
+
+    static boolean isSealSentinal(final SegmentRecord segmentRecord) {
+        return segmentRecord.getRoutingKeyStart() == SEAL_SENTINAL_KEY_START &&
+                segmentRecord.getRoutingKeyEnd() == SEAL_SENTINAL_KEY_END;
     }
 
     private static SegmentRecord parse(final byte[] table, final int offset) {

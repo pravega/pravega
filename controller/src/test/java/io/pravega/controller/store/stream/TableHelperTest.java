@@ -18,6 +18,7 @@ import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -554,7 +555,40 @@ public class TableHelperTest {
         assertFalse(TableHelper.isScaleOngoing(historyTable, segmentTable));
     }
 
-    @Test
+    @Test(timeout = 10000)
+    public void sealAsScaleTest() {
+        long timestamp = System.currentTimeMillis();
+        final List<Integer> startSegments = Lists.newArrayList(0, 1, 2, 3, 4);
+        byte[] segmentTable = createSegmentTable(5, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+
+        // start new scale
+        List<Integer> newSegments = Collections.emptyList();
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = Collections.emptyList();
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        final double keyRangeChunkInvalid = 1.0 / 5;
+        final List<AbstractMap.SimpleEntry<Double, Double>> newRangesInvalid = IntStream.range(0, 2)
+                .boxed()
+                .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunkInvalid, (x + 1) * keyRangeChunkInvalid))
+                .collect(Collectors.toList());
+        assertFalse(TableHelper.isRerunOf(Lists.newArrayList(5, 6), newRangesInvalid, historyTable, segmentTable));
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+        assertTrue(TableHelper.isScaleOngoing(historyTable, segmentTable));
+        assertTrue(TableHelper.isRerunOf(startSegments, newRanges, historyTable, segmentTable));
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+
+        assertFalse(TableHelper.isScaleOngoing(historyTable, segmentTable));
+    }
+
+    @Test(timeout = 10000000)
     public void scaleInputValidityTest() {
         long timestamp = System.currentTimeMillis();
 
@@ -665,6 +699,18 @@ public class TableHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
         assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+
+        // 17. Valid sealing input.
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(0, 1, 2, 3, 4), new ArrayList<>(), segmentTable));
+
+        // 18. Valid sealing input
+        assertTrue(TableHelper.isScaleInputValid(Lists.newArrayList(3, 1, 0, 4, 2), new ArrayList<>(), segmentTable));
+
+        // 18. Invalid sealing input.
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(0, 4), new ArrayList<>(), segmentTable));
+
+        // 19. Invalid sealing input.
+        assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(4, 0), new ArrayList<>(), segmentTable));
     }
 
     private byte[] createSegmentTable(int numSegments, long eventTime) {

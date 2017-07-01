@@ -369,23 +369,6 @@ public class ZkStreamTest {
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus);
-        assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
-        assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
-
-        //seal an already sealed stream.
-        Boolean sealOperationStatus1 = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus1);
-        assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
-        assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
-
-        //seal a non existing stream.
-        try {
-            store.setSealed(SCOPE, "nonExistentStream", null, executor).get();
-        } catch (Exception e) {
-            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
-        }
 
         store.markCold(SCOPE, streamName, 0, System.currentTimeMillis() + 1000, null, executor).get();
         assertTrue(store.isCold(SCOPE, streamName, 0, null, executor).get());
@@ -421,12 +404,12 @@ public class ZkStreamTest {
 
         UUID txnId1 = UUID.randomUUID();
         VersionedTransactionData tx = store.createTransaction(SCOPE, streamName, txnId1, 10000, 600000, 30000,
-                context, executor).get();
+                context, executor).get().getKey();
         Assert.assertEquals(txnId1, tx.getId());
 
         UUID txnId2 = UUID.randomUUID();
         VersionedTransactionData tx2 = store.createTransaction(SCOPE, streamName, txnId2, 10000, 600000, 30000,
-                context, executor).get();
+                context, executor).get().getKey();
         Assert.assertEquals(txnId2, tx2.getId());
 
         store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),

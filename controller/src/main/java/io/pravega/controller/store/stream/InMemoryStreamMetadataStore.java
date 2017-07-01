@@ -104,18 +104,27 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
-                                                          final String streamName,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context,
-                                                          final Executor executor) {
+    public CompletableFuture<List<Integer>> updateConfiguration(final String scopeName,
+                                                                final String streamName,
+                                                                final StreamConfiguration configuration,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
                 return FutureHelpers.
                         failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
-            return streams.get(scopeStreamName).updateConfiguration(configuration);
+            Stream stream = streams.get(scopeStreamName);
+            return stream.getActiveSegments().thenCompose(segments -> {
+                if (segments.isEmpty()) {
+                    // Stream is sealed.
+                    return FutureHelpers.failedFuture(
+                            StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "SEALED"));
+                } else {
+                    return stream.updateConfiguration(configuration).thenApply(x -> segments);
+                }
+            });
         } else {
             return FutureHelpers.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
