@@ -50,15 +50,23 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -401,6 +409,49 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
     }
+    
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        Stream stream = from.getStream();
+        long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
+        HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
+        val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
+                                                     RuntimeException::new);
+        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
+        ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
+        for (Segment toFetch : from.getPositions().keySet()) {
+            if (!unread.contains(toFetch)) {
+                toFetchSuccessors.add(toFetch);
+            }
+        }
+        unread.addAll(currentSegments.getSegments());
+        while (!toFetchSuccessors.isEmpty()) {
+            Segment segment = toFetchSuccessors.remove();
+            Set<Segment> successors = getAndHandleExceptions(getSuccessors(segment), RuntimeException::new).getSegmentToPredecessor()
+                                                                                                           .keySet();
+            for (Segment successor : successors) {
+                if (!unread.contains(successor)) {
+                    unread.add(successor);
+                    toFetchSuccessors.add(successor);
+                }
+            }
+        }
+        LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
+        return CompletableFuture.completedFuture(unread);
+    }
+    
+    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
+        int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
+        int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
+        if (highestCut >= lowestCurrent) {
+            return Collections.emptyList();
+        }
+        List<Segment> result = new ArrayList<>(lowestCurrent - highestCut);
+        for (int num = highestCut + 1; num < lowestCurrent; num++) {
+            result.add(new Segment(from.getStream().getScope(), from.getStream().getStreamName(), num));
+        }
+        return result;
+    }
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String stream) {
@@ -614,4 +665,5 @@ public class ControllerImpl implements Controller {
             return future;
         }
     }
+
 }

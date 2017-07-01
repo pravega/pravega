@@ -18,6 +18,11 @@ public class NullDynamicLogger implements DynamicLogger {
     }
 
     @Override
+    public void updateCounterValue(String name, long value) {
+        // nop
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         // nop
     }

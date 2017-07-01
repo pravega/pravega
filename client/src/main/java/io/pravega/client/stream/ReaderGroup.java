@@ -27,6 +27,13 @@ import java.util.concurrent.ScheduledExecutorService;
 public interface ReaderGroup {
 
     /**
+     * Returns metrics for this reader group.
+     * 
+     * @return a ReaderGroupMetrics object for this reader group.
+     */
+    ReaderGroupMetrics getMetrics();
+    
+    /**
      * Returns the scope of the stream which the group is associated with.
      *
      * @return A scope string

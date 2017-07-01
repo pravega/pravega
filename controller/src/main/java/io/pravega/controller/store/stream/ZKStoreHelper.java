@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,18 +55,9 @@ public class ZKStoreHelper {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.create().creatingParentsIfNeeded().inBackground(
-                    callback(x -> result.complete(null),
-                            e -> {
-                                if (e instanceof DataExistsException) {
-                                    result.completeExceptionally(
-                                            StoreException.create(StoreException.Type.NODE_EXISTS, path));
-                                } else {
-                                    result.completeExceptionally(
-                                            StoreException.create(StoreException.Type.UNKNOWN, path));
-                                }
-                            }), executor).forPath(path);
+                    callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, path));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
         return result;
     }
@@ -76,21 +66,9 @@ public class ZKStoreHelper {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete().inBackground(
-                    callback(x -> result.complete(null),
-                            e -> {
-                                if (e instanceof DataExistsException) {
-                                    result.completeExceptionally(
-                                            StoreException.create(StoreException.Type.NODE_NOT_EMPTY, path));
-                                } else if (e instanceof DataNotFoundException) {
-                                    result.completeExceptionally(
-                                            StoreException.create(StoreException.Type.NODE_NOT_FOUND, path));
-                                } else {
-                                    result.completeExceptionally(
-                                            StoreException.create(StoreException.Type.UNKNOWN, path));
-                                }
-                            }), executor).forPath(path);
+                    callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, path));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
         return result;
     }
@@ -105,14 +83,14 @@ public class ZKStoreHelper {
             client.delete().inBackground(
                     callback(event -> deleteNode.complete(null),
                             e -> {
-                                if (e instanceof DataNotFoundException) { // deleted already
+                                if (e instanceof StoreException.DataNotFoundException) { // deleted already
                                     deleteNode.complete(null);
                                 } else {
                                     deleteNode.completeExceptionally(e);
                                 }
-                            }), executor).forPath(path);
+                            }, path), executor).forPath(path);
         } catch (Exception e) {
-            deleteNode.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            deleteNode.completeExceptionally(new StoreException.UnknownException(path, e));
         }
 
         deleteNode.whenComplete((res, ex) -> {
@@ -124,45 +102,39 @@ public class ZKStoreHelper {
                     client.delete().inBackground(
                             callback(event -> result.complete(null),
                                     e -> {
-                                        if (e instanceof DataNotFoundException) { // deleted already
+                                        if (e instanceof StoreException.DataNotFoundException) { // deleted already
                                             result.complete(null);
-                                        } else if (e instanceof DataExistsException) { // non empty dir
+                                        } else if (e instanceof StoreException.DataNotEmptyException) { // non empty dir
                                             result.complete(null);
                                         } else {
                                             result.completeExceptionally(e);
                                         }
-                                    }), executor).forPath(container);
+                                    }, path), executor).forPath(container);
                 } catch (Exception e) {
-                    result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+                    result.completeExceptionally(new StoreException.UnknownException(path, e));
                 }
             } else {
                 result.complete(null);
             }
         });
-
         return result;
     }
 
     public CompletableFuture<Void> deleteTree(final String path) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
-            client.delete().deletingChildrenIfNeeded().inBackground(
-                    callback(event -> result.complete(null),
-                            e -> {
-                                if (e instanceof DataNotFoundException) {
-                                    result.completeExceptionally(new StoreException(StoreException.Type.NODE_NOT_FOUND));
-                                } else {
-                                    result.completeExceptionally(e);
-                                }
-                            }), executor).forPath(path);
+            client.delete()
+                    .deletingChildrenIfNeeded()
+                    .inBackground(callback(event -> result.complete(null), result::completeExceptionally, path),
+                            executor)
+                    .forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
-
         return result;
     }
 
-    CompletableFuture<Data<Integer>> getData(final String path) throws DataNotFoundException {
+    CompletableFuture<Data<Integer>> getData(final String path) {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
 
         checkExists(path)
@@ -172,35 +144,19 @@ public class ZKStoreHelper {
                     } else if (exists) {
                         try {
                             client.getData().inBackground(
-                                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat().getVersion())),
-                                            result::completeExceptionally), executor).forPath(path);
+                                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat()
+                                                    .getVersion())),
+                                            result::completeExceptionally, path), executor)
+                                    .forPath(path);
                         } catch (Exception e) {
-                            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+                            result.completeExceptionally(new StoreException.UnknownException(path, e));
                         }
                     } else {
-                        result.completeExceptionally(new DataNotFoundException(path));
+                        result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
                     }
                 });
 
         return result;
-    }
-
-    CompletableFuture<Void> updateTxnData(final String path, final byte[] data) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                client.setData().forPath(path, data);
-                return null;
-            } catch (KeeperException.NoNodeException nne) {
-                throw new DataNotFoundException(path);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    private CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
-        return getChildren(rootPath)
-                .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x)).collect(Collectors.toList()));
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
@@ -210,14 +166,14 @@ public class ZKStoreHelper {
             client.getChildren().inBackground(
                     callback(event -> result.complete(event.getChildren()),
                             e -> {
-                                if (e instanceof DataNotFoundException) {
+                                if (e instanceof StoreException.DataNotFoundException) {
                                     result.complete(Collections.emptyList());
                                 } else {
                                     result.completeExceptionally(e);
                                 }
-                            }), executor).forPath(path);
+                            }, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
 
         return result;
@@ -228,17 +184,15 @@ public class ZKStoreHelper {
         try {
             if (data.getVersion() == null) {
                 client.setData().inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally), executor)
+                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             } else {
                 client.setData().withVersion(data.getVersion()).inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally), executor)
+                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             }
-        } catch (KeeperException.ConnectionLossException | KeeperException.SessionExpiredException | KeeperException.OperationTimeoutException e) {
-            result.completeExceptionally(new StoreConnectionException(e));
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
         return result;
     }
@@ -253,19 +207,19 @@ public class ZKStoreHelper {
             CreateBuilder createBuilder = client.create();
             BackgroundCallback callback = callback(x -> result.complete(null),
                     e -> {
-                        if (e instanceof DataExistsException) {
+                        if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);
                         } else {
                             result.completeExceptionally(e);
                         }
-                    });
+                    }, path);
             if (createParent) {
                 createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
             } else {
                 createBuilder.inBackground(callback, executor).forPath(path, data);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
 
         return result;
@@ -282,19 +236,19 @@ public class ZKStoreHelper {
             CreateBuilder createBuilder = client.create();
             BackgroundCallback callback = callback(x -> result.complete(null),
                     e -> {
-                        if (e instanceof DataExistsException) {
+                        if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);
                         } else {
                             result.completeExceptionally(e);
                         }
-                    });
+                    }, path);
             if (createParent) {
                 createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path);
             } else {
                 createBuilder.inBackground(callback, executor).forPath(path);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
 
         return result;
@@ -307,21 +261,21 @@ public class ZKStoreHelper {
             client.checkExists().inBackground(
                     callback(x -> result.complete(x.getStat() != null),
                             ex -> {
-                                if (ex instanceof DataNotFoundException) {
+                                if (ex instanceof StoreException.DataNotFoundException) {
                                     result.complete(false);
                                 } else {
                                     result.completeExceptionally(ex);
                                 }
-                            }), executor).forPath(path);
+                            }, path), executor).forPath(path);
 
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException(StoreException.Type.UNKNOWN));
+            result.completeExceptionally(new StoreException.UnknownException(path, e));
         }
 
         return result;
     }
 
-    BackgroundCallback callback(Consumer<CuratorEvent> result, Consumer<Throwable> exception) {
+    BackgroundCallback callback(Consumer<CuratorEvent> result, Consumer<Throwable> exception, String path) {
         return (client, event) -> {
             if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
                 result.accept(event);
@@ -329,17 +283,18 @@ public class ZKStoreHelper {
                     event.getResultCode() == KeeperException.Code.SESSIONEXPIRED.intValue() ||
                     event.getResultCode() == KeeperException.Code.SESSIONMOVED.intValue() ||
                     event.getResultCode() == KeeperException.Code.OPERATIONTIMEOUT.intValue()) {
-                exception.accept(new StoreConnectionException("" + event.getResultCode()));
+                exception.accept(StoreException.create(StoreException.Type.CONNECTION_ERROR, path));
             } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
-                exception.accept(new DataExistsException(event.getPath()));
+                exception.accept(StoreException.create(StoreException.Type.DATA_EXISTS, path));
             } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
-                exception.accept(new WriteConflictException(event.getPath()));
+                exception.accept(StoreException.create(StoreException.Type.WRITE_CONFLICT, path));
             } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
-                exception.accept(new DataNotFoundException(event.getPath()));
+                exception.accept(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
             } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
-                exception.accept(new DataExistsException(event.getPath()));
+                exception.accept(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, path));
             } else {
-                exception.accept(new RuntimeException("Curator background task errorCode:" + event.getResultCode()));
+                exception.accept(new StoreException.UnknownException(path,
+                        KeeperException.create(KeeperException.Code.get(event.getResultCode()), path)));
             }
         };
     }

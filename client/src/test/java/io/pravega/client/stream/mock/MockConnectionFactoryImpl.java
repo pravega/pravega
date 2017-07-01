@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -30,8 +29,6 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
     final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testClientInternal-%d").build());
-    final PravegaNodeUri endpoint;
-
 
     @Override
     @Synchronized

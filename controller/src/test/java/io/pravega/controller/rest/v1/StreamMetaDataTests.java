@@ -25,7 +25,6 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import io.pravega.controller.store.stream.DataNotFoundException;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -328,7 +327,7 @@ public class StreamMetaDataTests {
 
         // Get a non-existent stream
         when(mockControllerService.getStream(scope1, stream2)).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw new DataNotFoundException("Stream Not Found");
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, stream2);
         }));
         response = client.target(resourceURI2).request().buildGet().invoke();
         assertEquals("Get Stream Config Status", 404, response.getStatus());
@@ -472,7 +471,7 @@ public class StreamMetaDataTests {
 
         // Test to get non-existent scope
         when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw new StoreException.NodeNotFoundException();
+            throw new StoreException.DataNotFoundException();
         }));
         response = client.target(resourceURI2).request().buildGet().invoke();
         assertEquals("Get non existent scope", 404, response.getStatus());
@@ -555,7 +554,7 @@ public class StreamMetaDataTests {
 
         // Test for list streams for invalid scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(new DataNotFoundException(""));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 404, response.getStatus());
@@ -700,7 +699,7 @@ public class StreamMetaDataTests {
 
         // Test for getScalingEvents for invalid scope/stream.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(new DataNotFoundException(""));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, ""));
         when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request().buildGet().invoke();

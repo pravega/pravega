@@ -30,7 +30,7 @@ public class StreamManagerImplTest {
     @Before
     public void setUp() {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(uri);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         this.streamManager = new StreamManagerImpl(controller);
     }

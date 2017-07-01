@@ -12,6 +12,8 @@ package io.pravega.test.integration.endtoendtest;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -97,7 +99,9 @@ public class EndToEndWithScaleTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -113,7 +117,7 @@ public class EndToEndWithScaleTest {
         assertTrue(result);
         writer.writeEvent("0", "txntest2").get();
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().build(), Collections.singleton("test"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),

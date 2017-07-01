@@ -125,13 +125,8 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                               .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                               .scalingPolicy(ScalingPolicy.fixed(1)).build());
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        ReaderGroupImpl result = new ReaderGroupImpl(scope,
-                                                     groupName,
-                                                     synchronizerConfig,
-                                                     new JavaSerializer<>(),
-                                                     new JavaSerializer<>(),
-                                                     clientFactory,
-                                                     controller);
+        ReaderGroupImpl result = new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
+                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
         result.initializeGroup(config, streamNames);
         return result;
     }

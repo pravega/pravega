@@ -14,6 +14,8 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -33,11 +35,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +45,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -136,8 +139,9 @@ public class ReadWriteTest {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
-             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory)) {
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 
             //start writing events to the stream
             log.info("Creating {} writers", NUM_WRITERS);

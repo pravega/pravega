@@ -11,13 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.test.system.framework.Environment;
-import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -28,6 +23,13 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.test.system.framework.Environment;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.services.BookkeeperService;
+import io.pravega.test.system.framework.services.PravegaControllerService;
+import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.ZookeeperService;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -35,8 +37,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -108,7 +108,7 @@ public class PravegaTest {
     }
 
     @BeforeClass
-    public static void beforeClass() throws InterruptedException, ExecutionException, TimeoutException {
+    public static void beforeClass() {
         // This is the placeholder to perform any operation on the services before executing the system tests
     }
 
@@ -126,6 +126,8 @@ public class PravegaTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         ControllerImpl controller = new ControllerImpl(controllerUri);
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());

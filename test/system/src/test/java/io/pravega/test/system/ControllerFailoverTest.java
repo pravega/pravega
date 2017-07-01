@@ -9,13 +9,6 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.test.system.framework.Environment;
-import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -24,13 +17,13 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.apache.commons.lang.RandomStringUtils;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
+import io.pravega.test.system.framework.Environment;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.services.BookkeeperService;
+import io.pravega.test.system.framework.services.PravegaControllerService;
+import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -38,6 +31,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.apache.commons.lang.RandomStringUtils;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 /**
  * Controller fail over system test.
