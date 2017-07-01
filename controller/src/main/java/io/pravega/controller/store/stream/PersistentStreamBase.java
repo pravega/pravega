@@ -503,16 +503,21 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
-                                                                         final long lease,
-                                                                         final long maxExecutionTime,
-                                                                         final long scaleGracePeriod) {
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final UUID txnId,
+                                                                                              final long lease,
+                                                                                              final long maxExecutionTime,
+                                                                                              final long scaleGracePeriod) {
         final long current = System.currentTimeMillis();
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
         return verifyLegalState(() -> createNewTransaction(txnId, current, leaseTimestamp, maxExecTimestamp, scaleGracePeriod)
-                .thenApply(epoch -> new VersionedTransactionData(epoch, txnId, 0, TxnStatus.OPEN, current,
-                        current + maxExecutionTime, scaleGracePeriod)));
+                .thenCompose(pair -> {
+                    VersionedTransactionData txnData = new VersionedTransactionData(pair.getKey(), txnId, 0,
+                            TxnStatus.OPEN, current, current + maxExecutionTime, scaleGracePeriod);
+                    CompletableFuture<List<Segment>> segFuture = FutureHelpers.allOfWithResults(
+                            pair.getValue().stream().map(number -> getSegment(number)).collect(Collectors.toList()));
+                    return segFuture.thenApply(segments -> new ImmutablePair<>(txnData, segments));
+                }));
     }
 
     @Override
@@ -956,11 +961,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> deleteEpochNode(int epoch);
 
-    abstract CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                             final long timestamp,
-                                                             final long leaseExpiryTime,
-                                                             final long maxExecutionExpiryTime,
-                                                             final long scaleGracePeriod);
+    abstract CompletableFuture<Pair<Integer, List<Integer>>> createNewTransaction(final UUID txId,
+                                                                                  final long timestamp,
+                                                                                  final long leaseExpiryTime,
+                                                                                  final long maxExecutionExpiryTime,
+                                                                                  final long scaleGracePeriod);
 
     abstract CompletableFuture<Integer> getTransactionEpoch(UUID txId);
 

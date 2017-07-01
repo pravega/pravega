@@ -36,7 +36,6 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
@@ -314,34 +313,33 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 });
 
         // Step 3. Create txn node in the store.
-        CompletableFuture<VersionedTransactionData> txnFuture = addIndex.thenComposeAsync(ignore ->
+        CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> txnFuture = addIndex.thenComposeAsync(ignore ->
                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                         scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed creating txn in store", txnId);
+                        // Remove transaction id from host-transaction index.
+                        streamMetadataStore.removeTxnFromIndex(hostId, resource, false);
                     } else {
                         log.debug("Txn={}, created in store", txnId);
                     }
                 });
 
         // Step 4. Notify segment stores about new txn.
-        CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
-
-        CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+        CompletableFuture<Void> notify = txnFuture.thenComposeAsync(pair ->
+                notifyTxnCreation(scope, stream, pair.getValue(), txnId), executor).whenComplete((v, e) ->
                 // Method notifyTxnCreation ensures that notification completes
                 // even in the presence of n/w or segment store failures.
                 log.debug("Txn={}, notified segments stores", txnId));
 
         // Step 5. Start tracking txn in timeout service
         return notify.thenApplyAsync(y -> {
-            int version = txnFuture.join().getVersion();
-            long executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+            int version = txnFuture.join().getKey().getVersion();
+            long executionExpiryTime = txnFuture.join().getKey().getMaxExecutionExpiryTime();
             timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
             log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
             return null;
-        }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
+        }, executor).thenApplyAsync(v -> txnFuture.join(), executor);
     }
 
     @SuppressWarnings("ReturnCount")

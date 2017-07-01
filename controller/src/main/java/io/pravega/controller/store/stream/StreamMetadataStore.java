@@ -362,12 +362,14 @@ public interface StreamMetadataStore {
      * @param executor         callers executor
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
-                                                                  final UUID txnId,
-                                                                  final long lease, final long maxExecutionTime,
-                                                                  final long scaleGracePeriod,
-                                                                  final OperationContext context,
-                                                                  final Executor executor);
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final String scopeName,
+                                                                                       final String streamName,
+                                                                                       final UUID txnId,
+                                                                                       final long lease,
+                                                                                       final long maxExecutionTime,
+                                                                                       final long scaleGracePeriod,
+                                                                                       final OperationContext context,
+                                                                                       final Executor executor);
 
     /**
      * Heartbeat to keep the transaction open for at least lease amount of time.

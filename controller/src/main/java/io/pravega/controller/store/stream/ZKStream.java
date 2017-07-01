@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang.SerializationUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.HashMap;
@@ -271,12 +272,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(final UUID txId,
-                                                    final long timestamp,
-                                                    final long leaseExpiryTime,
-                                                    final long maxExecutionExpiryTime,
-                                                    final long scaleGracePeriod) {
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+    CompletableFuture<Pair<Integer, List<Integer>>> createNewTransaction(final UUID txId,
+                                                                         final long timestamp,
+                                                                         final long leaseExpiryTime,
+                                                                         final long maxExecutionExpiryTime,
+                                                                         final long scaleGracePeriod) {
+        CompletableFuture<Pair<Integer, List<Integer>>> future = new CompletableFuture<>();
         createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
                 .whenComplete((value, ex) -> {
                     if (ex != null) {
@@ -293,18 +294,24 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return future;
     }
 
-    private CompletableFuture<Integer> createNewTransactionNode(final UUID txId,
-                                                                final long timestamp,
-                                                                final long leaseExpiryTime,
-                                                                final long maxExecutionExpiryTime,
-                                                                final long scaleGracePeriod) {
+    private CompletableFuture<Pair<Integer, List<Integer>>> createNewTransactionNode(final UUID txId,
+                                                                                     final long timestamp,
+                                                                                     final long leaseExpiryTime,
+                                                                                     final long maxExecutionExpiryTime,
+                                                                                     final long scaleGracePeriod) {
         return getLatestEpoch().thenCompose(pair -> {
-            final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
-            final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
-                    scaleGracePeriod, TxnStatus.OPEN).toByteArray();
-            return store.createZNodeIfNotExist(activePath, txnRecord, false)
-                    .thenApply(x -> cache.invalidateCache(activePath))
-                    .thenApply(y -> pair.getKey());
+            if (pair.getValue().isEmpty()) {
+                // Stream is sealed.
+                return FutureHelpers.failedFuture(
+                        StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "SEALED"));
+            } else {
+                final String activePath = getActiveTxPath(pair.getKey(), txId.toString());
+                final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime,
+                        scaleGracePeriod, TxnStatus.OPEN).toByteArray();
+                return store.createZNodeIfNotExist(activePath, txnRecord, false)
+                        .thenApply(x -> cache.invalidateCache(activePath))
+                        .thenApply(y -> pair);
+            }
         });
     }
 

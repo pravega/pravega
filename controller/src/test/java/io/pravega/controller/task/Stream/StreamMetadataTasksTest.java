@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.store.stream.StartScaleResponse;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
@@ -100,6 +102,8 @@ public class StreamMetadataTasksTest {
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory);
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                "abortStream", new EventStreamWriterMock<>());
 
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
@@ -164,6 +168,11 @@ public class StreamMetadataTasksTest {
                 .build();
         assertEquals(UpdateStreamStatus.Status.FAILURE,
                 streamMetadataTasks.updateStream(SCOPE, stream1, newConfig, null).join());
+
+        // Creating transactions on a sealed stream should fail.
+        AssertExtensions.assertThrows("Create txn on sealed stream",
+                streamTransactionMetadataTasks.createTxn(SCOPE, stream1, 10000, 10000, 10000, null),
+                ex -> ex instanceof StoreException.OperationNotAllowedException);
     }
 
     @Test

@@ -92,7 +92,7 @@ public class ControllerEventProcessorTest {
     public void testCommitEventProcessor() {
         UUID txnId = UUID.randomUUID();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
-                null, executor).join();
+                null, executor).join().getKey();
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
@@ -109,7 +109,7 @@ public class ControllerEventProcessorTest {
     public void testAbortEventProcessor() {
         UUID txnId = UUID.randomUUID();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
-                null, executor).join();
+                null, executor).join().getKey();
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 

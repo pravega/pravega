@@ -401,7 +401,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final String scopeName,
                                                                          final String streamName,
                                                                          final UUID txnId,
                                                                          final long lease,

@@ -423,7 +423,7 @@ public abstract class StreamMetadataStoreTest {
 
         // scale with transaction test
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(0, tx1.getEpoch());
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join();
@@ -434,14 +434,14 @@ public abstract class StreamMetadataStoreTest {
 
         // assert that txn is created on old epoch
         VersionedTransactionData tx2 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(0, tx2.getEpoch());
 
         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                 response.getActiveEpoch(), scaleTs, null, executor).join();
 
         VersionedTransactionData tx3 = store.createTransaction(scope, stream, UUID.randomUUID(),
-                100, 100, 100, null, executor).get();
+                100, 100, 100, null, executor).get().getKey();
         assertEquals(1, tx3.getEpoch());
 
         DeleteEpochResponse deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 0, null, executor).get(); // should not delete epoch

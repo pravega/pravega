@@ -225,10 +225,10 @@ interface Stream {
      *
      * @return Details of created transaction.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
-                                                                  final long lease,
-                                                                  final long maxExecutionTime,
-                                                                  final long scaleGracePeriod);
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTransaction(final UUID txnId,
+                                                                                       final long lease,
+                                                                                       final long maxExecutionTime,
+                                                                                       final long scaleGracePeriod);
 
 
     /**
