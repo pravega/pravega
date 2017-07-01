@@ -25,6 +25,7 @@ import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
@@ -53,8 +54,10 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
         bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
         bookkeeper.initialize();
 
-        String endpoint = "http://127.0.0.1:9020";
+        String endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
+
         URI uri = URI.create(endpoint);
+
         Properties properties = new Properties();
         properties.setProperty("s3proxy.authorization", "none");
         properties.setProperty("s3proxy.endpoint", endpoint);
@@ -121,7 +124,6 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
             return storage;
         }
     }
-
 
     //endregion
 }

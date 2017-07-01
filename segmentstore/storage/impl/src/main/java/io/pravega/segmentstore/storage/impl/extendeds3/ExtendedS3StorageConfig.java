@@ -24,13 +24,13 @@ import lombok.extern.slf4j.Slf4j;
 public class ExtendedS3StorageConfig {
     //region Config Names
 
-    public static final Property<String> ROOT = Property.named("Root", "/");
+    public static final Property<String> ROOT = Property.named("root", "/");
 
-    public static final Property<String> ACCESS_KEY_ID = Property.named( "accessKey", "");
+    public static final Property<String> ACCESS_KEY_ID = Property.named("accessKey", "");
 
-    public static final Property<String> SECRET_KEY = Property.named( "secretKey", "");
+    public static final Property<String> SECRET_KEY = Property.named("secretKey", "");
 
-    public static final Property<String> URI = Property.named( "url", "");
+    public static final Property<String> URI = Property.named("url", "");
 
     public static final Property<String> BUCKET = Property.named("bucket", "pravega-bucket");
 

@@ -154,15 +154,6 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
 
     //endregion
 
-    //region AutoClosable
-
-    @Override
-    public void close() {
-
-    }
-
-    //endregion
-
     //region private sync implementation
     private SegmentHandle syncOpenRead(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
@@ -215,9 +206,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
 
         AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
 
-        boolean canWrite = acls.getGrants().stream().filter((grant) -> {
-            return grant.getPermission().compareTo(Permission.WRITE) >= 0;
-        }).count() > 0;
+        boolean canWrite = acls.getGrants().stream().anyMatch((grant) -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
 
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
                 result.getContentLength(), !canWrite, false,
@@ -230,21 +219,20 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
         GetObjectResult<InputStream> result = null;
         try {
             result = client.getObject(config.getBucket(), config.getRoot() + streamSegmentName);
+            return result != null;
         } catch (S3Exception e) {
             if ( e.getErrorCode().equals("NoSuchKey")) {
-                result = null;
+                return false;
             } else {
                 throw e;
             }
         }
-        return result != null;
     }
 
     private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
-        if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName)
-                  .getObjects().isEmpty()) {
+        if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
 
@@ -308,8 +296,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
-        long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
-                offset, sourceSegment);
+        long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
         String targetPath = config.getRoot() + targetHandle.getSegmentName();
@@ -321,7 +308,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
         }
         // check whether the source is sealed
         SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
-        Preconditions.checkState(si.isSealed(), "source segment must be sealed.");
+        Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceSegment, targetHandle.getSegmentName());
 
         //Upload the first part
         CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),

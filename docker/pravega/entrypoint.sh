@@ -59,7 +59,7 @@ configure_tier2() {
     ;;
     EXTENDEDS3)
     EXTENDEDS3_ROOT=${EXTENDEDS3_ROOT:-"/"}
-    add_system_property "extendeds3.Root" "${EXTENDEDS3_ROOT}"
+    add_system_property "extendeds3.root" "${EXTENDEDS3_ROOT}"
     add_system_property "extendeds3.accessKey" "${EXTENDEDS3_ACCESS_KEY_ID}"
     add_system_property "extendeds3.secretKey" "${EXTENDEDS3_SECRET_KEY}"
     add_system_property "extendeds3.url" "${EXTENDEDS3_URI}"
