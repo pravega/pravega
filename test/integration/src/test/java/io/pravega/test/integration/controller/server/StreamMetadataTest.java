@@ -51,11 +51,12 @@ public class StreamMetadataTest {
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
-                true,
+                false,
                 controllerPort,
                 "localhost",
                 servicePort,
                 4);
+        controllerWrapper.awaitRunning();
         Controller controller = controllerWrapper.getController();
 
         final String scope1 = "scope1";
