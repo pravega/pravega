@@ -53,10 +53,9 @@ import lombok.extern.slf4j.Slf4j;
  * Each segment is represented as a single Object on the underlying storage.
  *
  * This implementation works under the assumption that data is only appended and never modified.
- * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
- *
- * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
- * segment changes from one host to another and both the hosts are writing to it.
+ * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset. As a result
+ * the only flow when a write call is made to the same offset twice is when ownership of the segment changes
+ * from one host to another and both the hosts are writing to it.
  *
  * As PutObject calls to with the same start-offset to an Extended S3 object are idempotent (any attempt to re-write data with the same file offset does not
  * cause any form of inconsistency), fencing is not required.
@@ -268,7 +267,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
             throw new StreamSegmentSealedException(handle.getSegmentName());
         }
 
-        if (si.getLength() < offset) {
+        if (si.getLength() != offset) {
             throw new BadOffsetException(handle.getSegmentName(), si.getLength(), offset);
         }
 

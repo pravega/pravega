@@ -55,9 +55,8 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * Approach to fencing:
  *
  * This implementation works under the assumption that data is only appended and never modified.
- * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
- *
- * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
+ * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset. As a result
+ * the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
  * As write to same offset to a file is idempotent (any attempt to re-write data with the same file offset does not
@@ -261,7 +260,7 @@ public class FileSystemStorage extends IdempotentStorageBase {
         }
 
         long fileSize = path.toFile().length();
-        if (fileSize < offset) {
+        if (fileSize != offset) {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
