@@ -22,14 +22,6 @@ import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.Async;
-import lombok.Cleanup;
-import lombok.RequiredArgsConstructor;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.mockito.ArgumentMatchers;
-import org.mockito.Mockito;
-
-import javax.annotation.concurrent.NotThreadSafe;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +32,12 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -227,13 +225,11 @@ public class EventStreamWriterTest {
         FakeSegmentOutputStream outputStream1 = new FakeSegmentOutputStream(segment1);
         FakeSegmentOutputStream outputStream2 = new FakeSegmentOutputStream(segment2);
 
-        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1),
-                ArgumentMatchers.<Consumer<Segment>>any(), config)).thenAnswer(i -> {
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any())).thenAnswer(i -> {
             outputStream1.callBackForSealed = i.getArgument(1);
             return outputStream1;
         });
-        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2),
-                ArgumentMatchers.<Consumer<Segment>>any(), config)).thenAnswer(i -> {
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment2), any(), any())).thenAnswer(i -> {
             outputStream2.callBackForSealed = i.getArgument(1);
             return outputStream2;
         });
