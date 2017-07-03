@@ -9,13 +9,28 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
@@ -44,12 +59,15 @@ import javax.ws.rs.core.Response;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static javax.ws.rs.core.Response.Status.CREATED;
 import static javax.ws.rs.core.Response.Status.NO_CONTENT;
 import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -251,6 +269,71 @@ public class ControllerRestApiTest {
         response = client.target(resourceURl).request().delete();
         assertEquals("Get scope status", NO_CONTENT.getStatusCode(), response.getStatus());
         log.info("Delete Scope successful");
+
+        // Test reader groups APIs.
+        // Prepare the streams and readers using the admin client.
+        final String testScope = RandomStringUtils.randomAlphanumeric(10);
+        final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
+        final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
+        URI controllerUri = ctlURIs.get(0);
+        try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
+            log.info("Creating scope: {}", testScope);
+            streamManager.createScope(scope1);
+
+            log.info("Creating stream: {}", testStream1);
+            StreamConfiguration streamConf1 = StreamConfiguration.builder().scope(testScope)
+                    .streamName(testStream1).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            streamManager.createStream(testScope, testStream1, streamConf1);
+
+            log.info("Creating stream: {}", testStream2);
+            StreamConfiguration streamConf2 = StreamConfiguration.builder().scope(testScope)
+                    .streamName(testStream2).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            streamManager.createStream(testScope, testStream2, streamConf2);
+        }
+
+        final String readerGroupName1 = RandomStringUtils.randomAlphanumeric(10);
+        final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
+        final String reader1 = RandomStringUtils.randomAlphanumeric(10);
+        final String reader2 = RandomStringUtils.randomAlphanumeric(10);
+        Controller controller = new ControllerImpl(controllerUri);
+        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
+            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
+                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
+            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().startingTime(0).build(),
+                    new HashSet<>(Arrays.asList(testStream1, testStream2)));
+            clientFactory.createReader(reader1, readerGroupName1, new JavaSerializer<Long>(),
+                    ReaderConfig.builder().build());
+            clientFactory.createReader(reader2, readerGroupName1, new JavaSerializer<Long>(),
+                    ReaderConfig.builder().build());
+        }
+
+        // Verify the reader group info using REST APIs.
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups").toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroups status", OK.getStatusCode(), response.getStatus());
+        ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
+        assertEquals("Get readergroups size", 2, readerGroupsList.getReaderGroups().size());
+        assertTrue(readerGroupsList.getReaderGroups().contains(
+                new ReaderGroupsListReaderGroups().readerGroupName(readerGroupName1)));
+        assertTrue(readerGroupsList.getReaderGroups().contains(
+                new ReaderGroupsListReaderGroups().readerGroupName(readerGroupName2)));
+        log.info("Get readergroups successful");
+
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups/" +
+                readerGroupName1).toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroup properties status", OK.getStatusCode(), response.getStatus());
+        ReaderGroupProperty readerGroupProperty = response.readEntity(ReaderGroupProperty.class);
+        assertEquals("Get readergroup name", readerGroupName1, readerGroupProperty.getReaderGroupName());
+        assertEquals("Get readergroup scope name", testScope, readerGroupProperty.getScopeName());
+        assertEquals("Get readergroup streams size", 2, readerGroupProperty.getStreamList().size());
+        assertTrue(readerGroupProperty.getStreamList().contains(testStream1));
+        assertTrue(readerGroupProperty.getStreamList().contains(testStream2));
+        assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
+        assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
+        assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));
+        log.info("Get readergroup properties successful");
 
         log.info("Test restApiTests passed successfully!");
     }

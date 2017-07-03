@@ -9,7 +9,6 @@
  */
 package io.pravega.shared;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**

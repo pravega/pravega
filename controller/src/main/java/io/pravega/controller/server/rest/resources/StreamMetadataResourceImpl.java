@@ -9,9 +9,16 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
@@ -41,6 +48,7 @@ import javax.ws.rs.core.SecurityContext;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
 import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
@@ -217,7 +225,29 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     @Override
     public void getReaderGroup(final String scopeName, final String readerGroupName,
                                final SecurityContext securityContext, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getReaderGroup");
 
+        LocalController controller = new LocalController(controllerService);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, controller,
+                new ClientFactoryImpl(scopeName, controller), new ConnectionFactoryImpl(false));
+        ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
+        readerGroupProperty.setScopeName(scopeName);
+        readerGroupProperty.setReaderGroupName(readerGroupName);
+        CompletableFuture.supplyAsync(() -> {
+            ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
+            readerGroupProperty.setOnlineReaderIds(
+                    new ArrayList<>(readerGroup.getOnlineReaders()));
+            readerGroupProperty.setStreamList(
+                    new ArrayList<>(readerGroup.getStreamNames()));
+            return Response.status(Status.OK).entity(readerGroupProperty).build();
+        }, controllerService.getExecutor()).exceptionally(exception -> {
+            log.warn("getReaderGroup for {} failed with exception: ", readerGroupName, exception);
+            return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+        }).thenAccept(response -> {
+            asyncResponse.resume(response);
+            readerGroupManager.close();
+            LoggerHelpers.traceLeave(log, "getReaderGroup", traceId);
+        });
     }
 
     /**
