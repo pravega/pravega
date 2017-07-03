@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.client.stream.AckFuture;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.retryable.RetryableException;
@@ -18,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
@@ -56,19 +54,6 @@ public class EventProcessorHelper {
         if (writer == null) {
             return CompletableFuture.completedFuture(null);
         }
-
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-
-        final AckFuture future = writer.write(request);
-        future.addListener(() -> {
-            try {
-                future.get();
-                result.complete(null);
-            } catch (Exception e) {
-                result.completeExceptionally(e);
-            }
-        }, Executors.newSingleThreadExecutor());
-
-        return result;
+        return writer.write(request);
     }
 }

@@ -15,6 +15,8 @@ import io.pravega.client.stream.EventWriterConfig;
 import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -27,6 +29,7 @@ public class SegmentSelectorTest {
     private final String scope = "scope";
     private final String streamName = "streamName";
     private final EventWriterConfig config = EventWriterConfig.builder().build();
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Test
     public void testUsesAllSegments() {
@@ -42,7 +45,7 @@ public class SegmentSelectorTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        selector.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {
@@ -69,7 +72,7 @@ public class SegmentSelectorTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        selector.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 100; i++) {
@@ -96,7 +99,7 @@ public class SegmentSelectorTest {
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
-        selector.refreshSegmentEventWriters();
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
         Arrays.fill(counts, 0);
         for (int i = 0; i < 20; i++) {

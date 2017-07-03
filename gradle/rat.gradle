@@ -22,6 +22,7 @@ rat {
             '**/generated/**',
             '**/checkstyle/**',
             'deployment/aws/installer/hosts-template',
+            'lombok.config',
             '**/*.log',
             '**/*.lock',
             '**/*.json'

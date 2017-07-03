@@ -20,28 +20,27 @@ import io.pravega.client.stream.EventWriterConfig;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class MockSegmentStreamFactory implements SegmentInputStreamFactory, SegmentOutputStreamFactory, SegmentMetadataClientFactory {
 
     private final Map<Segment, MockSegmentIoStreams> segments = new ConcurrentHashMap<>();
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
+                                                                Consumer<Segment> segmentSealedCallback,
+                                                                EventWriterConfig config) {
         throw new UnsupportedOperationException();
     }
-    
+
     private MockSegmentIoStreams getMockStream(Segment segment) {
         MockSegmentIoStreams streams = new MockSegmentIoStreams(segment);
         segments.putIfAbsent(segment, streams);
         return segments.get(segment);
     }
-
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
-        return getMockStream(segment);
-    }
     
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config) {
         return getMockStream(segment);
     }
 

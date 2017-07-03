@@ -9,13 +9,12 @@
  */
 package io.pravega.test.integration.segmentstore.selftest;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractService;
-
+import io.pravega.common.concurrent.ServiceHelpers;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -71,8 +70,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
+            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
             this.closed.set(true);
         }
     }

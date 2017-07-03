@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -31,13 +30,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 abstract class AbstractScaleTests {
     protected final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
-    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
+    @Getter(lazy = true)
     private final URI controllerURI = createControllerURI();
-    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
+    @Getter(lazy = true)
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
+    @Getter(lazy = true)
     private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI()));
-    @Getter(lazy = true, onMethod = @__({ @SuppressFBWarnings }))
+    @Getter(lazy = true)
     private final ControllerImpl controller = new ControllerImpl(getControllerURI());
 
     private URI createControllerURI() {
