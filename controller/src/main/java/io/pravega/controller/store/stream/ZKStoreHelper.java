@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -158,25 +157,6 @@ public class ZKStoreHelper {
                 });
 
         return result;
-    }
-
-    CompletableFuture<Void> updateTxnData(final String path, final byte[] data) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                client.setData().forPath(path, data);
-                return null;
-            } catch (KeeperException.NoNodeException nne) {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, path);
-            } catch (Exception e) {
-                throw new StoreException.UnknownException(path, e);
-            }
-        });
-    }
-
-    private CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
-        return getChildren(rootPath)
-                .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x))
-                        .collect(Collectors.toList()));
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {

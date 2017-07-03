@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.common.util.SequencedItemList;
@@ -365,7 +365,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 super::isExpectedExceptionForNonDataCorruption);
 
         // Wait for the DurableLog to shutdown with failure.
-        ServiceShutdownListener.awaitShutdown(durableLog, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(durableLog, TIMEOUT, false);
         Assert.assertEquals("Expected the DurableLog to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, durableLog.state());
 
@@ -405,11 +405,11 @@ public class DurableLogTests extends OperationLogTestBase {
                 ex -> ex instanceof IOException || ex instanceof DataLogWriterNotPrimaryException);
 
         // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
-        ServiceShutdownListener.awaitShutdown(durableLog, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(durableLog, TIMEOUT, false);
         Assert.assertEquals("DurableLog is not in a failed state after fence-out detected.",
                 Service.State.FAILED, durableLog.state());
         Assert.assertTrue("DurableLog did not fail with the correct exception.",
-                durableLog.failureCause() instanceof DataLogWriterNotPrimaryException);
+                ExceptionHelpers.getRealException(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -450,7 +450,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Wait for the service to fail (and make sure it failed).
         AssertExtensions.assertThrows(
                 "DurableLog did not shut down with failure.",
-                () -> ServiceShutdownListener.awaitShutdown(durableLog, true),
+                () -> ServiceListeners.awaitShutdown(durableLog, true),
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertEquals("Unexpected service state after encountering DataCorruptionException.", Service.State.FAILED, durableLog.state());

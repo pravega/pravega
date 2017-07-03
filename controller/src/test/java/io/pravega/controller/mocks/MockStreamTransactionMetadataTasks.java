@@ -17,7 +17,8 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.task.TaskMetadataStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -40,12 +41,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     public MockStreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                               final HostControllerStore hostControllerStore,
-                                              final TaskMetadataStore taskMetadataStore,
                                               final SegmentHelper segmentHelper,
                                               final ScheduledExecutorService executor,
                                               final String hostId,
                                               final ConnectionFactory connectionFactory) {
-        super(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory);
         this.streamMetadataStore = streamMetadataStore;
     }
 
@@ -85,17 +85,18 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     @Override
     @Synchronized
-    public CompletableFuture<VersionedTransactionData> pingTxn(final String scope, final String stream,
+    public CompletableFuture<PingTxnStatus> pingTxn(final String scope, final String stream,
                                                                final UUID txId, final long lease,
                                                                final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.pingTransaction(scope, stream, txId, lease, context, executor)
-                .thenApply(txData -> {
-                    log.info("Pinged transaction {} with version {}", txId, txData.getVersion());
-                    return txData;
-                });
+        return streamMetadataStore.getTransactionData(scope, stream, txId, context, executor).thenComposeAsync(data ->
+                streamMetadataStore.pingTransaction(scope, stream, data, lease, context, executor)
+                        .thenApply(txData -> {
+                            log.info("Pinged transaction {} with version {}", txId, txData.getVersion());
+                            return PingTxnStatus.newBuilder().setStatus(Status.OK).build();
+                        }));
     }
 
     @Override

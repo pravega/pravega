@@ -12,6 +12,7 @@ package io.pravega.test.integration.demo;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
@@ -68,7 +69,9 @@ public class EndToEndAutoScaleUpWithTxnTest {
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(false));
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+            @Cleanup
+            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -119,7 +122,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             Thread.sleep(1000);
 
             @Cleanup
-            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+            ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
             readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().startingTime(0).build(),
                     Collections.singleton("test"));
 

@@ -54,6 +54,17 @@ public class StoreException extends RuntimeException {
      * Construct a StoreException.
      *
      * @param type  Type of Exception.
+     * @param cause Exception cause.
+     */
+    public StoreException(final Type type, Throwable cause) {
+        super(cause);
+        this.type = type;
+    }
+
+    /**
+     * Constructs a StoreException.
+     *
+     * @param type  Type of Exception.
      */
     private StoreException(final Type type) {
         this.type = type;
@@ -184,6 +195,10 @@ public class StoreException extends RuntimeException {
 
         public UnknownException() {
             super(Type.UNKNOWN);
+        }
+
+        public UnknownException(Throwable cause) {
+            super(Type.UNKNOWN, cause);
         }
     }
 }

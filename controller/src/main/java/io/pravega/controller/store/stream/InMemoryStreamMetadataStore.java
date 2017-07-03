@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.StreamConfiguration;
@@ -40,6 +41,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
+        super(new InMemoryHostIndex());
         this.executor = executor;
     }
 
@@ -65,24 +67,19 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> createStream(final String scopeName, final String streamName,
+    public CompletableFuture<CreateStreamResponse> createStream(final String scopeName, final String streamName,
                                                    final StreamConfiguration configuration,
                                                    final long timeStamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
         if (scopes.containsKey(scopeName)) {
-            if (!streams.containsKey(scopedStreamName(scopeName, streamName))) {
-                InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
-                return stream.create(configuration, timeStamp)
-                        .thenApply(x -> {
-                            streams.put(scopedStreamName(scopeName, streamName), stream);
-                            scopes.get(scopeName).addStreamToScope(streamName);
-                            return true;
-                        });
-            } else {
-                return FutureHelpers.
-                        failedFuture(StoreException.create(StoreException.Type.DATA_EXISTS, streamName));
-            }
+            InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
+            return stream.create(configuration, timeStamp)
+                    .thenApply(x -> {
+                        streams.put(scopedStreamName(scopeName, streamName), stream);
+                        scopes.get(scopeName).addStreamToScope(streamName);
+                        return x;
+                    });
         } else {
             return FutureHelpers.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));

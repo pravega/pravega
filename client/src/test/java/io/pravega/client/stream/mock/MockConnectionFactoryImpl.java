@@ -12,6 +12,9 @@ package io.pravega.client.stream.mock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -25,7 +28,7 @@ import lombok.Synchronized;
 public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
-    final PravegaNodeUri endpoint;
+    final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testClientInternal-%d").build());
 
     @Override
     @Synchronized
@@ -34,6 +37,11 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         processors.put(location, rp);
         return CompletableFuture.completedFuture(connection);
+    }
+
+    @Override
+    public ScheduledExecutorService getInternalExecutor() {
+        return executor;
     }
 
     @Synchronized

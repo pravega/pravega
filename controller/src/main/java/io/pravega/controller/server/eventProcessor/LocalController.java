@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
@@ -30,10 +31,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import org.apache.commons.lang.NotImplementedException;
 
 public class LocalController implements Controller {
 
@@ -259,6 +262,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
+    }
+
+    @Override
     public CompletableFuture<PravegaNodeUri> getEndpointForSegment(String qualifiedSegmentName) {
         Segment segment = Segment.fromScopedName(qualifiedSegmentName);
             return controller.getURI(ModelHelper.createSegmentId(segment.getScope(), segment.getStreamName(),
@@ -269,4 +277,5 @@ public class LocalController implements Controller {
     public CompletableFuture<Boolean> isSegmentOpen(Segment segment) {
         return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
     }
+
 }

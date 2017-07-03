@@ -62,6 +62,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -75,6 +77,7 @@ import static org.junit.Assert.assertTrue;
 public class AppendTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
+    private final Consumer<Segment> segmentSealedCallback = segment -> { };
 
     @Before
     public void setup() throws Exception {
@@ -176,7 +179,7 @@ public class AppendTest {
 
         Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup("close")
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment);
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback);
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
         assertTrue(ack.get(5, TimeUnit.SECONDS));

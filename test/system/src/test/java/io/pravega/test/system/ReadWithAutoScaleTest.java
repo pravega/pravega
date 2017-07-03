@@ -121,8 +121,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     @Before
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
-        URI controllerUri = getControllerURI();
-        Controller controller = getController(controllerUri);
+        Controller controller = getController();
 
         //create a scope
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
@@ -134,10 +133,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     }
 
     @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
-    public void scaleTestsWithReader() throws URISyntaxException, InterruptedException {
+    public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
-        ControllerImpl controller = getController(controllerUri);
+        ControllerImpl controller = getController();
         ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
 
         final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
@@ -146,7 +145,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         final AtomicLong eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         @Cleanup
-        ClientFactory clientFactory = getClientFactory(SCOPE);
+        ClientFactory clientFactory = getClientFactory();
 
         //1. Start writing events to the Stream.
         CompletableFuture<Void> writer1 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);

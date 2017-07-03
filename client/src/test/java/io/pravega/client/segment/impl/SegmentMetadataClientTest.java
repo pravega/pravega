@@ -34,7 +34,7 @@ public class SegmentMetadataClientTest {
     public void testCurrentStreamLength() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -58,7 +58,7 @@ public class SegmentMetadataClientTest {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -81,7 +81,7 @@ public class SegmentMetadataClientTest {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -103,7 +103,7 @@ public class SegmentMetadataClientTest {
     public void testReconnects() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl(endpoint));
+        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);

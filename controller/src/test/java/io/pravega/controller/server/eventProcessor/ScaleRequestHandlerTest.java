@@ -13,7 +13,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -21,7 +20,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -115,7 +113,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory);
 
         long createTimestamp = System.currentTimeMillis();
@@ -232,15 +230,15 @@ public class ScaleRequestHandlerTest {
     private EventStreamWriter<ControllerEvent> createWriter(Consumer<ControllerEvent> consumer) {
         return new EventStreamWriter<ControllerEvent>() {
             @Override
-            public AckFuture writeEvent(ControllerEvent event) {
+            public CompletableFuture<Void> writeEvent(ControllerEvent event) {
                 consumer.accept(event);
-                return new AckFutureMock(CompletableFuture.completedFuture(true));
+                return CompletableFuture.completedFuture(null);
             }
 
             @Override
-            public AckFuture writeEvent(String routingKey, ControllerEvent event) {
+            public CompletableFuture<Void>  writeEvent(String routingKey, ControllerEvent event) {
                 consumer.accept(event);
-                return new AckFutureMock(CompletableFuture.completedFuture(true));
+                return CompletableFuture.completedFuture(null);
             }
 
             @Override
