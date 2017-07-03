@@ -375,10 +375,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
-                findNumSplits(scope, name, executor).thenAccept(numSplits ->
-                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), numSplits)),
-                findNumMerges(scope, name, executor).thenAccept( numMerges ->
-                        DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), numMerges))));
+                findNumSplitsMerges(scope, name, executor).thenAccept(pair -> {
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), pair.getLeft());
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), pair.getRight());
+                })));
 
         return future;
     }
@@ -614,57 +614,28 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return result;
     }
 
-    private CompletableFuture<Long> findNumSplits(String scopeName, String streamName, Executor executor) {
+    private CompletableFuture<Pair<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
             int size = scaleMetadataList.size();
-            long totalNumSplits = 0;
+            long totalNumSplits = 0, totalNumMerges = 0;
             List<Segment> segmentList1, segmentList2;
-            boolean isDescendingOrder = isDescendingOrder(scaleMetadataList);
+            boolean isDescendingOrder = (size > 1) ?
+                    (scaleMetadataList.get(0).getTimestamp() < scaleMetadataList.get(1).getTimestamp()) : true;
 
             for (int i = 0; i < size - 1; i++) {
                 segmentList1 = scaleMetadataList.get(i).getSegments();
                 segmentList2 = scaleMetadataList.get(i+1).getSegments();
                 if (isDescendingOrder) {
                     totalNumSplits += findSegmentSplitsMerges(segmentList2, segmentList1);
-                } else {
-                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
-                }
-            }
-
-            return totalNumSplits;
-        });
-    }
-
-    private CompletableFuture<Long> findNumMerges(String scopeName, String streamName, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
-            int size = scaleMetadataList.size();
-            long totalNumMerges = 0;
-            List<Segment> segmentList1, segmentList2;
-            boolean isDescendingOrder = isDescendingOrder(scaleMetadataList);
-
-            for (int i = 0; i < size - 1; i++) {
-                segmentList1 = scaleMetadataList.get(i).getSegments();
-                segmentList2 = scaleMetadataList.get(i+1).getSegments();
-                if (isDescendingOrder) {
                     totalNumMerges += findSegmentSplitsMerges(segmentList1, segmentList2);
                 } else {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
                     totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
                 }
             }
 
-            return totalNumMerges;
+            return new ImmutablePair<>(totalNumSplits, totalNumMerges);
         });
-    }
-
-    private boolean isDescendingOrder(List<ScaleMetadata> scaleMetadataList) {
-        int size = scaleMetadataList.size();
-        boolean isDescendingOrder = true;
-        if (size > 1) {
-            if (scaleMetadataList.get(0).getTimestamp() < scaleMetadataList.get(1).getTimestamp()) {
-                isDescendingOrder = false;
-            }
-        }
-        return isDescendingOrder;
     }
 
     private int findSegmentSplitsMerges(List<Segment> segmentsList1, List<Segment> segmentsList2) {
