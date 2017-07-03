@@ -617,8 +617,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private CompletableFuture<Pair<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
             int size = scaleMetadataList.size();
-            long totalNumSplits = 0, totalNumMerges = 0;
-            List<Segment> segmentList1, segmentList2;
+            long totalNumSplits = 0;
+            long totalNumMerges = 0;
+            List<Segment> segmentList1;
+            List<Segment> segmentList2;
             boolean isDescendingOrder = (size > 1) ?
                     (scaleMetadataList.get(0).getTimestamp() < scaleMetadataList.get(1).getTimestamp()) : true;
 
