@@ -74,7 +74,10 @@ public class BookKeeperRunner implements AutoCloseable {
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + zkPort)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, logMetaNamespace)
-                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers"));
+                .with(BookKeeperConfig.BK_LEDGER_PATH, "/ledgers")
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, this.bookieCount)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, this.bookieCount)
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, this.bookieCount));
     }
 
     @Override
