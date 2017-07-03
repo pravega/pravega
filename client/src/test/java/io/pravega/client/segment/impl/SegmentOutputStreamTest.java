@@ -172,7 +172,7 @@ public class SegmentOutputStreamTest {
         Async.testBlocking(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1)));
         assertEquals(false, acked.isCompletedExceptionally());
         assertEquals(true, acked.isDone());
-        verify(connection).send(new WireCommands.KeepAlive());
+        verify(connection, Mockito.atMost(1)).send(new WireCommands.KeepAlive());
         verify(connection).close();
         verifyNoMoreInteractions(connection);
     }
