@@ -76,6 +76,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
     private URI controllerURIDirect = null;
     private ExecutorService executorService;
     private Controller controller;
+    private TestState testState;
     private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private ScalingPolicy scalingPolicy =  ScalingPolicy.byEventRate(1, 2, NUM_READERS);
@@ -133,16 +134,16 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
 
     }
 
-    private static class TestSate {
-
-        //read and write count variables
-        static final AtomicBoolean STOP_READ_FLAG = new AtomicBoolean(false);
-        static final AtomicBoolean STOP_WRITE_FLAG = new AtomicBoolean(false);
-        static final AtomicLong  EVENT_READ_COUNT = new AtomicLong(0); // used by readers to maintain a count of events.
-        static final AtomicLong EVENT_WRITE_COUNT = new AtomicLong(0); // used by writers to maintain a count of events.
-        static final AtomicLong EVENT_DATA = new AtomicLong(0); //data used by each of the writers.
-        static final ConcurrentLinkedQueue<Long> EVENTS_READ_FROM_PRAVEGA = new ConcurrentLinkedQueue<>();
-
+    private static class TestState {
+        
+            //read and write count variables
+            final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
+            final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
+            final AtomicLong eventReadCount = new AtomicLong(0); // used by readers to maintain a count of events.
+            final AtomicLong eventWriteCount = new AtomicLong(0); // used by writers to maintain a count of events.
+            final AtomicLong eventData = new AtomicLong(0); //data used by each of the writers.
+            final ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
+        
     }
 
     @Before
@@ -178,13 +179,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
 
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
-
-        //TestSate = new TestSate();
-        TestSate.STOP_READ_FLAG.set(false);
-        TestSate.STOP_WRITE_FLAG.set(false);
-        TestSate.EVENT_DATA.set(0);
-        TestSate.EVENT_WRITE_COUNT.set(0);
-        TestSate.EVENTS_READ_FROM_PRAVEGA.clear();
+        
+        testState = new TestState();
     }
 
     @After
@@ -192,10 +188,10 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
-        //EVENTS_READ_FROM_PRAVEGA.clear();
+        testState.eventsReadFromPravega.clear();
     }
 
-    @Test
+    @Test(timeout = 600000)
     public void readWriteAndScaleWithFailoverTest() throws Exception {
 
         try (StreamManager streamManager = new StreamManagerImpl(controllerURIDirect)) {
@@ -278,24 +274,24 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
             //run the failover test after scaling
             performFailoverTest();
 
-            log.info("Stop write flag status {}", TestSate.STOP_WRITE_FLAG);
-            TestSate.STOP_WRITE_FLAG.set(true);
+            log.info("Stop write flag status {}", testState.stopWriteFlag);
+            testState.stopWriteFlag.set(true);
 
             log.info("Wait for writers execution to complete");
             FutureHelpers.allOf(writerFutureList).get();
 
             FutureHelpers.allOf(writerFutureList1).get();
 
-            log.info("Stop read flag status {}", TestSate.STOP_READ_FLAG);
-            TestSate.STOP_READ_FLAG.set(true);
+            log.info("Stop read flag status {}", testState.stopReadFlag);
+            testState.stopReadFlag.set(true);
 
             log.info("Wait for readers execution to complete");
             FutureHelpers.allOf(readerFutureList).get();
 
-            log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
-                    "Count: {}", TestSate.EVENT_WRITE_COUNT.get(), TestSate.EVENTS_READ_FROM_PRAVEGA.size());
-            assertEquals(TestSate.EVENT_WRITE_COUNT.get(), TestSate.EVENTS_READ_FROM_PRAVEGA.size());
-            assertEquals(TestSate.EVENT_WRITE_COUNT.get(), new TreeSet<>(TestSate.EVENTS_READ_FROM_PRAVEGA).size()); //check unique events.
+            log.info("All writers have stopped. Setting stopReadFlag. Event Written Count:{}, Event Read " +
+                    "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
+            assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
+            assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
 
             log.info("Closing writers");
             writerList.forEach(writer -> writer.close());
@@ -342,8 +338,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
     private void performFailoverTest() throws InterruptedException {
 
         log.info("Test with 2 controller, SSS instances running and without a failover scenario");
-        long currentWriteCount1 = TestSate.EVENT_WRITE_COUNT.get();
-        long currentReadCount1 = TestSate.EVENT_READ_COUNT.get();
+        long currentWriteCount1 = testState.eventWriteCount.get();
+        long currentReadCount1 = testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} without any failover", currentReadCount1, currentWriteCount1);
 
         //check reads and writes after some random time
@@ -351,8 +347,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
         log.info("Sleeping for {} ", sleepTime);
         Thread.sleep(sleepTime);
 
-        long currentWriteCount2 = TestSate.EVENT_WRITE_COUNT.get();
-        long currentReadCount2 =  TestSate.EVENT_READ_COUNT.get();
+        long currentWriteCount2 = testState.eventWriteCount.get();
+        long currentReadCount2 =  testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} without any failover after sleep before scaling", currentReadCount2, currentWriteCount2);
         //ensure writes are happening
         assertTrue(currentWriteCount2 > currentWriteCount1);
@@ -365,8 +361,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
         Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down SSS instances from 3 to 2");
 
-        currentWriteCount1 = TestSate.EVENT_WRITE_COUNT.get();
-        currentReadCount1 = TestSate.EVENT_READ_COUNT.get();
+        currentWriteCount1 = testState.eventWriteCount.get();
+        currentReadCount1 = testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} after SSS failover after sleep", currentReadCount1, currentWriteCount1);
         //ensure writes are happening
         assertTrue(currentWriteCount1 > currentWriteCount2);
@@ -379,8 +375,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
         Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down controller instances from 3 to 2");
 
-        currentWriteCount2 = TestSate.EVENT_WRITE_COUNT.get();
-        currentReadCount2 = TestSate.EVENT_READ_COUNT.get();
+        currentWriteCount2 = testState.eventWriteCount.get();
+        currentReadCount2 = testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} after controller failover after sleep", currentReadCount2, currentWriteCount2);
         //ensure writes are happening
         assertTrue(currentWriteCount2 > currentWriteCount1);
@@ -394,9 +390,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
         Thread.sleep(new Random().nextInt(50000) + ZK_DEFAULT_SESSION_TIMEOUT);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
-        currentWriteCount1 = TestSate.EVENT_WRITE_COUNT.get();
-        currentReadCount1 = TestSate.EVENT_READ_COUNT.get();
-        log.info("Stop write flag status: {}, stop read flag status: {} ", TestSate.STOP_WRITE_FLAG.get(), TestSate.STOP_READ_FLAG.get());
+        currentWriteCount1 = testState.eventWriteCount.get();
+        currentReadCount1 = testState.eventReadCount.get();
+        log.info("Stop write flag status: {}, stop read flag status: {} ", testState.stopWriteFlag.get(), testState.stopReadFlag.get());
         log.info("Read count: {}, write count: {} with SSS and controller failover after sleep", currentReadCount1, currentWriteCount1);
     }
 
@@ -404,37 +400,37 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
 
     private CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
-            while (!TestSate.STOP_WRITE_FLAG.get()) {
+            while (!testState.stopWriteFlag.get()) {
                 try {
-                    long value = TestSate.EVENT_DATA.incrementAndGet();
+                    long value = testState.eventData.incrementAndGet();
                     Thread.sleep(100);
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
                     writer.flush();
-                    TestSate.EVENT_WRITE_COUNT.getAndIncrement();
+                    testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
                 } catch (Throwable e ) {
-                    if (e instanceof ConnectionFailedException) {
-                        log.error("Test exception in writing events: ", e);
-                        continue;
-                    } else if (e instanceof InterruptedException) {
+                    if (e instanceof InterruptedException) {
                         log.error("error in sleep: ", e);
                         break;
-                    } else {
+                    }
+                    if (e instanceof ConnectionFailedException) {
                         log.error("Test exception in writing events: ", e);
                         break;
                     }
+                    log.error("Test exception in writing events: ", e);
+                        break;
+                    }
                 }
-            }
         }, executorService);
     }
 
     private CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
-            log.info("Exit flag status {}", TestSate.STOP_READ_FLAG.get());
-            log.info("Read count {} and write count {}", TestSate.EVENT_READ_COUNT.get(), TestSate.EVENT_WRITE_COUNT.get());
-            while (!(TestSate.STOP_READ_FLAG.get() && TestSate.EVENT_READ_COUNT.get() == TestSate.EVENT_WRITE_COUNT.get())) {
+            log.info("Exit flag status {}", testState.stopReadFlag.get());
+            log.info("Read count {} and write count {}", testState.eventReadCount.get(), testState.eventWriteCount.get());
+            while (!(testState.stopReadFlag.get() && testState.eventReadCount.get() == testState.eventWriteCount.get())) {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -442,9 +438,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
                     log.debug("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
-                        TestSate.EVENTS_READ_FROM_PRAVEGA.add(longEvent);
-                        TestSate.EVENT_READ_COUNT.incrementAndGet();
-                        log.debug("Event read count {}", TestSate.EVENT_READ_COUNT.get());
+                        testState.eventsReadFromPravega.add(longEvent);
+                        testState.eventReadCount.incrementAndGet();
+                        log.debug("Event read count {}", testState.eventReadCount.get());
                     } else {
                         log.debug("Read timeout");
                     }
@@ -460,7 +456,4 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractScaleTests {
             }
         }, executorService);
     }
-
-
-
 }
