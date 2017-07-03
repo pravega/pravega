@@ -11,7 +11,6 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
@@ -24,7 +23,6 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import com.google.common.annotations.VisibleForTesting;
@@ -46,7 +44,6 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -587,26 +584,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final UUID txnId,
                                                         final TxnStatus txnStatus) {
         log.debug("Txn={}, state={}, sending request to {}", txnId, txnStatus, streamName);
-        AckFuture future = streamWriter.writeEvent(key, event);
-        CompletableFuture<AckFuture> writeComplete = new CompletableFuture<>();
-        future.addListener(() -> writeComplete.complete(future), executor);
-        return writeComplete.thenApplyAsync(ackFuture -> {
-            try {
-                // ackFuture is complete by now, so we can do a get without blocking
-                ackFuture.get();
-                log.debug("Txn={}, sent request to {}", txnId, streamName);
-                return txnStatus;
-            } catch (InterruptedException e) {
-                log.warn("Txn={}, unexpected interrupted exception while sending {} to {}. Retrying...",
-                        txnId, event.getClass().getSimpleName(), streamName);
-                throw new WriteFailedException(e);
-            } catch (ExecutionException e) {
-                Throwable realException = ExceptionHelpers.getRealException(e);
-                log.warn("Txn={}, failed sending {} to {}. Retrying...",
-                        txnId, event.getClass().getSimpleName(), streamName);
-                throw new WriteFailedException(realException);
-            }
-        }, executor);
+        return streamWriter.writeEvent(key, event)
+                .thenApplyAsync(v -> {
+                    log.debug("Transaction {}, sent request to {}", txnId, streamName);
+                    return txnStatus;
+                }, executor)
+                .exceptionally(ex -> {
+                    log.warn("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
+                            .getSimpleName(), streamName);
+                    throw new WriteFailedException(ex);
+                });
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
