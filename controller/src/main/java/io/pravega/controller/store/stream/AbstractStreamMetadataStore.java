@@ -619,17 +619,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             int size = scaleMetadataList.size();
             long totalNumSplits = 0;
             List<Segment> segmentList1, segmentList2;
+            boolean isDescendingOrder = isDescendingOrder(scaleMetadataList);
 
-            if (isDescendingOrder(scaleMetadataList)) {
-                for (int i = size; i > 1; i--) {
-                    segmentList1 = scaleMetadataList.get(i).getSegments();
-                    segmentList2 = scaleMetadataList.get(i-1).getSegments();
-                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
-                }
-            } else {
-                for (int i = 0; i < size - 1; i++) {
-                    segmentList1 = scaleMetadataList.get(i).getSegments();
-                    segmentList2 = scaleMetadataList.get(i+1).getSegments();
+            for (int i = 0; i < size - 1; i++) {
+                segmentList1 = scaleMetadataList.get(i).getSegments();
+                segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                if (isDescendingOrder) {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList2, segmentList1);
+                } else {
                     totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
                 }
             }
@@ -643,17 +640,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             int size = scaleMetadataList.size();
             long totalNumMerges = 0;
             List<Segment> segmentList1, segmentList2;
+            boolean isDescendingOrder = isDescendingOrder(scaleMetadataList);
 
-            if (isDescendingOrder(scaleMetadataList)) {
-                for (int i = size; i > 1; i--) {
-                    segmentList1 = scaleMetadataList.get(i).getSegments();
-                    segmentList2 = scaleMetadataList.get(i-1).getSegments();
-                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
-                }
-            } else {
-                for (int i = 0; i < size - 1; i++) {
-                    segmentList1 = scaleMetadataList.get(i).getSegments();
-                    segmentList2 = scaleMetadataList.get(i+1).getSegments();
+            for (int i = 0; i < size - 1; i++) {
+                segmentList1 = scaleMetadataList.get(i).getSegments();
+                segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                if (isDescendingOrder) {
+                    totalNumMerges += findSegmentSplitsMerges(segmentList1, segmentList2);
+                } else {
                     totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
                 }
             }
