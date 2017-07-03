@@ -614,38 +614,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return result;
     }
 
-    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
-                                                                                             final String streamName,
-                                                                                             final List<Integer> sealedSegments,
-                                                                                             final OperationContext context,
-                                                                                             final Executor executor) {
-        return FutureHelpers.allOfWithResults(
-                sealedSegments.stream()
-                        .map((Integer value) ->
-                                getSegment(scopeName, streamName, value, context, executor).thenApply(segment ->
-                                        new AbstractMap.SimpleEntry<>(
-                                                segment.getKeyStart(),
-                                                segment.getKeyEnd())))
-                        .collect(Collectors.toList()));
-    }
-
     private CompletableFuture<Long> findNumSplits(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
-            long size = scaleMetadataList.size();
+            int size = scaleMetadataList.size();
             long totalNumSplits = 0;
-            long countSplitsEventI, countSplitsEventI1;
+            List<Segment> segmentList1, segmentList2;
 
             if (isDescendingOrder(scaleMetadataList)) {
-                for (int i = 0; i < size; i++) {
-                    countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
-                    countSplitsEventI1 = scaleMetadataList.get(i+1).getSegments().size();
-                    totalNumSplits += (countSplitsEventI > countSplitsEventI1) ? (countSplitsEventI - countSplitsEventI1) : 0;
+                for (int i = size; i > 1; i--) {
+                    segmentList1 = scaleMetadataList.get(i).getSegments();
+                    segmentList2 = scaleMetadataList.get(i-1).getSegments();
+                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
                 }
             } else {
-                for (int i = 0; i < size; i++) {
-                    countSplitsEventI = scaleMetadataList.get(i).getSegments().size();
-                    countSplitsEventI1 = scaleMetadataList.get(i+1).getSegments().size();
-                    totalNumSplits += (countSplitsEventI1 > countSplitsEventI) ? (countSplitsEventI1 - countSplitsEventI) : 0;
+                for (int i = 0; i < size - 1; i++) {
+                    segmentList1 = scaleMetadataList.get(i).getSegments();
+                    segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
                 }
             }
 
@@ -655,21 +640,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private CompletableFuture<Long> findNumMerges(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
-            long size = scaleMetadataList.size();
+            int size = scaleMetadataList.size();
             long totalNumMerges = 0;
-            long countMergesEventI, countMergesEventI1;
+            List<Segment> segmentList1, segmentList2;
 
             if (isDescendingOrder(scaleMetadataList)) {
-                for (int i = 0; i < size; i++) {
-                    countMergesEventI = scaleMetadataList.get(i).getSegments().size();
-                    countMergesEventI1 = scaleMetadataList.get(i + 1).getSegments().size();
-                    totalNumMerges += (countMergesEventI1 > countMergesEventI) ? (countMergesEventI1 - countMergesEventI) : 0;
+                for (int i = size; i > 1; i--) {
+                    segmentList1 = scaleMetadataList.get(i).getSegments();
+                    segmentList2 = scaleMetadataList.get(i-1).getSegments();
+                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
                 }
             } else {
-                for (int i = 0; i < size; i++) {
-                    countMergesEventI = scaleMetadataList.get(i).getSegments().size();
-                    countMergesEventI1 = scaleMetadataList.get(i + 1).getSegments().size();
-                    totalNumMerges += (countMergesEventI > countMergesEventI1) ? (countMergesEventI - countMergesEventI1) : 0;
+                for (int i = 0; i < size - 1; i++) {
+                    segmentList1 = scaleMetadataList.get(i).getSegments();
+                    segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
                 }
             }
 
@@ -680,13 +665,30 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private boolean isDescendingOrder(List<ScaleMetadata> scaleMetadataList) {
         int size = scaleMetadataList.size();
         boolean isDescendingOrder = true;
-        for (int i = 0; i < size - 1; i++) {
-            if (scaleMetadataList.get(i).getTimestamp() < scaleMetadataList.get(i+1).getTimestamp()) {
+        if (size > 1) {
+            if (scaleMetadataList.get(0).getTimestamp() < scaleMetadataList.get(1).getTimestamp()) {
                 isDescendingOrder = false;
-                break;
             }
         }
         return isDescendingOrder;
+    }
+
+    private int findSegmentSplitsMerges(List<Segment> segmentsList1, List<Segment> segmentsList2) {
+        int count = 0;
+        for (Segment segment1 : segmentsList1 ) {
+            int overlaps = 0;
+            for (Segment segment2 : segmentsList2) {
+                if (segment1.overlaps(segment2)) {
+                    overlaps++;
+                }
+                if (overlaps > 1) {
+                    count++;
+                    break;
+                }
+            }
+        }
+
+        return count;
     }
 
     abstract Stream newStream(final String scope, final String name);
