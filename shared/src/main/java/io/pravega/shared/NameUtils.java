@@ -24,8 +24,7 @@ public class NameUtils {
     public static final String INTERNAL_SCOPE_NAME = "_system";
 
     // The prefix which has to be appended to streams created internally for readerGroups.
-    @VisibleForTesting
-    static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
+    public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
 
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created

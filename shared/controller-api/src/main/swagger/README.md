@@ -11,7 +11,7 @@ Instructions to generate Server REST API stubs
 
 ## Delete previously generated directory
 ```
-rm controller/src/main/java/io/pravega/controller/server/rest/generated
+rm -Rf controller/src/main/java/io/pravega/controller/server/rest/generated
 ```
 
 ## Update Controller.yaml
@@ -23,7 +23,7 @@ Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagg
 
 ## Generate the API stubs using Swagger Codegen 
 ```
-java -jar swagger-codegen-cli.jar generate -i Controller.yaml -l jaxrs -c server.config.json -o <pravega root>/controller/
+java -jar swagger-codegen-cli.jar generate -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -l jaxrs -c <pravega root>/shared/controller-api/src/main/swagger/server.config.json -o <pravega root>/controller/
 ```
 
 ## Remove extra files created by codegen

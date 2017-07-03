@@ -11,13 +11,9 @@ package io.pravega.controller.rest.v1;
 
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
-import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.controller.store.stream.Segment;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.RetentionConfig;
 import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
@@ -25,6 +21,11 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.Segment;
+import io.pravega.shared.NameUtils;
+import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -58,6 +59,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.controller.server.rest.generated.model.RetentionConfig.TypeEnum;
+import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -741,6 +743,75 @@ public class StreamMetaDataTests {
         when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 500, response.getStatus());
+    }
+
+    /**
+     * Test for listReaderGroups REST API.
+     */
+    @Test
+    public void testListReaderGroups() {
+        final String resourceURI = getURI() + "v1/scopes/scope1/readergroups";
+
+        final StreamConfiguration streamconf1 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream1)
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        final StreamConfiguration streamconf2 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(stream2)
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        final StreamConfiguration readerGroup1 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(getStreamForReaderGroup("readerGroup1"))
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+        final StreamConfiguration readerGroup2 = StreamConfiguration.builder()
+                .scope(scope1)
+                .streamName(getStreamForReaderGroup("readerGroup2"))
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build();
+
+        // Fetch reader groups list.
+        List<StreamConfiguration> streamsList = Arrays.asList(streamconf1, streamconf2, readerGroup1, readerGroup2);
+        when(mockControllerService.listStreamsInScope(scope1)).thenReturn(CompletableFuture.completedFuture(
+                streamsList));
+        Response response = client.target(resourceURI).request().buildGet().invoke();
+        assertEquals("List Reader Groups response code", 200, response.getStatus());
+        final ReaderGroupsList readerGroupsList1 = response.readEntity(ReaderGroupsList.class);
+        assertEquals("List count", readerGroupsList1.getReaderGroups().size(), 2);
+        assertEquals("List element", readerGroupsList1.getReaderGroups().get(0).getReaderGroupName(),
+                "readerGroup1");
+        assertEquals("List element", readerGroupsList1.getReaderGroups().get(1).getReaderGroupName(),
+                "readerGroup2");
+        response.close();
+
+        // Test for list reader groups for non-existing scope.
+        final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
+        when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
+        response = client.target(resourceURI).request().buildGet().invoke();
+        assertEquals("List Reader Groups response code", 404, response.getStatus());
+        response.close();
+
+        // Test for list reader groups failure.
+        final CompletableFuture<List<StreamConfiguration>> completableFuture = new CompletableFuture<>();
+        completableFuture.completeExceptionally(new Exception());
+        when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
+        response = client.target(resourceURI).request().buildGet().invoke();
+        assertEquals("List Reader Groups response code", 500, response.getStatus());
+        response.close();
+
+        // Test to list large number of reader groups.
+        streamsList = Collections.nCopies(1000, readerGroup1);
+        when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
+                CompletableFuture.completedFuture(streamsList));
+        response = client.target(resourceURI).request().buildGet().invoke();
+        assertEquals("List Reader Groups response code", 200, response.getStatus());
+        final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
+        assertEquals("List count", 200, readerGroupsList.getReaderGroups().size());
+        response.close();
     }
 
     private static void testExpectedVsActualObject(final StreamProperty expected, final StreamProperty actual) {
