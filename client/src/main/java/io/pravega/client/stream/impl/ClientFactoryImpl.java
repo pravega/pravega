@@ -138,7 +138,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
     }
