@@ -614,7 +614,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return result;
     }
 
-    private CompletableFuture<Pair<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
+    @Override
+    public CompletableFuture<Pair<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
         return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
             int size = scaleMetadataList.size();
             long totalNumSplits = 0;
@@ -622,7 +623,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             List<Segment> segmentList1;
             List<Segment> segmentList2;
             boolean isDescendingOrder = (size > 1) ?
-                    (scaleMetadataList.get(0).getTimestamp() < scaleMetadataList.get(1).getTimestamp()) : true;
+                    (scaleMetadataList.get(0).getTimestamp() > scaleMetadataList.get(1).getTimestamp()) : true;
 
             for (int i = 0; i < size - 1; i++) {
                 segmentList1 = scaleMetadataList.get(i).getSegments();
@@ -640,11 +641,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-    private int findSegmentSplitsMerges(List<Segment> segmentsList1, List<Segment> segmentsList2) {
+    private int findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
         int count = 0;
-        for (Segment segment1 : segmentsList1 ) {
+        for (Segment segment1 : referenceSegmentsList ) {
             int overlaps = 0;
-            for (Segment segment2 : segmentsList2) {
+            for (Segment segment2 : targetSegmentsList) {
                 if (segment1.overlaps(segment2)) {
                     overlaps++;
                 }
