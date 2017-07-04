@@ -68,6 +68,7 @@ public class TransactionStressTest {
     private static final int NUM_READERS = 5;
     private static final int ZK_DEFAULT_SESSION_TIMEOUT = 60000;
     private static final int NUM_TRANSACTIONS = 50000;
+    private static final long EVENTS_PER_TRANSACTION = 5;
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicLong eventData;
@@ -327,8 +328,8 @@ public class TransactionStressTest {
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer));
 
-                    //each transaction has 5 events
-                    for (int j = 0; j < 5; j++) {
+                    //each transaction has EVENTS_PER_TRANSACTION events
+                    for (int j = 0; j < EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
                         log.debug("Writing event: {} into transaction: {}", value, transaction);
@@ -353,7 +354,7 @@ public class TransactionStressTest {
                                              .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
             log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
             if (status.equals(Transaction.Status.COMMITTED)) {
-                eventWriteCount.getAndIncrement();
+                eventWriteCount.addAndGet(EVENTS_PER_TRANSACTION);
                 log.info("Event write count: {}", eventWriteCount.get());
             } else if (status.equals(Transaction.Status.ABORTED)) {
                 log.debug("Transaction with id: {} aborted", txn.getTxnId());
