@@ -63,7 +63,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class TransactionStressTest {
 
-    private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
+    private static final String STREAM_NAME = "testTransactionStressStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
     private static final int ZK_DEFAULT_SESSION_TIMEOUT = 60000;
@@ -80,8 +80,8 @@ public class TransactionStressTest {
     private Service segmentStoreInstance = null;
     private URI controllerURIDirect = null;
     private Controller controller;
-    private final String scope = "testMultiReaderWriterTxnScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testMultiReaderWriterTxnReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testTransactionStressScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testTrasactionStressScope" + new Random().nextInt(Integer.MAX_VALUE);
     private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
                                                                   .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
@@ -310,10 +310,9 @@ public class TransactionStressTest {
                         log.debug("Read timeout");
                     }
                 } catch (Throwable e) {
-                    log.error("Test Exception while reading from the stream: ", e);
+                    log.warn("Test Exception while reading from the stream: ", e);
                 }
             }
-
         }, executorService);
     }
 
@@ -340,8 +339,7 @@ public class TransactionStressTest {
                     //wait for transaction to get committed
                     checkTxnStatus(transaction, eventWriteCount).get();
                 } catch (Throwable e) {
-                    log.warn("Exception while writing events in the transaction: {}", e);
-                    log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    log.warn("Exception while writing events in the transaction: {}. Transaction with id: {}  failed", e, transaction.getTxnId());
                 }
             }
         }, executorService);
