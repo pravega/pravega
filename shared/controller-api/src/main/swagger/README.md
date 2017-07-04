@@ -43,5 +43,5 @@ https://jcenter.bintray.com/io/github/swagger2markup/swagger2markup-cli/1.3.1/sw
 
 ### Generate and save the markup documentation
 ```
-java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i Controller.yaml -f <pravega root>/docs/rest/restapis
+java -Dswagger2markup.markupLanguage=MARKDOWN -Dswagger2markup.generatedExamplesEnabled=true -jar swagger2markup-cli-1.3.1.jar  convert -i <pravega root>/shared/controller-api/src/main/swagger/Controller.yaml -f <pravega root>/docs/rest/restapis
 ```
