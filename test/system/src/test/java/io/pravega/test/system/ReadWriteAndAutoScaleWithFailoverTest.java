@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -26,7 +26,6 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -46,9 +45,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -64,11 +61,13 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ReadWriteAndScaleWithFailoverTest {
+public class ReadWriteAndAutoScaleWithFailoverTest {
 
-    private static final String STREAM_NAME = "testReadWriteAndScaleStream";
-    private static final int NUM_WRITERS = 5;
-    private static final int NUM_READERS = 5;
+    private static final String STREAM_NAME = "testReadWriteAndAutoScaleStream";
+    private static final int INITIAL_NUM_WRITERS = 2;
+    private static final int ADD_NUM_WRITERS = 6;
+    private static final int TOTAL_NUM_WRITERS = 8;
+    private static final int NUM_READERS = 2;
     private static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
@@ -76,9 +75,9 @@ public class ReadWriteAndScaleWithFailoverTest {
     private ExecutorService executorService;
     private Controller controller;
     private TestState testState;
-    private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-    private ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 1);
+    private final String scope = "testReadWriteAndAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private ScalingPolicy scalingPolicy =  ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private final String readerName = "reader";
@@ -132,15 +131,15 @@ public class ReadWriteAndScaleWithFailoverTest {
     }
 
     private static class TestState {
-
-        //read and write count variables
-        final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
-        final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
-        final AtomicLong eventReadCount = new AtomicLong(0); // used by readers to maintain a count of events.
-        final AtomicLong eventWriteCount = new AtomicLong(0); // used by writers to maintain a count of events.
-        final AtomicLong eventData = new AtomicLong(0); //data used by each of the writers.
-        final ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
-
+        
+            //read and write count variables
+            final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
+            final AtomicBoolean stopWriteFlag = new AtomicBoolean(false);
+            final AtomicLong eventReadCount = new AtomicLong(0); // used by readers to maintain a count of events.
+            final AtomicLong eventWriteCount = new AtomicLong(0); // used by writers to maintain a count of events.
+            final AtomicLong eventData = new AtomicLong(0); //data used by each of the writers.
+            final ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
+        
     }
 
     @Before
@@ -172,11 +171,11 @@ public class ReadWriteAndScaleWithFailoverTest {
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
         //executor service
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = Executors.newFixedThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
 
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
-
+        
         testState = new TestState();
     }
 
@@ -189,7 +188,7 @@ public class ReadWriteAndScaleWithFailoverTest {
     }
 
     @Test(timeout = 600000)
-    public void readWriteAndScaleWithFailoverTest() throws Exception {
+    public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
 
         try (StreamManager streamManager = new StreamManagerImpl(controllerURIDirect)) {
             Boolean createScopeStatus = streamManager.createScope(scope);
@@ -203,10 +202,10 @@ public class ReadWriteAndScaleWithFailoverTest {
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
             log.info("Client factory details {}", clientFactory.toString());
-            log.info("Creating {} writers", NUM_WRITERS);
-            List<EventStreamWriter<Long>> writerList = new ArrayList<>(NUM_WRITERS);
+            log.info("Creating {} writers", INITIAL_NUM_WRITERS);
+            List<EventStreamWriter<Long>> writerList = new ArrayList<>(INITIAL_NUM_WRITERS);
             log.info("Writers writing in the scope {}", scope);
-            for (int i = 0; i < NUM_WRITERS; i++) {
+            for (int i = 0; i < INITIAL_NUM_WRITERS; i++) {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
@@ -250,25 +249,28 @@ public class ReadWriteAndScaleWithFailoverTest {
             segmentStoreInstance.scaleService(3, true);
             Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
 
-            //scale manually
-            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, STREAM_NAME).get().getSegments().size());
+            //increase the number of writers to trigger scale
+            List<EventStreamWriter<Long>>  newlyAddedWriterList = new ArrayList<>(ADD_NUM_WRITERS);
+            log.info("Writers writing in the scope {}", scope);
+            for (int i = 0; i < ADD_NUM_WRITERS; i++) {
+                log.info("Starting writer{}", i);
+                final EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(STREAM_NAME,
+                        new JavaSerializer<Long>(),
+                        EventWriterConfig.builder().retryAttempts(10).build());
+                newlyAddedWriterList.add(writer1);
+            }
 
-            Map<Double, Double> keyRanges = new HashMap<>();
-            keyRanges.put(0.0, 0.5);
-            keyRanges.put(0.5, 1.0);
-
-            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
-                    Collections.singletonList(0),
-                    keyRanges);
+            //start writing asynchronoulsy with newly created writers
+            List<CompletableFuture<Void>> writerFutureList1 = newlyAddedWriterList.stream().map(writer ->
+                    startWriting(writer)).collect(Collectors.toList());
 
             //run the failover test while scaling
             performFailoverTest();
 
-            //do a get on scaleStatus
-            scaleStatus.get();
-            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, STREAM_NAME).get().getSegments().size());
+            //wait for scaling
+            waitForScaling();
 
-            //bring the instances back to 3 before performing failover after scaling
+            //bring the instances back to 3 before performing failover
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
             Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
@@ -281,6 +283,8 @@ public class ReadWriteAndScaleWithFailoverTest {
 
             log.info("Wait for writers execution to complete");
             FutureHelpers.allOf(writerFutureList).get();
+
+            FutureHelpers.allOf(writerFutureList1).get();
 
             log.info("Stop read flag status {}", testState.stopReadFlag);
             testState.stopReadFlag.set(true);
@@ -295,6 +299,7 @@ public class ReadWriteAndScaleWithFailoverTest {
 
             log.info("Closing writers");
             writerList.forEach(writer -> writer.close());
+            newlyAddedWriterList.forEach(writer -> writer.close());
             log.info("Closing readers");
             readerList.forEach(reader -> reader.close());
             log.info("Deleting readergroup {}", readerGroupName);
@@ -309,9 +314,36 @@ public class ReadWriteAndScaleWithFailoverTest {
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
-        log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
+        log.info("Test {} succeeds ", "ReadWriteAndAutoScaleWithFailover");
 
-    }
+        }
+
+        private void waitForScaling() {
+
+               for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
+                   controller.getCurrentSegments(scope, STREAM_NAME)
+                           .thenAccept(x -> {
+                               int currentNumOfSegments = x.getSegments().size();
+                               while (currentNumOfSegments == 2) {
+                                   try {
+                                       Thread.sleep(60000);
+                                   } catch (InterruptedException e) {
+                                       log.error("error in sleep: ", e);
+                                       break;
+                                   }
+                                   log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
+                                   //Scaling operation did not happen, wait
+                                   throw new ScaleOperationNotDoneException();
+                               }
+                               if (currentNumOfSegments > 2) {
+                                   //scale operation successful.
+                                   log.info("Current Number of segments is {}", currentNumOfSegments);
+                               } else {
+                                   Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
+                               }
+                           });
+               }
+        }
 
     private void performFailoverTest() throws InterruptedException {
 
@@ -326,7 +358,7 @@ public class ReadWriteAndScaleWithFailoverTest {
         Thread.sleep(sleepTime);
 
         long currentWriteCount2 = testState.eventWriteCount.get();
-        long currentReadCount2 = testState.eventReadCount.get();
+        long currentReadCount2 =  testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} without any failover after sleep before scaling", currentReadCount2, currentWriteCount2);
         //ensure writes are happening
         assertTrue(currentWriteCount2 > currentWriteCount1);
@@ -375,6 +407,7 @@ public class ReadWriteAndScaleWithFailoverTest {
     }
 
 
+
     private CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
             while (!testState.stopWriteFlag.get()) {
@@ -387,15 +420,15 @@ public class ReadWriteAndScaleWithFailoverTest {
                     writer.flush();
                     testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
-                } catch (InterruptedException e) {
-                    log.error("Error in sleep: ", e);
-                    break;
+                } catch (InterruptedException e ) {
+                        log.error("Error in sleep: ", e);
+                        break;
                 } catch (ConnectionClosedException e) {
-                    log.warn("Test exception in writing events: ", e);
-                    continue;
+                        log.warn("Test exception in writing events: ", e);
+                        continue;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
-                    break;
+                        break;
                 }
             }
         }, executorService);
@@ -419,7 +452,7 @@ public class ReadWriteAndScaleWithFailoverTest {
                     } else {
                         log.debug("Read timeout");
                     }
-                } catch (ConnectionClosedException e) {
+                } catch (ConnectionClosedException e ) {
                     log.warn("Test exception in reading events: ", e);
                     continue;
                 } catch (ReinitializationRequiredException e) {
@@ -428,5 +461,8 @@ public class ReadWriteAndScaleWithFailoverTest {
                 }
             }
         }, executorService);
+    }
+
+    private static class ScaleOperationNotDoneException extends RuntimeException {
     }
 }
