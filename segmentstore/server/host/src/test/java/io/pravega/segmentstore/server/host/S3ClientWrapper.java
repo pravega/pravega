@@ -111,7 +111,7 @@ class S3ClientWrapper extends S3JerseyClient {
 
             AclSize aclKey = aclMap.get(key);
             aclMap.put(key, aclKey.withSize(range.getLast() + 1));
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (IOException e) {
             throw new BadOffsetException(key, 0, 0);
         }
     }
