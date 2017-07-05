@@ -18,7 +18,7 @@ Pravega concepts.
 ## Streams
 
 Pravega organizes data into Streams.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  A Pravega Stream is
-similar to but more flexable than a "topic" in popular message-oriented middleware such as
+similar to but more flexible than a "topic" in popular message-oriented middleware such as
 [RabbitMQ](https://www.rabbitmq.com/) or Apache Kafka.
 
 Pravega Streams are based on an append-only log data structure. By using
@@ -263,9 +263,9 @@ as scale events occur over time.
 
 A stream comprises a set of segments that can change over time. Segments that overlap in their area of keyspace have a defined order.
 
-An event written to a stream is written to a single segment and it is totally ordered with respect to the events of that segment. The existance and position of an event within a segment is strongly consistant.
+An event written to a stream is written to a single segment and it is totally ordered with respect to the events of that segment. The existance and position of an event within a segment is strongly consistent.
 
-Readers can be assigned multiple parallel segments (From different parts of keyspace). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment respects the one of the segment. Specifically, if s is a segment, events e1 and e2 of s are such that e1 precedes e2, and a reader reads both e1 and e2, then the reader will read e1 before e2.
+Readers can be assigned multiple parallel segments (from different parts of keyspace). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment respects the one of the segment. Specifically, if s is a segment, events e~1 and e~2 of s are such that e~1 precedes e~2, and a reader reads both e~1 and e~2, then the reader will read e~1 before e~2.
 
 This results in the following ordering guarantees:
 
@@ -274,7 +274,7 @@ This results in the following ordering guarantees:
 2.  Events with different Routing Keys sent to a specific segment will always be
     seen in the same order even if the Reader backs up and re-reads them.
 
-3.  If an event has been acked to it's writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
+3.  If an event has been acked to its writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
 
 4.  If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa.)
 
