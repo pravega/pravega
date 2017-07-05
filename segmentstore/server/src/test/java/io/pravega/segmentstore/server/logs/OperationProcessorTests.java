@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
@@ -318,7 +318,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 super::isExpectedExceptionForNonDataCorruption);
 
         // Wait for the OperationProcessor to shutdown with failure.
-        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
         Assert.assertEquals("Expected the OperationProcessor to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, operationProcessor.state());
 
@@ -367,7 +367,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 ex -> ex instanceof IOException || ex instanceof DataLogWriterNotPrimaryException);
 
         // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
-        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
         Assert.assertEquals("OperationProcessor is not in a failed state after fence-out detected.",
                 Service.State.FAILED, operationProcessor.state());
         Assert.assertTrue("OperationProcessor did not fail with the correct exception.",
@@ -420,7 +420,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Wait for the store to fail (and make sure it failed).
         AssertExtensions.assertThrows(
                 "Operation Processor did not shut down with failure.",
-                () -> ServiceShutdownListener.awaitShutdown(operationProcessor, true),
+                () -> ServiceListeners.awaitShutdown(operationProcessor, true),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected service state after encountering DataCorruptionException.", Service.State.FAILED, operationProcessor.state());
 

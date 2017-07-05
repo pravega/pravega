@@ -12,19 +12,24 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.apache.commons.lang.NotImplementedException;
+
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import lombok.RequiredArgsConstructor;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
+import java.util.function.Consumer;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -37,7 +42,9 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     private final ConnectionFactory cf;
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
+                                                                Consumer<Segment> segmentSealedCallback,
+                                                                EventWriterConfig config) {
         CompletableFuture<String> name = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -79,17 +86,23 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             getAndHandleExceptions(connectionFuture, RuntimeException::new).close();
         });
         return new SegmentOutputStreamImpl(getAndHandleExceptions(name, RuntimeException::new), controller, cf,
-                UUID.randomUUID());
+                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config));
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment) {
-        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID());
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf,
+                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config));
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;
+    }
+    
+    private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {
+        return Retry.withExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
+                                    config.getRetryAttempts(), config.getMaxBackoffMillis());
     }
 }

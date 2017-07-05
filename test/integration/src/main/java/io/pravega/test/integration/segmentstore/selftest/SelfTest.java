@@ -16,7 +16,7 @@ import com.google.common.util.concurrent.ServiceManager;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -69,7 +69,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.store = createStoreAdapter(builderConfig);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         this.testCompletion = new AtomicReference<>();
-        addListener(new ServiceShutdownListener(this::shutdownCallback, this::shutdownCallback), this.executor);
+        ServiceHelpers.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
     }
 
@@ -88,9 +88,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
-
+            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
             this.dataSource.deleteAllSegments()
                            .exceptionally(ex -> {
                                TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);

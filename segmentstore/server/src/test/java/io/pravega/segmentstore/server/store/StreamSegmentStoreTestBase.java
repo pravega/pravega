@@ -58,6 +58,8 @@ import org.junit.rules.Timeout;
 public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //region Test Configuration
 
+    // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
+    // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;

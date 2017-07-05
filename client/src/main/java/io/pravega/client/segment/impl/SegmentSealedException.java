@@ -18,4 +18,8 @@ public class SegmentSealedException extends IOException {
 
     private static final long serialVersionUID = 1L;
 
+    public SegmentSealedException(String segment) {
+        super("SegmentSealed Exception for segment:" + segment);
+    }
+
 }

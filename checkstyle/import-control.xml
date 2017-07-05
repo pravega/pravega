@@ -20,7 +20,6 @@
     <allow pkg="com.google"/>
     <allow pkg="io.pravega"/>
     <allow pkg="lombok"/>
-    <allow pkg="edu.umd.cs.findbugs.annotations"/>
     <allow pkg="ch.qos.logback"/>
     <allow pkg="io.netty"/>
     <allow pkg="org.apache"/>
