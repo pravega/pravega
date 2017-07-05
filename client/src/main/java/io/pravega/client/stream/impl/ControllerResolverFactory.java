@@ -9,16 +9,17 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.ResolvedServerInfo;
 import io.grpc.ResolvedServerInfoGroup;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -183,7 +184,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                                         .collect(Collectors.toList()))
                                 .build();
                     } catch (StatusRuntimeException e) {
-                        log.warn("Failed to fetch controller addresses - {}", e);
+                        log.warn("Failed to fetch controller addresses: ", e);
                         this.resolverUpdater.onError(e.getStatus());
                         return;
                     }
@@ -212,6 +213,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 // Catching all exceptions here since this method should never throw (as it will halt the scheduled
                 // tasks).
                 log.warn("Failed to construct controller endpoint list: ", e);
+                this.resolverUpdater.onError(Status.UNKNOWN);
             }
         }
     }
