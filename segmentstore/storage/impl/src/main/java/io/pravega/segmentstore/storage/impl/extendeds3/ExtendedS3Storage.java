@@ -18,6 +18,7 @@ import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
 import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Grant;
+import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.bean.Permission;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
@@ -215,10 +216,10 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private boolean syncExists(String streamSegmentName) {
-        GetObjectResult<InputStream> result = null;
+        ListObjectsResult result = null;
         try {
-            result = client.getObject(config.getBucket(), config.getRoot() + streamSegmentName);
-            return result != null;
+            result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
+            return !result.getObjects().isEmpty();
         } catch (S3Exception e) {
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 return false;
