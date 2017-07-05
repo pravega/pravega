@@ -13,6 +13,9 @@ import io.pravega.segmentstore.storage.impl.extendeds3.AclSize;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * This class represents the ACL to object key mapping for S3 wrapper for integration tests.
+ */
 public class AclMap {
     private ConcurrentMap<String, AclSize> aclMap = new ConcurrentHashMap<>();
 

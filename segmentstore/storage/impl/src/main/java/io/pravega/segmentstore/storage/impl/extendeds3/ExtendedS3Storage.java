@@ -16,7 +16,6 @@ import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CanonicalUser;
 import com.emc.object.s3.bean.CopyPartResult;
-import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.Grant;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.MultipartPartETag;
