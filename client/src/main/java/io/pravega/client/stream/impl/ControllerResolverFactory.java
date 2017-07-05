@@ -9,24 +9,28 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.ResolvedServerInfo;
 import io.grpc.ResolvedServerInfoGroup;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -65,7 +69,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         final String authority = targetUri.getAuthority();
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {
             final String[] strings = host.split(":");
-            return new InetSocketAddress(strings[0], Integer.valueOf(strings[1]));
+            return InetSocketAddress.createUnresolved(strings[0], Integer.valueOf(strings[1]));
         }).collect(Collectors.toList());
 
         return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme));
@@ -137,19 +141,12 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                         .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                         .usePlaintext(true)
                         .build());
-                this.scheduledExecutor = Executors.newScheduledThreadPool(1,
-                        new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
-                this.scheduledExecutor.scheduleWithFixedDelay(
-                        this::getControllers, 0L, 120L, TimeUnit.SECONDS);
-            } else {
-                // Use the bootstrapped server list as the final set of controllers.
-                final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder().addAll(
-                        this.bootstrapServers.stream().map(ResolvedServerInfo::new)
-                                .collect(Collectors.toList()))
-                        .build();
-                log.info("Updating client with controllers: {}", serverInfoGroup);
-                this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
             }
+
+            // This should be a single threaded executor to ensure invocations of getControllers are serialized.
+            this.scheduledExecutor = Executors.newScheduledThreadPool(1,
+                    new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
+            this.scheduledExecutor.scheduleWithFixedDelay(this::getControllers, 0L, 120L, TimeUnit.SECONDS);
         }
 
         @Override
@@ -161,26 +158,60 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             }
         }
 
+        @Override
+        @Synchronized
+        public void refresh() {
+            if (started.get()) {
+                this.scheduledExecutor.execute(this::getControllers);
+            }
+        }
+
         // The controller discovery API invoker.
         private void getControllers() {
+            log.debug("Attempting to refresh the controller server endpoints");
             try {
-                final ServerResponse controllerServerList =
-                        this.client.getControllerServerList(ServerRequest.getDefaultInstance());
-                final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
-                        .addAll(controllerServerList.getNodeURIList()
-                                .stream()
-                                .map(node ->
-                                        new ResolvedServerInfo(
-                                                new InetSocketAddress(node.getEndpoint(), node.getPort())))
-                                .collect(Collectors.toList()))
-                        .build();
+                final ResolvedServerInfoGroup serverInfoGroup;
+                if (this.enableDiscovery) {
+                    final ServerResponse controllerServerList =
+                            this.client.getControllerServerList(ServerRequest.getDefaultInstance());
+                    serverInfoGroup = ResolvedServerInfoGroup.builder()
+                            .addAll(controllerServerList.getNodeURIList()
+                                    .stream()
+                                    .map(node ->
+                                            new ResolvedServerInfo(
+                                                    new InetSocketAddress(node.getEndpoint(), node.getPort())))
+                                    .collect(Collectors.toList()))
+                            .build();
+                } else {
+                    // Resolve the bootstrapped server list to get the set of controllers.
+                    final ArrayList<InetSocketAddress> resolvedAddresses = new ArrayList<>();
+                    this.bootstrapServers.forEach(address -> {
+                        try {
+                            resolvedAddresses.add(new InetSocketAddress(InetAddress.getByName(address.getHostString()),
+                                    address.getPort()));
+                        } catch (UnknownHostException e) {
+                            log.warn("Couldn't resolve controller address: {}, skipping this controller",
+                                    address.getHostString());
+                        }
+                    });
+                    serverInfoGroup = ResolvedServerInfoGroup.builder().addAll(resolvedAddresses.stream()
+                            .map(ResolvedServerInfo::new)
+                            .collect(Collectors.toList()))
+                            .build();
+                }
 
                 // Update gRPC load balancer with the new set of server addresses.
                 log.info("Updating client with controllers: {}", serverInfoGroup);
                 this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
-            } catch (StatusRuntimeException e) {
-                log.warn("Failed to fetch controller addresses - {}", e);
-                this.resolverUpdater.onError(e.getStatus());
+            } catch (Throwable e) {
+                // Catching all exceptions here since this method should never throw (as it will halt the scheduled
+                // tasks).
+                if (e instanceof StatusRuntimeException) {
+                    this.resolverUpdater.onError(((StatusRuntimeException) e).getStatus());
+                } else {
+                    this.resolverUpdater.onError(Status.UNKNOWN);
+                }
+                log.warn("Failed to construct controller endpoint list: ", e);
             }
         }
     }
