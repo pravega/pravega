@@ -19,7 +19,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.AclSize;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3Storage;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
@@ -29,8 +28,6 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +40,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 3;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;
-    private ConcurrentMap<String, AclSize> aclMap = new ConcurrentHashMap<>();
+    private AclMap aclMap = new AclMap();
 
     /**
      * Starts BookKeeper.
@@ -97,9 +94,9 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private class ExtendedS3ListenableStorageFactory extends ListenableStorageFactory {
 
         private final ExtendedS3StorageConfig adapterConfig;
-        private final ConcurrentMap<String, AclSize> aclMap;
+        private final AclMap aclMap;
 
-        public ExtendedS3ListenableStorageFactory(StorageFactory wrappedFactory, ExtendedS3StorageConfig adapterConfig, ConcurrentMap<String, AclSize> aclMap) {
+        public ExtendedS3ListenableStorageFactory(StorageFactory wrappedFactory, ExtendedS3StorageConfig adapterConfig, AclMap aclMap) {
             super(wrappedFactory);
             this.adapterConfig = adapterConfig;
             this.aclMap = aclMap;

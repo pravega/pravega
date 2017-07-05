@@ -52,11 +52,11 @@ import lombok.Synchronized;
  * Client wrapper for S3JerseyClient.
  */
 class S3ClientWrapper extends S3JerseyClient {
-    private final ConcurrentMap<String, AclSize> aclMap;
+    private final AclMap aclMap;
     private final String baseDir;
     private final ConcurrentMap<String, ConcurrentMap<Integer, CopyPartRequest>> multipartUploads = new ConcurrentHashMap<>();
 
-    public S3ClientWrapper(S3Config s3Config, ConcurrentMap<String, AclSize> aclMap, String baseDir) {
+    public S3ClientWrapper(S3Config s3Config, AclMap aclMap, String baseDir) {
         super(s3Config);
         this.aclMap = aclMap;
         this.baseDir = baseDir;
@@ -87,7 +87,7 @@ class S3ClientWrapper extends S3JerseyClient {
             if (request.getRange() != null) {
                 size = request.getRange().getLast() + 1;
             }
-            aclMap.putIfAbsent(request.getKey(), new AclSize(request.getAcl(), size));
+            aclMap.addNewObject(request.getKey(), new AclSize(request.getAcl(), size));
         }
         return retVal;
     }
@@ -109,8 +109,8 @@ class S3ClientWrapper extends S3JerseyClient {
                 startOffset += bytesTransferred;
             } while (length > 0);
 
-            AclSize aclKey = aclMap.get(key);
-            aclMap.put(key, aclKey.withSize(range.getLast() + 1));
+            AclSize aclKey = aclMap.getAclSizeForObject(key);
+            aclMap.updateObject(key, aclKey.withSize(range.getLast() + 1));
         } catch (IOException e) {
             throw new BadOffsetException(key, 0, 0);
         }
@@ -119,27 +119,27 @@ class S3ClientWrapper extends S3JerseyClient {
     @Synchronized
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-        AclSize retVal = aclMap.get(key);
+        AclSize retVal = aclMap.getAclSizeForObject(key);
         if (retVal == null) {
             throw new S3Exception("NoObject", 404, "NoSuchKey", key);
         }
-        aclMap.put(key, retVal.withAcl(acl));
+        aclMap.updateObject(key, retVal.withAcl(acl));
     }
 
     @Synchronized
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
-        AclSize retVal = aclMap.get(request.getKey());
+        AclSize retVal = aclMap.getAclSizeForObject(request.getKey());
         if (retVal == null) {
             throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
         }
-        aclMap.put(request.getKey(), retVal.withAcl(request.getAcl()));
+        aclMap.updateObject(request.getKey(), retVal.withAcl(request.getAcl()));
     }
 
     @Synchronized
     @Override
     public AccessControlList getObjectAcl(String bucketName, String key) {
-        AclSize retVal = aclMap.get(key);
+        AclSize retVal = aclMap.getAclSizeForObject(key);
         if (retVal == null) {
             throw new S3Exception("NoObject", 404, "NoSuchKey", key);
         }
@@ -154,7 +154,7 @@ class S3ClientWrapper extends S3JerseyClient {
         } catch (IOException e) {
             throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
         }
-        aclMap.remove(key);
+        aclMap.deleteObject(key);
     }
 
     @Override
@@ -187,7 +187,7 @@ class S3ClientWrapper extends S3JerseyClient {
     @Override
     public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
-        AclSize data = aclMap.get(key);
+        AclSize data = aclMap.getAclSizeForObject(key);
         if (data == null) {
             throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
         }
@@ -252,8 +252,8 @@ class S3ClientWrapper extends S3JerseyClient {
                     targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
                             copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
                     targetChannel.close();
-                    AclSize aclMap = this.aclMap.get(copyPart.getKey());
-                    this.aclMap.put(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
+                    AclSize aclMap = this.aclMap.getAclSizeForObject(copyPart.getKey());
+                    this.aclMap.updateObject(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
                 } catch (IOException e) {
                     throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
                 }
