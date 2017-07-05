@@ -29,7 +29,6 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.junit.After;
@@ -58,18 +57,13 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
 
         URI uri = URI.create(endpoint);
 
-        Properties properties = new Properties();
-        properties.setProperty("s3proxy.authorization", "none");
-        properties.setProperty("s3proxy.endpoint", endpoint);
-        properties.setProperty("jclouds.provider", "filesystem");
-        properties.setProperty("jclouds.filesystem.basedir", "/tmp/s3proxy");
         baseDir = Files.createTempDirectory("extendeds3_wrapper").toString();
 
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                                                           .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
                                                           .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                           .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
-                                                          .with(ExtendedS3StorageConfig.URI, "http://localhost:9020"));
+                                                          .with(ExtendedS3StorageConfig.URI, endpoint));
     }
 
     /**

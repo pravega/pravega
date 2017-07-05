@@ -164,11 +164,18 @@ class S3ClientWrapper extends S3JerseyClient {
         Path path = Paths.get(this.baseDir, bucketName, prefix);
         try {
             if (Files.exists(path)) {
-                Files.list(path).forEach((file) -> {
+                if (Files.isDirectory(path)) {
+                    Files.list(path).forEach((file) -> {
+                        S3Object object = new S3Object();
+                        object.setKey(file.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
+                        list.add(object);
+                    });
+                } else {
                     S3Object object = new S3Object();
-                    object.setKey(file.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
+                    object.setKey(path.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
                     list.add(object);
-                });
+
+                }
             }
         } catch (IOException e) {
             throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
