@@ -209,6 +209,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 log.info("Updating client with controllers: {}", serverInfoGroup);
                 this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
             } catch (Throwable e) {
+                // Catching all exceptions here since this method should never throw (as it will halt the scheduled
+                // tasks).
                 log.warn("Failed to construct controller endpoint list: ", e);
             }
         }
