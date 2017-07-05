@@ -172,22 +172,16 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             try {
                 final ResolvedServerInfoGroup serverInfoGroup;
                 if (this.enableDiscovery) {
-                    try {
-                        final ServerResponse controllerServerList =
-                                this.client.getControllerServerList(ServerRequest.getDefaultInstance());
-                        serverInfoGroup = ResolvedServerInfoGroup.builder()
-                                .addAll(controllerServerList.getNodeURIList()
-                                        .stream()
-                                        .map(node ->
-                                                new ResolvedServerInfo(
-                                                        new InetSocketAddress(node.getEndpoint(), node.getPort())))
-                                        .collect(Collectors.toList()))
-                                .build();
-                    } catch (StatusRuntimeException e) {
-                        log.warn("Failed to fetch controller addresses: ", e);
-                        this.resolverUpdater.onError(e.getStatus());
-                        return;
-                    }
+                    final ServerResponse controllerServerList =
+                            this.client.getControllerServerList(ServerRequest.getDefaultInstance());
+                    serverInfoGroup = ResolvedServerInfoGroup.builder()
+                            .addAll(controllerServerList.getNodeURIList()
+                                    .stream()
+                                    .map(node ->
+                                            new ResolvedServerInfo(
+                                                    new InetSocketAddress(node.getEndpoint(), node.getPort())))
+                                    .collect(Collectors.toList()))
+                            .build();
                 } else {
                     // Resolve the bootstrapped server list to get the set of controllers.
                     final ArrayList<InetSocketAddress> resolvedAddresses = new ArrayList<>();
@@ -212,8 +206,12 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             } catch (Throwable e) {
                 // Catching all exceptions here since this method should never throw (as it will halt the scheduled
                 // tasks).
+                if (e instanceof StatusRuntimeException) {
+                    this.resolverUpdater.onError(((StatusRuntimeException) e).getStatus());
+                } else {
+                    this.resolverUpdater.onError(Status.UNKNOWN);
+                }
                 log.warn("Failed to construct controller endpoint list: ", e);
-                this.resolverUpdater.onError(Status.UNKNOWN);
             }
         }
     }
