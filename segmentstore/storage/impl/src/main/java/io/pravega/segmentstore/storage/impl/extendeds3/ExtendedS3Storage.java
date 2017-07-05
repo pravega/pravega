@@ -365,10 +365,6 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
             }
         }
 
-        if (e instanceof IndexOutOfBoundsException || e instanceof ArrayIndexOutOfBoundsException) {
-            retVal = new IllegalArgumentException(e.getMessage());
-        }
-
         if (e instanceof AccessDeniedException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
