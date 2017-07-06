@@ -148,7 +148,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyState(() -> updateState(State.UPDATING)
                 .thenApply(x -> setConfigurationData(configuration))
                 .thenApply(x -> true),
-                Lists.newArrayList(State.ACTIVE));
+                Lists.newArrayList(State.ACTIVE, State.UPDATING));
     }
 
     /**
