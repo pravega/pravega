@@ -56,6 +56,7 @@ import org.junit.Before;
  */
 @Slf4j
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
+    private static final String BUCKET_NAME = "pravegatest";
     private ExtendedS3StorageFactory storageFactory;
     private ExtendedS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
@@ -91,29 +92,27 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         s3Proxy.start();
 
         this.adapterConfig = ExtendedS3StorageConfig.builder()
-                                                    .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
+                                                    .with(ExtendedS3StorageConfig.BUCKET, BUCKET_NAME)
                                                     .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                     .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
                                                     .with(ExtendedS3StorageConfig.ROOT, "test")
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
-        if (client == null) {
-            createStorage();
+        createStorage();
 
-            try {
-                client.createBucket("kanpravegatest");
-            } catch (S3Exception e) {
-                if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
-                    throw e;
-                }
+        try {
+            client.createBucket(BUCKET_NAME);
+        } catch (S3Exception e) {
+            if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
+                throw e;
             }
-            List<ObjectKey> keys = client.listObjects("kanpravegatest").getObjects().stream().map((object) -> {
-                return new ObjectKey(object.getKey());
-            }).collect(Collectors.toList());
+        }
+        List<ObjectKey> keys = client.listObjects(BUCKET_NAME).getObjects().stream().map((object) -> {
+            return new ObjectKey(object.getKey());
+        }).collect(Collectors.toList());
 
-            if (!keys.isEmpty()) {
-                client.deleteObjects(new DeleteObjectsRequest("kanpravegatest").withKeys(keys));
-            }
+        if (!keys.isEmpty()) {
+            client.deleteObjects(new DeleteObjectsRequest(BUCKET_NAME).withKeys(keys));
         }
     }
 
@@ -126,10 +125,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        S3Config s3Config = null;
         URI uri = URI.create(endpoint);
-        s3Config = new S3Config(uri);
-        s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
+        S3Config s3Config = new S3Config(uri);
+        s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
 
         client = new S3JerseyClientWrapper(s3Config, aclMap);
 
@@ -150,7 +148,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     /**
      * Wrapper over S3JerseyClient. This implements ACLs, multipart copy and multiple writes to the same object on top of S3Proxy implementation.
      */
-    private static class S3JerseyClientWrapper extends S3JerseyClient {
+    private class S3JerseyClientWrapper extends S3JerseyClient {
         private final ConcurrentMap<String, AclSize> aclMap;
 
         public S3JerseyClientWrapper(S3Config s3Config, ConcurrentMap<String, AclSize> aclMap) {
@@ -158,6 +156,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             this.aclMap = aclMap;
         }
 
+        @Synchronized
         @Override
         public PutObjectResult putObject(PutObjectRequest request) {
             S3ObjectMetadata metadata = request.getObjectMetadata();
@@ -248,12 +247,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             return retVal;
         }
 
+        @Synchronized
         @Override
         public void deleteObject(String bucketName, String key) {
             super.deleteObject(bucketName, key);
             aclMap.remove(key);
         }
 
+        @Synchronized
         @Override
         public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) {
             request.getDeleteObjects().getKeys().forEach( (key) -> aclMap.remove(key));

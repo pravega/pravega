@@ -243,24 +243,26 @@ class S3ClientWrapper extends S3JerseyClient {
         if (partMap == null) {
             throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
         }
-        partMap.forEach((index, copyPart) -> {
-            if (copyPart.getKey() != copyPart.getSourceKey()) {
-                Path sourcePath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getSourceKey());
-                Path targetPath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getKey());
-                try (FileChannel sourceChannel = FileChannel.open(sourcePath, StandardOpenOption.READ);
-                     FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE)) {
-                    targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
-                            copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
-                    targetChannel.close();
-                    AclSize aclMap = this.aclMap.getAclSizeForObject(copyPart.getKey());
-                    this.aclMap.updateObject(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
-                } catch (IOException e) {
-                    throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+        try {
+            partMap.forEach((index, copyPart) -> {
+                if (copyPart.getKey() != copyPart.getSourceKey()) {
+                    Path sourcePath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getSourceKey());
+                    Path targetPath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getKey());
+                    try (FileChannel sourceChannel = FileChannel.open(sourcePath, StandardOpenOption.READ);
+                         FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE)) {
+                        targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
+                                copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
+                        targetChannel.close();
+                        AclSize aclMap = this.aclMap.getAclSizeForObject(copyPart.getKey());
+                        this.aclMap.updateObject(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
+                    } catch (IOException e) {
+                        throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+                    }
                 }
-            }
-        });
-
-        multipartUploads.remove(request.getKey());
+            });
+        } finally {
+            multipartUploads.remove(request.getKey());
+        }
 
         return new CompleteMultipartUploadResult();
     }
