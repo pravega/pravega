@@ -9,7 +9,10 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
 import com.google.common.net.InetAddresses;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
@@ -17,11 +20,8 @@ import io.grpc.ResolvedServerInfo;
 import io.grpc.ResolvedServerInfoGroup;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
