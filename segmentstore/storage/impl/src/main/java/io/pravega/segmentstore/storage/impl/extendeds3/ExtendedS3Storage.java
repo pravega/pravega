@@ -62,6 +62,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the same offset till the time the
  * earlier owner gets a notification that it is not the current owner. Once the earlier owner received this notification, it stops writing to the segment.
+ *
+ * The concat operation is implemented as multi part copy. This ensures that the objects are copied server side. Multi part copy calls are idempotent too.
+ * Copying the same object at the same offset multiple times from different hosts does not cause any form of inconsistency.
+ *
  */
 
 @Slf4j
