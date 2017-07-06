@@ -22,6 +22,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
@@ -125,6 +126,21 @@ public class ControllerImplLBTest {
     }
 
     @Test
+    public void testDiscoverySuccessUsingIPAddress() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
+
+        // Use 2 servers to discover all the servers.
+        String localIP = InetAddress.getLoopbackAddress().getHostAddress();
+        ControllerImpl controllerClient = new ControllerImpl(
+                URI.create("pravega://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2));
+        final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
+
+        // Verify we could reach all 3 controllers.
+        Assert.assertEquals(3, uris.size());
+    }
+
+    @Test
     public void testDiscoveryFailover() throws Exception {
         final int serverPort1 = testRPCServer1.getPort();
         final int serverPort2 = testRPCServer2.getPort();
@@ -167,6 +183,20 @@ public class ControllerImplLBTest {
         // Directly use all 3 servers and verify.
         ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1 + ",localhost:"
                 + serverPort2 + ",localhost:" + serverPort3));
+        final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
+        Assert.assertEquals(3, uris.size());
+    }
+
+    @Test
+    public void testDirectSuccessUsingIPAddress() throws Exception {
+        final int serverPort1 = testRPCServer1.getPort();
+        final int serverPort2 = testRPCServer2.getPort();
+        final int serverPort3 = testRPCServer3.getPort();
+
+        // Directly use all 3 servers and verify.
+        String localIP = InetAddress.getLoopbackAddress().getHostAddress();
+        ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://" + localIP + ":" + serverPort1
+                + "," + localIP + ":" + serverPort2 + "," + localIP + ":" + serverPort3));
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }

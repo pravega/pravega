@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.net.InetAddresses;
 import io.grpc.Attributes;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
@@ -25,16 +26,16 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -82,6 +83,13 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
     @ThreadSafe
     private static class ControllerNameResolver extends NameResolver {
+
+        // Regular controller discovery interval.
+        private final static long REFRESH_INTERVAL_SECONDS = 120L;
+
+        // Controller discovery retry timeout when failures are detected.
+        private final static long FAILURE_RETRY_TIMEOUT_SECONDS = 10L;
+
         // The authority part of the URI string which contains the list of server ip:port pair to connect to.
         private final String authority;
 
@@ -94,14 +102,20 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         // To verify the startup state of this instance.
         private final AtomicBoolean started = new AtomicBoolean(false);
 
-        // The supplied gRPC listener using which we need to updated the controller server list.
-        private Listener resolverUpdater = null;
-
         // Executor to schedule the controller discovery process.
         private ScheduledExecutorService scheduledExecutor = null;
 
+        // The supplied gRPC listener using which we need to update the controller server list.
+        @GuardedBy("this")
+        private Listener resolverUpdater = null;
+
         // The controller RPC client required for calling the discovery API.
+        @GuardedBy("this")
         private ControllerServiceGrpc.ControllerServiceBlockingStub client = null;
+
+        // The scheduledFuture for the discovery task to track future schedules.
+        @GuardedBy("this")
+        private ScheduledFuture<?> scheduledFuture = null;
 
         /**
          * Creates the NameResolver instance.
@@ -125,10 +139,10 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         @Override
         @Synchronized
         public void start(Listener listener) {
-            Preconditions.checkState(started.compareAndSet(false, true));
+            Preconditions.checkState(!started.get());
             this.resolverUpdater = listener;
             if (this.enableDiscovery) {
-                // We will use the direct scheme to talk to the controller bootstrap servers.
+                // We will use the direct scheme to send the discovery RPC request to the controller bootstrap servers.
                 String connectString = "tcp://";
                 final List<String> strings = this.bootstrapServers.stream()
                         .map(server -> server.getHostString() + ":" + server.getPort())
@@ -141,16 +155,33 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                         .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                         .usePlaintext(true)
                         .build());
+            } else {
+                // If the servers comprise only of IP addresses then we only need to update the controller list once.
+                if (this.bootstrapServers.stream().allMatch(
+                        inetSocketAddress -> InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
+                    final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
+                            .addAll(this.bootstrapServers.stream()
+                                    .map(address -> new ResolvedServerInfo(
+                                            new InetSocketAddress(address.getHostString(), address.getPort())))
+                                    .collect(Collectors.toList()))
+                            .build();
+                    log.info("Updating client with controllers: {}", serverInfoGroup);
+                    this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+                    started.set(true);
+                    return;
+                }
+                // else case is for controllers with DNS hostnames, which needs to be resolved periodically.
             }
 
-            // This should be a single threaded executor to ensure invocations of getControllers are serialized.
+            // Schedule the first discovery immediately.
             this.scheduledExecutor = Executors.newScheduledThreadPool(1,
                     new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
-            this.scheduledExecutor.scheduleWithFixedDelay(this::getControllers, 0L, 120L, TimeUnit.SECONDS);
+            this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
+            started.set(true);
         }
 
+        // This API should not be under a lock as this is already thread safe and we don't want to block the shutdown.
         @Override
-        @Synchronized
         public void shutdown() {
             Preconditions.checkState(started.compareAndSet(true, false));
             if (this.scheduledExecutor != null) {
@@ -161,17 +192,34 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         @Override
         @Synchronized
         public void refresh() {
+            // Refresh is called as hints when gRPC detects network failures.
+            // We don't want to repeatedly attempt discovery; following logic will limit discovery on failures to
+            // once every FAILURE_RETRY_TIMEOUT_SECONDS seconds. Also we want to trigger discovery sooner on failures.
             if (started.get()) {
-                this.scheduledExecutor.execute(this::getControllers);
+                if (this.scheduledFuture != null &&
+                        !this.scheduledFuture.isDone() &&
+                        this.scheduledFuture.getDelay(TimeUnit.SECONDS) > FAILURE_RETRY_TIMEOUT_SECONDS) {
+                    // Cancel the existing schedule and advance the discovery process.
+                    this.scheduledFuture.cancel(true);
+                    this.scheduledFuture = this.scheduledExecutor.schedule(
+                            this::getControllers, FAILURE_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                }
             }
         }
 
-        // The controller discovery API invoker.
+        /**
+         * The controller discovery API invoker.
+         * This refreshes the list of controller addresses to be used by the gRPC transport.
+         * The discovery process will be rescheduled in the end after a delay which is calculated based on whether
+         * the controller addresses have been fetched successfully or not.
+         */
+        @Synchronized
         private void getControllers() {
-            log.debug("Attempting to refresh the controller server endpoints");
+            log.info("Attempting to refresh the controller server endpoints");
             try {
                 final ResolvedServerInfoGroup serverInfoGroup;
                 if (this.enableDiscovery) {
+                    // Make an RPC call to the bootstrapped controller servers to fetch all active controllers.
                     final ServerResponse controllerServerList =
                             this.client.getControllerServerList(ServerRequest.getDefaultInstance());
                     serverInfoGroup = ResolvedServerInfoGroup.builder()
@@ -183,15 +231,13 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                                     .collect(Collectors.toList()))
                             .build();
                 } else {
-                    // Resolve the bootstrapped server list to get the set of controllers.
+                    // Resolve the bootstrapped server hostnames to get the set of controllers.
                     final ArrayList<InetSocketAddress> resolvedAddresses = new ArrayList<>();
                     this.bootstrapServers.forEach(address -> {
-                        try {
-                            resolvedAddresses.add(new InetSocketAddress(InetAddress.getByName(address.getHostString()),
-                                    address.getPort()));
-                        } catch (UnknownHostException e) {
-                            log.warn("Couldn't resolve controller address: {}, skipping this controller",
-                                    address.getHostString());
+                        final InetSocketAddress socketAddress = new InetSocketAddress(address.getHostString(),
+                                address.getPort());
+                        if (!socketAddress.isUnresolved()) {
+                            resolvedAddresses.add(socketAddress);
                         }
                     });
                     serverInfoGroup = ResolvedServerInfoGroup.builder().addAll(resolvedAddresses.stream()
@@ -203,15 +249,22 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 // Update gRPC load balancer with the new set of server addresses.
                 log.info("Updating client with controllers: {}", serverInfoGroup);
                 this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+
+                // We have found at least one controller endpoint. Repeat discovery after the regular schedule.
+                this.scheduledFuture = this.scheduledExecutor.schedule(
+                        this::getControllers, REFRESH_INTERVAL_SECONDS, TimeUnit.SECONDS);
             } catch (Throwable e) {
-                // Catching all exceptions here since this method should never throw (as it will halt the scheduled
-                // tasks).
+                // Catching all exceptions here since this method should never exit without rescheduling the discovery.
                 if (e instanceof StatusRuntimeException) {
                     this.resolverUpdater.onError(((StatusRuntimeException) e).getStatus());
                 } else {
                     this.resolverUpdater.onError(Status.UNKNOWN);
                 }
                 log.warn("Failed to construct controller endpoint list: ", e);
+
+                // Attempt retry with a lower timeout on failures to improve re-connectivity time.
+                this.scheduledFuture = this.scheduledExecutor.schedule(
+                        this::getControllers, FAILURE_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             }
         }
     }
