@@ -148,7 +148,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     /**
      * Wrapper over S3JerseyClient. This implements ACLs, multipart copy and multiple writes to the same object on top of S3Proxy implementation.
      */
-    private class S3JerseyClientWrapper extends S3JerseyClient {
+    private static class S3JerseyClientWrapper extends S3JerseyClient {
         private final ConcurrentMap<String, AclSize> aclMap;
 
         public S3JerseyClientWrapper(S3Config s3Config, ConcurrentMap<String, AclSize> aclMap) {
