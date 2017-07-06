@@ -47,23 +47,6 @@ public class SegmentInputStreamTest {
             }
         }
 
-//        @Data
-//        private class ReadFutureImpl implements ReadFuture {
-//            final int num;
-//            int attempt = 0;
-//
-//            @Override
-//            public boolean isSuccess() {
-//                return FutureHelpers.isSuccessful(readResults.get(num + attempt));
-//            }
-//
-//            @Override
-//            public boolean await(long timeout) {
-//                FutureHelpers.await(readResults.get(num + attempt), timeout);
-//                return readResults.get(num + attempt).isDone();
-//            }
-//        }
-
         @Override
         public CompletableFuture<SegmentRead> read(long offset, int length) {
             int i = readIndex.incrementAndGet();
@@ -82,18 +65,6 @@ public class SegmentInputStreamTest {
         public void close() {
             closed.set(true);
         }
-
-       // @Override
-//        public WireCommands.SegmentRead getResult(ReadFuture ongoingRead) {
-//            ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
-//            CompletableFuture<WireCommands.SegmentRead> future = ;
-//            if (FutureHelpers.await(future)) {
-//                return future.getNow(null);
-//            } else {
-//                read.attempt++;
-//                return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
-//            }
-//        }
     }
 
     private ByteBuffer createEventFromData(byte[] data) {
