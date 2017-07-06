@@ -22,7 +22,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -121,9 +121,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String stream = "testStreamScale";
         ScalingPolicy policy = ScalingPolicy.fixed(3);
         StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
-        AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
-        AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.5, 1.0);
-        List<java.util.AbstractMap.SimpleEntry<Double, Double>> newRanges = Arrays.asList(segment1, segment2);
+        SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.0, 0.5);
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 1.0);
+        List<SimpleEntry<Double, Double>> newRanges = Arrays.asList(segment1, segment2);
 
         store.createScope(scope).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
@@ -160,7 +160,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
         ScalingPolicy policy = ScalingPolicy.fixed(2);
-        StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        StreamConfiguration configuration = StreamConfiguration.builder().
+                scope(scope).streamName(stream).scalingPolicy(policy).build();
 
         store.createScope(scope).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
@@ -168,63 +169,65 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         // Case: Initial state, splits = 0, merges = 0
         // time t0, total segments 2, S0 {0.0 - 0.5} S1 {0.5 - 1.0}
-        List<ScaleMetadata> scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
-        assertTrue(scaleIncidents.size() == 1);
-        org.apache.commons.lang3.tuple.Pair<Long, Long> pairSplitsMerges = store.findNumSplitsMerges(scope, stream, executor).get();
-        assertEquals("Number of splits ", new Long(0), pairSplitsMerges.getLeft());
-        assertEquals("Number of merges", new Long(0), pairSplitsMerges.getLeft());
+        List<ScaleMetadata> scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleRecords.size() == 1);
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals("Number of splits ", new Long(0), simpleEntrySplitsMerges.getKey());
+        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges.getValue());
 
         // Case: Only splits, S0 split into S2, S3, S4 and S1 split into S5, S6,
         //  total splits = 2, total merges = 3
         // time t1, total segments 5, S2 {0.0, 0.2}, S3 {0.2, 0.4}, S4 {0.4, 0.5}, S5 {0.5, 0.7}, S6 {0.7, 1.0}
-        AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
-        AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.2, 0.4);
-        AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
-        AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.5, 0.7);
-        AbstractMap.SimpleEntry<Double, Double> segment6 = new AbstractMap.SimpleEntry<>(0.7, 1.0);
-        List<java.util.AbstractMap.SimpleEntry<Double, Double>> newRanges1 = Arrays.asList(segment2, segment3, segment4, segment5, segment6);
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges1);
-        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
-        assertTrue(scaleIncidents.size() == 2);
-        org.apache.commons.lang3.tuple.Pair<Long, Long> pairSplitsMerges1 = store.findNumSplitsMerges(scope, stream, executor).get();
-        assertEquals("Number of splits ", new Long(2), pairSplitsMerges1.getLeft());
-        assertEquals("Number of merges", new Long(0), pairSplitsMerges1.getRight());
+        SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.0, 0.2);
+        SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.2, 0.4);
+        SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.4, 0.5);
+        SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.5, 0.7);
+        SimpleEntry<Double, Double> segment6 = new SimpleEntry<>(0.7, 1.0);
+        List<SimpleEntry<Double, Double>> newRanges1 = Arrays.asList(segment2, segment3, segment4, segment5, segment6);
+        scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges1);
+        scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
+        assertTrue(scaleRecords.size() == 2);
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals("Number of splits ", new Long(2), simpleEntrySplitsMerges1.getKey());
+        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges1.getValue());
 
         // Case: Splits and merges both, S2 and S3 merged to S7,  S4 and S5 merged to S8,  S6 split to S9 and S10
         // total splits = 3, total merges = 2
         // time t2, total segments 4, S7 {0.0, 0.4}, S8 {0.4, 0.7}, S9 {0.7, 0.8}, S10 {0.8, 1.0}
-        AbstractMap.SimpleEntry<Double, Double> segment7 = new AbstractMap.SimpleEntry<>(0.0, 0.4);
-        AbstractMap.SimpleEntry<Double, Double> segment8 = new AbstractMap.SimpleEntry<>(0.4, 0.7);
-        AbstractMap.SimpleEntry<Double, Double> segment9 = new AbstractMap.SimpleEntry<>(0.7, 0.8);
-        AbstractMap.SimpleEntry<Double, Double> segment10 = new AbstractMap.SimpleEntry<>(0.8, 1.0);
-        List<java.util.AbstractMap.SimpleEntry<Double, Double>> newRanges2 = Arrays.asList(segment7, segment8, segment9, segment10);
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges2);
-        scaleIncidents = store.getScaleMetadata(scope, stream, null, executor).get();
-        org.apache.commons.lang3.tuple.Pair<Long, Long> pairSplitsMerges2 = store.findNumSplitsMerges(scope, stream, executor).get();
-        assertEquals("Number of splits ", new Long(3), pairSplitsMerges2.getLeft());
-        assertEquals("Number of merges", new Long(2), pairSplitsMerges2.getRight());
+        SimpleEntry<Double, Double> segment7 = new SimpleEntry<>(0.0, 0.4);
+        SimpleEntry<Double, Double> segment8 = new SimpleEntry<>(0.4, 0.7);
+        SimpleEntry<Double, Double> segment9 = new SimpleEntry<>(0.7, 0.8);
+        SimpleEntry<Double, Double> segment10 = new SimpleEntry<>(0.8, 1.0);
+        List<SimpleEntry<Double, Double>> newRanges2 = Arrays.asList(segment7, segment8, segment9, segment10);
+        scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges2);
+        scaleRecords = store.getScaleMetadata(scope, stream, null, executor).get();
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges2.getKey());
+        assertEquals("Number of merges", new Long(2), simpleEntrySplitsMerges2.getValue());
 
         // Case: Only merges , S7 and S8 merged to S11,  S9 and S10 merged to S12
         // total splits = 3, total merges = 4
         // time t3, total segments 2, S11 {0.0, 0.7}, S12 {0.7, 1.0}
-        AbstractMap.SimpleEntry<Double, Double> segment11 = new AbstractMap.SimpleEntry<>(0.0, 0.7);
-        AbstractMap.SimpleEntry<Double, Double> segment12 = new AbstractMap.SimpleEntry<>(0.7, 1.0);
-        List<java.util.AbstractMap.SimpleEntry<Double, Double>> newRanges3 = Arrays.asList(segment11, segment12);
-        scale(scope, stream, scaleIncidents.get(0).getSegments(), newRanges3);
-        org.apache.commons.lang3.tuple.Pair<Long, Long> pairSplitsMerges3 = store.findNumSplitsMerges(scope, stream, executor).get();
-        assertEquals("Number of splits ", new Long(3), pairSplitsMerges3.getLeft());
-        assertEquals("Number of merges", new Long(4), pairSplitsMerges3.getRight());
+        SimpleEntry<Double, Double> segment11 = new SimpleEntry<>(0.0, 0.7);
+        SimpleEntry<Double, Double> segment12 = new SimpleEntry<>(0.7, 1.0);
+        List<SimpleEntry<Double, Double>> newRanges3 = Arrays.asList(segment11, segment12);
+        scale(scope, stream, scaleRecords.get(0).getSegments(), newRanges3);
+        SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = store.findNumSplitsMerges(scope, stream, executor).get();
+        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
+        assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
     }
 
     private void scale(String scope, String stream, List<Segment> segments,
-                       List<java.util.AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+                       List<SimpleEntry<Double, Double>> newRanges) {
 
         long scaleTimestamp = System.currentTimeMillis();
         List<Integer> existingSegments = segments.stream().map(Segment::getNumber).collect(Collectors.toList());
         StartScaleResponse response = store.startScale(scope, stream, existingSegments, newRanges,
                 scaleTimestamp, false, null, executor).join();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
-         store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(), scaleTimestamp, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(), scaleTimestamp, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
+                scaleTimestamp, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
+                scaleTimestamp, null, executor).join();
     }
 }

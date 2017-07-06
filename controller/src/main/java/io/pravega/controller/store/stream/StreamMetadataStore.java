@@ -614,8 +614,8 @@ public interface StreamMetadataStore {
      * @param scopeName     stream scope
      * @param streamName    stream name
      * @param executor      callers executor
-     * @return              Pair, number of splits and merges
+     * @return              SimpleEntry, number of splits as Key and number of merges as value
      */
-    CompletableFuture<Pair<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
+    CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
 
 }
