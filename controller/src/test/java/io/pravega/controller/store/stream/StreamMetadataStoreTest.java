@@ -427,6 +427,41 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void updateTest() throws Exception {
+        final String scope = "ScopeUpdate";
+        final String stream = "StreamUpdate";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // region idempotent
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        // run update configuration multiple times
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        assertEquals(State.UPDATING, store.getState(scope, stream, null, executor).get());
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // set state to updating and run update configuration
+        store.setState(scope, stream, State.UPDATING, null, executor).get();
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // endregion
+
+        store.setState(scope, stream, State.SCALING, null, executor).get();
+        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, configuration2, null, executor).get(),
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+    }
+
+    @Test
     public void scaleWithTxTest() throws Exception {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";

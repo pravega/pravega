@@ -760,7 +760,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (created) {
                         return future.get();
                     } else {
-                        throw new IllegalStateException("stream state not valid for the operation");
+                        throw new StoreException.IllegalStateException();
                     }
                 });
     }
