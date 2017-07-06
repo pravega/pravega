@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -21,25 +22,6 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
     @Getter
     protected final Segment segmentId;
 
-    public interface ReadFuture {
-        /**
-         * @return True if the read has completed and is successful.
-         */
-        boolean isSuccess();
-        
-        /**
-         * Waits for the provided future to be complete and returns true if it completed and false if it did not.
-         * 
-         * @param timeout The maximum number of milliseconds to block
-         */
-        boolean await(long timeout);
-    }
-    
-    /**
-     * Given an ongoing read request, blocks on its completion and returns its result.
-     */
-    public abstract SegmentRead getResult(ReadFuture ongoingRead);
-    
     /**
      * Reads from the Segment at the specified offset asynchronously.
      * 
@@ -47,9 +29,9 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
      * @param offset The offset in the segment to read from
      * @param length The suggested number of bytes to read. (Note the result may contain either more or less than this
      *            value.)
-     * @return A future for the result of the read call. The result can be obtained by calling {@link #getResult(ReadFuture)}
+     * @return A future for the result of the read call. 
      */
-    public abstract ReadFuture read(long offset, int length);
+    public abstract CompletableFuture<SegmentRead> read(long offset, int length);
 
     @Override
     public abstract void close();
