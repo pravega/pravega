@@ -9,11 +9,11 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.util.Vector;
@@ -21,7 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
-import lombok.Data;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -48,27 +47,27 @@ public class SegmentInputStreamTest {
             }
         }
 
-        @Data
-        private class ReadFutureImpl implements ReadFuture {
-            final int num;
-            int attempt = 0;
-
-            @Override
-            public boolean isSuccess() {
-                return FutureHelpers.isSuccessful(readResults.get(num + attempt));
-            }
-
-            @Override
-            public boolean await(long timeout) {
-                FutureHelpers.await(readResults.get(num + attempt), timeout);
-                return readResults.get(num + attempt).isDone();
-            }
-        }
+//        @Data
+//        private class ReadFutureImpl implements ReadFuture {
+//            final int num;
+//            int attempt = 0;
+//
+//            @Override
+//            public boolean isSuccess() {
+//                return FutureHelpers.isSuccessful(readResults.get(num + attempt));
+//            }
+//
+//            @Override
+//            public boolean await(long timeout) {
+//                FutureHelpers.await(readResults.get(num + attempt), timeout);
+//                return readResults.get(num + attempt).isDone();
+//            }
+//        }
 
         @Override
-        public ReadFuture read(long offset, int length) {
+        public CompletableFuture<SegmentRead> read(long offset, int length) {
             int i = readIndex.incrementAndGet();
-            return new ReadFutureImpl(i);
+            return readResults.get(i);
         }
 
         void complete(int readNumber, WireCommands.SegmentRead readResult) {
@@ -84,17 +83,17 @@ public class SegmentInputStreamTest {
             closed.set(true);
         }
 
-        @Override
-        public WireCommands.SegmentRead getResult(ReadFuture ongoingRead) {
-            ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
-            CompletableFuture<WireCommands.SegmentRead> future = readResults.get(read.num + read.attempt);
-            if (FutureHelpers.await(future)) {
-                return future.getNow(null);
-            } else {
-                read.attempt++;
-                return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
-            }
-        }
+       // @Override
+//        public WireCommands.SegmentRead getResult(ReadFuture ongoingRead) {
+//            ReadFutureImpl read = (ReadFutureImpl) ongoingRead;
+//            CompletableFuture<WireCommands.SegmentRead> future = ;
+//            if (FutureHelpers.await(future)) {
+//                return future.getNow(null);
+//            } else {
+//                read.attempt++;
+//                return FutureHelpers.getAndHandleExceptions(future, RuntimeException::new);
+//            }
+//        }
     }
 
     private ByteBuffer createEventFromData(byte[] data) {
@@ -131,8 +130,7 @@ public class SegmentInputStreamTest {
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         fakeNetwork.complete(1, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
         fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
-        fakeNetwork
-                .complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
         ByteBuffer read = stream.read();
         assertEquals(ByteBuffer.wrap(data), read);
     }
@@ -166,14 +164,15 @@ public class SegmentInputStreamTest {
     public void testExceptionRecovery() throws EndOfSegmentException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
-        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 6);
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 7);
         @Cleanup
         SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
         fakeNetwork.completeExceptionally(1, new ConnectionFailedException());
-        fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
-        fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
-        fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
+        fakeNetwork.complete(2, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, ByteBufferUtils.slice(wireData, 0, 2)));
+        fakeNetwork.complete(3, new WireCommands.SegmentRead(segment.getScopedName(), 2, false, false, ByteBufferUtils.slice(wireData, 2, 7)));
+        fakeNetwork.complete(4, new WireCommands.SegmentRead(segment.getScopedName(), 9, false, false, ByteBufferUtils.slice(wireData, 9, 2)));
+        fakeNetwork.complete(5, new WireCommands.SegmentRead(segment.getScopedName(), 11, false, false, ByteBufferUtils.slice(wireData, 11, wireData.capacity() - 11)));
         try {
             stream.read();
             fail();
