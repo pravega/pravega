@@ -88,7 +88,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         private final static long REFRESH_INTERVAL_SECONDS = 120L;
 
         // Controller discovery retry timeout when failures are detected.
-        private final static long FAILURE_RETRY_TIMEOUT_SECONDS = 10L;
+        private final static long FAILURE_RETRY_TIMEOUT_MS = 10000L;
 
         // The authority part of the URI string which contains the list of server ip:port pair to connect to.
         private final String authority;
@@ -116,6 +116,10 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         // The scheduledFuture for the discovery task to track future schedules.
         @GuardedBy("this")
         private ScheduledFuture<?> scheduledFuture = null;
+
+        // The last update time, useful to decide when to trigger the next retry on failures.
+        @GuardedBy("this")
+        private long lastUpdateTimeMS = 0;
 
         /**
          * Creates the NameResolver instance.
@@ -194,15 +198,23 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         public void refresh() {
             // Refresh is called as hints when gRPC detects network failures.
             // We don't want to repeatedly attempt discovery; following logic will limit discovery on failures to
-            // once every FAILURE_RETRY_TIMEOUT_SECONDS seconds. Also we want to trigger discovery sooner on failures.
+            // once every FAILURE_RETRY_TIMEOUT_MS seconds. Also we want to trigger discovery sooner on failures.
             if (started.get()) {
-                if (this.scheduledFuture != null &&
-                        !this.scheduledFuture.isDone() &&
-                        this.scheduledFuture.getDelay(TimeUnit.SECONDS) > FAILURE_RETRY_TIMEOUT_SECONDS) {
-                    // Cancel the existing schedule and advance the discovery process.
-                    this.scheduledFuture.cancel(true);
-                    this.scheduledFuture = this.scheduledExecutor.schedule(
-                            this::getControllers, FAILURE_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (this.scheduledFuture != null && !this.scheduledFuture.isDone()) {
+                    final long nextUpdateDuration = this.scheduledFuture.getDelay(TimeUnit.MILLISECONDS);
+                    final long lastUpdateDuration = System.currentTimeMillis() - this.lastUpdateTimeMS;
+                    if (nextUpdateDuration > 0 && (nextUpdateDuration + lastUpdateDuration) > FAILURE_RETRY_TIMEOUT_MS) {
+                        // Cancel the existing schedule and advance the discovery process.
+                        this.scheduledFuture.cancel(true);
+
+                        // Ensure there is a delay of at least FAILURE_RETRY_TIMEOUT_MS between 2 discovery attempts.
+                        long scheduleDelay = 0;
+                        if (lastUpdateDuration < FAILURE_RETRY_TIMEOUT_MS) {
+                            scheduleDelay = FAILURE_RETRY_TIMEOUT_MS - lastUpdateDuration;
+                        }
+                        this.scheduledFuture = this.scheduledExecutor.schedule(
+                                this::getControllers, scheduleDelay, TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }
@@ -264,7 +276,10 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
                 // Attempt retry with a lower timeout on failures to improve re-connectivity time.
                 this.scheduledFuture = this.scheduledExecutor.schedule(
-                        this::getControllers, FAILURE_RETRY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                        this::getControllers, FAILURE_RETRY_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            } finally {
+                // Record the last discovery time.
+                this.lastUpdateTimeMS = System.currentTimeMillis();
             }
         }
     }
