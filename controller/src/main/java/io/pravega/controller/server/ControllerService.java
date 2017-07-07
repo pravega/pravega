@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
@@ -79,7 +80,7 @@ public class ControllerService {
                 return cluster.getClusterMembers().stream()
                         .map(host -> NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build())
                         .collect(Collectors.toList());
-            } catch (Exception e) {
+            } catch (ClusterException e) {
                 // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
                 throw Lombok.sneakyThrow(e);
             }
