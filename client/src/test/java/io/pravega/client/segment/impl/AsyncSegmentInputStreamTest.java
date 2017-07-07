@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -19,9 +20,11 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -30,6 +33,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -72,6 +76,24 @@ public class AsyncSegmentInputStreamTest {
         inOrder.verify(c).close();
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
         verifyNoMoreInteractions(c);
+    }
+    
+    @Test(timeout = 10000)
+    public void testCloseAbortsRead() throws InterruptedException, ExecutionException {
+        Segment segment = new Segment("scope", "testRetry", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        @Cleanup
+        AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
+        ClientConnection c = mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, c);
+        in.getConnection().get();// Make sure connection is established.
+        CompletableFuture<SegmentRead> read = in.read(1234, 5678);
+        assertFalse(read.isDone());
+        in.close();
+        AssertExtensions.assertThrows(ConnectionClosedException.class, () -> FutureHelpers.getThrowingException(read));
+        verify(c).close();
     }
 
     @Test(timeout = 10000)
