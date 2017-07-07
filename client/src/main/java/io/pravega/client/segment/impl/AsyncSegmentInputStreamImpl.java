@@ -145,7 +145,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         synchronized (lock) {
             outstandingRequests.put(request.getOffset(), result);
         }
-        log.debug("Sending read request {}", request);
+        if (closed.get()) {
+            throw new ConnectionClosedException();
+        }
+        log.trace("Sending read request {}", request);
         c.sendAsync(request);
         return result;
     }
