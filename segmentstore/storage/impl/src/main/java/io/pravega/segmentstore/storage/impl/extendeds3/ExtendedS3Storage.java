@@ -53,12 +53,17 @@ import lombok.extern.slf4j.Slf4j;
  * Each segment is represented as a single Object on the underlying storage.
  *
  * This implementation works under the assumption that data is only appended and never modified.
- * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
- * As a result the only flow when a write call is made to the same offset twice is when ownership of the segment changes
- * from one host to another and both the hosts are writing to it.
+ * Each block of data has an initial offset assigned to it. The data and the initial offset is stored in DurableLog.
+ * In case of retries, Pravega always writes the same data to the same offset. * As a result the only flow when a write
+ * call is made to the same offset twice is when ownership of the segment changes from one host to another and both
+ * the hosts are writing to it.
  *
  * As PutObject calls with the same start-offset to an Extended S3 object are idempotent (any attempt to re-write
  * data with the same file offset does not cause any form of inconsistency), fencing is not required.
+ *
+ * ZkSegmentContainerMonitor watches the shared zk entry that contains the segment container ownership information
+ * and starts or stops appropriate segment containers locally. Any access to the segment from the new host causes the
+ * ownership change.
  *
  * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the
  * same offset till the time the earlier owner gets a notification that it is not the current owner. Once the earlier
