@@ -67,16 +67,23 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ControllerRestApiTest {
-    @Rule
-    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
-
     // Setup utility.
     private static final SetupUtils SETUP_UTILS = new SetupUtils();
+
+    @Rule
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     private final Client client;
     private WebTarget webTarget;
     private String restServerURI;
     private String resourceURl;
+
+    public ControllerRestApiTest() {
+        ClientConfig clientConfig = new ClientConfig();
+        clientConfig.register(JacksonJsonProvider.class);
+        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
+        client = ClientBuilder.newClient(clientConfig);
+    }
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -86,13 +93,6 @@ public class ControllerRestApiTest {
     @AfterClass
     public static void tearDown() throws Exception {
         SETUP_UTILS.stopAllServices();
-    }
-
-    public ControllerRestApiTest() {
-        ClientConfig clientConfig = new ClientConfig();
-        clientConfig.register(JacksonJsonProvider.class);
-        clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
-        client = ClientBuilder.newClient(clientConfig);
     }
 
     @Test

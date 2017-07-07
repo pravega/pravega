@@ -507,6 +507,7 @@ public class StreamMetaDataTests {
         when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(scopesList));
         Response response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Scopes response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final ScopesList scopesList1 = response.readEntity(ScopesList.class);
         assertEquals("List count", scopesList1.getScopes().size(), 2);
         assertEquals("List element", scopesList1.getScopes().get(0).getScopeName(), "scope1");
@@ -552,6 +553,7 @@ public class StreamMetaDataTests {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         Response response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final StreamsList streamsList1 = response.readEntity(StreamsList.class);
         assertEquals("List count", streamsList1.getStreams().size(), 2);
         assertEquals("List element", streamsList1.getStreams().get(0).getStreamName(), "stream1");
@@ -586,6 +588,7 @@ public class StreamMetaDataTests {
                 CompletableFuture.completedFuture(allStreamsList));
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         StreamsList streamsListResp = response.readEntity(StreamsList.class);
         assertEquals("List count", 2, streamsListResp.getStreams().size());
         assertEquals("List element", "stream1", streamsListResp.getStreams().get(0).getStreamName());
@@ -594,6 +597,7 @@ public class StreamMetaDataTests {
 
         response = client.target(resourceURI).queryParam("showInternalStreams", "true").request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         streamsListResp = response.readEntity(StreamsList.class);
         assertEquals("List count", 1, streamsListResp.getStreams().size());
         assertEquals("List element", NameUtils.getInternalNameForStream("stream3"),
@@ -605,6 +609,7 @@ public class StreamMetaDataTests {
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final StreamsList streamsList2 = response.readEntity(StreamsList.class);
         assertEquals("List count", 200, streamsList2.getStreams().size());
         response.close();
@@ -710,6 +715,7 @@ public class StreamMetaDataTests {
         Response response = client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
                 new GenericType<List<ScaleMetadata>>() { });
         assertEquals("List Size", 3, scaleMetadataListResponse.size());
@@ -779,6 +785,7 @@ public class StreamMetaDataTests {
                 streamsList));
         Response response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Reader Groups response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final ReaderGroupsList readerGroupsList1 = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", readerGroupsList1.getReaderGroups().size(), 2);
         assertEquals("List element", readerGroupsList1.getReaderGroups().get(0).getReaderGroupName(),
@@ -809,6 +816,7 @@ public class StreamMetaDataTests {
                 CompletableFuture.completedFuture(streamsList));
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Reader Groups response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
         assertEquals("List count", 200, readerGroupsList.getReaderGroups().size());
         response.close();
