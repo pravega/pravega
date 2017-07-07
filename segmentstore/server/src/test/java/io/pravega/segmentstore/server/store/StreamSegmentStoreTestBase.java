@@ -438,9 +438,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     @RequiredArgsConstructor
     protected static class ListenableStorageFactory implements StorageFactory {
-        protected final StorageFactory wrappedFactory;
         @Getter
         protected Storage storage;
+        private final StorageFactory wrappedFactory;
 
         @Override
         public Storage createStorageAdapter() {

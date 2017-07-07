@@ -173,8 +173,8 @@ public final class ServiceStarter {
                         return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
 
                     case EXTENDEDS3:
-                        ExtendedS3StorageConfig ecsConfig = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(ecsConfig, setup.getExecutor());
+                        ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());

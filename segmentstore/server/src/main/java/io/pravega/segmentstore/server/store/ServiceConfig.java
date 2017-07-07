@@ -42,9 +42,9 @@ public class ServiceConfig {
 
     //endregion
     public enum StorageTypes {
-        HDFS("HDFS"),
-        FILESYSTEM("FILESYSTEM"),
         EXTENDEDS3("EXTENDEDS3"),
+        FILESYSTEM("FILESYSTEM"),
+        HDFS("HDFS"),
         INMEMORY("INMEMORY");
 
         private final String type;

@@ -53,18 +53,20 @@ import lombok.extern.slf4j.Slf4j;
  * Each segment is represented as a single Object on the underlying storage.
  *
  * This implementation works under the assumption that data is only appended and never modified.
- * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset. As a result
- * the only flow when a write call is made to the same offset twice is when ownership of the segment changes
+ * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
+ * As a result the only flow when a write call is made to the same offset twice is when ownership of the segment changes
  * from one host to another and both the hosts are writing to it.
  *
- * As PutObject calls to with the same start-offset to an Extended S3 object are idempotent (any attempt to re-write data with the same file offset does not
- * cause any form of inconsistency), fencing is not required.
+ * As PutObject calls with the same start-offset to an Extended S3 object are idempotent (any attempt to re-write
+ * data with the same file offset does not cause any form of inconsistency), fencing is not required.
  *
- * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the same offset till the time the
- * earlier owner gets a notification that it is not the current owner. Once the earlier owner received this notification, it stops writing to the segment.
+ * Here is the expected behavior in case of ownership change: both the hosts will keep writing the same data at the
+ * same offset till the time the earlier owner gets a notification that it is not the current owner. Once the earlier
+ * owner received this notification, it stops writing to the segment.
  *
- * The concat operation is implemented as multi part copy. This ensures that the objects are copied server side. Multi part copy calls are idempotent too.
- * Copying the same object at the same offset multiple times from different hosts does not cause any form of inconsistency.
+ * The concat operation is implemented as multi part copy. This ensures that the objects are copied server side.
+ * Multi part copy calls are idempotent too. Copying the same object at the same offset multiple times from different
+ * hosts does not cause any form of inconsistency.
  *
  */
 
@@ -208,12 +210,11 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
                 config.getRoot() + streamSegmentName);
 
         AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
-
         boolean canWrite = acls.getGrants().stream().anyMatch((grant) -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
-
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
                 result.getContentLength(), !canWrite, false,
                 new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));
+
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return information;
     }
@@ -261,9 +262,9 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException, BadOffsetException {
-        long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
-
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
+
+        long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
         SegmentProperties si = syncGetStreamSegmentInfo(handle.getSegmentName());
 
@@ -282,9 +283,9 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private Void syncSeal(SegmentHandle handle) {
-        long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
-
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
+
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
 
         AccessControlList acl = client.getObjectAcl(config.getBucket(),
                 config.getRoot() + handle.getSegmentName());
@@ -299,6 +300,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
+        Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
 
         SortedSet<MultipartPartETag> partEtags = new TreeSet<>();
@@ -350,7 +352,6 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
     }
 
     private Void syncDelete(SegmentHandle handle) {
-
         client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
         return null;
     }

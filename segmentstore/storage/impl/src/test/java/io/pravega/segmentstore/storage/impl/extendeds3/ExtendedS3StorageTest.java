@@ -62,7 +62,8 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private S3JerseyClient client = null;
     private S3Proxy s3Proxy;
     private final ConcurrentMap<String, AclSize> aclMap = new ConcurrentHashMap<>();
-    private final String endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
+    private final int port = TestUtils.getAvailableListenPort();
+    private final String endpoint = "http://127.0.0.1:" + port;
 
     @Before
     public void setUp() throws Exception {
@@ -118,9 +119,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     @After
     public void tearDown() throws Exception {
-            client.shutdown();
-            client = null;
-            s3Proxy.stop();
+        client.shutdown();
+        client = null;
+        s3Proxy.stop();
     }
 
     @Override
@@ -261,6 +262,4 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             return super.deleteObjects(request);
         }
     }
-
-
 }

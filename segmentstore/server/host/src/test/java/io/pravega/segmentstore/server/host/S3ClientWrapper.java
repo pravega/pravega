@@ -49,7 +49,7 @@ import lombok.SneakyThrows;
 import lombok.Synchronized;
 
 /**
- * Client wrapper for S3JerseyClient.
+ * Client wrapper for S3JerseyClient. It uses local filesystem to implement extended S3 JAVA client APIs.
  */
 class S3ClientWrapper extends S3JerseyClient {
     private final AclMap aclMap;

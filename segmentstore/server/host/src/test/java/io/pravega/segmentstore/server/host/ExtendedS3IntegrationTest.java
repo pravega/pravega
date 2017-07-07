@@ -49,13 +49,9 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     public void setUp() throws Exception {
         bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
         bookkeeper.initialize();
-
         String endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
-
         URI uri = URI.create(endpoint);
-
         baseDir = Files.createTempDirectory("extendeds3_wrapper").toString();
-
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                                                           .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
                                                           .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
