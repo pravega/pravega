@@ -88,7 +88,7 @@ public class AsyncSegmentInputStreamTest {
         AsyncSegmentInputStreamImpl in = new AsyncSegmentInputStreamImpl(controller, connectionFactory, segment);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
-        in.getConnection().get();// Make sure connection is established.
+        in.getConnection().get(); // Make sure connection is established.
         CompletableFuture<SegmentRead> read = in.read(1234, 5678);
         assertFalse(read.isDone());
         in.close();
