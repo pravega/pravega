@@ -10,21 +10,29 @@
 package io.pravega.controller.fault;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.RetryHelper;
+import lombok.Data;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -47,6 +55,8 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final Optional<ControllerEventProcessors> eventProcessorsOpt;
     private final TaskSweeper taskSweeper;
     private final Optional<TxnSweeper> txnSweeperOpt;
+    private final PendingSweepQueue txnPendingQueue;
+    private final PendingSweepQueue eventProcPendingQueue;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final Optional<ControllerEventProcessors> eventProcessorsOpt,
@@ -67,6 +77,8 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
         this.txnSweeperOpt = txnSweeperOpt;
+        this.txnPendingQueue = new PendingSweepQueue();
+        this.eventProcPendingQueue = new PendingSweepQueue();
     }
 
     @Override
@@ -122,19 +134,30 @@ public class ControllerClusterListener extends AbstractIdleService {
 
     private void handleHostRemoved(Host host) {
         taskSweeper.sweepOrphanedTasks(host.getHostId());
-        eventProcessorsOpt.ifPresent(controllerEventProcessors -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-            controllerEventProcessors.awaitRunning();
-            // Sweep orphaned tasks or readers at startup.
-            log.info("handling host removed and reporting readers offline for host {}", host.getHostId());
-            return controllerEventProcessors.notifyProcessFailure(host.getHostId());
-        }, e -> log.warn(e.getMessage()), executor));
 
-        txnSweeperOpt.ifPresent(txnSweeper -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-            Exceptions.handleInterrupted(txnSweeper::awaitInitialization);
-            // Sweep orphaned transactions as startup.
-            log.info("Sweeping orphaned transactions for host {}", host.getHostId());
-            return txnSweeper.sweepOrphanedTxns(host.getHostId());
-        }, e -> log.warn(e.getMessage()), executor));
+        eventProcessorsOpt.ifPresent(controllerEventProcessors -> {
+            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
+                log.info("handling host removed and reporting readers offline for host {}", host.getHostId());
+                return controllerEventProcessors.notifyProcessFailure(host.getHostId());
+            }, e -> log.warn(e.getMessage()), executor);
+
+            // if queue is not sealed, then add to queue. Else process asynchronously
+            if (!eventProcPendingQueue.enqueue(futureSupplier)) {
+                futureSupplier.get();
+            }
+        });
+
+        txnSweeperOpt.ifPresent(txnSweeper -> {
+            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
+                log.info("Sweeping orphaned transactions for host {}", host.getHostId());
+                return txnSweeper.sweepOrphanedTxns(host.getHostId());
+            }, e -> log.warn(e.getMessage()), executor);
+
+            // if queue is not sealed, then add to queue. Else process asynchronously
+            if (!txnPendingQueue.enqueue(futureSupplier)) {
+                futureSupplier.get();
+            }
+        });
     }
 
     private void sweepEventProcessorReaders(Supplier<Set<String>> processes) {
@@ -146,7 +169,10 @@ public class ControllerClusterListener extends AbstractIdleService {
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
                 return eventProcessors.handleOrphanedReaders(processes);
-            }, e -> log.warn(e.getMessage()), executor);
+            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
+                    // drain pending queue and process
+                    FutureHelpers.allOf(eventProcPendingQueue.drainAndSeal()
+                            .stream().map(Supplier::get).collect(Collectors.toList())));
         });
     }
 
@@ -159,7 +185,10 @@ public class ControllerClusterListener extends AbstractIdleService {
                 // Sweep orphaned transactions as startup.
                 log.info("Sweeping orphaned transactions");
                 return txnSweeper.sweepFailedHosts(processes);
-            }, e -> log.warn(e.getMessage()), executor);
+            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
+                    // drain pending queue and process
+                    FutureHelpers.allOf(txnPendingQueue.drainAndSeal()
+                            .stream().map(Supplier::get).collect(Collectors.toList())));
         });
     }
 
@@ -177,6 +206,27 @@ public class ControllerClusterListener extends AbstractIdleService {
             log.info("Controller cluster listener shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
+        }
+    }
+
+    @Data
+    private static class PendingSweepQueue {
+        private final ConcurrentLinkedQueue<Supplier<CompletableFuture<Void>>> workQueue = new ConcurrentLinkedQueue<>();
+        private final AtomicBoolean isSealed = new AtomicBoolean(false);
+
+        @Synchronized
+        private boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
+            if (!isSealed.get()) {
+                workQueue.add(futureSupplier);
+            }
+            return !isSealed.get();
+        }
+
+        @Synchronized
+        private List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
+            Preconditions.checkArgument(!isSealed.get());
+            isSealed.set(true);
+            return Lists.newArrayList(workQueue);
         }
     }
 }
