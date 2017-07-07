@@ -26,6 +26,7 @@ import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
@@ -36,15 +37,17 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.impl.filesystem.IdempotentStorageBase;
+import io.pravega.segmentstore.storage.Storage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -76,22 +79,25 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtendedS3Storage extends IdempotentStorageBase {
+public class ExtendedS3Storage implements Storage {
 
     //region members
 
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
+    private final ExecutorService executor;
+    private final AtomicBoolean closed;
 
     //endregion
 
     //region constructor
 
     public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor) {
-        super(executor);
         Preconditions.checkNotNull(config, "config");
         this.config = config;
         this.client = client;
+        this.executor = executor;
+        this.closed = new AtomicBoolean(false);
 
     }
 
@@ -361,8 +367,7 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
         return null;
     }
 
-    @Override
-    protected Throwable translateException(String segmentName, Throwable e) {
+    private Throwable translateException(String segmentName, Throwable e) {
         Throwable retVal = e;
 
         if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
@@ -383,6 +388,50 @@ public class ExtendedS3Storage extends IdempotentStorageBase {
         }
 
         return retVal;
+    }
+
+
+    /**
+     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     *
+     * @param segmentName   Full name of the StreamSegment.
+     * @param operation     The function to execute.
+     * @param <R>           Return type of the operation.
+     * @return              Instance of the return type of the operation.
+     */
+    private  <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        CompletableFuture<R> result = new CompletableFuture<>();
+        this.executor.execute(() -> {
+            try {
+                result.complete(operation.call());
+            } catch (Throwable e) {
+                handleException(e, segmentName, result);
+            }
+        });
+
+        return result;
+    }
+
+    /**
+     * Method defining implementation specific handling of exceptions thrown during call to supplyAsync.
+     * @param e             The exception thrown during supplyAsync.
+     * @param segmentName   Full name of the StreamSegment.
+     * @param result        The CompletableFuture that needs to be responded to.
+     * @param <R>           Return type of the operation.
+     */
+    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
+        result.completeExceptionally(translateException(segmentName, e));
+    }
+
+    //endregion
+
+    //region AutoClosable
+
+    @Override
+    public void close() {
+        this.closed.set(true);
     }
 
     //endregion

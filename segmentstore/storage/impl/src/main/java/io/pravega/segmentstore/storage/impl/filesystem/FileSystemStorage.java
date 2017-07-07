@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -19,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.Storage;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,8 +43,10 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -55,8 +59,9 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * Approach to fencing:
  *
  * This implementation works under the assumption that data is only appended and never modified.
- * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset. As a result
- * the only flow when a write call is made to the same offset twice is when ownership of the
+ * Each block of data has an offset assigned to it and Pravega always writes the same data to the same offset.
+ *
+ * With this assumption the only flow when a write call is made to the same offset twice is when ownership of the
  * segment changes from one host to another and both the hosts are writing to it.
  *
  * As write to same offset to a file is idempotent (any attempt to re-write data with the same file offset does not
@@ -67,11 +72,14 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
  */
 @Slf4j
-public class FileSystemStorage extends IdempotentStorageBase {
+public class FileSystemStorage implements Storage {
+    private static final int NUM_RETRIES = 3;
 
     //region members
 
     private final FileSystemStorageConfig config;
+    private final ExecutorService executor;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -84,14 +92,25 @@ public class FileSystemStorage extends IdempotentStorageBase {
      * @param executor The executor to use for running async operations.
      */
     public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
-        super(executor);
         Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(executor, "executor");
+        this.closed = new AtomicBoolean(false);
         this.config = config;
+        this.executor = executor;
     }
 
     //endregion
 
     //region Storage implementation
+
+    /**
+     * Initialize is a no op here as we do not need a locking mechanism in case of file system write.
+     *
+     * @param containerEpoch The Container Epoch to initialize with (ignored here).
+     */
+    @Override
+    public void initialize(long containerEpoch) {
+    }
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
@@ -155,6 +174,14 @@ public class FileSystemStorage extends IdempotentStorageBase {
 
     //endregion
 
+    //region AutoClosable
+
+    @Override
+    public void close() {
+        this.closed.set(true);
+    }
+
+    //endregion
 
     //region private sync implementation
 
@@ -260,7 +287,7 @@ public class FileSystemStorage extends IdempotentStorageBase {
         }
 
         long fileSize = path.toFile().length();
-        if (fileSize != offset) {
+        if (fileSize < offset) {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
@@ -335,8 +362,29 @@ public class FileSystemStorage extends IdempotentStorageBase {
         return null;
     }
 
-    @Override
-    protected Throwable translateException(String segmentName, Throwable e) {
+    /**
+     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     */
+    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        CompletableFuture<R> result = new CompletableFuture<>();
+        this.executor.execute(() -> {
+            try {
+                result.complete(operation.call());
+            } catch (Throwable e) {
+                handleException(e, segmentName, result);
+            }
+        });
+
+        return result;
+    }
+
+    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
+        result.completeExceptionally(translateException(segmentName, e));
+    }
+
+    private Throwable translateException(String segmentName, Throwable e) {
         Throwable retVal = e;
         if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
             retVal = new StreamSegmentNotExistsException(segmentName);
