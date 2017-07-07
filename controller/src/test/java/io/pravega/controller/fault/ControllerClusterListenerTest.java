@@ -24,6 +24,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -38,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -48,6 +50,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -280,5 +283,26 @@ public class ControllerClusterListenerTest {
 
     private void validateRemovedNode(String host) throws InterruptedException {
         assertEquals(host, nodeRemovedQueue.poll(2, TimeUnit.SECONDS));
+    }
+
+    @Test
+    public void testPendingSweepQueue() {
+        ControllerClusterListener.PendingSweepQueue sweepQueue = new ControllerClusterListener.PendingSweepQueue();
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> future2 = CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> future3 = CompletableFuture.completedFuture(null);
+        assertTrue(sweepQueue.enqueue(() -> future1));
+        assertTrue(sweepQueue.enqueue(() -> future2));
+        assertTrue(sweepQueue.enqueue(() -> future3));
+        List<Supplier<CompletableFuture<Void>>> entries = sweepQueue.drainAndSeal();
+
+        assertTrue(entries.stream().allMatch(x -> {
+            CompletableFuture<Void> future = x.get();
+            return future == future1 || future == future2 || future == future3;
+        }));
+
+        assertFalse(sweepQueue.enqueue(() -> future3));
+
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> sweepQueue.drainAndSeal());
     }
 }

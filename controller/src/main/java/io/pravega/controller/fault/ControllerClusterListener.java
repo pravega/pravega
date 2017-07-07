@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.fault;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractIdleService;
@@ -25,6 +26,7 @@ import lombok.Data;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -209,13 +211,14 @@ public class ControllerClusterListener extends AbstractIdleService {
         }
     }
 
-    @Data
-    private static class PendingSweepQueue {
+    @VisibleForTesting
+    static class PendingSweepQueue {
         private final ConcurrentLinkedQueue<Supplier<CompletableFuture<Void>>> workQueue = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean isSealed = new AtomicBoolean(false);
 
         @Synchronized
-        private boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
+        @VisibleForTesting
+        boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
             if (!isSealed.get()) {
                 workQueue.add(futureSupplier);
             }
@@ -223,9 +226,11 @@ public class ControllerClusterListener extends AbstractIdleService {
         }
 
         @Synchronized
-        private List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
-            Preconditions.checkArgument(!isSealed.get());
+        @VisibleForTesting
+        List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
+            Preconditions.checkState(!isSealed.get());
             isSealed.set(true);
+
             return Lists.newArrayList(workQueue);
         }
     }
