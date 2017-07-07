@@ -23,6 +23,7 @@ List of admin REST APIs for the pravega controller service.
 
 ### Tags
 
+* ReaderGroups : Reader group related APIs
 * Scopes : Scope related APIs
 * Streams : Stream related APIs
 
@@ -237,6 +238,114 @@ Delete a scope
 ##### Request path
 ```
 /scopes/string
+```
+
+
+<a name="listreadergroups"></a>
+### GET /scopes/{scopeName}/readergroups
+
+#### Description
+List reader groups within the given scope
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**scopeName**  <br>*required*|Scope name|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|List of all reader groups configured for the given scope|[ReaderGroupsList](#readergroupslist)|
+|**404**|Scope not found|No Content|
+|**500**|Internal server error while fetching the list of reader groups for the given scope|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* ReaderGroups
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/scopes/string/readergroups
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```
+json :
+{
+  "readerGroups" : [ "object" ]
+}
+```
+
+
+<a name="getreadergroup"></a>
+### GET /scopes/{scopeName}/readergroups/{readerGroupName}
+
+#### Description
+Fetch the properties of an existing reader group
+
+
+#### Parameters
+
+|Type|Name|Description|Schema|
+|---|---|---|---|
+|**Path**|**readerGroupName**  <br>*required*|Reader group name|string|
+|**Path**|**scopeName**  <br>*required*|Scope name|string|
+
+
+#### Responses
+
+|HTTP Code|Description|Schema|
+|---|---|---|
+|**200**|Found reader group properties|[ReaderGroupProperty](#readergroupproperty)|
+|**404**|Scope or reader group with given name not found|No Content|
+|**500**|Internal server error while fetching reader group details|No Content|
+
+
+#### Produces
+
+* `application/json`
+
+
+#### Tags
+
+* ReaderGroups
+
+
+#### Example HTTP request
+
+##### Request path
+```
+/scopes/string/readergroups/string
+```
+
+
+#### Example HTTP response
+
+##### Response 200
+```
+json :
+{
+  "scopeName" : "string",
+  "readerGroupName" : "string",
+  "streamList" : [ "string" ],
+  "onlineReaderIds" : [ "string" ]
+}
 ```
 
 
@@ -642,6 +751,11 @@ Get scaling events for a given datetime period.
 * `application/json`
 
 
+#### Tags
+
+* Streams
+
+
 #### Example HTTP request
 
 ##### Request path
@@ -751,6 +865,32 @@ json :
 
 <a name="definitions"></a>
 ## Definitions
+
+<a name="readergroupproperty"></a>
+### ReaderGroupProperty
+
+|Name|Description|Schema|
+|---|---|---|
+|**onlineReaderIds**  <br>*optional*|**Example** : `[ "string" ]`|< string > array|
+|**readerGroupName**  <br>*optional*|**Example** : `"string"`|string|
+|**scopeName**  <br>*optional*|**Example** : `"string"`|string|
+|**streamList**  <br>*optional*|**Example** : `[ "string" ]`|< string > array|
+
+
+<a name="readergroupslist"></a>
+### ReaderGroupsList
+
+|Name|Description|Schema|
+|---|---|---|
+|**readerGroups**  <br>*optional*|**Example** : `[ "object" ]`|< [readerGroups](#readergroupslist-readergroups) > array|
+
+<a name="readergroupslist-readergroups"></a>
+**readerGroups**
+
+|Name|Description|Schema|
+|---|---|---|
+|**readerGroupName**  <br>*optional*|**Example** : `"string"`|string|
+
 
 <a name="retentionconfig"></a>
 ### RetentionConfig

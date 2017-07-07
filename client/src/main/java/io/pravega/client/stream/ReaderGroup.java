@@ -115,4 +115,11 @@ public interface ReaderGroup {
      * @return Set of active reader IDs of the group
      */
     Set<String> getOnlineReaders();
+
+    /**
+     * Returns the set of stream names which was used to configure this group.
+     *
+     * @return Set of streams for this group.
+     */
+    Set<String> getStreamNames();
 }
