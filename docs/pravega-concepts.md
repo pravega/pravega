@@ -9,65 +9,22 @@ You may obtain a copy of the License at
 -->
 # Pravega Concepts
 
+Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.
+
 This page is an overview of the key concepts in Pravega.
  See [Terminology](terminology.md) for a concise definition for many
 Pravega concepts.
 
-## Pravega Components
-
-Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.
-
-The following figure depicts the components deployed by Pravega:
-
-![pravega high level architecture](img/pravega.arch.new.png)
-
-Pravega is deployed as a distributed system – a cluster of servers and storage
-coordinated to run Pravega called a "Pravega cluster".  
-
-Pravega itself is composed of two kinds of workload: Controller instances and
-Pravega Servers. The set of Pravega Servers is known collectively as the Segment Store. 
-
-The set of Controller instances make up the control plane of Pravega, providing
-functionality to create, update and delete Streams, retrieve information about
-Streams, monitor the health of the Pravega cluster, gather metrics etc.  There
-are usually multiple (recommended at least 3) Controller instances running in a
-cluster for high availability.  
-
-The Segment Store implements the Pravega data plane.
- Pravega Servers provide the API to read and write data in Streams.  Data
-storage is comprised of two tiers: Tier 1 Storage, which provides short term,
-low-latency, data storage,  guaranteeing the durability of data written to
-Streams and Tier 2 Storage providing longer term storage of Stream data.
- Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
-Tier 1 Storage and uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud
-Storage (ECS) to implement Tier 2 Storage.  Tier 1 Storage typically runs within
-the Pravega cluster.  Tier 2 Storage is normally deployed outside the Pravega
-cluster.
-
-Tiering storage is important to deliver the combination of fast access to Stream
-data but also allow Streams to store a vast amount of data.  Tier 1 storage
-persists the most recently written Stream data.  As data in Tier 1 Storage ages,
-it is moved into Tier 2 Storage.
-
-Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
-coordination mechanism for the components in the Pravega cluster.  
-
-Pravega provides a client library, written in Java, for building client-side
-applications such as analytics applications using Flink. The Pravega Java Client
-Library manages the interaction between application code and Pravega via a
-custom TCP wire protocol.
-
 ## Streams
 
 Pravega organizes data into Streams.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  A Pravega Stream is
-similar in many ways to a "topic" in popular message-oriented middleware such as
-[RabbitMQ](https://www.rabbitmq.com/) or [Apache
-Kafka](https://kafka.apache.org/).
+similar to but more flexible than a "topic" in popular message-oriented middleware such as
+[RabbitMQ](https://www.rabbitmq.com/) or Apache Kafka.
 
 Pravega Streams are based on an append-only log data structure. By using
 append-only logs, Pravega can rapidly ingest data into durable storage,
-and support a large variety of application use cases such as publish/subscribe
-messaging similar to Apache Kafka, NoSQL databases such as a Time Series
+and support a large variety of application use cases such as stream processing using frameworks like [Flink](https://flink.apache.org), publish/subscribe
+messaging, NoSQL databases such as a Time Series
 Database (TSDB), workflow engines, event-oriented applications and many other
 kinds of applications. 
 
@@ -100,7 +57,7 @@ later in this document.  Stream Segments are an important concept, but we need
 to introduce a few more things before we can dive into Stream Segments.
 
 Applications, such as a Java program reading from an IoT sensor, write data to
-the tail (front) of the Stream.  Applications, such as a Flink analytics job,
+the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) analytics job,
 can read from any point in the Stream. Lots of applications can read and write
 the same Stream in parallel.  Elastic, scalable support for a large volume of
 Streams, data and applications is at the heart of Pravega's design.  We will
@@ -304,18 +261,22 @@ as scale events occur over time.
 
 ### Ordering Guarantees
 
+A stream comprises a set of segments that can change over time. Segments that overlap in their area of keyspace have a defined order.
 
-Pravega provides the following ordering guarantees:
+An event written to a stream is written to a single segment and it is totally ordered with respect to the events of that segment. The existance and position of an event within a segment is strongly consistent.
 
-1.  Events with the same Routing Key are consumed in the order they were
-    written.
+Readers can be assigned multiple parallel segments (from different parts of keyspace). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment respects the one of the segment. Specifically, if s is a segment, events e~1 and e~2 of s are such that e~1 precedes e~2, and a reader reads both e~1 and e~2, then the reader will read e~1 before e~2.
 
-2.  Events with different Routing Keys sent to a specific Reader will always be
+This results in the following ordering guarantees:
+
+1.  Events with the same Routing Key are consumed in the order they were written.
+
+2.  Events with different Routing Keys sent to a specific segment will always be
     seen in the same order even if the Reader backs up and re-reads them.
 
-3.  If there are multiple Readers reading a Stream and they all backup and
-    replay the Stream, they will each see the same Events in the same order each
-    time. 
+3.  If an event has been acked to its writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
+
+4.  If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa.)
 
 ## ReaderGroup Checkpoints
 
@@ -413,6 +374,48 @@ the same piece of data.
 
 For more details on working with State Synchronizers, see [Working with Pravega:
 State Synchronizer](state-synchronizer.md).
+
+## Architecture
+
+The following figure depicts the components deployed by Pravega:
+
+![pravega high level architecture](img/pravega.arch.new.png)
+
+Pravega is deployed as a distributed system – a cluster of servers and storage
+coordinated to run Pravega called a "Pravega cluster".  
+
+Pravega itself is composed of two kinds of workload: Controller instances and
+Pravega Servers. The set of Pravega Servers is known collectively as the Segment Store. 
+
+The set of Controller instances make up the control plane of Pravega, providing
+functionality to create, update and delete Streams, retrieve information about
+Streams, monitor the health of the Pravega cluster, gather metrics etc.  There
+are usually multiple (recommended at least 3) Controller instances running in a
+cluster for high availability.  
+
+The Segment Store implements the Pravega data plane.
+ Pravega Servers provide the API to read and write data in Streams.  Data
+storage is comprised of two tiers: Tier 1 Storage, which provides short term,
+low-latency, data storage,  guaranteeing the durability of data written to
+Streams and Tier 2 Storage providing longer term storage of Stream data.
+ Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
+Tier 1 Storage and uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud
+Storage (ECS) to implement Tier 2 Storage.  Tier 1 Storage typically runs within
+the Pravega cluster.  Tier 2 Storage is normally deployed outside the Pravega
+cluster.
+
+Tiering storage is important to deliver the combination of fast access to Stream
+data but also allow Streams to store a vast amount of data.  Tier 1 storage
+persists the most recently written Stream data.  As data in Tier 1 Storage ages,
+it is moved into Tier 2 Storage.
+
+Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
+coordination mechanism for the components in the Pravega cluster.  
+
+Pravega provides a client library, written in Java, for building client-side
+applications such as analytics applications using Flink. The Pravega Java Client
+Library manages the interaction between application code and Pravega via a
+custom TCP wire protocol.
 
 ## Putting the Concepts Together
 
