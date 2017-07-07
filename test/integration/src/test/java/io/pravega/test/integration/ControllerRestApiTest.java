@@ -41,7 +41,9 @@ import org.glassfish.jersey.client.ClientConfig;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.WebTarget;
@@ -54,15 +56,19 @@ import javax.ws.rs.core.Response;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 
-import static javax.ws.rs.core.Response.Status.CREATED;
-import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 import static javax.ws.rs.core.Response.Status.OK;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.CREATED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ControllerRestApiTest {
+    @Rule
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     // Setup utility.
     private static final SetupUtils SETUP_UTILS = new SetupUtils();
@@ -261,7 +267,7 @@ public class ControllerRestApiTest {
                     ReaderConfig.builder().build());
         }
 
-        // Verify the reader group info using REST APIs.
+        // Test fetching readergroups.
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups").toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroups status", OK.getStatusCode(), response.getStatus());
@@ -273,6 +279,7 @@ public class ControllerRestApiTest {
                 new ReaderGroupsListReaderGroups().readerGroupName(readerGroupName2)));
         log.info("Get readergroups successful");
 
+        // Test fetching readergroup info.
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups/" +
                 readerGroupName1).toString();
         response = client.target(resourceURl).request().get();
@@ -286,6 +293,16 @@ public class ControllerRestApiTest {
         assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));
+
+        // Test readergroup or scope not found.
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups/" +
+                "unknownreadergroup").toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroup properties status", NOT_FOUND.getStatusCode(), response.getStatus());
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + "unknownscope" + "/readergroups/" +
+                readerGroupName1).toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroup properties status", NOT_FOUND.getStatusCode(), response.getStatus());
         log.info("Get readergroup properties successful");
 
         log.info("Test restApiTests passed successfully!");

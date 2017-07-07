@@ -63,9 +63,10 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
-import static javax.ws.rs.core.Response.Status.CREATED;
-import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 import static javax.ws.rs.core.Response.Status.OK;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.CREATED;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -133,7 +134,7 @@ public class ControllerRestApiTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-    @Test
+    @Test(timeout = 300000)
     public void restApiTests() {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
@@ -320,6 +321,7 @@ public class ControllerRestApiTest {
                 new ReaderGroupsListReaderGroups().readerGroupName(readerGroupName2)));
         log.info("Get readergroups successful");
 
+        // Test fetching readergroup info.
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups/" +
                 readerGroupName1).toString();
         response = client.target(resourceURl).request().get();
@@ -333,6 +335,16 @@ public class ControllerRestApiTest {
         assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));
+
+        // Test readergroup or scope not found.
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups/" +
+                "unknownreadergroup").toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroup properties status", NOT_FOUND.getStatusCode(), response.getStatus());
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + "unknownscope" + "/readergroups/" +
+                readerGroupName1).toString();
+        response = client.target(resourceURl).request().get();
+        assertEquals("Get readergroup properties status", NOT_FOUND.getStatusCode(), response.getStatus());
         log.info("Get readergroup properties successful");
 
         log.info("Test restApiTests passed successfully!");
