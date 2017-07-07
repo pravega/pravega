@@ -132,7 +132,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Exceptions.checkNotClosed(closed.get(), this);
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
 
-        return backoffSchedule.retryingOn(ConnectionFailedException.class)
+        return backoffSchedule.retryingOn(Exception.class)
                               .throwingOn(ConnectionClosedException.class)
                               .runAsync(() -> {
                                   return getConnection().thenCompose(c -> sendRequestOverConnection(request, c));
