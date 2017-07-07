@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system;
+package io.pravega.test.integration;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -34,20 +34,16 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import io.pravega.test.system.framework.Environment;
-import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
+import io.pravega.test.integration.utils.SetupUtils;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.rules.Timeout;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.WebTarget;
@@ -58,10 +54,9 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 import static javax.ws.rs.core.Response.Status.OK;
@@ -71,8 +66,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@RunWith(SystemTestRunner.class)
 public class ControllerRestApiTest {
+    // Setup utility.
+    private static final SetupUtils SETUP_UTILS = new SetupUtils();
+
+    @Rule
+    public final Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
 
     private final Client client;
     private WebTarget webTarget;
@@ -86,64 +85,23 @@ public class ControllerRestApiTest {
         client = ClientBuilder.newClient(clientConfig);
     }
 
-    /**
-     * This is used to setup the various services required by the system test framework.
-     *
-     * @throws InterruptedException If interrupted
-     * @throws MarathonException    when error in setup
-     * @throws URISyntaxException   If URI is invalid
-     */
-    @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+    @BeforeClass
+    public static void setup() throws Exception {
+        SETUP_UTILS.startAllServices();
     }
 
-    @Test(timeout = 300000)
+    @AfterClass
+    public static void tearDown() throws Exception {
+        SETUP_UTILS.stopAllServices();
+    }
+
+    @Test
     public void restApiTests() {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
-        List<URI> ctlURIs = conService.getServiceDetails();
-        URI controllerRESTUri = ctlURIs.get(1);
         Invocation.Builder builder;
         Response response;
 
-        restServerURI = "http://" + controllerRESTUri.getHost() + ":" + controllerRESTUri.getPort();
+        restServerURI = SETUP_UTILS.getControllerRestUri().toString();
         log.info("REST Server URI: {}", restServerURI);
 
         // TEST REST server status, ping test
@@ -276,7 +234,7 @@ public class ControllerRestApiTest {
         final String testScope = RandomStringUtils.randomAlphanumeric(10);
         final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
-        URI controllerUri = ctlURIs.get(0);
+        URI controllerUri = SETUP_UTILS.getControllerUri();
         try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
@@ -309,7 +267,7 @@ public class ControllerRestApiTest {
                     ReaderConfig.builder().build());
         }
 
-        // Verify the reader group info using REST APIs.
+        // Test fetching readergroups.
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups").toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroups status", OK.getStatusCode(), response.getStatus());

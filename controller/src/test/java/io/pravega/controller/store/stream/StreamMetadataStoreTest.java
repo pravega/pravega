@@ -366,13 +366,13 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
 
         // rerun  -- illegal state exception
         AssertExtensions.assertThrows("", () ->
                         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
 
         // rerun start scale -- should fail with precondition failure
         AssertExtensions.assertThrows("", () ->
@@ -424,6 +424,41 @@ public abstract class StreamMetadataStoreTest {
                 e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
         // endregion
+    }
+
+    @Test
+    public void updateTest() throws Exception {
+        final String scope = "ScopeUpdate";
+        final String stream = "StreamUpdate";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // region idempotent
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        // run update configuration multiple times
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        assertEquals(State.UPDATING, store.getState(scope, stream, null, executor).get());
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // set state to updating and run update configuration
+        store.setState(scope, stream, State.UPDATING, null, executor).get();
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // endregion
+
+        store.setState(scope, stream, State.SCALING, null, executor).get();
+        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, configuration2, null, executor).get(),
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
     }
 
     @Test

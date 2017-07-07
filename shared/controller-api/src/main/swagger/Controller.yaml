@@ -29,6 +29,11 @@ tags:
   externalDocs:
     description: "Find out more about pravega"
     url: "http://pravega.io"
+- name: "ReaderGroups"
+  description: "Reader group related APIs"
+  externalDocs:
+    description: "Find out more about pravega"
+    url: "http://pravega.io"
 schemes:
   - http
 paths:
@@ -297,6 +302,8 @@ paths:
         required: true
         type: string
     get:
+      tags:
+      - "Streams"
       parameters:
         - in: query
           name: from
@@ -323,6 +330,57 @@ paths:
           description: Scope/Stream not found.
         500:
           description: Internal Server error while fetching scaling events.
+  /scopes/{scopeName}/readergroups:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+    get:
+      tags:
+      - "ReaderGroups"
+      operationId: listReaderGroups
+      description: List reader groups within the given scope
+      produces:
+        - application/json
+      responses:
+        200:
+          description: List of all reader groups configured for the given scope
+          schema:
+            $ref: "#/definitions/ReaderGroupsList"
+        404:
+          description: Scope not found
+        500:
+          description: Internal server error while fetching the list of reader groups for the given scope
+  /scopes/{scopeName}/readergroups/{readerGroupName}:
+    parameters:
+      - in: path
+        name: scopeName
+        description: Scope name
+        required: true
+        type: string
+      - in: path
+        name: readerGroupName
+        description: Reader group name
+        required: true
+        type: string
+    get:
+      tags:
+      - "ReaderGroups"
+      operationId: getReaderGroup
+      description: Fetch the properties of an existing reader group
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Found reader group properties
+          schema:
+            $ref: "#/definitions/ReaderGroupProperty"
+        404:
+          description: Scope or reader group with given name not found
+        500:
+          description: Internal server error while fetching reader group details
 definitions:
   ScalingEventList:
     type: object
@@ -422,4 +480,28 @@ definitions:
       keyEnd:
         type: integer
         format: double
-
+  ReaderGroupsList:
+    type: object
+    properties:
+      readerGroups:
+        type: array
+        items:
+          type: object
+          properties:
+            readerGroupName:
+              type: string
+  ReaderGroupProperty:
+    type: object
+    properties:
+      scopeName:
+        type: string
+      readerGroupName:
+        type: string
+      streamList:
+        type: array
+        items:
+          type: string
+      onlineReaderIds:
+        type: array
+        items:
+          type: string
