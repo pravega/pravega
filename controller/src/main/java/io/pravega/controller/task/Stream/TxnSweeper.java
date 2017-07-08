@@ -185,9 +185,10 @@ public class TxnSweeper {
         // time for this transaction.
         // If after this the client pings any other controller instance, then that will update the version and manage the lease locally.
         // Otherwise worst case, we will let this txn run until its Max Execution Expiry time and then abort it (unless committed).
-        if (txnData.getMaxExecutionExpiryTime() > System.currentTimeMillis()) {
+        long maxLease = txnData.getMaxExecutionExpiryTime() - System.currentTimeMillis();
+        if (maxLease > 0) {
             return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
-                    transactionMetadataTasks.failoverTxnTimer(scope, stream, failedHost, txn, null)
+                    transactionMetadataTasks.failoverTxnTimer(failedHost, txn, maxLease, null)
                             .thenApplyAsync(status -> null, executor), executor);
         } else { // abort as max execution period has elapsed.
             return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->

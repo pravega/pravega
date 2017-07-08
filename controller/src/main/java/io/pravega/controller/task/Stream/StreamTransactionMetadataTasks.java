@@ -217,7 +217,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                     final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return txnTimeout(scope, stream, txId, lease, false, context);
+            return txnTimer(scope, stream, txId, lease, false, context);
         }, executor);
     }
 
@@ -226,15 +226,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      *
      * @param failedHost failed host
      * @param txn        TxnResource to failover
+     * @param maxLease   Max lease period to set for this recovery.
      * @param contextOpt operational context
      * @return Transaction metadata along with the version of it record in the store.
      */
     public CompletableFuture<PingTxnStatus> failoverTxnTimer(final String failedHost,
                                                              final TxnResource txn,
+                                                             final long maxLease,
                                                              final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(txn.getScope(), txn.getStream(), contextOpt);
-            return txnTimeout(txn.getScope(), txn.getStream(), txn.getTxnId(), 0, true, context);
+            return txnTimer(txn.getScope(), txn.getStream(), txn.getTxnId(), maxLease, true, context);
         }, executor).thenComposeAsync(status ->
                 streamMetadataStore.removeTxnFromIndex(failedHost, txn, true).thenApply(x -> status), executor);
     }
@@ -410,24 +412,20 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param ctx        context.
      * @return           ping status.
      */
-    private CompletableFuture<PingTxnStatus> txnTimeout(final String scope,
-                                                        final String stream,
-                                                        final UUID txnId,
-                                                        final long lease,
-                                                        final boolean recovery,
-                                                        final OperationContext ctx) {
+    private CompletableFuture<PingTxnStatus> txnTimer(final String scope,
+                                                      final String stream,
+                                                      final UUID txnId,
+                                                      final long lease,
+                                                      final boolean recovery,
+                                                      final OperationContext ctx) {
         if (!timeoutService.isRunning()) {
             return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
         }
 
         if (timeoutService.containsTxn(scope, stream, txnId)) {
-            if (!recovery) {
-                // If timeout service knows about this transaction, attempt to increase its lease.
-                log.debug("Txn={}, extending lease in timeout service", txnId);
-                return CompletableFuture.completedFuture(timeoutService.pingTxn(scope, stream, txnId, lease));
-            } else {
-                return CompletableFuture.completedFuture(PingTxnStatus.getDefaultInstance());
-            }
+            // If timeout service knows about this transaction, attempt to increase its lease.
+            log.debug("Txn={}, extending lease in timeout service", txnId);
+            return CompletableFuture.completedFuture(timeoutService.pingTxn(scope, stream, txnId, lease));
         } else {
             // Otherwise, fence other potential processes managing timeout for this txn, and update its lease.
             log.debug("Txn={}, updating txn node in store and extending lease", txnId);
