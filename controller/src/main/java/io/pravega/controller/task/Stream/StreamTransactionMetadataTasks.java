@@ -222,10 +222,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     /**
-     * Transaction timer
+     * Method to start/reset Transaction timer on timeoutservice by taking over txn from a failed host.
+     * If txn is active, then it puts this txn in its timeoutservice fences the transaction from being monitored
+     * by another controller instance.
      *
-     * @param failedHost failed host
-     * @param txn        TxnResource to failover
+     * @param failedHost failed host.
+     * @param txn        TxnResource to failover.
      * @param maxLease   Max lease period to set for this recovery.
      * @param contextOpt operational context
      * @return Transaction metadata along with the version of it record in the store.
