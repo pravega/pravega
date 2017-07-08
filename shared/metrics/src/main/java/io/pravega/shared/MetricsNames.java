@@ -19,17 +19,11 @@ public final class MetricsNames {
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment_write_bytes";          // Dynamic Counter
     public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment_write_events";        // Dynamic Counter
 
-    //hdfs stats
-    public static final String HDFS_READ_LATENCY = "tier2_read_latency_ms";   // Timer
-    public static final String HDFS_WRITE_LATENCY = "tier2_write_latency_ms"; // Timer
-    public static final String HDFS_READ_BYTES = "tier2_read_bytes";          // Counter
-    public static final String HDFS_WRITE_BYTES = "tier2_write_bytes";        // Counter
-
-    //filesystem stats
-    public static final String FILESYSTEM_READ_LATENCY = "tier2_read_latency_ms";   // Timer
-    public static final String FILESYSTEM_WRITE_LATENCY = "tier2_write_latency_ms"; // Timer
-    public static final String FILESYSTEM_READ_BYTES = "tier2_read_bytes";          // Counter
-    public static final String FILESYSTEM_WRITE_BYTES = "tier2_write_bytes";        // Counter
+    //storage stats
+    public static final String STORAGE_READ_LATENCY = "tier2_read_latency_ms";   // Timer
+    public static final String STORAGE_WRITE_LATENCY = "tier2_write_latency_ms"; // Timer
+    public static final String STORAGE_READ_BYTES = "tier2_read_bytes";          // Counter
+    public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
     //DurableLog stats
     public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency"; // Timer
