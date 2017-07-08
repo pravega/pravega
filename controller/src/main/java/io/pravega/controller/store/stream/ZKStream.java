@@ -76,7 +76,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
         indexPath = String.format(INDEX_PATH, scopeName, streamName);
         activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
-        completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, streamName);
+        completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
         cache = new Cache<>(store::getData);
