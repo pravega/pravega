@@ -28,6 +28,6 @@ public class VersionedTransactionData {
     private final long maxExecutionExpiryTime;
     private final long scaleGracePeriod;
 
-    public static VersionedTransactionData NULL = new VersionedTransactionData(-1, new UUID(0, 0),
-            -1, TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE);
+    public static VersionedTransactionData NULL = new VersionedTransactionData(Integer.MIN_VALUE, new UUID(0, 0),
+            Integer.MIN_VALUE, TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE);
 }

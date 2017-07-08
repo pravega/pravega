@@ -141,7 +141,7 @@ public class TxnSweeper {
                     int epoch = txData.getEpoch();
                     switch (txData.getStatus()) {
                         case OPEN:
-                            return failOverOpenTxn(failedHost, txn)
+                            return failOverOpenTxn(failedHost, txn, txData)
                                     .handleAsync((v, e) -> new Result(txn, v, e), executor);
                         case ABORTING:
                             return failOverAbortingTxn(failedHost, epoch, txn)
@@ -175,13 +175,27 @@ public class TxnSweeper {
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
-    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource txn) {
+    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource txn, VersionedTransactionData txnData) {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
-                transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
-                        .thenApplyAsync(status -> null, executor), executor);
+        // We dont have a way to know how much we should lease, but a txn may yet be active after failover recovery
+        // So instead of blindly aborting, which would be incorrect, we will start a timer on this host for overall max allowed
+        // time for this transaction.
+        // If after this the client pings any other controller instance, then that will update the version and manage the lease locally.
+        // Otherwise worst case, we will let this txn run until its Max Execution Expiry time and then abort it (unless committed).
+        long maxRemainingLease = txnData.getMaxExecutionExpiryTime() - System.currentTimeMillis();
+        if (maxRemainingLease > 0) {
+            return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
+                    transactionMetadataTasks.pingTxn(scope, stream, txnId, maxRemainingLease, null)
+                            .thenApplyAsync(status -> null, executor), executor)
+                    .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
+
+        } else { // abort as max execution period has elapsed.
+            return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
+                    transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
+                            .thenApplyAsync(status -> null, executor), executor);
+        }
     }
 }
