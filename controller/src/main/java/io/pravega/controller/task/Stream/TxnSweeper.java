@@ -128,7 +128,7 @@ public class TxnSweeper {
             if (e != null) {
                 if (ExceptionHelpers.getRealException(e) instanceof StoreException.DataNotFoundException) {
                     // transaction not found, which means it should already have completed. We will ignore such txns
-                    return VersionedTransactionData.NULL;
+                    return VersionedTransactionData.EMPTY;
                 } else {
                     throw new CompletionException(e);
                 }
@@ -146,6 +146,7 @@ public class TxnSweeper {
                 case COMMITTING:
                     return failOverCommittingTxn(failedHost, epoch, txn)
                             .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                case UNKNOWN:
                 default:
                     return streamMetadataStore.removeTxnFromIndex(failedHost, txn, true)
                             .thenApply(x -> new Result(txn, null, null));
