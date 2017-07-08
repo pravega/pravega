@@ -10,9 +10,12 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +24,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -120,22 +124,35 @@ public class TxnSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).thenComposeAsync(txData -> {
-            int epoch = txData.getEpoch();
-            switch (txData.getStatus()) {
-                case OPEN:
-                    return failOverOpenTxn(failedHost, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                case ABORTING:
-                    return failOverAbortingTxn(failedHost, epoch, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                case COMMITTING:
-                    return failOverCommittingTxn(failedHost, epoch, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                default:
-                    return CompletableFuture.completedFuture(new Result(txn, null, null));
-            }
-        }, executor).whenComplete((v, e) ->
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        if (ExceptionHelpers.getRealException(e) instanceof StoreException.DataNotFoundException) {
+                            // transaction not found, which means it should already have completed. We will ignore such txns
+                            return VersionedTransactionData.NULL;
+                        } else {
+                            throw new CompletionException(e);
+                        }
+                    }
+                    return r;
+                })
+                .thenComposeAsync(txData -> {
+                    int epoch = txData.getEpoch();
+                    switch (txData.getStatus()) {
+                        case OPEN:
+                            return failOverOpenTxn(failedHost, txn, txData)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        case ABORTING:
+                            return failOverAbortingTxn(failedHost, epoch, txn)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        case COMMITTING:
+                            return failOverCommittingTxn(failedHost, epoch, txn)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        default:
+                            return streamMetadataStore.removeTxnFromIndex(failedHost, txn, true)
+                                    .thenApply( x -> new Result(txn, null, null));
+                    }
+                }, executor).whenComplete((v, e) ->
                 log.debug("Host = {}, processing transaction {}/{}/{} complete", failedHost, scope, stream, txnId));
     }
 
@@ -157,13 +174,25 @@ public class TxnSweeper {
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 
-    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource txn) {
+    private CompletableFuture<Void> failOverOpenTxn(String failedHost, TxnResource txn, VersionedTransactionData txnData) {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
-                transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
-                        .thenApplyAsync(status -> null, executor), executor);
+        // We dont have a way to know how much we should lease, but a txn may yet be active after failover recovery
+        // So instead of blindly aborting, which would be incorrect, we will start a timer on this host for overall max allowed
+        // time for this transaction.
+        // If after this the client pings any other controller instance, then that will update the version and manage the lease locally.
+        // Otherwise worst case, we will let this txn run until its Max Execution Expiry time and then abort it (unless committed).
+        long maxLease = txnData.getMaxExecutionExpiryTime() - System.currentTimeMillis();
+        if (maxLease > 0) {
+            return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
+                    transactionMetadataTasks.failoverTxnTimer(failedHost, txn, maxLease, null)
+                            .thenApplyAsync(status -> null, executor), executor);
+        } else { // abort as max execution period has elapsed.
+            return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
+                    transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
+                            .thenApplyAsync(status -> null, executor), executor);
+        }
     }
 }

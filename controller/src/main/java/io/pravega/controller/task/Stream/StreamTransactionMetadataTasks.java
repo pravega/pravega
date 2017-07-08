@@ -9,8 +9,11 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
@@ -23,9 +26,6 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -217,8 +217,30 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                     final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return pingTxnBody(scope, stream, txId, lease, context);
+            return txnTimer(scope, stream, txId, lease, false, context);
         }, executor);
+    }
+
+    /**
+     * Method to start/reset Transaction timer on timeoutservice by taking over txn from a failed host.
+     * If txn is active, then it puts this txn in its timeoutservice fences the transaction from being monitored
+     * by another controller instance.
+     *
+     * @param failedHost failed host.
+     * @param txn        TxnResource to failover.
+     * @param maxLease   Max lease period to set for this recovery.
+     * @param contextOpt operational context
+     * @return Transaction metadata along with the version of it record in the store.
+     */
+    public CompletableFuture<PingTxnStatus> failoverTxnTimer(final String failedHost,
+                                                             final TxnResource txn,
+                                                             final long maxLease,
+                                                             final OperationContext contextOpt) {
+        return checkReady().thenComposeAsync(x -> {
+            final OperationContext context = getNonNullOperationContext(txn.getScope(), txn.getStream(), contextOpt);
+            return txnTimer(txn.getScope(), txn.getStream(), txn.getTxnId(), maxLease, true, context);
+        }, executor).thenComposeAsync(status ->
+                streamMetadataStore.removeTxnFromIndex(failedHost, txn, true).thenApply(x -> status), executor);
     }
 
     /**
@@ -388,14 +410,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param stream     stream name.
      * @param txnId      txn id.
      * @param lease      txn lease.
+     * @param recovery   set txn lease to maximum possible value.
      * @param ctx        context.
      * @return           ping status.
      */
-    CompletableFuture<PingTxnStatus> pingTxnBody(final String scope,
-                                                 final String stream,
-                                                 final UUID txnId,
-                                                 final long lease,
-                                                 final OperationContext ctx) {
+    private CompletableFuture<PingTxnStatus> txnTimer(final String scope,
+                                                      final String stream,
+                                                      final UUID txnId,
+                                                      final long lease,
+                                                      final boolean recovery,
+                                                      final OperationContext ctx) {
         if (!timeoutService.isRunning()) {
             return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
         }
@@ -407,7 +431,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         } else {
             // Otherwise, fence other potential processes managing timeout for this txn, and update its lease.
             log.debug("Txn={}, updating txn node in store and extending lease", txnId);
-            return fenceTxnUpdateLease(scope, stream, txnId, lease, ctx);
+            return fenceTxnUpdateLease(scope, stream, txnId, lease, recovery, ctx);
         }
     }
 
@@ -419,6 +443,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                  final String stream,
                                                                  final UUID txnId,
                                                                  final long lease,
+                                                                 final boolean recovery,
                                                                  final OperationContext ctx) {
         // Step 1. Check whether lease value is within necessary bounds.
         // Step 2. Add txn to host-transaction index.
@@ -429,9 +454,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             // Step 1. Sanity check for lease value.
             if (lease > txnData.getScaleGracePeriod() || lease > timeoutService.getMaxLeaseValue()) {
                 return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));
-            } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
+            } else if (!recovery && lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
                 return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
             } else {
+                long leasePeriod = recovery ? txnData.getMaxExecutionExpiryTime() - System.currentTimeMillis() : lease;
                 TxnResource resource = new TxnResource(scope, stream, txnId);
                 int expVersion = txnData.getVersion() + 1;
 
@@ -447,7 +473,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 return addIndex.thenComposeAsync(x -> {
                     // Step 3. Update txn node data in the store.
                     CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.pingTransaction(
-                            scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
+                            scope, stream, txnData, leasePeriod, ctx, executor).whenComplete((v, e) -> {
                         if (e != null) {
                             log.debug("Txn={}, failed updating txn node in store", txnId);
                         } else {
@@ -464,7 +490,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // to fail, since version of txn node has changed because of the above store.pingTxn call.
                         // Hence explicitly add a new timeout task.
                         log.debug("Txn={}, adding txn to host-txn index", txnId);
-                        timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
+                        timeoutService.addTxn(scope, stream, txnId, version, leasePeriod, expiryTime, scaleGracePeriod);
                         return createStatus(Status.OK);
                     }, executor);
                 }, executor);
