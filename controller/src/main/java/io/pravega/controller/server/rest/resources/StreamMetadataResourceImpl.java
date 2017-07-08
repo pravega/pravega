@@ -9,6 +9,9 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -17,6 +20,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rest.CustomObjectMapperProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
@@ -42,9 +46,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.container.AsyncResponse;
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.SecurityContext;
+import javax.ws.rs.core.StreamingOutput;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -321,20 +327,28 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         // Each reader group is represented by a stream within the mentioned scope.
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
-                    ReaderGroupsList readerGroups = new ReaderGroupsList();
-                    streamsList.forEach(stream -> {
-                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
-                        // is fixed.
-                        if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX) &&
-                                readerGroups.getReaderGroups().size() < 200) {
-                            ReaderGroupsListReaderGroups readerGroup = new ReaderGroupsListReaderGroups();
-                            readerGroup.setReaderGroupName(stream.getStreamName().substring(
-                                    READER_GROUP_STREAM_PREFIX.length()));
-                            readerGroups.addReaderGroupsItem(readerGroup);
+                    // We need to use a streaming response since the response may not fit in a single buffer.
+                    StreamingOutput readerGroups = output -> {
+                        ObjectMapper mapper = new CustomObjectMapperProvider().getContext(ReaderGroupsList.class);
+                        JsonGenerator generator = mapper.getFactory().createGenerator(output, JsonEncoding.UTF8);
+                        generator.writeStartObject();
+                        generator.writeFieldName("readerGroups");
+                        generator.writeStartArray();
+                        for (StreamConfiguration stream : streamsList) {
+                            if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
+                                ReaderGroupsListReaderGroups readerGroup = new ReaderGroupsListReaderGroups();
+                                readerGroup.setReaderGroupName(stream.getStreamName().substring(
+                                        READER_GROUP_STREAM_PREFIX.length()));
+                                generator.writeObject(readerGroup);
+                            }
                         }
-                    });
+                        generator.writeEndArray();
+                        generator.writeEndObject();
+                        generator.flush();
+                        generator.close();
+                    };
                     log.info("Successfully fetched readerGroups for scope: {}", scopeName);
-                    return Response.status(Status.OK).entity(readerGroups).build();
+                    return Response.status(Status.OK).entity(readerGroups).type(MediaType.APPLICATION_JSON).build();
                 }).exceptionally(exception -> {
                     if (exception.getCause() instanceof StoreException.DataNotFoundException
                             || exception instanceof StoreException.DataNotFoundException) {
@@ -385,19 +399,27 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         boolean showOnlyInternalStreams = showInternalStreams != null && showInternalStreams.equals("true");
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
-                    StreamsList streams = new StreamsList();
-                    streamsList.forEach(stream -> {
-                        // If internal streams are requested select only the ones that have the special stream names
-                        // otherwise display the regular user created streams.
-                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
-                        // is fixed.
-                        if ((!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) &&
-                                streams.getStreams().size() < 200) {
-                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
+                    // We need to use a streaming response since the response may not fit in a single buffer.
+                    StreamingOutput streams = output -> {
+                        ObjectMapper mapper = new CustomObjectMapperProvider().getContext(StreamsList.class);
+                        JsonGenerator generator = mapper.getFactory().createGenerator(output, JsonEncoding.UTF8);
+                        generator.writeStartObject();
+                        generator.writeFieldName("streams");
+                        generator.writeStartArray();
+                        for (StreamConfiguration stream : streamsList) {
+                            // If internal streams are requested select only the ones that have the special stream names
+                            // otherwise display the regular user created streams.
+                            if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
+                                generator.writeObject(ModelHelper.encodeStreamResponse(stream));
+                            }
                         }
-                    });
+                        generator.writeEndArray();
+                        generator.writeEndObject();
+                        generator.flush();
+                        generator.close();
+                    };
                     log.info("Successfully fetched streams for scope: {}", scopeName);
-                    return Response.status(Status.OK).entity(streams).build();
+                    return Response.status(Status.OK).entity(streams).type(MediaType.APPLICATION_JSON).build();
                 }).exceptionally(exception -> {
                     if (exception.getCause() instanceof StoreException.DataNotFoundException
                             || exception instanceof StoreException.DataNotFoundException) {
@@ -532,8 +554,22 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             if (referenceEvent != null) {
                 finalScaleMetadataList.add(0, referenceEvent);
             }
+
+            // We need to use a streaming response since the response may not fit in a single buffer.
+            StreamingOutput scaleList = output -> {
+                ObjectMapper mapper = new CustomObjectMapperProvider().getContext(ScaleMetadata.class);
+                JsonGenerator generator = mapper.getFactory().createGenerator(output, JsonEncoding.UTF8);
+                generator.writeStartArray();
+                for (ScaleMetadata scaleMetadata : finalScaleMetadataList) {
+                    generator.writeObject(scaleMetadata);
+                }
+                generator.writeEndArray();
+                generator.flush();
+                generator.close();
+            };
+
             log.info("Successfully fetched required scaling events for scope: {}, stream: {}", scopeName, streamName);
-            return Response.status(Status.OK).entity(finalScaleMetadataList).build();
+            return Response.status(Status.OK).entity(scaleList).type(MediaType.APPLICATION_JSON).build();
         }).exceptionally(exception -> {
             if (exception.getCause() instanceof StoreException.DataNotFoundException
                     || exception instanceof StoreException.DataNotFoundException) {
