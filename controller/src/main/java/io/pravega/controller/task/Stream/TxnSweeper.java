@@ -10,9 +10,12 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +24,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -120,22 +124,36 @@ public class TxnSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).thenComposeAsync(txData -> {
-            int epoch = txData.getEpoch();
-            switch (txData.getStatus()) {
-                case OPEN:
-                    return failOverOpenTxn(failedHost, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                case ABORTING:
-                    return failOverAbortingTxn(failedHost, epoch, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                case COMMITTING:
-                    return failOverCommittingTxn(failedHost, epoch, txn)
-                            .handleAsync((v, e) -> new Result(txn, v, e), executor);
-                default:
-                    return CompletableFuture.completedFuture(new Result(txn, null, null));
-            }
-        }, executor).whenComplete((v, e) ->
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        if (ExceptionHelpers.getRealException(e) instanceof StoreException.DataNotFoundException) {
+                            // transaction not found, which means it should already have completed. We will ignore such txns
+                            return VersionedTransactionData.NULL;
+                        }
+                        else {
+                            throw new CompletionException(e);
+                        }
+                    }
+                    return r;
+                })
+                .thenComposeAsync(txData -> {
+                    int epoch = txData.getEpoch();
+                    switch (txData.getStatus()) {
+                        case OPEN:
+                            return failOverOpenTxn(failedHost, txn)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        case ABORTING:
+                            return failOverAbortingTxn(failedHost, epoch, txn)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        case COMMITTING:
+                            return failOverCommittingTxn(failedHost, epoch, txn)
+                                    .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                        default:
+                            return streamMetadataStore.removeTxnFromIndex(failedHost, txn, true)
+                                    .thenApply( x -> new Result(txn, null, null));
+                    }
+                }, executor).whenComplete((v, e) ->
                 log.debug("Host = {}, processing transaction {}/{}/{} complete", failedHost, scope, stream, txnId));
     }
 
