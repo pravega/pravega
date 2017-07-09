@@ -101,7 +101,13 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
         createStorage();
-        client.createBucket(BUCKET_NAME);
+        try {
+            client.createBucket(BUCKET_NAME);
+        } catch (S3Exception e) {
+            if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
+                throw e;
+            }
+        }
         List<ObjectKey> keys = client.listObjects(BUCKET_NAME).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
         }).collect(Collectors.toList());
