@@ -22,7 +22,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3Storage;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.test.common.TestUtils;
