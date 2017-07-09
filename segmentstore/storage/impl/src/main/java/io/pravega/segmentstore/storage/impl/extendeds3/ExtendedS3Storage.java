@@ -311,10 +311,11 @@ public class ExtendedS3Storage implements Storage {
     }
 
     /**
-     * The concat is implemented using extended S3 implementation of multipart copy API. Please see here for more details on multipart copy.
+     * The concat is implemented using extended S3 implementation of multipart copy API.
+     * Please see here for more details on multipart copy.
      * http://docs.aws.amazon.com/AmazonS3/latest/dev/CopyingObjctsUsingLLJavaMPUapi.html
      * The multipart copy is an atomic operation. We schedule two parts and commit the atomically using completeMultiPartUpload call.
-     * The first part is the destination object and the second part is the source segment.
+     * The first part is the target object and the second part is the source segment.
      */
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
