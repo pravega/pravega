@@ -103,7 +103,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         createStorage();
         String bucketName = BUCKET_NAME + UUID.randomUUID().toString();
         client.createBucket(bucketName);
-        List<ObjectKey> keys = client.listObjects(BUCKET_NAME).getObjects().stream().map((object) -> {
+        List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
         }).collect(Collectors.toList());
 
