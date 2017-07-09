@@ -57,7 +57,7 @@ import org.junit.Before;
  */
 @Slf4j
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
-    private static final String BUCKET_NAME = "pravegatest-" + UUID.randomUUID().toString();
+    private static final String BUCKET_NAME = "pravegatest";
     private ExtendedS3StorageFactory storageFactory;
     private ExtendedS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
@@ -101,19 +101,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
         createStorage();
-        try {
-            client.createBucket(BUCKET_NAME);
-        } catch (S3Exception e) {
-            if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
-                throw e;
-            }
-        }
+        String bucketName = BUCKET_NAME + UUID.randomUUID().toString();
+        client.createBucket(bucketName);
         List<ObjectKey> keys = client.listObjects(BUCKET_NAME).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
         }).collect(Collectors.toList());
 
         if (!keys.isEmpty()) {
-            client.deleteObjects(new DeleteObjectsRequest(BUCKET_NAME).withKeys(keys));
+            client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
         }
     }
 
