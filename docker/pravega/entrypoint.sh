@@ -59,10 +59,35 @@ configure_tier2() {
     ;;
     EXTENDEDS3)
     EXTENDEDS3_ROOT=${EXTENDEDS3_ROOT:-"/"}
-    while [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ] || [ -z {EXTENDEDS3_SECRET_KEY} ] || [ -z {EXTENDEDS3_URI} ] || [ -z {EXTENDEDS3_BUCKET} ]
+
+    # Determine whether there is any variable missing
+    if [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ]
+    then
+        echo "EXTENDEDS3_ACCESS_KEY_ID is missing."
+    fi
+
+    if [ -z ${EXTENDEDS3_SECRET_KEY} ]
+    then
+        echo "EXTENDEDS3_SECRET_KEY is missing."
+    fi
+
+    if [ -z ${EXTENDEDS3_URI} ]
+    then
+        echo "EXTENDEDS3_URI is missing."
+    fi
+
+    if [ -z ${EXTENDEDS3_BUCKET} ]
+    then
+        echo "EXTENDEDS3_BUCKET is missing."
+    fi
+
+    # Loop until all variables are set
+    while [ -z ${EXTENDEDS3_ACCESS_KEY_ID} ] ||
+          [ -z ${EXTENDEDS3_SECRET_KEY} ] ||
+          [ -z ${EXTENDEDS3_URI} ] ||
+          [ -z ${EXTENDEDS3_BUCKET} ]
     do
-        echo "One of the env variable EXTENDEDS3_ACCESS_KEY_ID, EXTENDEDS3_SECRET_KEY, EXTENDEDS3_URI, EXTENDEDS3_BUCKET not set."
-         echo "Looping till the container is restarted with all these variables set."
+        echo "Looping till the container is restarted with all these variables set."
         sleep 60
     done
     add_system_property "extendeds3.root" "${EXTENDEDS3_ROOT}"

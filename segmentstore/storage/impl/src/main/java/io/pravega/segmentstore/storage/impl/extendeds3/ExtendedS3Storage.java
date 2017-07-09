@@ -203,7 +203,14 @@ public class ExtendedS3Storage implements Storage {
 
         try (InputStream reader = client.readObjectStream(config.getBucket(),
                 config.getRoot() + handle.getSegmentName(), Range.fromOffsetLength(offset, length))) {
-
+            /*
+             * TODO: This implementation assumes that if S3Client.readObjectStream returns null, then
+             * the object does not exist and we throw StreamNotExistsException. The javadoc, however,
+             * says that this call returns null in case of 304 and 412 responses. We need to
+             * investigate what these responses mean precisely and react accordingly.
+             *
+             * See https://github.com/pravega/pravega/issues/1549
+             */
             if (reader == null) {
                 throw new StreamSegmentNotExistsException(handle.getSegmentName());
             }
@@ -236,6 +243,15 @@ public class ExtendedS3Storage implements Storage {
             result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
             return !result.getObjects().isEmpty();
         } catch (S3Exception e) {
+            /*
+             * TODO: This implementation is supporting both an empty list and a no such key
+             * exception to indicate that the segment doesn't exist. It is trying to be safe,
+             * but this is an indication that the behavior is not well understood. We need to
+             * investigate the exact behavior we should expect out of this call and react
+             * accordingly rather than guess.
+             *
+             * See https://github.com/pravega/pravega/issues/1559
+             */
             if ( e.getErrorCode().equals("NoSuchKey")) {
                 return false;
             } else {
@@ -272,7 +288,10 @@ public class ExtendedS3Storage implements Storage {
         return syncGetStreamSegmentInfo(streamSegmentName);
     }
 
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentSealedException, BadOffsetException {
+    private Void syncWrite(SegmentHandle handle,
+                           long offset,
+                           InputStream data,
+                           int length) throws StreamSegmentSealedException, BadOffsetException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
@@ -311,11 +330,13 @@ public class ExtendedS3Storage implements Storage {
     }
 
     /**
-     * The concat is implemented using extended S3 implementation of multipart copy API.
-     * Please see here for more details on multipart copy.
+     * The concat is implemented using extended S3 implementation of multipart copy API. Please see here for
+     * more detail on multipart copy:
      * http://docs.aws.amazon.com/AmazonS3/latest/dev/CopyingObjctsUsingLLJavaMPUapi.html
-     * The multipart copy is an atomic operation. We schedule two parts and commit the atomically using completeMultiPartUpload call.
-     * The first part is the target object and the second part is the source segment.
+     *
+     * The multipart copy is an atomic operation. We schedule two parts and commit them atomically using
+     * completeMultiPartUpload call. Specifically, to concatenate, we are copying the target segment T and the
+     * source segment S to T, so essentially we are doing T <- T + S.
      */
     private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
@@ -331,9 +352,10 @@ public class ExtendedS3Storage implements Storage {
         }
         // check whether the source is sealed
         SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
-        Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceSegment, targetHandle.getSegmentName());
+        Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
+                sourceSegment, targetHandle.getSegmentName());
 
-        //Upload the first part
+        //Copy the first part
         CopyPartRequest copyRequest = new CopyPartRequest(config.getBucket(),
                 targetPath,
                 config.getBucket(),
@@ -344,7 +366,7 @@ public class ExtendedS3Storage implements Storage {
 
         partEtags.add(new MultipartPartETag(copyResult.getPartNumber(), copyResult.getETag()));
 
-        //Upload the second part
+        //Copy the second part
         S3ObjectMetadata metadataResult = client.getObjectMetadata(config.getBucket(),
                 config.getRoot() + sourceSegment);
         long objectSize = metadataResult.getContentLength(); // in bytes

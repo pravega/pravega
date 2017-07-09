@@ -37,6 +37,8 @@ import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.Properties;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -56,7 +58,7 @@ import org.junit.Before;
  */
 @Slf4j
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
-    private static final String BUCKET_NAME = "pravegatest";
+    private static final String BUCKET_NAME = "pravegatest-" + UUID.randomUUID().toString();
     private ExtendedS3StorageFactory storageFactory;
     private ExtendedS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
@@ -100,14 +102,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
         createStorage();
-
-        try {
-            client.createBucket(BUCKET_NAME);
-        } catch (S3Exception e) {
-            if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
-                throw e;
-            }
-        }
+        client.createBucket(BUCKET_NAME);
         List<ObjectKey> keys = client.listObjects(BUCKET_NAME).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
         }).collect(Collectors.toList());

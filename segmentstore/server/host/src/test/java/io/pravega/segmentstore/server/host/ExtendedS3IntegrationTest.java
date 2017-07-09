@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.google.common.base.Preconditions;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -28,6 +29,8 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.concurrent.ExecutorService;
+
 import org.junit.After;
 import org.junit.Before;
 
@@ -78,24 +81,36 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
-                    StorageFactory f = new ExtendedS3StorageFactory(
-                            setup.getConfig(ExtendedS3StorageConfig::builder), setup.getExecutor());
-                    return new ExtendedS3ListenableStorageFactory(f, builderConfig.getConfig(ExtendedS3StorageConfig::builder), this.aclMap);
+                    StorageFactory f = new LocalExtendedS3StorageFactory(
+                            setup.getConfig(ExtendedS3StorageConfig::builder),
+                            this.aclMap,
+                            setup.getExecutor());
+                    return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
 
-    private class ExtendedS3ListenableStorageFactory extends ListenableStorageFactory {
+    /*
+     * We are declaring a local factory here because we need a factory that creates adapters that interact
+     * with the local file system for the purposes of testing. Ideally, however, we should mock the extended
+     * S3 service rather than implement the storage functionality directly in the adapter.
+     */
+    private class LocalExtendedS3StorageFactory implements StorageFactory {
 
-        private final ExtendedS3StorageConfig adapterConfig;
+        private final ExtendedS3StorageConfig config;
         private final AclMap aclMap;
+        private final ExecutorService executor;
 
-        public ExtendedS3ListenableStorageFactory(StorageFactory wrappedFactory, ExtendedS3StorageConfig adapterConfig, AclMap aclMap) {
-            super(wrappedFactory);
-            this.adapterConfig = adapterConfig;
+        public LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config,
+                                             AclMap aclMap,
+                                             ExecutorService executor) {
+            Preconditions.checkNotNull(config, "config");
+            Preconditions.checkNotNull(executor, "executor");
+            this.config = config;
             this.aclMap = aclMap;
+            this.executor = executor;
         }
 
         @Override
@@ -104,13 +119,13 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
             S3Config s3Config = new S3Config(uri);
 
             s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey())
-                               .withRetryEnabled(false).withInitialRetryDelay(1).withProperty("com.sun.jersey.client.property.connectTimeout", 100);
+                    .withRetryEnabled(false)
+                    .withInitialRetryDelay(1)
+                    .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, this.aclMap, baseDir);
-            storage = new ExtendedS3Storage(client, adapterConfig, executorService());
-            return storage;
+            return new ExtendedS3Storage(client, config, executorService());
         }
     }
-
     //endregion
 }
