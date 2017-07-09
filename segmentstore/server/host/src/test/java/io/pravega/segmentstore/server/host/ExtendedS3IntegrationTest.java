@@ -118,7 +118,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
             URI uri = URI.create("http://localhost:9020");
             S3Config s3Config = new S3Config(uri);
 
-            s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey())
+            s3Config = s3Config.withIdentity(config.getAccessKey()).withSecretKey(config.getSecretKey())
                     .withRetryEnabled(false)
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
