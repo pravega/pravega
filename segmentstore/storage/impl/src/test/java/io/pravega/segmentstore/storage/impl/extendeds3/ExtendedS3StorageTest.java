@@ -84,24 +84,24 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         BlobStoreContext context = builder.build(BlobStoreContext.class);
         BlobStore blobStore = context.getBlobStore();
 
-        s3Proxy = S3Proxy.builder().awsAuthentication( AuthenticationType.AWS_V2_OR_V4, "x", "x")
-                .endpoint(uri)
-                .keyStore("", "")
-                .blobStore(blobStore)
-                .ignoreUnknownHeaders(true)
-                .build();
+        s3Proxy = S3Proxy.builder().awsAuthentication(AuthenticationType.AWS_V2_OR_V4, "x", "x")
+                         .endpoint(uri)
+                         .keyStore("", "")
+                         .blobStore(blobStore)
+                         .ignoreUnknownHeaders(true)
+                         .build();
 
         s3Proxy.start();
 
+        String bucketName = BUCKET_NAME + UUID.randomUUID().toString();
         this.adapterConfig = ExtendedS3StorageConfig.builder()
-                                                    .with(ExtendedS3StorageConfig.BUCKET, BUCKET_NAME)
+                                                    .with(ExtendedS3StorageConfig.BUCKET, bucketName)
                                                     .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
                                                     .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
                                                     .with(ExtendedS3StorageConfig.ROOT, "test")
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
         createStorage();
-        String bucketName = BUCKET_NAME + UUID.randomUUID().toString();
         client.createBucket(bucketName);
         List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
