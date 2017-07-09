@@ -84,12 +84,12 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         BlobStoreContext context = builder.build(BlobStoreContext.class);
         BlobStore blobStore = context.getBlobStore();
 
-        s3Proxy = S3Proxy.builder().awsAuthentication( AuthenticationType.AWS_V2_OR_V4, "x", "x")
-                .endpoint(uri)
-                .keyStore("", "")
-                .blobStore(blobStore)
-                .ignoreUnknownHeaders(true)
-                .build();
+        s3Proxy = S3Proxy.builder().awsAuthentication(AuthenticationType.AWS_V2_OR_V4, "x", "x")
+                         .endpoint(uri)
+                         .keyStore("", "")
+                         .blobStore(blobStore)
+                         .ignoreUnknownHeaders(true)
+                         .build();
 
         s3Proxy.start();
 
