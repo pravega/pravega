@@ -66,6 +66,8 @@ abstract class AbstractFailoverTests {
     ExecutorService executorService;
     Controller controller;
     TestState testState;
+    Throwable getWriteException = null;
+    Throwable getReadException = null;
 
     static class TestState {
         //read and write count variables
@@ -152,13 +154,13 @@ abstract class AbstractFailoverTests {
                     log.debug("Writing event {}", value);
                 } catch (InterruptedException e) {
                     log.error("Error in sleep: ", e);
-                    writeException = e;
+                    getWriteException = e;
                 } catch (ConnectionClosedException e) {
                     log.warn("Test exception in writing events: ", e);
                     continue;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
-                   writeException = e;
+                   getWriteException = e;
                 }
             }
         }, executorService);
@@ -187,7 +189,7 @@ abstract class AbstractFailoverTests {
                     continue;
                 } catch (ReinitializationRequiredException e) {
                     log.error("Test exception in reading events: ", e);
-                    Assert.fail("Unable to read events. Test failure");
+                    getReadException = e;
                 }
             }
         }, executorService);
@@ -268,14 +270,19 @@ abstract class AbstractFailoverTests {
 
         log.info("Wait for writers execution to complete");
         FutureHelpers.allOf(writerFutureList).get();
-
         FutureHelpers.allOf(newWritersFutureList).get();
+        if (getWriteException != null) {
+            Assert.fail("Unable to write events. Test failure");
+        }
 
         log.info("Stop read flag status {}", testState.stopReadFlag);
         testState.stopReadFlag.set(true);
 
         log.info("Wait for readers execution to complete");
         FutureHelpers.allOf(readerFutureList).get();
+        if (getReadException != null) {
+            Assert.fail("Unable to read events. Test failure");
+        }
 
         log.info("All writers have stopped. Setting stopReadFlag. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
