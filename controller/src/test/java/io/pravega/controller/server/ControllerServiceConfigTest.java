@@ -135,15 +135,10 @@ public class ControllerServiceConfigTest {
                 () -> ZKClientConfigImpl.builder().connectionString("localhost").namespace("test")
                         .initialSleepInterval(10).maxRetries(-10).namespace("").build());
 
-        // zk connection timeout should be positive number
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
-                () -> ZKClientConfigImpl.builder().connectionString("localhost").namespace("test")
-                        .sessionTimeoutMs(10).connectionTimeoutMs(-10).namespace("").build());
-
         // zk session timeout should be positive number
         AssertExtensions.assertThrows(IllegalArgumentException.class,
                 () -> ZKClientConfigImpl.builder().connectionString("localhost").namespace("test")
-                        .connectionTimeoutMs(10).sessionTimeoutMs(-10).namespace("").build());
+                        .sessionTimeoutMs(-10).namespace("").build());
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withInMemoryClient();
 
