@@ -74,12 +74,12 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 3 instances of pravega controller
-        Service conService = new PravegaControllerService("controller", zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
+        Service controllerService = new PravegaControllerService("controller", zkUri);
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
-        conService.scaleService(3, true);
-        List<URI> conUris = conService.getServiceDetails();
+        controllerService.scaleService(3, true);
+        List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
 
         // Fetch all the RPC endpoints and construct the client URIs.
@@ -160,7 +160,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
 
             //scale manually
-            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, STREAM_NAME).get().getSegments().size());
+            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, STREAM_NAME)
+                    .get().getSegments().size());
 
             Map<Double, Double> keyRanges = new HashMap<>();
             keyRanges.put(0.0, 0.5);
@@ -175,7 +176,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
             //do a get on scaleStatus
             scaleStatus.get();
-            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, STREAM_NAME).get().getSegments().size());
+            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, STREAM_NAME)
+                    .get().getSegments().size());
 
             //bring the instances back to 3 before performing failover after scaling
             controllerInstance.scaleService(3, true);

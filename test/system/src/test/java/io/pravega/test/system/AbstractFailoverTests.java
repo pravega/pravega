@@ -101,11 +101,11 @@ abstract class AbstractFailoverTests {
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
-        log.info("Scaling down SSS instances from 3 to 2");
+        log.info("Scaling down Segment Store instances from 3 to 2");
 
         currentWriteCount1 = testState.eventWriteCount.get();
         currentReadCount1 = testState.eventReadCount.get();
-        log.info("Read count: {}, write count: {} after SSS failover after sleep", currentReadCount1, currentWriteCount1);
+        log.info("Read count: {}, write count: {} after Segment Store  failover after sleep", currentReadCount1, currentWriteCount1);
         //ensure writes are happening
         assertTrue(currentWriteCount1 > currentWriteCount2);
         //ensure reads are happening
@@ -130,12 +130,12 @@ abstract class AbstractFailoverTests {
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
-        log.info("Scaling down  to 1 controller, 1 SSS instance");
+        log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
         currentWriteCount1 = testState.eventWriteCount.get();
         currentReadCount1 = testState.eventReadCount.get();
         log.info("Stop write flag status: {}, stop read flag status: {} ", testState.stopWriteFlag.get(), testState.stopReadFlag.get());
-        log.info("Read count: {}, write count: {} with SSS and controller failover after sleep", currentReadCount1, currentWriteCount1);
+        log.info("Read count: {}, write count: {} with Segment Store  and controller failover after sleep", currentReadCount1, currentWriteCount1);
     }
 
     CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
@@ -166,8 +166,8 @@ abstract class AbstractFailoverTests {
 
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
-            log.info("Exit flag status {}", testState.stopReadFlag.get());
-            log.info("Read count {} and write count {}", testState.eventReadCount.get(), testState.eventWriteCount.get());
+            log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
+                    testState.eventReadCount.get(), testState.eventWriteCount.get());
             while (!(testState.stopReadFlag.get() && testState.eventReadCount.get() == testState.eventWriteCount.get())) {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
@@ -222,12 +222,13 @@ abstract class AbstractFailoverTests {
         log.info("Creating {} writers", writers);
         writerList = new ArrayList<>(writers);
         log.info("Writers writing in the scope {}", scope);
+        EventStreamWriter<Long> tmpWriter;
         for (int i = 0; i < writers; i++) {
             log.info("Starting writer{}", i);
-            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(stream,
+            tmpWriter = clientFactory.createEventWriter(stream,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().retryAttempts(10).build());
-            writerList.add(writer);
+            writerList.add(tmpWriter);
         }
 
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
@@ -295,12 +296,13 @@ abstract class AbstractFailoverTests {
         //increase the number of writers to trigger scale
         newlyAddedWriterList = new ArrayList<>(ADD_NUM_WRITERS);
         log.info("Writers writing in the scope {}", scope);
+        EventStreamWriter<Long> newTmpWriter;
         for (int i = 0; i < ADD_NUM_WRITERS; i++) {
             log.info("Starting writer{}", i);
-            final EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(STREAM,
+            newTmpWriter = clientFactory.createEventWriter(STREAM,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().retryAttempts(10).build());
-            newlyAddedWriterList.add(writer1);
+            newlyAddedWriterList.add(newTmpWriter);
         }
 
         //start writing asynchronoulsy with newly created writers

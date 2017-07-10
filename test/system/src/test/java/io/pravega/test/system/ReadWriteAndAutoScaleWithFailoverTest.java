@@ -72,12 +72,12 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 3 instances of pravega controller
-        Service conService = new PravegaControllerService("controller", zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
+        Service controllerService = new PravegaControllerService("controller", zkUri);
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
-        conService.scaleService(3, true);
-        List<URI> conUris = conService.getServiceDetails();
+        controllerService.scaleService(3, true);
+        List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
 
         // Fetch all the RPC endpoints and construct the client URIs.
