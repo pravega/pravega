@@ -11,6 +11,8 @@ package io.pravega.controller.server.rest.v1;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
 import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
@@ -18,7 +20,10 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -62,16 +67,16 @@ public final class ApiV1 {
         @POST
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(
                 value = "", notes = "Creates a new scope", response = ScopeProperty.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 201, message = "Successfully created the scope", response = ScopeProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 409, message = "Scope already exists", response = ScopeProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = ScopeProperty.class) })
         void createScope(
                 @ApiParam(value = "The scope configuration", required = true) CreateScopeRequest createScopeRequest,
@@ -81,19 +86,19 @@ public final class ApiV1 {
         @Path("/{scopeName}/streams")
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(
                 value = "", notes = "Creates a new stream", response = StreamProperty.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 201, message = "Successful created the stream", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Scope not found", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 409, message = "Stream already exists", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
         void createStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "The stream configuration", required = true) CreateStreamRequest createStreamRequest,
@@ -101,53 +106,96 @@ public final class ApiV1 {
 
         @DELETE
         @Path("/{scopeName}")
-        @io.swagger.annotations.ApiOperation(value = "", notes = "Delete a scope", response = void.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiOperation(value = "", notes = "Delete a scope", response = void.class, tags = {  })
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 204, message = "Successfully deleted the scope", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope not found", response = void.class),
+                @ApiResponse(code = 404, message = "Scope not found", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 412, message = "Cannot delete scope which has non-empty list of streams",
                         response = void.class),
 
-                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error", response = void.class) })
+                @ApiResponse(code = 500, message = "Server error", response = void.class) })
         void deleteScope(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @DELETE
         @Path("/{scopeName}/streams/{streamName}")
-        @io.swagger.annotations.ApiOperation(value = "", notes = "Delete a stream", response = void.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiOperation(value = "", notes = "Delete a stream", response = void.class, tags = {  })
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 204, message = "Successfully deleted the stream", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Stream not found", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 412, message = "Cannot delete stream since it is not sealed", response = void.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = void.class) })
         void deleteStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
+        @Path("/{scopeName}/readergroups/{readerGroupName}")
+        @Produces({ "application/json" })
+        @ApiOperation(value = "", notes = "Fetch the properties of an existing reader group",
+                response = ReaderGroupProperty.class, tags = { "ReaderGroups", })
+        @ApiResponses(value = {
+                @ApiResponse(code = 200, message = "Found reader group properties",
+                        response = ReaderGroupProperty.class),
+
+                @ApiResponse(code = 404, message = "Scope or reader group with given name not found",
+                        response = ReaderGroupProperty.class),
+
+                @ApiResponse(code = 500, message = "Internal server error while fetching reader group details",
+                        response = ReaderGroupProperty.class) })
+        void getReaderGroup(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @ApiParam(value = "Reader group name", required = true)
+                @PathParam("readerGroupName") String readerGroupName,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
+        @Path("/{scopeName}/streams/{streamName}/scaling-events")
+        @Produces({ "application/json" })
+        @ApiOperation(value = "", notes = "Get scaling events for a given datetime period.",
+                response = ScalingEventList.class, tags = {  })
+        @ApiResponses(value = {
+                @ApiResponse(code = 200, message = "List of scaling events",
+                        response = ScalingEventList.class),
+
+                @ApiResponse(code = 404, message = "Scope/Stream not found",
+                        response = ScalingEventList.class),
+
+                @ApiResponse(code = 500, message = "Server error",
+                        response = ScalingEventList.class) })
+        void getScalingEvents(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                              @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
+                              @ApiParam(value = "Parameter to display scaling events from that particular datetime. " +
+                                      "Input should be milliseconds from Jan 1 1970.", required = true)
+                              @QueryParam("from") Long from,
+                              @ApiParam(value = "Parameter to display scaling events to that particular datetime. " +
+                                      "Input should be milliseconds from Jan 1 1970.", required = true)
+                              @QueryParam("to") Long to,
+                              @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
         @Path("/{scopeName}")
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(
                 value = "", notes = "Retrieve scope", response = ScopeProperty.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 200, message = "Successfully retrieved the scope", response = ScopeProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Scope not found", response = ScopeProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = ScopeProperty.class) })
         void getScope(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                       @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
@@ -155,46 +203,63 @@ public final class ApiV1 {
         @GET
         @Path("/{scopeName}/streams/{streamName}")
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(
                 value = "", notes = "Fetch the stream properties", response = StreamProperty.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 200, message = "Found stream configuration", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Scope or stream not found", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
         void getStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
+        @Path("/{scopeName}/readergroups")
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(value = "", notes = "List reader groups within the given scope",
+                response = ReaderGroupsList.class, tags = { "ReaderGroups", })
+        @ApiResponses(value = {
+                @ApiResponse(code = 200, message = "List of all reader groups configured for the given scope",
+                        response = ReaderGroupsList.class),
+
+                @ApiResponse(code = 404, message = "Scope not found", response = ReaderGroupsList.class),
+
+                @ApiResponse(code = 500,
+                        message = "Internal server error while fetching the list of reader groups for the given scope",
+                        response = ReaderGroupsList.class) })
+        void listReaderGroups(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
+                @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
+
+        @GET
+        @Produces({ "application/json" })
+        @ApiOperation(
                 value = "", notes = "List all scopes in the system", response = ScopesList.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 200, message = "List of scope objects", response = ScopesList.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = ScopesList.class) })
         void listScopes(@Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
 
         @GET
         @Path("/{scopeName}/streams")
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(
+        @ApiOperation(
                 value = "", notes = "List streams within the given scope", response = StreamsList.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 200, message = "List of stream objects", response = StreamsList.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Scope not found", response = StreamsList.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = StreamsList.class) })
         void listStreams(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                          @ApiParam(value = "Flag whether to display only system created streams")
@@ -205,17 +270,17 @@ public final class ApiV1 {
         @Path("/{scopeName}/streams/{streamName}")
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(value = "", notes = "", response = StreamProperty.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(
+        @ApiOperation(value = "", notes = "", response = StreamProperty.class, tags = {  })
+        @ApiResponses(value = {
+                @ApiResponse(
                         code = 200,
                         message = "Successfully updated the stream configuration",
                         response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 404, message = "Scope or stream not found", response = StreamProperty.class),
 
-                @io.swagger.annotations.ApiResponse(
+                @ApiResponse(
                         code = 500, message = "Server error", response = StreamProperty.class) })
         void updateStream(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
@@ -227,45 +292,21 @@ public final class ApiV1 {
         @Path("/{scopeName}/streams/{streamName}/state")
         @Consumes({ "application/json" })
         @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(value = "", notes = "Updates the current state of the stream",
+        @ApiOperation(value = "", notes = "Updates the current state of the stream",
                 response = StreamState.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 200, message = "Successfully updated the stream state",
+        @ApiResponses(value = {
+                @ApiResponse(code = 200, message = "Successfully updated the stream state",
                         response = StreamState.class),
 
-                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope or stream not found",
+                @ApiResponse(code = 404, message = "Scope or stream not found",
                         response = StreamState.class),
 
-                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error",
+                @ApiResponse(code = 500, message = "Server error",
                         response = StreamState.class) })
         void updateStreamState(
                 @ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
                 @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
                 @ApiParam(value = "The state info to be updated", required = true) StreamState updateStreamStateRequest,
                 @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
-
-        @GET
-        @Path("/{scopeName}/streams/{streamName}/scaling-events")
-        @Produces({ "application/json" })
-        @io.swagger.annotations.ApiOperation(value = "", notes = "Get scaling events for a given datetime period.",
-                response = ScalingEventList.class, tags = {  })
-        @io.swagger.annotations.ApiResponses(value = {
-                @io.swagger.annotations.ApiResponse(code = 200, message = "List of scaling events",
-                        response = ScalingEventList.class),
-
-                @io.swagger.annotations.ApiResponse(code = 404, message = "Scope/Stream not found",
-                        response = ScalingEventList.class),
-
-                @io.swagger.annotations.ApiResponse(code = 500, message = "Server error",
-                        response = ScalingEventList.class) })
-        void getScalingEvents(@ApiParam(value = "Scope name", required = true) @PathParam("scopeName") String scopeName,
-                              @ApiParam(value = "Stream name", required = true) @PathParam("streamName") String streamName,
-                              @ApiParam(value = "Parameter to display scaling events from that particular datetime. " +
-                "Input should be milliseconds from Jan 1 1970.", required = true)
-                              @QueryParam("from") Long from,
-                              @ApiParam(value = "Parameter to display scaling events to that particular datetime. " +
-                "Input should be milliseconds from Jan 1 1970.", required = true)
-                              @QueryParam("to") Long to,
-                              @Context SecurityContext securityContext, @Suspended final AsyncResponse asyncResponse);
     }
 }

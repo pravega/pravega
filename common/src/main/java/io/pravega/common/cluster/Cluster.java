@@ -36,25 +36,22 @@ public interface Cluster extends AutoCloseable {
      * Add Listeners.
      *
      * @param listener Cluster event listener.
-     * @throws Exception Error while adding ClusterListener.
      */
-    public void addListener(final ClusterListener listener) throws Exception;
+    public void addListener(final ClusterListener listener);
 
     /**
      * Add Listeners with an executor to run the listener on.
      *
      * @param listener Cluster event listener.
      * @param executor Executor to run listener on.
-     * @throws Exception Error while adding ClusterListener.
      */
-    public void addListener(final ClusterListener listener, final Executor executor) throws Exception;
+    public void addListener(final ClusterListener listener, final Executor executor);
 
     /**
      * Get the current cluster members.
      *
      * @return List of cluster members.
-     * @throws Exception Error while getting Cluster members.
      */
-    public Set<Host> getClusterMembers() throws Exception;
+    public Set<Host> getClusterMembers();
 
 }

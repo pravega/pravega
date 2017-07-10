@@ -10,11 +10,14 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.CircularBuffer;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -42,7 +45,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
-    private AsyncSegmentInputStream.ReadFuture outstandingRequest = null;
+    private CompletableFuture<SegmentRead> outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
         this(asyncInput, offset, DEFAULT_BUFFER_SIZE);
@@ -95,55 +98,60 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException {
         log.trace("Read called at offset {}", offset);
-        fillBuffer();
-        while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
-            if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
-                throw new EndOfSegmentException();
-            }
-            if (outstandingRequest.await(timeout)) {
-                handleRequest();
-            } else {
-                return null;
-            }
-        }
         long originalOffset = offset;
         boolean success = false;
         try {
-            headerReadingBuffer.clear();
-            offset += buffer.read(headerReadingBuffer);
-            headerReadingBuffer.flip();
-            int type = headerReadingBuffer.getInt();
-            int length = headerReadingBuffer.getInt();
-            if (type != WireCommandType.EVENT.getCode()) {
-                throw new InvalidMessageException("Event was of wrong type: " + type);
-            }
-            if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
-                throw new InvalidMessageException("Event of invalid length: " + length);
-            }
-            ByteBuffer result = ByteBuffer.allocate(length);
-            offset += buffer.read(result);
-            while (result.hasRemaining()) {
-                handleRequest();
-                offset += buffer.read(result);
-            }
+            ByteBuffer result = readEventData(timeout);
             success = true;
-            result.flip();
             return result;
         } finally {
             if (!success) {
+                outstandingRequest = null;
                 offset = originalOffset;
                 buffer.clear();
             }
         }
     }
 
+    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException {
+        fillBuffer();
+        while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
+            if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
+                throw new EndOfSegmentException();
+            }
+            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, RuntimeException::new, timeout) == null) {
+                return null;
+            }
+            handleRequest();
+        }
+        headerReadingBuffer.clear();
+        offset += buffer.read(headerReadingBuffer);
+        headerReadingBuffer.flip();
+        int type = headerReadingBuffer.getInt();
+        int length = headerReadingBuffer.getInt();
+        if (type != WireCommandType.EVENT.getCode()) {
+            throw new InvalidMessageException("Event was of wrong type: " + type);
+        }
+        if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
+            throw new InvalidMessageException("Event of invalid length: " + length);
+        }
+        ByteBuffer result = ByteBuffer.allocate(length);
+        offset += buffer.read(result);
+        while (result.hasRemaining()) {
+            handleRequest();
+            offset += buffer.read(result);
+        }
+        result.flip();
+        return result;
+    }
+
 
     private boolean dataWaitingToGoInBuffer() {
-        return outstandingRequest != null && outstandingRequest.isSuccess() && buffer.capacityAvailable() > 0;
+        return outstandingRequest != null && FutureHelpers.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
     }
 
     private void handleRequest() {
-        WireCommands.SegmentRead segmentRead = asyncInput.getResult(outstandingRequest);
+        WireCommands.SegmentRead segmentRead = outstandingRequest.join();
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
         }
@@ -185,8 +193,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public boolean canReadWithoutBlocking() {
-        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isSuccess()
-                && asyncInput.getResult(outstandingRequest).getData().hasRemaining());
+        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && FutureHelpers.isSuccessful(outstandingRequest)
+                && outstandingRequest.join().getData().hasRemaining());
         log.trace("canReadWithoutBlocking {}", result);
         return result;
     }

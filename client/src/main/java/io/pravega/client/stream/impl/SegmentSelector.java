@@ -13,6 +13,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.FutureHelpers;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class SegmentSelector {
     private StreamSegments currentSegments;
     @GuardedBy("$lock")
     private final Map<Segment, SegmentOutputStream> writers = new HashMap<>();
+    private final EventWriterConfig config;
 
     /**
      * Selects which segment an event should be written to.
@@ -135,7 +137,7 @@ public class SegmentSelector {
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack);
+                SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config);
                 writers.put(segment, out);
             }
         }

@@ -44,6 +44,7 @@ public class Main {
                 .namespace("pravega/" + Config.CLUSTER_NAME)
                 .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                 .maxRetries(Config.ZK_MAX_RETRIES)
+                .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);

@@ -17,7 +17,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
@@ -69,7 +68,6 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
 
-    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 6);
     @Getter
     private final String segmentName;
     private final Controller controller;
@@ -79,6 +77,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final Consumer<Segment> callBackForSealed;
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
+    private final RetryWithBackoff retrySchedule;
 
     /**
      * Internal object that tracks the state of the connection.
@@ -405,7 +404,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (state.isAlreadySealed()) {
             throw new SegmentSealedException(this.segmentName);
         }
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
+        return retrySchedule.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
             setupConnection();
             return state.waitForConnection();
         });
@@ -451,15 +450,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Synchronized
     public void flush() throws SegmentSealedException {
         if (!state.isInflightEmpty()) {
-            RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                          .throwingOn(SegmentSealedException.class)
-                          .run(() -> {
-                              ClientConnection connection = getConnection();
-                              connection.send(new KeepAlive());
-                              FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>
-                                  getThrowingException(state.getEmptyInflightFuture());
-                              return null;
-                          });
+            retrySchedule.retryingOn(ConnectionFailedException.class)
+                         .throwingOn(SegmentSealedException.class)
+                         .run(() -> {
+                             ClientConnection connection = getConnection();
+                             connection.send(new KeepAlive());
+                             FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>getThrowingException(state.getEmptyInflightFuture());
+                             return null;
+                         });
         }
     }
 

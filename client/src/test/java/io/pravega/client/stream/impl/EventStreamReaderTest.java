@@ -16,6 +16,7 @@ import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventRead;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -37,6 +38,7 @@ import static org.junit.Assert.fail;
 
 public class EventStreamReaderTest {
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private final EventWriterConfig writerConfig = EventWriterConfig.builder().build();
 
     @Test(timeout = 10000)
     public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReinitializationRequiredException {
@@ -54,7 +56,7 @@ public class EventStreamReaderTest {
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                .thenReturn(ImmutableMap.of(segment, 0L))
                .thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
         ByteBuffer buffer = writeInt(stream, 1);
         EventRead<byte[]> read = reader.readNextEvent(0);
         byte[] event = read.getEvent();
@@ -81,7 +83,7 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -109,8 +111,8 @@ public class EventStreamReaderTest {
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                .thenReturn(ImmutableMap.of(segment1, 0L, segment2, 0L))
                .thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback);
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback);
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig);
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig);
         writeInt(stream1, 1);
         writeInt(stream2, 2);
         reader.readNextEvent(0);
@@ -155,8 +157,8 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(segment1, 0L))
                .thenReturn(ImmutableMap.of(segment2, 0L))
                .thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback);
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback);
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig);
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig);
         writeInt(stream1, 1);
         writeInt(stream1, 2);
         writeInt(stream2, 3);
@@ -188,7 +190,7 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -219,7 +221,7 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -245,7 +247,7 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig);
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
         try {

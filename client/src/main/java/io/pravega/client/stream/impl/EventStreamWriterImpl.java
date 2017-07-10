@@ -90,7 +90,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.controller = controller;
         this.segmentSealedCallBack = this::handleLogSealed;
         this.outputStreamFactory = outputStreamFactory;
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory);
+        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
         this.serializer = serializer;
         this.config = config;
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
@@ -305,7 +305,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, segmentSealedCallBack);
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, segmentSealedCallBack, config);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -323,7 +323,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, segmentSealedCallBack);
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, segmentSealedCallBack, config);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

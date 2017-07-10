@@ -11,6 +11,7 @@ package io.pravega.controller.fault;
 
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.task.Stream.TxnSweeper;
@@ -68,7 +69,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     }
 
     @Override
-    protected void startUp() throws InterruptedException, Exception {
+    protected void startUp() throws InterruptedException {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
             log.info("Registering host {} with controller cluster", host);
@@ -120,7 +121,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                             .stream()
                             .map(Host::getHostId)
                             .collect(Collectors.toSet());
-                } catch (Exception e) {
+                } catch (ClusterException e) {
                     log.error("error fetching cluster members {}", e);
                     throw new CompletionException(e);
                 }
