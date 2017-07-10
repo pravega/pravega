@@ -10,9 +10,9 @@
 package io.pravega.segmentstore.server.store;
 
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -92,16 +93,18 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
-        // Register a Listener for the Container.Stop event.
-        AtomicInteger stopListenerCallback = new AtomicInteger();
-        handle.setContainerStoppedListener(stopListenerCallback::set);
+        // Register a Listener for the Container.Stop event. Make this a Future since these callbacks are invoked async
+        // so they may finish executing after stop() finished.
+        CompletableFuture<Integer> stopListenerCallback = new CompletableFuture<>();
+        handle.setContainerStoppedListener(stopListenerCallback::complete);
 
         TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
         Assert.assertFalse("Container is closed before being shut down.", container.isClosed());
 
         registry.stopContainer(handle, TIMEOUT).join();
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.",
+                containerId, (int) stopListenerCallback.join());
         Assert.assertTrue("Container is not closed after being shut down.", container.isClosed());
-        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
         AssertExtensions.assertThrows(
                 "Container is still registered after being shut down.",
                 () -> registry.getContainer(handle.getContainerId()),
@@ -141,20 +144,50 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         ContainerHandle handle = registry.startContainer(containerId, TIMEOUT).join();
 
-        // Register a Listener for the Container.Stop event.
-        AtomicInteger stopListenerCallback = new AtomicInteger();
-        handle.setContainerStoppedListener(stopListenerCallback::set);
+        // Register a Listener for the Container.Stop event. Make this a Future since these callbacks are invoked async
+        // so they may finish executing after stop() finished.
+        CompletableFuture<Integer> stopListenerCallback = new CompletableFuture<>();
+        handle.setContainerStoppedListener(stopListenerCallback::complete);
 
         TestContainer container = (TestContainer) registry.getContainer(handle.getContainerId());
 
         // Fail the container and wait for it to properly terminate.
         container.fail(new IntentionalException());
         ServiceListeners.awaitShutdown(container, false);
-        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
+        Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.",
+                containerId, (int) stopListenerCallback.join());
         AssertExtensions.assertThrows(
                 "Container is still registered after failure.",
                 () -> registry.getContainer(containerId),
                 ex -> ex instanceof ContainerNotFoundException);
+    }
+
+    /**
+     * Tests a scenario where a container startup is requested immediately after the shutdown of the same container or
+     * while that one is running.
+     */
+    @Test
+    public void testStartAlreadyRunning() throws Exception {
+        final int containerId = 1;
+        TestContainerFactory factory = new TestContainerFactory();
+        @Cleanup
+        StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
+
+        registry.startContainer(containerId, TIMEOUT).join();
+        TestContainer container1 = (TestContainer) registry.getContainer(containerId);
+
+        // While already running.
+        AssertExtensions.assertThrows("startContainer() did not throw for already registered container.",
+                () -> registry.startContainer(containerId, TIMEOUT),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // Immediately after a container fails - this should wait for any shutdown to occur and re-register it.
+        container1.fail(new IntentionalException());
+        registry.startContainer(containerId, TIMEOUT).join();
+        TestContainer container2 = (TestContainer) registry.getContainer(containerId);
+
+        Assert.assertEquals("Container1 was not shut down (with failure).", Service.State.FAILED, container1.state());
+        Assert.assertEquals("Container2 was not started properly.", Service.State.RUNNING, container2.state());
     }
 
     //region TestContainerFactory
@@ -184,11 +217,12 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         private final int id;
         private final Exception startException;
         private Exception stopException;
-        private boolean closed;
+        private final AtomicBoolean closed;
 
         TestContainer(int id, Exception startException) {
             this.id = id;
             this.startException = startException;
+            this.closed = new AtomicBoolean();
         }
 
         public void fail(Exception ex) {
@@ -197,7 +231,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         public boolean isClosed() {
-            return this.closed;
+            return this.closed.get();
         }
 
         @Override
@@ -207,28 +241,31 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public void close() {
-            if (!this.closed) {
+            if (!this.closed.getAndSet(true)) {
                 FutureHelpers.await(ServiceHelpers.stopAsync(this, ForkJoinPool.commonPool()));
-                this.closed = true;
             }
         }
 
         @Override
         protected void doStart() {
-            if (this.startException != null) {
-                notifyFailed(this.startException);
-            } else {
-                notifyStarted();
-            }
+            ForkJoinPool.commonPool().execute(() -> {
+                if (this.startException != null) {
+                    notifyFailed(this.startException);
+                } else {
+                    notifyStarted();
+                }
+            });
         }
 
         @Override
         protected void doStop() {
-            if (state() != State.FAILED && state() != State.TERMINATED && this.stopException != null) {
-                notifyFailed(this.stopException);
-            } else {
-                notifyStopped();
-            }
+            ForkJoinPool.commonPool().execute(() -> {
+                if (state() != State.FAILED && state() != State.TERMINATED && this.stopException != null) {
+                    notifyFailed(this.stopException);
+                } else {
+                    notifyStopped();
+                }
+            });
         }
 
         //region Unimplemented methods
