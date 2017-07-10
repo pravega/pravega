@@ -149,8 +149,8 @@ public class ControllerEventProcessorsTest {
                 hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, system, executor);
         processors.startAsync();
         processors.awaitRunning();
-        assertTrue(FutureHelpers.await(processors.handleOrphanedReaders(() -> Sets.newHashSet("host1"))));
-        assertTrue(FutureHelpers.await(processors.notifyProcessFailure("host1")));
+        assertTrue(FutureHelpers.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        assertTrue(FutureHelpers.await(processors.handleFailedProcess("host1")));
         processors.shutDown();
     }
 }

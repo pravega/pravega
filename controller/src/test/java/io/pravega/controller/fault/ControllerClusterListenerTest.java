@@ -40,7 +40,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -138,8 +137,7 @@ public class ControllerClusterListenerTest {
 
         // Create ControllerClusterListener.
         ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, Optional.of(txnSweeper), executor);
+                new ControllerClusterListener(host, clusterZK, executor, taskSweeper, txnSweeper);
         clusterListener.startAsync();
 
         clusterListener.awaitRunning();
@@ -175,13 +173,13 @@ public class ControllerClusterListenerTest {
         TaskSweeper taskSweeper = spy(new TaskSweeper(taskStore, host.getHostId(), executor,
                 new TestTasks(taskStore, executor, host.getHostId())));
 
-        when(taskSweeper.sweepOrphanedTasks(any(Supplier.class))).thenAnswer(invocation -> {
+        when(taskSweeper.sweepFailedProcesses(any(Supplier.class))).thenAnswer(invocation -> {
             if (!taskSweep.isDone()) {
                 taskSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
         });
-        when(taskSweeper.sweepOrphanedTasks(anyString())).thenAnswer(invocation -> {
+        when(taskSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
             if (!taskHostSweep1.isDone()) {
                 taskHostSweep1.complete(null);
             } else if (!taskHostSweep2.isDone()) {
@@ -203,13 +201,13 @@ public class ControllerClusterListenerTest {
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
 
         // when awaitRunning() --> wait on a latch
-        when(txnSweeper.sweepFailedHosts(any())).thenAnswer(invocation -> {
+        when(txnSweeper.sweepFailedProcesses(any())).thenAnswer(invocation -> {
             if (!txnSweep.isDone()) {
                 txnSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
         });
-        when(txnSweeper.sweepOrphanedTxns(anyString())).thenAnswer(invocation -> {
+        when(txnSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
             if (!txnHostSweep1.isDone()) {
                 txnHostSweep1.complete(null);
             } else if (!txnHostSweep2.isDone()) {
@@ -220,17 +218,16 @@ public class ControllerClusterListenerTest {
 
         // Create ControllerClusterListener.
         ControllerClusterListener clusterListener1 =
-                new ControllerClusterListener(host, clusterZK, Optional.empty(), //eventProcessors),
-                        taskSweeper, Optional.of(txnSweeper), executor);
+                new ControllerClusterListener(host, clusterZK, executor, taskSweeper, txnSweeper);
         clusterListener1.startAsync();
         clusterListener1.awaitRunning();
         assertTrue(FutureHelpers.await(taskSweep, 2000));
 
         // ensure only tasks are swept
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(any(Supplier.class));
-        verify(txnSweeper, times(0)).sweepFailedHosts(any());
-        verify(taskSweeper, times(0)).sweepOrphanedTasks(anyString());
-        verify(txnSweeper, times(0)).sweepOrphanedTxns(anyString());
+        verify(taskSweeper, times(1)).sweepFailedProcesses(any(Supplier.class));
+        verify(txnSweeper, times(0)).sweepFailedProcesses(any());
+        verify(taskSweeper, times(0)).handleFailedProcess(anyString());
+        verify(txnSweeper, times(0)).handleFailedProcess(anyString());
         validateAddedNode(host.getHostId());
 
         // now add and remove a new host
@@ -243,12 +240,12 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(taskHostSweep1, 1000));
 
         // verify that all tasks are not swept again.
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(any(Supplier.class));
+        verify(taskSweeper, times(1)).sweepFailedProcesses(any(Supplier.class));
         // verify that host specific sweep happens once.
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(anyString());
+        verify(taskSweeper, times(1)).handleFailedProcess(anyString());
         // verify that txns are not yet swept as txnsweeper is not yet ready.
-        verify(txnSweeper, times(0)).sweepFailedHosts(any());
-        verify(txnSweeper, times(0)).sweepOrphanedTxns(anyString());
+        verify(txnSweeper, times(0)).sweepFailedProcesses(any());
+        verify(txnSweeper, times(0)).handleFailedProcess(anyString());
 
         // now complete txn sweeper initialization by adding event writers.
         txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
@@ -258,8 +255,8 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(txnHostSweep1, 1000));
 
         // verify that post initialization txns are swept. And host specific txn sweep is also performed.
-        verify(txnSweeper, times(1)).sweepFailedHosts(any());
-        verify(txnSweeper, times(1)).sweepOrphanedTxns(anyString());
+        verify(txnSweeper, times(1)).sweepFailedProcesses(any());
+        verify(txnSweeper, times(1)).handleFailedProcess(anyString());
 
         // now add another host
         newHost = new Host(hostName, 20, "newHost2");
@@ -270,8 +267,8 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(taskHostSweep2, 1000));
         assertTrue(FutureHelpers.await(txnHostSweep2, 1000));
 
-        verify(taskSweeper, times(2)).sweepOrphanedTasks(anyString());
-        verify(txnSweeper, times(2)).sweepOrphanedTxns(anyString());
+        verify(taskSweeper, times(2)).handleFailedProcess(anyString());
+        verify(txnSweeper, times(2)).handleFailedProcess(anyString());
 
         clusterListener1.stopAsync();
         clusterListener1.awaitTerminated();

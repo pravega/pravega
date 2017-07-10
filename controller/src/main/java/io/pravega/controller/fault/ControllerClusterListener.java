@@ -9,14 +9,10 @@
  */
 package io.pravega.controller.fault;
 
-import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.task.Stream.TxnSweeper;
-import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.RetryHelper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -25,8 +21,9 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -52,37 +49,24 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final Host host;
     private final Cluster cluster;
     private final ScheduledExecutorService executor;
-    private final Optional<ControllerEventProcessors> eventProcessorsOpt;
-    private final TaskSweeper taskSweeper;
-    private final Optional<TxnSweeper> txnSweeperOpt;
-    private final PendingSweepQueue txnPendingQueue;
-    private final PendingSweepQueue eventProcPendingQueue;
+    private final Map<FailoverSweeper, PendingSweepQueue> failoverSweepers;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
-                                     final Optional<ControllerEventProcessors> eventProcessorsOpt,
-                                     final TaskSweeper taskSweeper,
-                                     final Optional<TxnSweeper> txnSweeperOpt,
-                                     final ScheduledExecutorService executor) {
+                                     final ScheduledExecutorService executor,
+                                     final FailoverSweeper... sweepers) {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
-        Preconditions.checkNotNull(eventProcessorsOpt, "eventProcessorsOpt");
-        Preconditions.checkNotNull(taskSweeper, "taskSweeper");
-        Preconditions.checkNotNull(txnSweeperOpt, "txnSweeperOpt");
 
         this.objectId = "ControllerClusterListener";
         this.host = host;
         this.cluster = cluster;
         this.executor = executor;
-        this.eventProcessorsOpt = eventProcessorsOpt;
-        this.taskSweeper = taskSweeper;
-        this.txnSweeperOpt = txnSweeperOpt;
-        this.txnPendingQueue = new PendingSweepQueue();
-        this.eventProcPendingQueue = new PendingSweepQueue();
+        failoverSweepers = Arrays.stream(sweepers).collect(Collectors.toMap(in -> in, in -> new PendingSweepQueue()));
     }
 
     @Override
-    protected void startUp() throws InterruptedException, Exception {
+    protected void startUp() throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
             log.info("Registering host {} with controller cluster", host);
@@ -98,7 +82,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                     case HOST_REMOVED:
                         log.info("Received controller cluster event: {} for host: {}", type, host);
-                        handleHostRemoved(host);
+                        handleFailedProcess(host);
                         break;
                     case ERROR:
                         // This event should be due to ZK connection errors. If it is session lost error then
@@ -122,9 +106,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             };
 
-            sweepEventProcessorReaders(processes);
-            sweepTransactions(processes);
-            sweepTasks(processes);
+            bootstrapSweep(processes);
 
             log.info("Controller cluster listener startUp complete");
         } finally {
@@ -132,69 +114,39 @@ public class ControllerClusterListener extends AbstractIdleService {
         }
     }
 
-    private void handleHostRemoved(Host host) {
-        taskSweeper.sweepOrphanedTasks(host.getHostId());
-
-        eventProcessorsOpt.ifPresent(controllerEventProcessors -> {
+    private void handleFailedProcess(Host host) {
+        FutureHelpers.allOf(failoverSweepers.entrySet().stream().map(entry -> {
             Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("handling host removed and reporting readers offline for host {}", host.getHostId());
-                return controllerEventProcessors.notifyProcessFailure(host.getHostId());
+                log.info("handling host removed", host.getHostId());
+                return entry.getKey().handleFailedProcess(host.getHostId());
             }, e -> log.warn(e.getMessage()), executor);
 
             // if queue is not sealed, then add to queue. Else process asynchronously
-            if (!eventProcPendingQueue.enqueue(futureSupplier)) {
-                futureSupplier.get();
+            if (!entry.getValue().enqueue(futureSupplier)) {
+                return futureSupplier.get();
+            } else {
+                CompletableFuture<Void> v = CompletableFuture.completedFuture(null);
+                return v;
             }
-        });
-
-        txnSweeperOpt.ifPresent(txnSweeper -> {
-            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("Sweeping orphaned transactions for host {}", host.getHostId());
-                return txnSweeper.sweepOrphanedTxns(host.getHostId());
-            }, e -> log.warn(e.getMessage()), executor);
-
-            // if queue is not sealed, then add to queue. Else process asynchronously
-            if (!txnPendingQueue.enqueue(futureSupplier)) {
-                futureSupplier.get();
-            }
-        });
+        }).collect(Collectors.toList()));
     }
 
-    private void sweepEventProcessorReaders(Supplier<Set<String>> processes) {
-        eventProcessorsOpt.ifPresent(eventProcessors -> {
+    private void bootstrapSweep(Supplier<Set<String>> processes) {
+        FutureHelpers.allOf(failoverSweepers.entrySet().stream().map(entry -> {
             // Await initialization of eventProcesorsOpt
-            RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("Awaiting controller event processors' start");
-                eventProcessors.awaitRunning();
+            return RetryHelper.withIndefiniteRetriesAsync(() -> {
+                try {
+                    entry.getKey().checkReady();
+                } catch (SweeperNotReadyException e) {
+                    throw new RuntimeException(e);
+                }
                 // Sweep orphaned tasks or readers at startup.
-                log.info("Sweeping orphaned readers at startup");
-                return eventProcessors.handleOrphanedReaders(processes);
+                return entry.getKey().sweepFailedProcesses(processes);
             }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
                     // drain pending queue and process
-                    FutureHelpers.allOf(eventProcPendingQueue.drainAndSeal()
+                    FutureHelpers.allOf(entry.getValue().drainAndSeal()
                             .stream().map(Supplier::get).collect(Collectors.toList())));
-        });
-    }
-
-    private void sweepTransactions(Supplier<Set<String>> processes) {
-        txnSweeperOpt.ifPresent(txnSweeper -> {
-            // Await initialization of transactionTasksOpt.
-            RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("Awaiting StreamTransactionMetadataTasks to get ready");
-                Exceptions.handleInterrupted(txnSweeper::awaitInitialization);
-                // Sweep orphaned transactions as startup.
-                log.info("Sweeping orphaned transactions");
-                return txnSweeper.sweepFailedHosts(processes);
-            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
-                    // drain pending queue and process
-                    FutureHelpers.allOf(txnPendingQueue.drainAndSeal()
-                            .stream().map(Supplier::get).collect(Collectors.toList())));
-        });
-    }
-
-    private void sweepTasks(Supplier<Set<String>> processes) {
-        RetryHelper.withIndefiniteRetriesAsync(() -> taskSweeper.sweepOrphanedTasks(processes),
-                e -> log.warn(e.getMessage()), executor);
+        }).collect(Collectors.toList()));
     }
 
     @Override

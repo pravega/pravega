@@ -10,6 +10,8 @@
 package io.pravega.controller.task;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.fault.FailoverSweeper;
+import io.pravega.controller.fault.SweeperNotReadyException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -25,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -34,7 +37,7 @@ import static io.pravega.controller.util.RetryHelper.withRetries;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class TaskSweeper {
+public class TaskSweeper implements FailoverSweeper {
 
     private final TaskMetadataStore taskMetadataStore;
     private final TaskBase[] taskClassObjects;
@@ -42,6 +45,7 @@ public class TaskSweeper {
     private final Map<String, TaskBase> objectMap = new HashMap<>();
     private final String hostId;
     private final ScheduledExecutorService executor;
+    private final AtomicBoolean running;
 
     @Data
     static class Result {
@@ -62,17 +66,27 @@ public class TaskSweeper {
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         this.taskClassObjects = classes;
+        this.running = new AtomicBoolean(true);
+
         initializeMappingTable();
     }
 
-    public CompletableFuture<Void> sweepOrphanedTasks(final Supplier<Set<String>> runningProcesses) {
+    @Override
+    public void checkReady() throws SweeperNotReadyException {
+        if (!running.get()) {
+            throw new SweeperNotReadyException("TaskSweeper");
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> runningProcesses) {
         return withRetriesAsync(taskMetadataStore::getHosts, RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor)
                 .thenComposeAsync(registeredHosts -> {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
                     registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return FutureHelpers.allOf(registeredHosts.stream()
-                            .map(this::sweepOrphanedTasks).collect(Collectors.toList()));
+                            .map(this::handleFailedProcess).collect(Collectors.toList()));
                 }, executor);
     }
 
@@ -84,7 +98,8 @@ public class TaskSweeper {
      * @param oldHostId old host id
      * @return A future that completes when sweeping completes
      */
-    public CompletableFuture<Void> sweepOrphanedTasks(final String oldHostId) {
+    @Override
+    public CompletableFuture<Void> handleFailedProcess(final String oldHostId) {
 
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return withRetriesAsync(() -> FutureHelpers.doWhileLoop(
