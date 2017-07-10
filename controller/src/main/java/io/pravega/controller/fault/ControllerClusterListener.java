@@ -20,19 +20,17 @@ import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.RetryHelper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -211,25 +209,25 @@ public class ControllerClusterListener extends AbstractIdleService {
 
     @VisibleForTesting
     static class PendingSweepQueue {
-        private final ConcurrentLinkedQueue<Supplier<CompletableFuture<Void>>> workQueue = new ConcurrentLinkedQueue<>();
-        private final AtomicBoolean isSealed = new AtomicBoolean(false);
+        private final List<Supplier<CompletableFuture<Void>>> workQueue = new LinkedList<>();
+        private boolean isSealed = false;
 
         @Synchronized
         @VisibleForTesting
         boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
-            if (!isSealed.get()) {
+            if (!isSealed) {
                 workQueue.add(futureSupplier);
             }
-            return !isSealed.get();
+            return !isSealed;
         }
 
         @Synchronized
         @VisibleForTesting
         List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
-            Preconditions.checkState(!isSealed.get());
-            isSealed.set(true);
+            Preconditions.checkState(!isSealed);
+            isSealed = true;
 
-            return Lists.newArrayList(workQueue);
+            return workQueue;
         }
     }
 }
