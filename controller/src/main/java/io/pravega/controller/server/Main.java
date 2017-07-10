@@ -45,7 +45,6 @@ public class Main {
                 .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                 .maxRetries(Config.ZK_MAX_RETRIES)
                 .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
-                .connectionTimeoutMs(Config.ZK_CONNECTION_TIMEOUT_MS)
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);

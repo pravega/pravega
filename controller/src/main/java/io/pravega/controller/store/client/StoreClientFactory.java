@@ -57,7 +57,6 @@ public class StoreClientFactory {
                 .retryPolicy(new ExponentialBackoffRetry(zkClientConfig.getInitialSleepInterval(),
                         zkClientConfig.getMaxRetries()))
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
-                .connectionTimeoutMs(zkClientConfig.getConnectionTimeoutMs())
                 .build();
         zkClient.start();
         return zkClient;

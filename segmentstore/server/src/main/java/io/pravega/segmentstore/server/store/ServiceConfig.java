@@ -35,7 +35,6 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 30000);
-    public static final Property<Integer> ZK_CONNECTION_TIMEOUT_MS = Property.named("zkConnectionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
                                                         "INMEMORY");
@@ -117,15 +116,6 @@ public class ServiceConfig {
     @Getter
     private final int zkSessionTimeoutMs;
 
-
-    /**
-     * The Connection timeout for Zookeeper.
-     */
-    @Getter
-    private final int zkConnectionTimeoutMs;
-
-
-
     /**
      * The retry count for a failed Zookeeper connection.
      */
@@ -183,7 +173,6 @@ public class ServiceConfig {
         this.zkRetrySleepMs = properties.getInt(ZK_RETRY_SLEEP_MS);
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
-        this.zkConnectionTimeoutMs = properties.getInt(ZK_CONNECTION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
     }

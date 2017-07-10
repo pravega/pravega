@@ -46,7 +46,6 @@ public class ZKControllerServiceStarterTest extends ControllerServiceStarterTest
                 .maxRetries(10)
                 .namespace("pravega/" + UUID.randomUUID())
                 .sessionTimeoutMs(60 * 1000)
-                .connectionTimeoutMs(10 * 1000)
                 .build();
         storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
         storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
