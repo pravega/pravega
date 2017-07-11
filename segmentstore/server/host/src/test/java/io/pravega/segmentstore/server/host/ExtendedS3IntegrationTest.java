@@ -40,6 +40,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
     private static final int BOOKIE_COUNT = 3;
+    private String endpoint;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;
     private AclMap aclMap = new AclMap();
@@ -51,7 +52,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     public void setUp() throws Exception {
         bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
         bookkeeper.initialize();
-        String endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
+        endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
         URI uri = URI.create(endpoint);
         baseDir = Files.createTempDirectory("extendeds3_wrapper").toString();
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
@@ -114,7 +115,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
 
         @Override
         public Storage createStorageAdapter() {
-            URI uri = URI.create("http://localhost:9020");
+            URI uri = URI.create(endpoint);
             S3Config s3Config = new S3Config(uri);
 
             s3Config = s3Config.withIdentity(config.getAccessKey()).withSecretKey(config.getSecretKey())

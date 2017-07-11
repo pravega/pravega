@@ -28,7 +28,6 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.impl.extendeds3.AclSize;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
@@ -45,8 +44,8 @@ import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import lombok.SneakyThrows;
 import lombok.Synchronized;
+import org.eclipse.jetty.http.HttpStatus;
 
 /**
  * Client wrapper for S3JerseyClient. It uses local filesystem to implement extended S3 JAVA client APIs.
@@ -79,7 +78,7 @@ class S3ClientWrapper extends S3JerseyClient {
             Files.createDirectories(path.getParent());
             Files.createFile(path);
         } catch (IOException e) {
-            throw new S3Exception(e.getMessage(), 0);
+            throw new S3Exception(e.getMessage(), 0, e);
         }
         PutObjectResult retVal = new PutObjectResult();
         if (request.getAcl() != null) {
@@ -94,7 +93,6 @@ class S3ClientWrapper extends S3JerseyClient {
 
     @Synchronized
     @Override
-    @SneakyThrows(BadOffsetException.class)
     public void putObject(String bucketName, String key, Range range, Object content) {
 
         Path path = Paths.get(this.baseDir, bucketName, key);
@@ -112,7 +110,7 @@ class S3ClientWrapper extends S3JerseyClient {
             AclSize aclKey = aclMap.getAclSizeForObject(key);
             aclMap.updateObject(key, aclKey.withSize(range.getLast() + 1));
         } catch (IOException e) {
-            throw new BadOffsetException(key, 0, 0);
+            throw new S3Exception("NoObject", 404, "NoSuchKey", key);
         }
     }
 
@@ -121,7 +119,7 @@ class S3ClientWrapper extends S3JerseyClient {
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
         AclSize retVal = aclMap.getAclSizeForObject(key);
         if (retVal == null) {
-            throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+            throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
         }
         aclMap.updateObject(key, retVal.withAcl(acl));
     }
@@ -131,7 +129,7 @@ class S3ClientWrapper extends S3JerseyClient {
     public void setObjectAcl(SetObjectAclRequest request) {
         AclSize retVal = aclMap.getAclSizeForObject(request.getKey());
         if (retVal == null) {
-            throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
+            throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", request.getKey());
         }
         aclMap.updateObject(request.getKey(), retVal.withAcl(request.getAcl()));
     }
@@ -141,7 +139,7 @@ class S3ClientWrapper extends S3JerseyClient {
     public AccessControlList getObjectAcl(String bucketName, String key) {
         AclSize retVal = aclMap.getAclSizeForObject(key);
         if (retVal == null) {
-            throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+            throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
         }
         return retVal.getAcl();
     }
@@ -152,7 +150,7 @@ class S3ClientWrapper extends S3JerseyClient {
         try {
             Files.delete(path);
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
         aclMap.deleteObject(key);
     }
@@ -166,22 +164,24 @@ class S3ClientWrapper extends S3JerseyClient {
             if (Files.exists(path)) {
                 if (Files.isDirectory(path)) {
                     Files.list(path).forEach((file) -> {
-                        S3Object object = new S3Object();
-                        object.setKey(file.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
-                        list.add(object);
+                        addFileAsObjectToList(file, list, bucketName);
                     });
                 } else {
-                    S3Object object = new S3Object();
-                    object.setKey(path.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
-                    list.add(object);
-
+                    addFileAsObjectToList(path, list, bucketName);
                 }
             }
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
         result.setObjects(list);
         return result;
+    }
+
+    //Adds a single file to the list as an object.
+    private void addFileAsObjectToList(Path path, ArrayList<S3Object> list, String bucketName) {
+        S3Object object = new S3Object();
+        object.setKey(path.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
+        list.add(object);
     }
 
     @Override
@@ -189,7 +189,7 @@ class S3ClientWrapper extends S3JerseyClient {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         AclSize data = aclMap.getAclSizeForObject(key);
         if (data == null) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
         metadata.setContentLength(data.getSize());
         Path path = Paths.get(this.baseDir, bucketName, key);
@@ -213,7 +213,7 @@ class S3ClientWrapper extends S3JerseyClient {
             StreamHelpers.readAll(returnStream, bytes, 0, bytes.length);
             return new ByteArrayInputStream(bytes);
         } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
     }
 
@@ -227,7 +227,7 @@ class S3ClientWrapper extends S3JerseyClient {
     public CopyPartResult copyPart(CopyPartRequest request) {
         Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
         if (partMap == null) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
         partMap.put(request.getPartNumber(), request);
         CopyPartResult result = new CopyPartResult();
@@ -241,7 +241,7 @@ class S3ClientWrapper extends S3JerseyClient {
     public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
         Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
         if (partMap == null) {
-            throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
+            throw new S3Exception("NoSuchKey", HttpStatus.NOT_FOUND_404, "NoSuchKey", "");
         }
         try {
             partMap.forEach((index, copyPart) -> {

@@ -57,7 +57,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * This implementation works under the assumption that data is only appended and never modified.
  * Each block of data has an initial offset assigned to it. The data and the initial offset is stored in DurableLog.
- * In case of retries, Pravega always writes the same data to the same offset. * As a result the only flow when a write
+ * In case of retries, Pravega always writes the same data to the same offset. As a result the only flow when a write
  * call is made to the same offset twice is when ownership of the segment changes from one host to another and both
  * the hosts are writing to it.
  *
@@ -218,7 +218,7 @@ public class ExtendedS3Storage implements Storage {
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
-            return length;
+            return bytesRead;
         }
     }
 

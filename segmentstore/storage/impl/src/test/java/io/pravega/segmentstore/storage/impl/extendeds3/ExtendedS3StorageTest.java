@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jetty.http.HttpStatus;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
 import org.jclouds.ContextBuilder;
@@ -157,19 +158,19 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public PutObjectResult putObject(PutObjectRequest request) {
             S3ObjectMetadata metadata = request.getObjectMetadata();
 
-           if ( request.getObjectMetadata() != null ) {
-            request.setObjectMetadata(null);
-           }
+            if (request.getObjectMetadata() != null) {
+                request.setObjectMetadata(null);
+            }
             PutObjectResult retVal = super.putObject(request);
-           if (request.getAcl() != null) {
-               long size = 0;
-               if (request.getRange() != null) {
-                   size = request.getRange().getLast() -1;
-               }
-               aclMap.put(request.getKey(), new AclSize(request.getAcl(),
-                       size));
-           }
-           return retVal;
+            if (request.getAcl() != null) {
+                long size = 0;
+                if (request.getRange() != null) {
+                    size = request.getRange().getLast() - 1;
+                }
+                aclMap.put(request.getKey(), new AclSize(request.getAcl(),
+                        size));
+            }
+            return retVal;
         }
 
         @Synchronized
@@ -177,23 +178,23 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public void putObject(String bucketName, String key, Range range, Object content) {
             byte[] totalByes = new byte[Math.toIntExact(range.getLast() + 1)];
             try {
-                if ( range.getFirst() != 0 ) {
+                if (range.getFirst() != 0) {
                     int bytesRead = getObject(bucketName, key).getObject().read(totalByes, 0,
                             Math.toIntExact(range.getFirst()));
-                    if ( bytesRead != range.getFirst() ) {
+                    if (bytesRead != range.getFirst()) {
                         throw new IllegalStateException("Unable to read from the object " + key);
                     }
                 }
-                int bytesRead = ( (InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
+                int bytesRead = ((InputStream) content).read(totalByes, Math.toIntExact(range.getFirst()),
                         Math.toIntExact(range.getLast() + 1 - range.getFirst()));
 
-                if ( bytesRead != range.getLast() + 1 - range.getFirst()) {
+                if (bytesRead != range.getLast() + 1 - range.getFirst()) {
                     throw new IllegalStateException("Not able to read from input stream.");
                 }
-                super.putObject( new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
-                aclMap.put( key, aclMap.get(key).withSize(range.getLast() -1));
+                super.putObject(new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
+                aclMap.put(key, aclMap.get(key).withSize(range.getLast() - 1));
             } catch (IOException e) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
             }
         }
 
@@ -201,8 +202,8 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         @Override
         public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
             AclSize retVal = aclMap.get(key);
-            if ( retVal == null ) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+            if (retVal == null) {
+                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
             }
             aclMap.put(key, retVal.withAcl(acl));
         }
@@ -212,7 +213,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public void setObjectAcl(SetObjectAclRequest request) {
             AclSize retVal = aclMap.get(request.getKey());
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", request.getKey());
             }
             aclMap.put(request.getKey(), retVal.withAcl(request.getAcl()));
         }
@@ -221,14 +222,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public AccessControlList getObjectAcl(String bucketName, String key) {
             AclSize retVal = aclMap.get(key);
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
             }
             return retVal.getAcl();
         }
 
         public CopyPartResult copyPart(CopyPartRequest request) {
             if ( aclMap.get(request.getKey()) == null ) {
-                throw new S3Exception("NoObject", 404, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", request.getKey());
             }
 
             Range range = request.getSourceRange();
