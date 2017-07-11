@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -31,9 +32,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -46,6 +48,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     /**
      * Tests the getContainer method for registered and unregistered containers.
@@ -164,7 +171,8 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
     /**
      * Tests a scenario where a container startup is requested immediately after the shutdown of the same container or
-     * while that one is running.
+     * while that one is running. This tests both the case when a container auto-shuts down due to failure and when it
+     * is shut down in a controlled manner.
      */
     @Test
     public void testStartAlreadyRunning() throws Exception {
@@ -176,23 +184,41 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         registry.startContainer(containerId, TIMEOUT).join();
         TestContainer container1 = (TestContainer) registry.getContainer(containerId);
 
-        // While already running.
+        // 1. While running.
         AssertExtensions.assertThrows("startContainer() did not throw for already registered container.",
                 () -> registry.startContainer(containerId, TIMEOUT),
                 ex -> ex instanceof IllegalArgumentException);
 
-        // Immediately after a container fails - this should wait for any shutdown to occur and re-register it.
+        // 2. After a container fails - while shutting down.
+        container1.stopSignal = new ReusableLatch(); // Manually control when the Container actually shuts down.
         container1.fail(new IntentionalException());
-        registry.startContainer(containerId, TIMEOUT).join();
+        val startContainer2 = registry.startContainer(containerId, TIMEOUT);
+        Assert.assertFalse("startContainer() completed before previous container shut down (with failure).", startContainer2.isDone());
+
+        container1.stopSignal.release();
+        startContainer2.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         TestContainer container2 = (TestContainer) registry.getContainer(containerId);
 
         Assert.assertEquals("Container1 was not shut down (with failure).", Service.State.FAILED, container1.state());
         Assert.assertEquals("Container2 was not started properly.", Service.State.RUNNING, container2.state());
+
+        // 3. After a controlled shutdown - while shutting down.
+        container2.stopSignal = new ReusableLatch(); // Manually control when the Container actually shuts down.
+        container2.stopAsync();
+        val startContainer3 = registry.startContainer(containerId, TIMEOUT);
+        Assert.assertFalse("startContainer() completed before previous container shut down (normally).", startContainer3.isDone());
+
+        container2.stopSignal.release();
+        startContainer3.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        TestContainer container3 = (TestContainer) registry.getContainer(containerId);
+
+        Assert.assertEquals("Container2 was not shut down (normally).", Service.State.TERMINATED, container2.state());
+        Assert.assertEquals("Container3 was not started properly.", Service.State.RUNNING, container3.state());
     }
 
     //region TestContainerFactory
 
-    private static class TestContainerFactory implements SegmentContainerFactory {
+    private class TestContainerFactory implements SegmentContainerFactory {
         private final Exception startException;
 
         TestContainerFactory() {
@@ -213,11 +239,12 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
     //region TestContainer
 
-    private static class TestContainer extends AbstractService implements SegmentContainer {
+    private class TestContainer extends AbstractService implements SegmentContainer {
         private final int id;
         private final Exception startException;
         private Exception stopException;
         private final AtomicBoolean closed;
+        private ReusableLatch stopSignal;
 
         TestContainer(int id, Exception startException) {
             this.id = id;
@@ -242,13 +269,13 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, ForkJoinPool.commonPool()));
+                FutureHelpers.await(ServiceHelpers.stopAsync(this, executorService()));
             }
         }
 
         @Override
         protected void doStart() {
-            ForkJoinPool.commonPool().execute(() -> {
+            executorService().execute(() -> {
                 if (this.startException != null) {
                     notifyFailed(this.startException);
                 } else {
@@ -259,7 +286,13 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         protected void doStop() {
-            ForkJoinPool.commonPool().execute(() -> {
+            executorService().execute(() -> {
+                ReusableLatch signal = this.stopSignal;
+                if (signal != null) {
+                    // Wait until we are told to stop.
+                    signal.awaitUninterruptibly();
+                }
+
                 if (state() != State.FAILED && state() != State.TERMINATED && this.stopException != null) {
                     notifyFailed(this.stopException);
                 } else {
