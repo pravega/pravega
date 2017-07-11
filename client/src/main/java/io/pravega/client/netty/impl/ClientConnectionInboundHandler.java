@@ -114,10 +114,14 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void sendAsync(WireCommand cmd) {
+    public void sendAsync(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
         Channel channel = getChannel();
-        channel.writeAndFlush(cmd, channel.voidPromise());
+        try {
+            channel.writeAndFlush(cmd, channel.voidPromise());
+        } catch (RuntimeException e) {
+            throw new ConnectionFailedException(e);
+        }
     }
     
     @Override

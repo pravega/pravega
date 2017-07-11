@@ -14,7 +14,7 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ConfigurationException;
@@ -1037,9 +1037,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
-        ServiceShutdownListener.awaitShutdown(container1, shutdownTimeout, false);
+        ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
-        Assert.assertTrue("Container1 did not fail with the correct exception.", container1.failureCause() instanceof DataLogWriterNotPrimaryException);
+        Assert.assertTrue("Container1 did not fail with the correct exception.",
+                ExceptionHelpers.getRealException(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -1059,7 +1060,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container.startAsync();
 
         // Wait for the container to be shut down and verify it is failed.
-        ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
+        ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
 
         Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
@@ -1070,7 +1071,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
-        ServiceShutdownListener.awaitShutdown(log.get(), shutdownTimeout, true);
+        ServiceListeners.awaitShutdown(log.get(), shutdownTimeout, true);
     }
 
     /**

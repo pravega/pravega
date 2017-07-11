@@ -11,7 +11,8 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.junit.Assert;
@@ -147,7 +149,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         // Fail the container and wait for it to properly terminate.
         container.fail(new IntentionalException());
-        ServiceShutdownListener.awaitShutdown(container, false);
+        ServiceListeners.awaitShutdown(container, false);
         Assert.assertEquals("Unexpected value passed to Handle.stopListenerCallback or callback was not invoked.", containerId, stopListenerCallback.get());
         AssertExtensions.assertThrows(
                 "Container is still registered after failure.",
@@ -206,8 +208,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         @Override
         public void close() {
             if (!this.closed) {
-                stopAsync();
-                ServiceShutdownListener.awaitShutdown(this, false);
+                FutureHelpers.await(ServiceHelpers.stopAsync(this, ForkJoinPool.commonPool()));
                 this.closed = true;
             }
         }

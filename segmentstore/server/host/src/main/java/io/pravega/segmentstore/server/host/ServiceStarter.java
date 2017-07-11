@@ -198,6 +198,7 @@ public final class ServiceStarter {
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
+                .sessionTimeoutMs(this.serviceConfig.getZkSessionTimeoutMs())
                 .build();
         zkClient.start();
         return zkClient;

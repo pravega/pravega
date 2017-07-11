@@ -56,6 +56,7 @@ public class StoreClientFactory {
                 .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(new ExponentialBackoffRetry(zkClientConfig.getInitialSleepInterval(),
                         zkClientConfig.getMaxRetries()))
+                .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
                 .build();
         zkClient.start();
         return zkClient;

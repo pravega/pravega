@@ -10,6 +10,7 @@
 package io.pravega.controller.fault;
 
 import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
@@ -184,7 +185,7 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
             Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
                     pravegaServiceCluster.getClusterMembers());
             hostStore.updateHostContainersMap(newMapping);
-        } catch (Exception e) {
+        } catch (ClusterException e) {
             throw new IOException(e);
         }
     }

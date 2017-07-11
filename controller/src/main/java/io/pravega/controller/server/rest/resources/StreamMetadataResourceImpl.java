@@ -9,17 +9,27 @@
  */
 package io.pravega.controller.server.rest.resources;
 
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.server.rest.ModelHelper;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
+import io.pravega.controller.server.rest.generated.model.ReaderGroupsListReaderGroups;
 import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.shared.NameUtils;
+import io.pravega.controller.server.rest.ModelHelper;
 import io.pravega.controller.server.rest.v1.ApiV1;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -39,8 +49,10 @@ import javax.ws.rs.core.SecurityContext;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.shared.NameUtils.INTERNAL_NAME_PREFIX;
+import static io.pravega.shared.NameUtils.READER_GROUP_STREAM_PREFIX;
 
 /**
  * Stream metadata resource implementation.
@@ -211,6 +223,38 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         .thenAccept(x -> LoggerHelpers.traceLeave(log, "deleteStream", traceId));
     }
 
+    @Override
+    public void getReaderGroup(final String scopeName, final String readerGroupName,
+                               final SecurityContext securityContext, final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "getReaderGroup");
+
+        LocalController controller = new LocalController(controllerService);
+        ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, controller,
+                new ClientFactoryImpl(scopeName, controller), new ConnectionFactoryImpl(false));
+        ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();
+        readerGroupProperty.setScopeName(scopeName);
+        readerGroupProperty.setReaderGroupName(readerGroupName);
+        CompletableFuture.supplyAsync(() -> {
+            ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
+            readerGroupProperty.setOnlineReaderIds(
+                    new ArrayList<>(readerGroup.getOnlineReaders()));
+            readerGroupProperty.setStreamList(
+                    new ArrayList<>(readerGroup.getStreamNames()));
+            return Response.status(Status.OK).entity(readerGroupProperty).build();
+        }, controllerService.getExecutor()).exceptionally(exception -> {
+            log.warn("getReaderGroup for {} failed with exception: ", readerGroupName, exception);
+            if (exception.getCause() instanceof InvalidStreamException) {
+                return Response.status(Status.NOT_FOUND).build();
+            } else {
+                return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+            }
+        }).thenAccept(response -> {
+            asyncResponse.resume(response);
+            readerGroupManager.close();
+            LoggerHelpers.traceLeave(log, "getReaderGroup", traceId);
+        });
+    }
+
     /**
      * Implementation of getScope REST API.
      *
@@ -267,6 +311,41 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     }
                 }).thenApply(asyncResponse::resume)
                 .thenAccept(x ->  LoggerHelpers.traceLeave(log, "getStream", traceId));
+    }
+
+    @Override
+    public void listReaderGroups(final String scopeName, final SecurityContext securityContext,
+                                 final AsyncResponse asyncResponse) {
+        long traceId = LoggerHelpers.traceEnter(log, "listReaderGroups");
+
+        // Each reader group is represented by a stream within the mentioned scope.
+        controllerService.listStreamsInScope(scopeName)
+                .thenApply(streamsList -> {
+                    ReaderGroupsList readerGroups = new ReaderGroupsList();
+                    streamsList.forEach(stream -> {
+                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
+                        // is fixed.
+                        if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX) &&
+                                readerGroups.getReaderGroups().size() < 200) {
+                            ReaderGroupsListReaderGroups readerGroup = new ReaderGroupsListReaderGroups();
+                            readerGroup.setReaderGroupName(stream.getStreamName().substring(
+                                    READER_GROUP_STREAM_PREFIX.length()));
+                            readerGroups.addReaderGroupsItem(readerGroup);
+                        }
+                    });
+                    log.info("Successfully fetched readerGroups for scope: {}", scopeName);
+                    return Response.status(Status.OK).entity(readerGroups).build();
+                }).exceptionally(exception -> {
+                    if (exception.getCause() instanceof StoreException.DataNotFoundException
+                            || exception instanceof StoreException.DataNotFoundException) {
+                        log.warn("Scope name: {} not found", scopeName);
+                        return Response.status(Status.NOT_FOUND).build();
+                    } else {
+                        log.warn("listReaderGroups for {} failed with exception: ", scopeName, exception);
+                        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                    }
+                }).thenApply(asyncResponse::resume)
+                .thenAccept(x -> LoggerHelpers.traceLeave(log, "listReaderGroups", traceId));
     }
 
     /**
@@ -443,11 +522,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 ScaleMetadata scaleMetadata = metadataIterator.next();
                 if (scaleMetadata.getTimestamp() >= from && scaleMetadata.getTimestamp() <= to) {
                     finalScaleMetadataList.add(scaleMetadata);
-                } else if (scaleMetadata.getTimestamp() < from) {
+                } else if ((scaleMetadata.getTimestamp() < from) &&
+                            !(referenceEvent != null && referenceEvent.getTimestamp() > scaleMetadata.getTimestamp())) {
                     // This check is required to store a reference event i.e. an event before the 'from' datetime
                     referenceEvent = scaleMetadata;
-                } else {
-                    break;
                 }
             }
 

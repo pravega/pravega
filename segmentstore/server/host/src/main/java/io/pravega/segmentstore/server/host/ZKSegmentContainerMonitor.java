@@ -157,34 +157,40 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
      */
     @Synchronized
     private void checkAssignment() {
-        Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "checkAssignment");
+        try {
+            Exceptions.checkNotClosed(closed.get(), this);
 
-        // Fetch the list of containers that is supposed to be owned by this host.
-        Set<Integer> desiredList = getDesiredContainerList();
-        if (desiredList != null) {
-            Collection<Integer> runningContainers = new HashSet<>(this.handles.keySet());
-            Collection<Integer> containersPendingTasks = new HashSet<>(this.pendingTasks);
+            // Fetch the list of containers that is supposed to be owned by this host.
+            Set<Integer> desiredList = getDesiredContainerList();
+            if (desiredList != null) {
+                Collection<Integer> runningContainers = new HashSet<>(this.handles.keySet());
+                Collection<Integer> containersPendingTasks = new HashSet<>(this.pendingTasks);
 
-            // Filter out containers which have pending tasks so we don't initiate conflicting events on the same
-            // containers. Events for these containers will be tried on subsequent runs of this executor.
-            Collection<Integer> containersToBeStarted = CollectionHelpers.filterOut(desiredList, runningContainers);
-            containersToBeStarted = CollectionHelpers.filterOut(containersToBeStarted, containersPendingTasks);
+                // Filter out containers which have pending tasks so we don't initiate conflicting events on the same
+                // containers. Events for these containers will be tried on subsequent runs of this executor.
+                Collection<Integer> containersToBeStarted = CollectionHelpers.filterOut(desiredList, runningContainers);
+                containersToBeStarted = CollectionHelpers.filterOut(containersToBeStarted, containersPendingTasks);
 
-            Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredList);
-            containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
+                Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredList);
+                containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
 
-            log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
-                    desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
-                    containersToBeStopped);
+                log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
+                        desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
+                        containersToBeStopped);
 
-            // Initiate the start and stop tasks asynchronously.
-            containersToBeStarted.forEach(this::startContainer);
-            containersToBeStopped.forEach(this::stopContainer);
-        } else {
-            log.warn("No segment container assignments found");
+                // Initiate the start and stop tasks asynchronously.
+                containersToBeStarted.forEach(this::startContainer);
+                containersToBeStopped.forEach(this::stopContainer);
+            } else {
+                log.warn("No segment container assignments found");
+            }
+        } catch (Throwable e) {
+            // Need to catch all exceptions here since throwing any exception here will halt this scheduled job.
+            log.warn("Failed to monitor the segmentcontainer assignment: ", e);
+        } finally {
+            LoggerHelpers.traceLeave(log, "checkAssignment", traceId);
         }
-        LoggerHelpers.traceLeave(log, "checkAssignment", traceId);
     }
 
     // Stop the container given its id.
@@ -196,51 +202,63 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             return null;
         } else {
             this.pendingTasks.add(containerId);
-            return registry
-                    .stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
-                    .whenComplete((aVoid, throwable) -> {
-                        if (throwable != null) {
-                            log.warn("Stopping container {} failed: {}", containerId, throwable);
-                        }
-                        try {
-                            // We remove the handle and don't attempt retry on stop container failures.
-                            unregisterHandle(containerId);
-                        } finally {
-                            // The pending task has to be removed after the handle is removed to avoid inconsistencies
-                            // with the container state.
-                            // Using finally block to ensure this is always called, otherwise this will prevent other
-                            // tasks from being attempted for this container id.
-                            this.pendingTasks.remove(containerId);
-                        }
-                    });
+            try {
+                return registry
+                        .stopContainer(handle, CLOSE_TIMEOUT_PER_CONTAINER)
+                        .whenComplete((aVoid, throwable) -> {
+                            if (throwable != null) {
+                                log.warn("Stopping container {} failed: {}", containerId, throwable);
+                            }
+                            try {
+                                // We remove the handle and don't attempt retry on stop container failures.
+                                unregisterHandle(containerId);
+                            } finally {
+                                // The pending task has to be removed after the handle is removed to avoid inconsistencies
+                                // with the container state.
+                                // Using finally block to ensure this is always called, otherwise this will prevent other
+                                // tasks from being attempted for this container id.
+                                this.pendingTasks.remove(containerId);
+                            }
+                        });
+            } catch (Throwable e) {
+                // The pending task has to be removed on all failures to enable retries.
+                this.pendingTasks.remove(containerId);
+                throw e;
+            }
         }
     }
 
     private CompletableFuture<ContainerHandle> startContainer(int containerId) {
         log.info("Starting Container {}.", containerId);
         this.pendingTasks.add(containerId);
-        return this.registry
-                .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
-                .whenComplete((handle, ex) -> {
-                    try {
-                        if (ex == null) {
-                            if (this.handles.putIfAbsent(handle.getContainerId(), handle) != null) {
-                                log.warn("Starting container {} succeeded but handle is already registered.",
-                                        handle.getContainerId());
+        try {
+            return this.registry
+                    .startContainer(containerId, INIT_TIMEOUT_PER_CONTAINER)
+                    .whenComplete((handle, ex) -> {
+                        try {
+                            if (ex == null) {
+                                if (this.handles.putIfAbsent(handle.getContainerId(), handle) != null) {
+                                    log.warn("Starting container {} succeeded but handle is already registered.",
+                                            handle.getContainerId());
+                                } else {
+                                    handle.setContainerStoppedListener(this::unregisterHandle);
+                                    log.info("Container {} has been registered.", handle.getContainerId());
+                                }
                             } else {
-                                handle.setContainerStoppedListener(this::unregisterHandle);
-                                log.info("Container {} has been registered.", handle.getContainerId());
+                                log.warn("Starting container {} failed: {}", containerId, ex);
                             }
-                        } else {
-                            log.warn("Starting container {} failed: {}", containerId, ex);
+                        } finally {
+                            // The pending task has to be removed in the end to avoid inconsistencies since containerhandle
+                            // should be available immediately after the task is complete.
+                            // Also need to ensure this is always called, hence doing this in a finally block.
+                            this.pendingTasks.remove(containerId);
                         }
-                    } finally {
-                        // The pending task has to be removed in the end to avoid inconsistencies since containerhandle
-                        // should be available immediately after the task is complete.
-                        // Also need to ensure this is always called, hence doing this in a finally block.
-                        this.pendingTasks.remove(containerId);
-                    }
-                });
+                    });
+        } catch (Throwable e) {
+            // The pending task has to be removed on all failures to enable retries.
+            this.pendingTasks.remove(containerId);
+            throw e;
+        }
     }
 
     private void unregisterHandle(int containerId) {

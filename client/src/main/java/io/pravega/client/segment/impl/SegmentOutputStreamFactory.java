@@ -9,7 +9,9 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.stream.EventWriterConfig;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Creates {@link SegmentOutputStream} for segments and transactions.
@@ -21,9 +23,11 @@ public interface SegmentOutputStreamFactory {
      *
      * @param segment The segment the transaction belongs to.
      * @param txId    The transaction id.
+     * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
+     * @param config  The configuration for the writer
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback, EventWriterConfig config);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -33,7 +37,9 @@ public interface SegmentOutputStreamFactory {
      * in the same process space).
      *
      * @param segment The segment.
+     * @param config  The configuration for the writer
+     * @param segmentSealedCallback Method to be executed on receiving SegmentSealed from SSS.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config);
 }

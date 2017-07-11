@@ -11,15 +11,13 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -126,9 +124,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
-
+            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
             this.durableLog.close();
@@ -146,20 +142,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
-        this.durableLog.startAsync();
-        ExecutorServiceHelpers.execute(() -> {
-            this.durableLog.awaitRunning();
-            this.storage.initialize(this.metadata.getContainerEpoch());
-
-            // DurableLog is running. Now start all other components that depend on it.
-            this.metadataCleaner.startAsync();
-            this.writer.startAsync();
-            this.writer.awaitRunning();
-            this.metadataCleaner.awaitRunning();
-            log.info("{}: Started.", this.traceObjectId);
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-            notifyStarted();
-        }, this::doStop, Runnables.doNothing(), this.executor);
+        ServiceHelpers.startAsync(this.durableLog, this.executor)
+                .thenRunAsync(() -> this.storage.initialize(this.metadata.getContainerEpoch()), this.executor)
+                .thenCompose(v -> CompletableFuture.allOf(
+                        ServiceHelpers.startAsync(this.metadataCleaner, this.executor),
+                        ServiceHelpers.startAsync(this.writer, this.executor)))
+                .thenRun(() -> {
+                    log.info("{}: Started.", this.traceObjectId);
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+                    notifyStarted();
+                })
+                .exceptionally(ex -> {
+                    doStop(ex);
+                    return null;
+                });
     }
 
     @Override
@@ -179,32 +175,34 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private void doStop(Throwable cause) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
-        this.metadataCleaner.stopAsync();
-        this.writer.stopAsync();
-        this.durableLog.stopAsync();
-        ExecutorServiceHelpers.execute(() -> {
-            ServiceShutdownListener.awaitShutdown(this.metadataCleaner, false);
-            ServiceShutdownListener.awaitShutdown(this.writer, false);
-            ServiceShutdownListener.awaitShutdown(this.durableLog, false);
-            Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
-            if (failureCause == null) {
-                failureCause = cause;
-            } else if (cause != null && failureCause != cause) {
-                failureCause.addSuppressed(cause);
-            }
+        CompletableFuture.allOf(
+                ServiceHelpers.stopAsync(this.metadataCleaner, this.executor),
+                ServiceHelpers.stopAsync(this.writer, this.executor),
+                ServiceHelpers.stopAsync(this.durableLog, this.executor))
+                .whenCompleteAsync((r, ex) -> {
+                    Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
+                    if (failureCause == null) {
+                        failureCause = cause;
+                    } else if (cause != null && failureCause != cause) {
+                        failureCause.addSuppressed(cause);
+                    }
 
-            if (failureCause == null) {
-                // Normal shutdown
-                log.info("{}: Stopped.", this.traceObjectId);
-                LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-                notifyStopped();
-            } else {
-                // Shutting down due to failure.
-                log.warn("{}: Failed due to component failure.", this.traceObjectId);
-                LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-                notifyFailed(failureCause);
-            }
-        }, this::notifyFailed, Runnables.doNothing(), this.executor);
+                    if (failureCause == null) {
+                        // Normal shutdown
+                        log.info("{}: Stopped.", this.traceObjectId);
+                        LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                        notifyStopped();
+                    } else {
+                        // Shutting down due to failure.
+                        log.warn("{}: Failed due to component failure.", this.traceObjectId);
+                        LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                        notifyFailed(failureCause);
+                    }
+                }, this.executor)
+                .exceptionally(ex -> {
+                    notifyFailed(ex);
+                    return null;
+                });
     }
 
     private Throwable getFailureCause(Service... services) {
@@ -464,7 +462,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 stopAsync();
             }
         };
-        component.addListener(new ServiceShutdownListener(stoppedHandler, failedHandler), this.executor);
+        ServiceHelpers.onStop(component, stoppedHandler, failedHandler, this.executor);
     }
 
     //endregion

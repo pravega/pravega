@@ -44,6 +44,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
                 .initialSleepInterval(500)
                 .maxRetries(10)
+                .sessionTimeoutMs(30 * 1000)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
         storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);

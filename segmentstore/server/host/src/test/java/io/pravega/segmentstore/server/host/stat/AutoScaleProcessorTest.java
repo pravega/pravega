@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
@@ -112,12 +111,12 @@ public class AutoScaleProcessorTest {
     private EventStreamWriter<AutoScaleEvent> createWriter(Consumer<AutoScaleEvent> consumer) {
         return new EventStreamWriter<AutoScaleEvent>() {
             @Override
-            public AckFuture writeEvent(AutoScaleEvent event) {
+            public CompletableFuture<Void> writeEvent(AutoScaleEvent event) {
                 return null;
             }
 
             @Override
-            public AckFuture writeEvent(String routingKey, AutoScaleEvent event) {
+            public CompletableFuture<Void> writeEvent(String routingKey, AutoScaleEvent event) {
                 consumer.accept(event);
                 return null;
             }

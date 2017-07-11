@@ -12,14 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -46,8 +44,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -111,7 +109,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
-        this.operationProcessor.addListener(new ServiceShutdownListener(this::queueStoppedHandler, this::queueFailedHandler), this.executor);
+        ServiceHelpers.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
     }
@@ -128,8 +126,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            stopAsync();
-            ServiceShutdownListener.awaitShutdown(this, false);
+            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
 
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
@@ -147,59 +144,56 @@ public class DurableLog extends AbstractService implements OperationLog {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
-        this.executor.execute(() -> {
-            try {
-                boolean anyItemsRecovered = performRecovery();
-                this.operationProcessor.startAsync().awaitRunning();
-                if (!anyItemsRecovered) {
-                    // If the DurableLog is empty, need to queue a MetadataCheckpointOperation so we have a valid starting state (and wait for it).
-                    queueMetadataCheckpoint().get(RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                }
-            } catch (Exception ex) {
-                if (this.operationProcessor.isRunning()) {
-                    // Make sure we stop the operation processor if we started it.
-                    this.operationProcessor.stopAsync();
-                }
+        // Initiate recovery.
+        CompletableFuture.supplyAsync(this::performRecovery, this.executor)
+                .thenCompose(anyItemsRecovered -> ServiceHelpers.startAsync(this.operationProcessor, this.executor)
+                        .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
+                .thenRunAsync(() -> {
+                    // If we got here, all is good. We were able to start successfully.
+                    log.info("{}: Started.", this.traceObjectId);
+                    notifyStarted();
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    if (this.operationProcessor.isRunning()) {
+                        // Make sure we stop the operation processor if we started it.
+                        this.operationProcessor.stopAsync();
+                    }
 
-                notifyFailed(ExceptionHelpers.getRealException(ex));
-                return;
-            }
-
-            // If we got here, all is good. We were able to start successfully.
-            log.info("{}: Started.", this.traceObjectId);
-            notifyStarted();
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
-        });
+                    notifyFailed(ExceptionHelpers.getRealException(ex));
+                    return null;
+                });
     }
 
     @Override
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
-        this.operationProcessor.stopAsync();
+        ServiceHelpers.stopAsync(this.operationProcessor, this.executor)
+                .whenCompleteAsync((r, ex) -> {
+                    cancelTailReads();
 
-        ExecutorServiceHelpers.execute(() -> {
-            ServiceShutdownListener.awaitShutdown(this.operationProcessor, false);
+                    this.durableDataLog.close();
+                    Throwable cause = this.stopException.get();
+                    if (cause == null && this.operationProcessor.state() == State.FAILED) {
+                        cause = this.operationProcessor.failureCause();
+                    }
 
-            cancelTailReads();
+                    if (cause == null) {
+                        // Normal shutdown.
+                        notifyStopped();
+                    } else {
+                        // Shutdown caused by some failure.
+                        notifyFailed(cause);
+                    }
 
-            this.durableDataLog.close();
-            Throwable cause = this.stopException.get();
-            if (cause == null && this.operationProcessor.state() == State.FAILED) {
-                cause = this.operationProcessor.failureCause();
-            }
-
-            if (cause == null) {
-                // Normal shutdown.
-                notifyStopped();
-            } else {
-                // Shutdown caused by some failure.
-                notifyFailed(cause);
-            }
-
-            log.info("{}: Stopped.", this.traceObjectId);
-            LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
-        }, this::notifyFailed, Runnables.doNothing(), this.executor);
+                    log.info("{}: Stopped.", this.traceObjectId);
+                    LoggerHelpers.traceLeave(log, traceObjectId, "doStop", traceId);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    notifyFailed(ex);
+                    return null;
+                });
     }
 
     //endregion
@@ -309,7 +303,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     //region Recovery
 
-    private boolean performRecovery() throws Exception {
+    private boolean performRecovery() {
         // Make sure we are in the correct state. We do not want to do recovery while we are in full swing.
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
@@ -329,18 +323,21 @@ public class DurableLog extends AbstractService implements OperationLog {
         boolean successfulRecovery = false;
         boolean anyItemsRecovered;
         try {
-            this.durableDataLog.initialize(timer.getRemaining());
-            anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
-            this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-            log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
-            successfulRecovery = true;
+            try {
+                this.durableDataLog.initialize(timer.getRemaining());
+                anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+                this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
+                successfulRecovery = true;
+            } finally {
+                // We must exit recovery mode when done, regardless of outcome.
+                this.metadata.exitRecoveryMode();
+                this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
+            }
         } catch (Exception ex) {
+            // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
             log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
-            throw ex;
-        } finally {
-            // We must exit recovery mode when done, regardless of outcome.
-            this.metadata.exitRecoveryMode();
-            this.memoryStateUpdater.exitRecoveryMode(successfulRecovery);
+            throw new CompletionException(ex);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
