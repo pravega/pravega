@@ -157,6 +157,9 @@ public class ControllerImplLBTest {
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));
 
+        // Verify no RPC requests fail due to the failed servers.
+        Assert.assertTrue(verifyNoFailures(controllerClient));
+
         // Bring down another one and verify.
         testRPCServer2.shutdownNow();
         testRPCServer2.awaitTermination();
@@ -164,6 +167,9 @@ public class ControllerImplLBTest {
         uris = fetchFromServers(controllerClient, 1);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
+
+        // Verify no RPC requests fail due to the failed servers.
+        Assert.assertTrue(verifyNoFailures(controllerClient));
 
         // Bring down all and verify.
         testRPCServer3.shutdownNow();
@@ -218,6 +224,9 @@ public class ControllerImplLBTest {
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));
 
+        // Verify no RPC requests fail due to the failed servers.
+        Assert.assertTrue(verifyNoFailures(controllerClient));
+
         // Bring down another one and verify.
         testRPCServer2.shutdownNow();
         testRPCServer2.awaitTermination();
@@ -226,6 +235,9 @@ public class ControllerImplLBTest {
         uris = fetchFromServers(controllerClient, 1);
         Assert.assertEquals(1, uris.size());
         Assert.assertTrue(uris.contains(new PravegaNodeUri("localhost3", 3)));
+
+        // Verify no RPC requests fail due to the failed servers.
+        Assert.assertTrue(verifyNoFailures(controllerClient));
 
         // Bring down all and verify.
         testRPCServer3.shutdownNow();
@@ -252,5 +264,16 @@ public class ControllerImplLBTest {
             Exceptions.handleInterrupted(() -> Thread.sleep(10));
         }
         return uris;
+    }
+
+    private boolean verifyNoFailures(ControllerImpl client) {
+        for (int i = 0; i < 100; i++) {
+            try {
+                client.getEndpointForSegment("a/b/0").get();
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
     }
 }
