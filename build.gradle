@@ -184,6 +184,7 @@ project('segmentstore:storage:impl') {
         //For Extended S3
         compile "com.emc.ecs:object-client:3.0.0"
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
+        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -231,6 +232,7 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
+        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {

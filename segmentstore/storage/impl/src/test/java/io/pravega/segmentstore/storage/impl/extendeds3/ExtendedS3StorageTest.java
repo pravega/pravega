@@ -43,7 +43,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.eclipse.jetty.http.HttpStatus;
+import org.apache.commons.httpclient.HttpStatus;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
 import org.jclouds.ContextBuilder;
@@ -194,7 +194,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                 super.putObject(new PutObjectRequest(bucketName, key, (Object) new ByteArrayInputStream(totalByes)));
                 aclMap.put(key, aclMap.get(key).withSize(range.getLast() - 1));
             } catch (IOException e) {
-                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
             }
         }
 
@@ -203,7 +203,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
             AclSize retVal = aclMap.get(key);
             if (retVal == null) {
-                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
             }
             aclMap.put(key, retVal.withAcl(acl));
         }
@@ -213,7 +213,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public void setObjectAcl(SetObjectAclRequest request) {
             AclSize retVal = aclMap.get(request.getKey());
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
             }
             aclMap.put(request.getKey(), retVal.withAcl(request.getAcl()));
         }
@@ -222,14 +222,14 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         public AccessControlList getObjectAcl(String bucketName, String key) {
             AclSize retVal = aclMap.get(key);
             if ( retVal == null ) {
-                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", key);
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
             }
             return retVal.getAcl();
         }
 
         public CopyPartResult copyPart(CopyPartRequest request) {
             if ( aclMap.get(request.getKey()) == null ) {
-                throw new S3Exception("NoObject", HttpStatus.NOT_FOUND_404, "NoSuchKey", request.getKey());
+                throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
             }
 
             Range range = request.getSourceRange();
