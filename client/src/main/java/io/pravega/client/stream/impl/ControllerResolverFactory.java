@@ -106,19 +106,19 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         private ScheduledExecutorService scheduledExecutor = null;
 
         // The supplied gRPC listener using which we need to update the controller server list.
-        @GuardedBy("this")
+        @GuardedBy("$lock")
         private Listener resolverUpdater = null;
 
         // The controller RPC client required for calling the discovery API.
-        @GuardedBy("this")
+        @GuardedBy("$lock")
         private ControllerServiceGrpc.ControllerServiceBlockingStub client = null;
 
         // The scheduledFuture for the discovery task to track future schedules.
-        @GuardedBy("this")
+        @GuardedBy("$lock")
         private ScheduledFuture<?> scheduledFuture = null;
 
         // The last update time, useful to decide when to trigger the next retry on failures.
-        @GuardedBy("this")
+        @GuardedBy("$lock")
         private long lastUpdateTimeMS = 0;
 
         /**
@@ -131,7 +131,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
                                       final boolean enableDiscovery) {
             this.authority = authority;
-            this.bootstrapServers = bootstrapServers;
+            this.bootstrapServers = new ArrayList<>(bootstrapServers);
             this.enableDiscovery = enableDiscovery;
         }
 
@@ -143,53 +143,60 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         @Override
         @Synchronized
         public void start(Listener listener) {
-            Preconditions.checkState(!started.get());
-            this.resolverUpdater = listener;
-            if (this.enableDiscovery) {
-                // We will use the direct scheme to send the discovery RPC request to the controller bootstrap servers.
-                String connectString = "tcp://";
-                final List<String> strings = this.bootstrapServers.stream()
-                        .map(server -> server.getHostString() + ":" + server.getPort())
-                        .collect(Collectors.toList());
-                connectString = connectString + String.join(",", strings);
+            Preconditions.checkState(!started.get(), "ControllerNameResolver has already been started");
+            try {
+                this.resolverUpdater = listener;
+                if (this.enableDiscovery) {
+                    // We will use the direct scheme to send the discovery RPC request to the controller bootstrap
+                    // servers.
+                    String connectString = "tcp://";
+                    final List<String> strings = this.bootstrapServers.stream()
+                            .map(server -> server.getHostString() + ":" + server.getPort())
+                            .collect(Collectors.toList());
+                    connectString = connectString + String.join(",", strings);
 
-                this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
-                        .forTarget(connectString)
-                        .nameResolverFactory(new ControllerResolverFactory())
-                        .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                        .usePlaintext(true)
-                        .build());
-            } else {
-                // If the servers comprise only of IP addresses then we only need to update the controller list once.
-                if (this.bootstrapServers.stream().allMatch(
-                        inetSocketAddress -> InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
-                    final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
-                            .addAll(this.bootstrapServers.stream()
-                                    .map(address -> new ResolvedServerInfo(
-                                            new InetSocketAddress(address.getHostString(), address.getPort())))
-                                    .collect(Collectors.toList()))
-                            .build();
-                    log.info("Updating client with controllers: {}", serverInfoGroup);
-                    this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
-                    started.set(true);
-                    return;
+                    this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
+                            .forTarget(connectString)
+                            .nameResolverFactory(new ControllerResolverFactory())
+                            .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                            .usePlaintext(true)
+                            .build());
+                } else {
+                    // If the servers comprise only of IP addresses then we only need to update the controller list
+                    // once.
+                    if (this.bootstrapServers.stream().allMatch(
+                            inetSocketAddress -> InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
+                        final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
+                                .addAll(this.bootstrapServers.stream()
+                                        .map(address -> new ResolvedServerInfo(
+                                                new InetSocketAddress(address.getHostString(), address.getPort())))
+                                        .collect(Collectors.toList()))
+                                .build();
+                        log.info("Updating client with controllers: {}", serverInfoGroup);
+                        this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+                        return;
+                    }
+                    // Else case is for controllers with DNS hostnames, which needs to be resolved periodically.
                 }
-                // else case is for controllers with DNS hostnames, which needs to be resolved periodically.
-            }
 
-            // Schedule the first discovery immediately.
-            this.scheduledExecutor = Executors.newScheduledThreadPool(1,
-                    new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
-            this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
-            started.set(true);
+                // Schedule the first discovery immediately.
+                this.scheduledExecutor = Executors.newScheduledThreadPool(1,
+                        new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
+                this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
+            } finally {
+                // Always setting the state to true, we don't support restart here even if start attempt fails.
+                started.set(true);
+            }
         }
 
         // This API should not be under a lock as this is already thread safe and we don't want to block the shutdown.
         @Override
         public void shutdown() {
-            Preconditions.checkState(started.compareAndSet(true, false));
+            Preconditions.checkState(started.compareAndSet(true, false),
+                    "ControllerNameResolver cannot be shutdown as it hasn't been started yet");
             if (this.scheduledExecutor != null) {
                 this.scheduledExecutor.shutdownNow();
+                this.scheduledExecutor = null;
             }
         }
 
@@ -203,7 +210,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 if (this.scheduledFuture != null && !this.scheduledFuture.isDone()) {
                     final long nextUpdateDuration = this.scheduledFuture.getDelay(TimeUnit.MILLISECONDS);
                     final long lastUpdateDuration = System.currentTimeMillis() - this.lastUpdateTimeMS;
-                    if (nextUpdateDuration > 0 && (nextUpdateDuration + lastUpdateDuration) > FAILURE_RETRY_TIMEOUT_MS) {
+                    if (nextUpdateDuration > 0
+                            && (nextUpdateDuration + lastUpdateDuration) > FAILURE_RETRY_TIMEOUT_MS) {
                         // Cancel the existing schedule and advance the discovery process.
                         this.scheduledFuture.cancel(true);
 
