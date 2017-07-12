@@ -59,12 +59,6 @@ abstract class AbstractFailoverTests {
     static final int ADD_NUM_WRITERS = 6;
     static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
     final String readerName = "reader";
-    List<CompletableFuture<Void>> writerFutureList;
-    List<CompletableFuture<Void>> newWritersFutureList;
-    List<CompletableFuture<Void>> readerFutureList;
-    List<EventStreamWriter<Long>> newlyAddedWriterList;
-    List<EventStreamWriter<Long>> writerList;
-    List<EventStreamReader<Long>> readerList;
     Service controllerInstance;
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
@@ -83,6 +77,9 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
+        final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
+        final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
+        final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
     }
 
     void performFailoverTest() throws InterruptedException {
@@ -169,6 +166,7 @@ abstract class AbstractFailoverTests {
                     testState.getWriteException.set(e);
                 }
             }
+            writer.close();
         }, executorService);
     }
 
@@ -198,6 +196,7 @@ abstract class AbstractFailoverTests {
                     testState.getReadException.set(e);
                 }
             }
+            reader.close();
         }, executorService);
     }
 
@@ -227,18 +226,20 @@ abstract class AbstractFailoverTests {
     void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
-        writerList = new ArrayList<>(writers);
+        List<EventStreamWriter<Long>> writerList = new ArrayList<>(writers);
+        List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
         log.info("Writers writing in the scope {}", scope);
         CompletableFuture.runAsync(() -> {
-                    for (int i = 0; i < writers; i++) {
-                        log.info("Starting writer{}", i);
-                        final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                                new JavaSerializer<Long>(),
-                                EventWriterConfig.builder().retryAttempts(10).build());
-                        writerList.add(tmpWriter);
-                        writerFutureList.add(startWriting(tmpWriter));
-                    }
-                });
+            for (int i = 0; i < writers; i++) {
+                log.info("Starting writer{}", i);
+                final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                        new JavaSerializer<Long>(),
+                        EventWriterConfig.builder().retryAttempts(10).build());
+                writerList.add(tmpWriter);
+                writerFutureList.add(startWriting(tmpWriter));
+            }
+        });
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersComplete);
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
@@ -251,7 +252,8 @@ abstract class AbstractFailoverTests {
                         .getReaderGroup(readerGroupName).getScope(), readerGroupManager
                         .getReaderGroup(readerGroupName).getOnlineReaders());
         log.info("Creating {} readers", readers);
-        readerList = new ArrayList<>(readers);
+        List<EventStreamReader<Long>> readerList = new ArrayList<>(readers);
+        List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
         log.info("Scope that is seen by readers {}", scope);
 
         CompletableFuture.runAsync(() -> {
@@ -265,6 +267,26 @@ abstract class AbstractFailoverTests {
                 readerFutureList.add(startReading(reader));
             }
         });
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
+    }
+
+    void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+        log.info("Client factory details {}", clientFactory.toString());
+        log.info("Creating {} writers", writers);
+        List<EventStreamWriter<Long>> newlyAddedWriterList = new ArrayList<>();
+        List<CompletableFuture<Void>> newWritersFutureList = new ArrayList<>();
+        log.info("Writers writing in the scope {}", scope);
+        CompletableFuture.runAsync(() -> {
+            for (int i = 0; i < writers; i++) {
+                log.info("Starting writer{}", i);
+                final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                        new JavaSerializer<Long>(),
+                        EventWriterConfig.builder().retryAttempts(10).build());
+                newlyAddedWriterList.add(tmpWriter);
+                newWritersFutureList.add(startWriting(tmpWriter));
+            }
+        });
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.newWritersComplete);
     }
 
     void stopReadersAndWriters(ReaderGroupManager readerGroupManager, String readerGroupName) throws InterruptedException, ExecutionException {
@@ -273,8 +295,8 @@ abstract class AbstractFailoverTests {
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        FutureHelpers.allOf(writerFutureList).get();
-        FutureHelpers.allOf(newWritersFutureList).get();
+        testState.writersComplete.get();
+        testState.newWritersComplete.get();
         if (testState.getWriteException.get() != null) {
             Assert.fail("Unable to write events. Test failure");
         }
@@ -283,7 +305,7 @@ abstract class AbstractFailoverTests {
         testState.stopReadFlag.set(true);
 
         log.info("Wait for readers execution to complete");
-        FutureHelpers.allOf(readerFutureList).get();
+        testState.readersComplete.get();
         if (testState.getReadException.get() != null) {
             Assert.fail("Unable to read events. Test failure");
         }
@@ -292,33 +314,10 @@ abstract class AbstractFailoverTests {
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
-
-        log.info("Closing writers");
-        writerList.forEach(writer -> writer.close());
-        newlyAddedWriterList.forEach(writer -> writer.close());
-        log.info("Closing readers");
-        readerList.forEach(reader -> reader.close());
         log.info("Deleting readergroup {}", readerGroupName);
         readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 
-
-    List<CompletableFuture<Void>> addNewWriters(String scope, ClientFactory clientFactory) {
-        //increase the number of writers to trigger scale
-        newlyAddedWriterList = new ArrayList<>(ADD_NUM_WRITERS);
-        log.info("Writers writing in the scope {}", scope);
-        CompletableFuture.runAsync(() -> {
-            for (int i = 0; i < ADD_NUM_WRITERS; i++) {
-                log.info("Starting writer{}", i);
-                final EventStreamWriter<Long> newTmpWriter = clientFactory.createEventWriter(STREAM,
-                        new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
-                newlyAddedWriterList.add(newTmpWriter);
-                newWritersFutureList.add(startWriting(newTmpWriter));
-            }
-        });
-        return newWritersFutureList;
-    }
 
     static URI startZookeeperInstance() {
         Service zkService = new ZookeeperService("zookeeper");

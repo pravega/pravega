@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -122,7 +123,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             segmentStoreInstance.scaleService(3, true);
             Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
 
-            addNewWriters(scope, clientFactory);
+            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, STREAM);
 
             //run the failover test while scaling
             performFailoverTest();
@@ -145,24 +146,21 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {
-        controller.getCurrentSegments(scope, STREAM_NAME)
-                .thenAccept(x -> {
-                    for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
-                         testState.currentNumOfSegments.set(x.getSegments().size());
-                        if (testState.currentNumOfSegments.get() == 2) {
-                            log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
-                            //Scaling operation did not happen, wait
-                            Exceptions.handleInterrupted(() -> Thread.sleep(60000));
-                            throw new AbstractFailoverTests.ScaleOperationNotDoneException();
-                        }
-                        if (testState.currentNumOfSegments.get() > 2) {
-                            //scale operation successful.
-                            log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
-                            break;
-                        }
-                    }
-                }).get();
-
+        StreamSegments streamSegments = controller.getCurrentSegments(scope, STREAM_NAME).get();
+        for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
+            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
+            if (testState.currentNumOfSegments.get() == 2) {
+                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
+                //Scaling operation did not happen, wait
+                Exceptions.handleInterrupted(() -> Thread.sleep(60000));
+                throw new AbstractFailoverTests.ScaleOperationNotDoneException();
+            }
+            if (testState.currentNumOfSegments.get() > 2) {
+                //scale operation successful.
+                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+                break;
+            }
+        }
         if (testState.currentNumOfSegments.get() == 2) {
             Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
         }

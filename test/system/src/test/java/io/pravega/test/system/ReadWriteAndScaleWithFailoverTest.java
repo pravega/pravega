@@ -110,8 +110,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createWriters(clientFactory, NUM_WRITERS, scope, STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM, NUM_READERS);
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
             //run the failover test before scaling
             performFailoverTest();
