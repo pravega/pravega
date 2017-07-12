@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.filesystem;
+package io.pravega.segmentstore.storage.impl;
 
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -26,7 +26,7 @@ import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
- * Unit tests for FileSystemStorage.
+ * Common Unit tests for FileSystemStorage and ExtendedS3Storage.
  */
 public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
