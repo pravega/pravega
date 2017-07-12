@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
@@ -130,7 +131,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
                                final boolean enableDiscovery) {
             this.authority = authority;
-            this.bootstrapServers = new ArrayList<>(bootstrapServers);
+            this.bootstrapServers = ImmutableList.copyOf(bootstrapServers);
             this.enableDiscovery = enableDiscovery;
             if (this.enableDiscovery) {
                 // We will use the direct scheme to send the discovery RPC request to the controller bootstrap servers.
