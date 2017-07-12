@@ -288,7 +288,10 @@ public class ExtendedS3Storage implements Storage {
         });
         request.setAcl(acl);
 
-        //TODO: As described above, this should be replaced with setIfNoneMatch("*") once the issue with extended S3 API is fixed.
+        /* TODO: As described above, this should be replaced with setIfNoneMatch("*") once the issue with extended S3 API is fixed.
+
+         * See: https://github.com/pravega/pravega/issues/1564
+         */
         request.setIfUnmodifiedSince(creationTime);
         client.putObject(request);
 
