@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.filesystem;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
 import org.junit.After;
 import org.junit.Before;
 
