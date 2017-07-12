@@ -284,16 +284,19 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 nextScheduleTimeMS = FAILURE_RETRY_TIMEOUT_MS;
             } finally {
                 // We avoid all blocking calls under a lock.
-                synchronized (this.$lock) {
-                    if (!shutdown) {
-                        log.debug("Resheduling ControllerNameResolver task for after {} ms", nextScheduleTimeMS);
-                        this.scheduledFuture = this.scheduledExecutor.schedule(
-                                this::getControllers, nextScheduleTimeMS, TimeUnit.MILLISECONDS);
+                updateSchedule(nextScheduleTimeMS);
+            }
+        }
 
-                        // Record the last discovery time.
-                        this.lastUpdateTimeMS = System.currentTimeMillis();
-                    }
-                }
+        @Synchronized
+        private void updateSchedule(final long nextScheduleTimeMS) {
+            if (!shutdown) {
+                log.info("Rescheduling ControllerNameResolver task for after {} ms", nextScheduleTimeMS);
+                this.scheduledFuture = this.scheduledExecutor.schedule(
+                        this::getControllers, nextScheduleTimeMS, TimeUnit.MILLISECONDS);
+
+                // Record the last discovery time.
+                this.lastUpdateTimeMS = System.currentTimeMillis();
             }
         }
     }
