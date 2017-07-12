@@ -38,7 +38,6 @@ public class TxnSweeper {
     private final StreamTransactionMetadataTasks transactionMetadataTasks;
     private final long maxTxnTimeoutMillis;
     private final ScheduledExecutorService executor;
-    private final AtomicBoolean ready;
 
     @Data
     private static class Result {
@@ -60,16 +59,14 @@ public class TxnSweeper {
         this.transactionMetadataTasks = transactionMetadataTasks;
         this.maxTxnTimeoutMillis = maxTxnTimeoutMillis;
         this.executor = executor;
-        this.ready = new AtomicBoolean(false);
     }
 
-    public boolean isRunning() {
-        return ready.get();
+    public boolean isReady() {
+        return transactionMetadataTasks.isReady();
     }
 
     public void awaitInitialization() throws InterruptedException {
         transactionMetadataTasks.awaitInitialization();
-        ready.set(true);
     }
 
     public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {

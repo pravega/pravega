@@ -146,7 +146,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
         txnSweeperOpt.ifPresent(txnSweeper -> {
             RetryHelper.withIndefiniteRetriesAsync(() -> {
-                if(txnSweeper.isRunning()) {
+                if(txnSweeper.isReady()) {
                     log.info("Sweeping orphaned transactions for host {}", host.getHostId());
                     return txnSweeper.sweepOrphanedTxns(host.getHostId());
                 } else {
