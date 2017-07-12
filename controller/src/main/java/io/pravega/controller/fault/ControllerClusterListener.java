@@ -13,19 +13,14 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.RetryHelper;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -53,8 +48,6 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final Optional<ControllerEventProcessors> eventProcessorsOpt;
     private final TaskSweeper taskSweeper;
     private final Optional<TxnSweeper> txnSweeperOpt;
-    private final PendingSweepQueue txnPendingQueue;
-    private final PendingSweepQueue eventProcPendingQueue;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
                                      final Optional<ControllerEventProcessors> eventProcessorsOpt,
@@ -75,8 +68,6 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.eventProcessorsOpt = eventProcessorsOpt;
         this.taskSweeper = taskSweeper;
         this.txnSweeperOpt = txnSweeperOpt;
-        this.txnPendingQueue = new PendingSweepQueue();
-        this.eventProcPendingQueue = new PendingSweepQueue();
     }
 
     @Override
@@ -85,6 +76,13 @@ public class ControllerClusterListener extends AbstractIdleService {
         try {
             log.info("Registering host {} with controller cluster", host);
             cluster.registerHost(host);
+
+            // It is important to first register the listener and then perform sweeps so that no notifications of HostRemoved
+            // are lost.
+            // While processing a notification we will first check if the handler is ready or not, if its not, then we can be
+            // sure that handler.sweep has not happened yet either. And handler.sweep will take care of this host lost.
+            // If sweep is happening and since listener is registered, any new notification can be concurrently handled
+            // with the sweep.
 
             // Register cluster listener.
             log.info("Adding controller cluster listener");
@@ -107,7 +105,6 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             }, executor);
 
-            log.info("Sweeping orphaned tasks at startup");
             Supplier<Set<String>> processes = () -> {
                 try {
                     return cluster.getClusterMembers()
@@ -120,6 +117,9 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             };
 
+            // This method should not block and process all sweepers asynchronously.
+            // Also, it should retry any errors during processing as this is the only opportunity to process all failed hosts
+            // that are no longer part of the cluster as we wont get any notification for them.
             sweepEventProcessorReaders(processes);
             sweepTransactions(processes);
             sweepTasks(processes);
@@ -134,27 +134,25 @@ public class ControllerClusterListener extends AbstractIdleService {
         taskSweeper.sweepOrphanedTasks(host.getHostId());
 
         eventProcessorsOpt.ifPresent(controllerEventProcessors -> {
-            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("handling host removed and reporting readers offline for host {}", host.getHostId());
-                return controllerEventProcessors.notifyProcessFailure(host.getHostId());
+            RetryHelper.withIndefiniteRetriesAsync(() -> {
+                if (controllerEventProcessors.isRunning()) {
+                    log.info("handling host removed and reporting readers offline for host {}", host.getHostId());
+                    return controllerEventProcessors.notifyProcessFailure(host.getHostId());
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
             }, e -> log.warn(e.getMessage()), executor);
-
-            // if queue is not sealed, then add to queue. Else process asynchronously
-            if (!eventProcPendingQueue.enqueue(futureSupplier)) {
-                futureSupplier.get();
-            }
         });
 
         txnSweeperOpt.ifPresent(txnSweeper -> {
-            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("Sweeping orphaned transactions for host {}", host.getHostId());
-                return txnSweeper.sweepOrphanedTxns(host.getHostId());
+            RetryHelper.withIndefiniteRetriesAsync(() -> {
+                if(txnSweeper.isRunning()) {
+                    log.info("Sweeping orphaned transactions for host {}", host.getHostId());
+                    return txnSweeper.sweepOrphanedTxns(host.getHostId());
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
             }, e -> log.warn(e.getMessage()), executor);
-
-            // if queue is not sealed, then add to queue. Else process asynchronously
-            if (!txnPendingQueue.enqueue(futureSupplier)) {
-                futureSupplier.get();
-            }
         });
     }
 
@@ -167,10 +165,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                 // Sweep orphaned tasks or readers at startup.
                 log.info("Sweeping orphaned readers at startup");
                 return eventProcessors.handleOrphanedReaders(processes);
-            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
-                    // drain pending queue and process
-                    FutureHelpers.allOf(eventProcPendingQueue.drainAndSeal()
-                            .stream().map(Supplier::get).collect(Collectors.toList())));
+            }, e -> log.warn(e.getMessage()), executor);
         });
     }
 
@@ -183,14 +178,12 @@ public class ControllerClusterListener extends AbstractIdleService {
                 // Sweep orphaned transactions as startup.
                 log.info("Sweeping orphaned transactions");
                 return txnSweeper.sweepFailedHosts(processes);
-            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
-                    // drain pending queue and process
-                    FutureHelpers.allOf(txnPendingQueue.drainAndSeal()
-                            .stream().map(Supplier::get).collect(Collectors.toList())));
+            }, e -> log.warn(e.getMessage()), executor);
         });
     }
 
     private void sweepTasks(Supplier<Set<String>> processes) {
+        log.info("Sweeping orphaned tasks at startup");
         RetryHelper.withIndefiniteRetriesAsync(() -> taskSweeper.sweepOrphanedTasks(processes),
                 e -> log.warn(e.getMessage()), executor);
     }
@@ -204,30 +197,6 @@ public class ControllerClusterListener extends AbstractIdleService {
             log.info("Controller cluster listener shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
-        }
-    }
-
-    @VisibleForTesting
-    static class PendingSweepQueue {
-        private final List<Supplier<CompletableFuture<Void>>> workQueue = new LinkedList<>();
-        private boolean isSealed = false;
-
-        @Synchronized
-        @VisibleForTesting
-        boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
-            if (!isSealed) {
-                workQueue.add(futureSupplier);
-            }
-            return !isSealed;
-        }
-
-        @Synchronized
-        @VisibleForTesting
-        List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
-            Preconditions.checkState(!isSealed);
-            isSealed = true;
-
-            return workQueue;
         }
     }
 }
