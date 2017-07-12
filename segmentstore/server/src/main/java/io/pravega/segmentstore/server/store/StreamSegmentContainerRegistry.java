@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -41,7 +40,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     //region Members
 
     private final SegmentContainerFactory factory;
-    private final AbstractMap<Integer, ContainerWithHandle> containers;
+    private final ConcurrentHashMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
     private final AtomicBoolean closed;
 
@@ -111,27 +110,20 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Check if container exists
-        Exceptions.checkArgument(!this.containers.containsKey(containerId), "containerId", "Container %d is already registered.", containerId);
-
-        // If not, create one and register it.
-        ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId), new SegmentContainerHandle(containerId));
-        ContainerWithHandle existingContainer = this.containers.putIfAbsent(containerId, newContainer);
+        ContainerWithHandle existingContainer = this.containers.get(containerId);
         if (existingContainer != null) {
-            // We had a race and some other request beat us to it.
-            newContainer.container.close();
-            throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
+            if (!isShutdown(existingContainer.container.state())) {
+                // Container is already registered and not in the process of shutting down.
+                throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
+            }
+
+            // Wait for the container to shut down, and then start a new one.
+            return existingContainer.shutdownNotifier
+                                    .thenComposeAsync(v -> startContainerInternal(containerId), this.executor);
+        } else {
+            // Start the container right away.
+            return startContainerInternal(containerId);
         }
-
-        log.info("Registered SegmentContainer {}.", containerId);
-
-        // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when it's stopped.
-        ServiceHelpers.onStop(
-                newContainer.container,
-                () -> unregisterContainer(newContainer),
-                ex -> handleContainerFailure(newContainer, ex),
-                this.executor);
-        return ServiceHelpers.startAsync(newContainer.container, this.executor)
-                .thenApply(v -> newContainer.handle);
     }
 
     @Override
@@ -149,6 +141,36 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     //endregion
 
     //region Helpers
+
+    /**
+     * Creates a new Container and attempts to register it. This method works in an optimistic manner: it creates the
+     * Container first and then attempts to register it, which should prevent us from having to lock on this entire method.
+     * Creating new containers is cheap (we don't start them yet), so this operation should not take any extra resources.
+     *
+     * @param containerId The Id of the Container to start.
+     * @return A CompletableFuture which will be completed with a ContainerHandle once the container has been started.
+     */
+    private CompletableFuture<ContainerHandle> startContainerInternal(int containerId) {
+        ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId),
+                new SegmentContainerHandle(containerId));
+        ContainerWithHandle existingContainer = this.containers.putIfAbsent(containerId, newContainer);
+        if (existingContainer != null) {
+            // We had multiple concurrent calls to start this Container and some other request beat us to it.
+            newContainer.container.close();
+            throw new IllegalArgumentException(String.format("Container %d is already registered.", containerId));
+        }
+
+        log.info("Registered SegmentContainer {}.", containerId);
+
+        // Attempt to Start the container, but first, attach a shutdown listener so we know to unregister it when it's stopped.
+        ServiceHelpers.onStop(
+                newContainer.container,
+                () -> unregisterContainer(newContainer),
+                ex -> handleContainerFailure(newContainer, ex),
+                this.executor);
+        return ServiceHelpers.startAsync(newContainer.container, this.executor)
+                             .thenApply(v -> newContainer.handle);
+    }
 
     private void handleContainerFailure(ContainerWithHandle containerWithHandle, Throwable exception) {
         unregisterContainer(containerWithHandle);
@@ -168,6 +190,14 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         // Notify the handle that the container is now in a Stopped state.
         containerWithHandle.handle.notifyContainerStopped();
         log.info("Unregistered SegmentContainer {}.", containerWithHandle.handle.getContainerId());
+
+        containerWithHandle.shutdownNotifier.complete(null);
+    }
+
+    private static boolean isShutdown(Service.State state) {
+        return state == Service.State.FAILED
+                || state == Service.State.STOPPING
+                || state == Service.State.TERMINATED;
     }
 
     //endregion
@@ -178,6 +208,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     private static class ContainerWithHandle {
         final SegmentContainer container;
         final SegmentContainerHandle handle;
+        final CompletableFuture<Void> shutdownNotifier = new CompletableFuture<>();
 
         @Override
         public String toString() {
