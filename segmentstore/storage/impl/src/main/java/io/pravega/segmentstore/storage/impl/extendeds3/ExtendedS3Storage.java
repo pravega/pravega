@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
 import java.time.Duration;
-import java.util.Date;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
@@ -264,12 +263,6 @@ public class ExtendedS3Storage implements Storage {
     private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
-        /* To ensure put-if-absent semantics we need to use If-None-Match tag as described here:
-         * http://www.emc.com/techpubs/api/ecs/v3-0-0-0/S3ObjectOperations_createOrUpdateObject_7916bd6f789d0ae0ff39961c0e660d00_ba672412ac371bb6cf4e69291344510e_detail.htm
-         * But it does not work. As a work around If-Unmodified-Since tag is used.
-         * If the object is modified (created or created and written to) since the listObject check, the putObject call fails.
-         */
-        Date creationTime = new Date();
         if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
             throw new StreamSegmentExistsException(streamSegmentName);
         }
@@ -288,11 +281,13 @@ public class ExtendedS3Storage implements Storage {
         });
         request.setAcl(acl);
 
-        /* TODO: As described above, this should be replaced with setIfNoneMatch("*") once the issue with extended S3 API is fixed.
-
+        /* TODO: Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
+         * The solution for this issue is to implement put-if-absent behavior by using Set-If-None-Match header as described here:
+         * http://www.emc.com/techpubs/api/ecs/v3-0-0-0/S3ObjectOperations_createOrUpdateObject_7916bd6f789d0ae0ff39961c0e660d00_ba672412ac371bb6cf4e69291344510e_detail.htm
+         * But this does not work. Currently all the calls to putObject API fail if made with reqest.setIfNoneMatch("*").
+         * once the issue with extended S3 API is fixed, addition of this one line will ensure put-if-absent semantics.
          * See: https://github.com/pravega/pravega/issues/1564
          */
-        request.setIfUnmodifiedSince(creationTime);
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);
