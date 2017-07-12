@@ -67,6 +67,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
     private static final int ZK_DEFAULT_SESSION_TIMEOUT = 60000;
+    private static final int NUM_EVENTS_PER_TRANSACTION = 50;
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -386,8 +387,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, stopWriteFlag));
 
-                    //each transaction has 50 events
-                    for (int j = 0; j < 50; j++) {
+                    for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         Thread.sleep(100);
                         transaction.writeEvent(String.valueOf(value), value);
@@ -413,7 +413,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
             log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
             if (status.equals(Transaction.Status.COMMITTED)) {
-                eventWriteCount.getAndIncrement();
+                eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
                 log.info("Event write count: {}", eventWriteCount.get());
             } else if (status.equals(Transaction.Status.ABORTED)) {
                 log.debug("Transaction with id: {} aborted", txn.getTxnId());
