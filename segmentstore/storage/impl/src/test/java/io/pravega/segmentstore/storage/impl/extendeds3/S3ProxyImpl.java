@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Properties;
+import lombok.Synchronized;
 import org.apache.commons.httpclient.HttpStatus;
 import org.gaul.s3proxy.AuthenticationType;
 import org.gaul.s3proxy.S3Proxy;
@@ -104,6 +105,7 @@ public class S3ProxyImpl extends S3ImplBase {
         return retVal;
     }
 
+    @Synchronized
     @Override
     public void putObject(String bucketName, String key, Range range, Object content) {
         byte[] totalByes = new byte[Math.toIntExact(range.getLast() + 1)];
@@ -128,6 +130,7 @@ public class S3ProxyImpl extends S3ImplBase {
         }
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
         AclSize retVal = aclMap.get(key);
@@ -137,6 +140,7 @@ public class S3ProxyImpl extends S3ImplBase {
         aclMap.put(key, retVal.withAcl(acl));
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
         AclSize retVal = aclMap.get(request.getKey());

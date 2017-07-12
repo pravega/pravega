@@ -87,6 +87,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         return retVal;
     }
 
+    @Synchronized
     @Override
     public void putObject(String bucketName, String key, Range range, Object content) {
 
@@ -109,6 +110,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         }
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
         AclSize retVal = aclMap.get(key);
@@ -118,6 +120,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         aclMap.put(key, retVal.withAcl(acl));
     }
 
+    @Synchronized
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
         AclSize retVal = aclMap.get(request.getKey());
