@@ -22,6 +22,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3Storage;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
+import io.pravega.segmentstore.storage.impl.extendeds3.S3FileSystemImpl;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.test.common.TestUtils;
@@ -29,7 +30,6 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.concurrent.ExecutorService;
-
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,7 +43,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private String endpoint;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;
-    private AclMap aclMap = new AclMap();
+    private S3FileSystemImpl filesystemS3;
 
     /**
      * Starts BookKeeper.
@@ -55,6 +55,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
         endpoint = "http://127.0.0.1:" + TestUtils.getAvailableListenPort();
         URI uri = URI.create(endpoint);
         baseDir = Files.createTempDirectory("extendeds3_wrapper").toString();
+        filesystemS3 = new S3FileSystemImpl(baseDir);
         this.configBuilder.include(ExtendedS3StorageConfig.builder()
                                                           .with(ExtendedS3StorageConfig.BUCKET, "kanpravegatest")
                                                           .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
@@ -83,7 +84,6 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                 .withStorageFactory(setup -> {
                     StorageFactory f = new LocalExtendedS3StorageFactory(
                             setup.getConfig(ExtendedS3StorageConfig::builder),
-                            this.aclMap,
                             setup.getExecutor());
                     return new ListenableStorageFactory(f);
                 })
@@ -100,16 +100,13 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
         private final ExtendedS3StorageConfig config;
-        private final AclMap aclMap;
         private final ExecutorService executor;
 
         public LocalExtendedS3StorageFactory(ExtendedS3StorageConfig config,
-                                             AclMap aclMap,
                                              ExecutorService executor) {
             Preconditions.checkNotNull(config, "config");
             Preconditions.checkNotNull(executor, "executor");
             this.config = config;
-            this.aclMap = aclMap;
             this.executor = executor;
         }
 
@@ -123,7 +120,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new S3ClientWrapper(s3Config, this.aclMap, baseDir);
+            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
             return new ExtendedS3Storage(client, config, executorService());
         }
     }

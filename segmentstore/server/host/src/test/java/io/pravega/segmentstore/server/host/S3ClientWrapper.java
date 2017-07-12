@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.host;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Config;
-import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.AccessControlList;
 import com.emc.object.s3.bean.CompleteMultipartUploadResult;
@@ -20,45 +19,26 @@ import com.emc.object.s3.bean.DeleteObjectsResult;
 import com.emc.object.s3.bean.GetObjectResult;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.PutObjectResult;
-import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.CompleteMultipartUploadRequest;
 import com.emc.object.s3.request.CopyPartRequest;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
-import io.pravega.common.io.StreamHelpers;
-import io.pravega.segmentstore.storage.impl.extendeds3.AclSize;
-import java.io.ByteArrayInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
+import io.pravega.segmentstore.storage.impl.extendeds3.S3ImplBase;
 import java.io.InputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import lombok.Synchronized;
-import org.apache.commons.httpclient.HttpStatus;
 
 /**
  * Client wrapper for S3JerseyClient. It uses local filesystem to implement extended S3 JAVA client APIs.
  */
 class S3ClientWrapper extends S3JerseyClient {
-    private final AclMap aclMap;
-    private final String baseDir;
-    private final ConcurrentMap<String, ConcurrentMap<Integer, CopyPartRequest>> multipartUploads = new ConcurrentHashMap<>();
 
-    public S3ClientWrapper(S3Config s3Config, AclMap aclMap, String baseDir) {
+    private final S3ImplBase s3Impl;
+
+    public S3ClientWrapper(S3Config s3Config, S3ImplBase s3Impl) {
         super(s3Config);
-        this.aclMap = aclMap;
-        this.baseDir = baseDir;
+        this.s3Impl = s3Impl;
     }
 
     @Override
@@ -69,211 +49,72 @@ class S3ClientWrapper extends S3JerseyClient {
     @Synchronized
     @Override
     public PutObjectResult putObject(PutObjectRequest request) {
-
-        if (request.getObjectMetadata() != null) {
-            request.setObjectMetadata(null);
-        }
-        try {
-            Path path = Paths.get(this.baseDir, request.getBucketName(), request.getKey());
-            Files.createDirectories(path.getParent());
-            Files.createFile(path);
-        } catch (IOException e) {
-            throw new S3Exception(e.getMessage(), 0, e);
-        }
-        PutObjectResult retVal = new PutObjectResult();
-        if (request.getAcl() != null) {
-            long size = 0;
-            if (request.getRange() != null) {
-                size = request.getRange().getLast() + 1;
-            }
-            aclMap.addNewObject(request.getKey(), new AclSize(request.getAcl(), size));
-        }
-        return retVal;
+        return s3Impl.putObject(request);
     }
 
     @Synchronized
     @Override
     public void putObject(String bucketName, String key, Range range, Object content) {
-
-        Path path = Paths.get(this.baseDir, bucketName, key);
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
-
-            long startOffset = range.getFirst();
-            long length = range.getLast() + 1 - range.getFirst();
-            do {
-                long bytesTransferred = channel.transferFrom(Channels.newChannel((InputStream) content),
-                        range.getFirst(), range.getLast() + 1 - range.getFirst());
-                length -= bytesTransferred;
-                startOffset += bytesTransferred;
-            } while (length > 0);
-
-            AclSize aclKey = aclMap.getAclSizeForObject(key);
-            aclMap.updateObject(key, aclKey.withSize(range.getLast() + 1));
-        } catch (IOException e) {
-            throw new S3Exception("NoObject", 404, "NoSuchKey", key);
-        }
+        s3Impl.putObject(bucketName, key, range, content);
     }
 
     @Synchronized
     @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) {
-        AclSize retVal = aclMap.getAclSizeForObject(key);
-        if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
-        }
-        aclMap.updateObject(key, retVal.withAcl(acl));
+        s3Impl.setObjectAcl(bucketName, key, acl);
     }
 
     @Synchronized
     @Override
     public void setObjectAcl(SetObjectAclRequest request) {
-        AclSize retVal = aclMap.getAclSizeForObject(request.getKey());
-        if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", request.getKey());
-        }
-        aclMap.updateObject(request.getKey(), retVal.withAcl(request.getAcl()));
+        s3Impl.setObjectAcl(request);
     }
 
     @Synchronized
     @Override
     public AccessControlList getObjectAcl(String bucketName, String key) {
-        AclSize retVal = aclMap.getAclSizeForObject(key);
-        if (retVal == null) {
-            throw new S3Exception("NoObject", HttpStatus.SC_NOT_FOUND, "NoSuchKey", key);
-        }
-        return retVal.getAcl();
+        return s3Impl.getObjectAcl(bucketName, key);
     }
 
     @Override
     public void deleteObject(String bucketName, String key) {
-        Path path = Paths.get(this.baseDir, bucketName, key);
-        try {
-            Files.delete(path);
-        } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
-        aclMap.deleteObject(key);
+        s3Impl.deleteObject(bucketName, key);
     }
 
     @Override
     public ListObjectsResult listObjects(String bucketName, String prefix) {
-        ListObjectsResult result = new ListObjectsResult();
-        ArrayList<S3Object> list = new ArrayList<>();
-        Path path = Paths.get(this.baseDir, bucketName, prefix);
-        try {
-            if (Files.exists(path)) {
-                if (Files.isDirectory(path)) {
-                    Files.list(path).forEach((file) -> {
-                        addFileAsObjectToList(file, list, bucketName);
-                    });
-                } else {
-                    addFileAsObjectToList(path, list, bucketName);
-                }
-            }
-        } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
-        result.setObjects(list);
-        return result;
+        return s3Impl.listObjects(bucketName, prefix);
     }
 
-    //Adds a single file to the list as an object.
-    private void addFileAsObjectToList(Path path, ArrayList<S3Object> list, String bucketName) {
-        S3Object object = new S3Object();
-        object.setKey(path.toString().replaceFirst(Paths.get(this.baseDir, bucketName).toString(), ""));
-        list.add(object);
-    }
 
     @Override
     public S3ObjectMetadata getObjectMetadata(String bucketName, String key) {
-        S3ObjectMetadata metadata = new S3ObjectMetadata();
-        AclSize data = aclMap.getAclSizeForObject(key);
-        if (data == null) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
-        metadata.setContentLength(data.getSize());
-        Path path = Paths.get(this.baseDir, bucketName, key);
-        metadata.setLastModified(new Date(path.toFile().lastModified()));
-        return metadata;
+        return s3Impl.getObjectMetadata(bucketName, key);
     }
 
     @Override
     public InputStream readObjectStream(String bucketName, String key, Range range) {
-        byte[] bytes = new byte[Math.toIntExact(range.getLast() + 1 - range.getFirst())];
-        Path path = Paths.get(this.baseDir, bucketName, key);
-        FileInputStream returnStream;
-        try {
-            returnStream = new FileInputStream(path.toFile());
-            if ( range.getFirst() != 0) {
-                long bytesSkipped = 0;
-                do {
-                    bytesSkipped += returnStream.skip(range.getFirst());
-                } while (bytesSkipped < range.getFirst());
-            }
-            StreamHelpers.readAll(returnStream, bytes, 0, bytes.length);
-            return new ByteArrayInputStream(bytes);
-        } catch (IOException e) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
+        return s3Impl.readObjectStream(bucketName, key, range);
     }
 
     @Override
     public String initiateMultipartUpload(String bucketName, String key) {
-        multipartUploads.put(key, new ConcurrentHashMap<>());
-        return Integer.toString(multipartUploads.size());
+        return s3Impl.initiateMultipartUpload(bucketName, key);
     }
 
     @Override
     public CopyPartResult copyPart(CopyPartRequest request) {
-        Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
-        if (partMap == null) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
-        partMap.put(request.getPartNumber(), request);
-        CopyPartResult result = new CopyPartResult();
-        result.setPartNumber(request.getPartNumber());
-        result.setETag(request.getUploadId());
-        return result;
+       return s3Impl.copyPart(request);
     }
 
     @Synchronized
     @Override
     public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) {
-        Map<Integer, CopyPartRequest> partMap = multipartUploads.get(request.getKey());
-        if (partMap == null) {
-            throw new S3Exception("NoSuchKey", HttpStatus.SC_NOT_FOUND, "NoSuchKey", "");
-        }
-        try {
-            partMap.forEach((index, copyPart) -> {
-                if (copyPart.getKey() != copyPart.getSourceKey()) {
-                    Path sourcePath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getSourceKey());
-                    Path targetPath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getKey());
-                    try (FileChannel sourceChannel = FileChannel.open(sourcePath, StandardOpenOption.READ);
-                         FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE)) {
-                        targetChannel.transferFrom(sourceChannel, Files.size(targetPath),
-                                copyPart.getSourceRange().getLast() + 1 - copyPart.getSourceRange().getFirst());
-                        targetChannel.close();
-                        AclSize aclMap = this.aclMap.getAclSizeForObject(copyPart.getKey());
-                        this.aclMap.updateObject(copyPart.getKey(), aclMap.withSize(Files.size(targetPath)));
-                    } catch (IOException e) {
-                        throw new S3Exception("NoSuchKey", 404, "NoSuchKey", "");
-                    }
-                }
-            });
-        } finally {
-            multipartUploads.remove(request.getKey());
-        }
-
-        return new CompleteMultipartUploadResult();
+        return s3Impl.completeMultipartUpload(request);
     }
 
     @Override
     public GetObjectResult<InputStream> getObject(String bucketName, String key) {
-        if (aclMap.containsKey(key)) {
-            return new GetObjectResult<>();
-        } else {
-            return null;
-        }
+        return s3Impl.getObject(bucketName, key);
     }
-
 }
