@@ -282,6 +282,11 @@ public class ExtendedS3Storage implements Storage {
         request.setAcl(acl);
 
         /* TODO: Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
+         * Here is one of the scenarios in which data loss is observed:
+         * 1. Host A owns the container and gets a create operation. It has not executed the putObject operation yet.
+         * 2. Ownership changes and host B becomes the owner of the container. It picks up putObject from the queue, executes it.
+         * 3. Host B gets a write operation which executes successfully.
+         * 3. Now host A schedules the putObject. This will overwrite the write by host B.
          * The solution for this issue is to implement put-if-absent behavior by using Set-If-None-Match header as described here:
          * http://www.emc.com/techpubs/api/ecs/v3-0-0-0/S3ObjectOperations_createOrUpdateObject_7916bd6f789d0ae0ff39961c0e660d00_ba672412ac371bb6cf4e69291344510e_detail.htm
          * But this does not work. Currently all the calls to putObject API fail if made with reqest.setIfNoneMatch("*").
