@@ -11,6 +11,7 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -145,7 +146,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         final AtomicLong eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
 
         @Cleanup
-        ClientFactory clientFactory = getClientFactory();
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI()));
 
         //1. Start writing events to the Stream.
         CompletableFuture<Void> writer1 = startNewTxnWriter(eventData, clientFactory, stopWriteFlag);
