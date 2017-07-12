@@ -66,7 +66,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int ZK_DEFAULT_SESSION_TIMEOUT = 60000;
+    private static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
     private static final int NUM_EVENTS_PER_TRANSACTION = 50;
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
