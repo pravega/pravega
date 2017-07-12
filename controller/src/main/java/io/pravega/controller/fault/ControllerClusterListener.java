@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.fault;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
@@ -17,8 +19,6 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.RetryHelper;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -131,7 +131,8 @@ public class ControllerClusterListener extends AbstractIdleService {
     }
 
     private void handleHostRemoved(Host host) {
-        taskSweeper.sweepOrphanedTasks(host.getHostId());
+        RetryHelper.withIndefiniteRetriesAsync(() -> taskSweeper.sweepOrphanedTasks(host.getHostId()),
+                e -> log.warn(e.getMessage()), executor);
 
         eventProcessorsOpt.ifPresent(controllerEventProcessors -> {
             RetryHelper.withIndefiniteRetriesAsync(() -> {
@@ -146,7 +147,7 @@ public class ControllerClusterListener extends AbstractIdleService {
 
         txnSweeperOpt.ifPresent(txnSweeper -> {
             RetryHelper.withIndefiniteRetriesAsync(() -> {
-                if(txnSweeper.isReady()) {
+                if (txnSweeper.isReady()) {
                     log.info("Sweeping orphaned transactions for host {}", host.getHostId());
                     return txnSweeper.sweepOrphanedTxns(host.getHostId());
                 } else {
