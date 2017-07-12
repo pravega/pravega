@@ -15,9 +15,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
@@ -33,6 +33,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
@@ -46,55 +47,17 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private static final int TOTAL_NUM_WRITERS = 8;
     private final String scope = "testReadWriteAndAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-    private ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM).scalingPolicy(scalingPolicy).build();
 
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
-        //1. Start 1 instance of zookeeper
-        Service zkService = new ZookeeperService("zookeeper");
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-
-        //2. Start 3 bookies
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        //3. start 3 instances of pravega controller
-        Service controllerService = new PravegaControllerService("controller", zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        controllerService.scaleService(3, true);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
-
-        // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
-                .collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-
-        //4.start 3 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-        segService.scaleService(3, true);
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega Segmentstore service  details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
 
@@ -148,7 +111,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createReadersAndWriters(clientFactory, readerGroupName, scope, readerGroupManager, STREAM, INIT_NUM_WRITERS, NUM_READERS);
+            createWriters(clientFactory, INIT_NUM_WRITERS, scope, STREAM);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM, NUM_READERS);
 
             //run the failover test before scaling
             performFailoverTest();
@@ -163,7 +127,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test while scaling
             performFailoverTest();
 
-            //wait for scaling
             waitForScaling();
 
             //bring the instances back to 3 before performing failover
@@ -181,29 +144,27 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Test {} succeeds ", "ReadWriteAndAutoScaleWithFailover");
     }
 
-    private void waitForScaling() {
-        for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
-            controller.getCurrentSegments(scope, STREAM_NAME)
-                    .thenAccept(x -> {
-                        int currentNumOfSegments = x.getSegments().size();
-                        while (currentNumOfSegments == 2) {
-                            try {
-                                Thread.sleep(60000);
-                            } catch (InterruptedException e) {
-                                log.error("error in sleep: ", e);
-                                break;
-                            }
+    private void waitForScaling() throws InterruptedException, ExecutionException {
+        controller.getCurrentSegments(scope, STREAM_NAME)
+                .thenAccept(x -> {
+                    for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
+                         testState.currentNumOfSegments.set(x.getSegments().size());
+                        if (testState.currentNumOfSegments.get() == 2) {
                             log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
                             //Scaling operation did not happen, wait
+                            Exceptions.handleInterrupted(() -> Thread.sleep(60000));
                             throw new AbstractFailoverTests.ScaleOperationNotDoneException();
                         }
-                        if (currentNumOfSegments > 2) {
+                        if (testState.currentNumOfSegments.get() > 2) {
                             //scale operation successful.
-                            log.info("Current Number of segments is {}", currentNumOfSegments);
-                        } else {
-                            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
+                            log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+                            break;
                         }
-                    });
+                    }
+                }).get();
+
+        if (testState.currentNumOfSegments.get() == 2) {
+            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
         }
     }
 }

@@ -18,7 +18,6 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
@@ -49,54 +48,16 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private static final int NUM_READERS = 5;
     private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-    private ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 1);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 1);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
-        //1. Start 1 instance of zookeeper
-        Service zkService = new ZookeeperService("zookeeper");
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-
-        //2. Start 3 bookies
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        //3. start 3 instances of pravega controller
-        Service controllerService = new PravegaControllerService("controller", zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        controllerService.scaleService(3, true);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service  details: {}", conUris);
-
-        // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
-                .collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-
-        //4.start 3 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-        segService.scaleService(3, true);
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega Segmentstore service  details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
     @Before
@@ -149,7 +110,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createReadersAndWriters(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_WRITERS, NUM_READERS);
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM, NUM_READERS);
 
             //run the failover test before scaling
             performFailoverTest();
