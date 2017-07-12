@@ -22,7 +22,6 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -41,7 +40,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     //region Members
 
     private final SegmentContainerFactory factory;
-    private final Map<Integer, ContainerWithHandle> containers;
+    private final ConcurrentHashMap<Integer, ContainerWithHandle> containers;
     private final Executor executor;
     private final AtomicBoolean closed;
 
@@ -143,10 +142,15 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
 
     //region Helpers
 
+    /**
+     * Creates a new Container and attempts to register it. This method works in an optimistic manner: it creates the
+     * Container first and then attempts to register it, which should prevent us from having to lock on this entire method.
+     * Creating new containers is cheap (we don't start them yet), so this operation should not take any extra resources.
+     *
+     * @param containerId The Id of the Container to start.
+     * @return A CompletableFuture which will be completed with a ContainerHandle once the container has been started.
+     */
     private CompletableFuture<ContainerHandle> startContainerInternal(int containerId) {
-        // Create a new Container and attempt to register it. Be optimistic about it: create it first and then attempt
-        // to register it, which should prevent us from having to lock on this entire method. Creating new containers is
-        // cheap (we don't start them yet), so this operation should not take any extra resources.
         ContainerWithHandle newContainer = new ContainerWithHandle(this.factory.createStreamSegmentContainer(containerId),
                 new SegmentContainerHandle(containerId));
         ContainerWithHandle existingContainer = this.containers.putIfAbsent(containerId, newContainer);
