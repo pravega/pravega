@@ -21,10 +21,12 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
+import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -149,8 +151,7 @@ public final class ServiceStarter {
 
     private void attachBookKeeper(ServiceBuilder builder) {
         builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient,
-                        setup.getExecutor()));
+                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
@@ -170,6 +171,10 @@ public final class ServiceStarter {
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
                         return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+
+                    case EXTENDEDS3:
+                        ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());
@@ -220,8 +225,7 @@ public final class ServiceStarter {
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()
-                    .bookKeeper(true).rocksDb(true)
-                    .zkSegmentManager(true).build()));
+                    .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
