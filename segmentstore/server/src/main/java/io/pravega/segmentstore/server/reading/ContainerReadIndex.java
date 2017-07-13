@@ -206,13 +206,15 @@ public class ContainerReadIndex implements ReadIndex {
                 if (getIndex(segmentId) == null) {
                     throw ex;
                 } else {
-                    log.debug("{}: triggerFutureReads: StreamSegmentId {} was skipped because it is no longer registered.", this.traceObjectId, segmentId);
+                    log.debug("{}: triggerFutureReads: StreamSegmentId {} was skipped because it is no longer registered.",
+                            this.traceObjectId, segmentId);
                 }
             }
         }
 
         // Throw any exception at the end - we want to make sure at least the ones that did have a valid index entry got triggered.
-        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds", "At least one StreamSegmentId does not exist in the metadata: %s", missingIds);
+        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds",
+                "At least one StreamSegmentId does not exist in the metadata: %s", missingIds);
     }
 
     @Override
