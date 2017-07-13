@@ -127,7 +127,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
 
-        //System properties to configure SS service.
+        //Environment variables to configure SS service.
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
