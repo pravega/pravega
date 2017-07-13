@@ -281,6 +281,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .namespace("pravega/" + clusterName)
                 .initialSleepInterval(2000)
                 .maxRetries(1)
+                .sessionTimeoutMs(30 * 1000)
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);

@@ -22,6 +22,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -121,12 +122,12 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                     if (future.isSuccess()) {
                         result.complete(handler);
                     } else {
-                        result.completeExceptionally(future.cause());
+                        result.completeExceptionally(new ConnectionFailedException(future.cause()));
                     }
                 }
             });
         } catch (Exception e) {
-            result.completeExceptionally(e);
+            result.completeExceptionally(new ConnectionFailedException(e));
         }
         return result;
     }

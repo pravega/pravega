@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import lombok.RequiredArgsConstructor;
@@ -71,15 +72,21 @@ public final class ServiceHelpers {
      * @param executor           An Executor to use for callback invocations.
      */
     public static void onStop(Service service, Runnable terminatedCallback, Consumer<Throwable> failureCallback, Executor executor) {
-        Service.State state = service.state();
-        if (state == Service.State.FAILED && failureCallback != null) {
-            failureCallback.accept(service.failureCause());
-        } else if (state == Service.State.TERMINATED && terminatedCallback != null) {
-            terminatedCallback.run();
-        }
+        ShutdownListener listener = new ShutdownListener(terminatedCallback, failureCallback);
+        service.addListener(listener, executor);
 
-        service.addListener(new ShutdownListener(terminatedCallback, failureCallback), executor);
+        // addListener() will not invoke the callbacks if the service is already in a terminal state. As such, we need to
+        // manually check for these states after registering the listener and invoke the appropriate callback. The
+        // ShutdownListener will make sure they are not invoked multiple times.
+        Service.State state = service.state();
+        if (state == Service.State.FAILED) {
+            // We don't care (or know) the state from which we came, so we just pass some random one.
+            listener.failed(Service.State.FAILED, service.failureCause());
+        } else if (state == Service.State.TERMINATED) {
+            listener.terminated(Service.State.TERMINATED);
+        }
     }
+
 
     //region ShutdownListener
 
@@ -87,9 +94,15 @@ public final class ServiceHelpers {
     private static class ShutdownListener extends Service.Listener {
         private final Runnable terminatedCallback;
         private final Consumer<Throwable> failureCallback;
+        private final AtomicBoolean invoked = new AtomicBoolean(false);
 
         @Override
         public void terminated(@Nonnull Service.State from) {
+            if (!this.invoked.compareAndSet(false, true)) {
+                // Already invoked once. Don't double-call.
+                return;
+            }
+
             if (this.terminatedCallback != null) {
                 this.terminatedCallback.run();
             }
@@ -97,6 +110,11 @@ public final class ServiceHelpers {
 
         @Override
         public void failed(@Nonnull Service.State from, @Nonnull Throwable failure) {
+            if (!this.invoked.compareAndSet(false, true)) {
+                // Already invoked once. Don't double-call.
+                return;
+            }
+
             if (this.failureCallback != null) {
                 this.failureCallback.accept(failure);
             }

@@ -11,6 +11,7 @@ package io.pravega.common.cluster.zkImpl;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.ClusterListener;
 import io.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
@@ -107,11 +108,10 @@ public class ClusterZKImpl implements Cluster {
      * Add Listener to the cluster.
      *
      * @param listener Cluster event Listener.
-     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public void addListener(ClusterListener listener) throws Exception {
+    public void addListener(ClusterListener listener) {
         Preconditions.checkNotNull(listener, "listener");
         if (!cache.isPresent()) {
             initializeCache();
@@ -124,11 +124,10 @@ public class ClusterZKImpl implements Cluster {
      *
      * @param listener Cluster event Listener.
      * @param executor Executor to run the listener on.
-     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public void addListener(final ClusterListener listener, final Executor executor) throws Exception {
+    public void addListener(final ClusterListener listener, final Executor executor) {
         Preconditions.checkNotNull(listener, "listener");
         Preconditions.checkNotNull(executor, "executor");
         if (!cache.isPresent()) {
@@ -141,11 +140,10 @@ public class ClusterZKImpl implements Cluster {
      * Get the current cluster members.
      *
      * @return List of cluster members.
-     * @throws Exception Error while communicating to Zookeeper.
      */
     @Override
     @Synchronized
-    public Set<Host> getClusterMembers() throws Exception {
+    public Set<Host> getClusterMembers() {
         if (!cache.isPresent()) {
             initializeCache();
         }
@@ -174,9 +172,14 @@ public class ClusterZKImpl implements Cluster {
         }
     }
 
-    private void initializeCache() throws Exception {
+    private void initializeCache() throws ClusterException {
         cache = Optional.of(new PathChildrenCache(client, getPathPrefix(), true));
-        cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+        try {
+            cache.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+        } catch (Exception e) {
+            throw ClusterException.create(ClusterException.Type.METASTORE,
+                                          "Failed to initialize ZooKeeper cache: " + e.getMessage());
+        }
     }
 
     private PathChildrenCacheListener pathChildrenCacheListener(final ClusterListener listener) {

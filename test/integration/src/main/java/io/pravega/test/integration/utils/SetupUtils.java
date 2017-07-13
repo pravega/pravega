@@ -45,9 +45,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @NotThreadSafe
 public final class SetupUtils {
-    // The controller endpoint.
+    // The controller RPC endpoint.
     @Getter
     private URI controllerUri = null;
+
+    // The controller REST endpoint.
+    @Getter
+    private URI controllerRestUri = null;
 
     // The different services.
     private ControllerWrapper controllerWrapper = null;
@@ -87,13 +91,15 @@ public final class SetupUtils {
         log.info("Started Pravega Service");
 
         // Start Controller.
-        int controllerPort = TestUtils.getAvailableListenPort();
+        int controllerRPCPort = TestUtils.getAvailableListenPort();
+        int controllerRESTPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), true, controllerPort, "localhost", servicePort,
-                Config.HOST_STORE_CONTAINER_COUNT);
+                this.zkTestServer.getConnectString(), true, true, controllerRPCPort, "localhost", servicePort,
+                Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();
-        this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
+        this.controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerRPCPort));
+        this.controllerRestUri = URI.create("http://localhost:" + String.valueOf(controllerRESTPort));
         log.info("Initialized Pravega Controller");
     }
 

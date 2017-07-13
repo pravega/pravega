@@ -135,6 +135,11 @@ public class ControllerServiceConfigTest {
                 () -> ZKClientConfigImpl.builder().connectionString("localhost").namespace("test")
                         .initialSleepInterval(10).maxRetries(-10).namespace("").build());
 
+        // zk session timeout should be positive number
+        AssertExtensions.assertThrows(IllegalArgumentException.class,
+                () -> ZKClientConfigImpl.builder().connectionString("localhost").namespace("test")
+                        .sessionTimeoutMs(-10).namespace("").build());
+
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withInMemoryClient();
 
         // If eventProcessor config is enabled, it should be non-null

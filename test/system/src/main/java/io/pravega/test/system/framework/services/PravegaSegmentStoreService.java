@@ -137,7 +137,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
                 setSystemProperty("autoScale.controllerUri", conUri.toString()) +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
+                setSystemProperty("pravegaservice.storageImplementation", "HDFS");
 
         Map<String, String> map = new HashMap<>();
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);

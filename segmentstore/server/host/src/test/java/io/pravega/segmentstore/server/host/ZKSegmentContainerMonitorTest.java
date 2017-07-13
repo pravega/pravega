@@ -241,6 +241,46 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    public void testRetryOnExceptions() throws Exception {
+        @Cleanup
+        CuratorFramework zkClient = startClient();
+        initializeHostContainerMapping(zkClient);
+
+        SegmentContainerRegistry containerRegistry = createMockContainerRegistry();
+        @Cleanup
+        ZKSegmentContainerMonitor segMonitor = createContainerMonitor(containerRegistry, zkClient);
+        segMonitor.initialize(Duration.ofSeconds(1));
+
+        // Simulate a container that throws exception on start.
+        when(containerRegistry.startContainer(eq(2), any()))
+                .thenThrow(new RuntimeException());
+
+        // Use ZK to send that information to the Container Manager.
+        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
+        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+
+        // Verify that it does not start.
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
+        assertEquals(0, segMonitor.getRegisteredContainers().size());
+
+        // Now simulate success for the same container.
+        ContainerHandle containerHandle = mock(ContainerHandle.class);
+        when(containerHandle.getContainerId()).thenReturn(2);
+        when(containerRegistry.startContainer(eq(2), any()))
+                .thenReturn(CompletableFuture.completedFuture(containerHandle));
+
+        // Verify that it retries and starts the same container again.
+        verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
+
+        // Using wait here to ensure the private data structure is updated.
+        // TODO: Removing dependency on sleep here and other places in this class
+        // - https://github.com/pravega/pravega/issues/1079
+        Thread.sleep(2000);
+        assertEquals(1, segMonitor.getRegisteredContainers().size());
+    }
+
+    @Test
     public void testClose() throws Exception {
         @Cleanup
         CuratorFramework zkClient = startClient();

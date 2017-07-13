@@ -68,6 +68,7 @@ public class HostStoreTest {
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
                     .initialSleepInterval(2000)
                     .maxRetries(1)
+                    .sessionTimeoutMs( 30 * 1000)
                     .namespace("hostStoreTest/" + UUID.randomUUID())
                     .build();
             StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
