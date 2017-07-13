@@ -64,6 +64,10 @@ public class TxnSweeper {
         this.executor = executor;
     }
 
+    public boolean isReady() {
+        return transactionMetadataTasks.isReady();
+    }
+
     public void awaitInitialization() throws InterruptedException {
         transactionMetadataTasks.awaitInitialization();
     }

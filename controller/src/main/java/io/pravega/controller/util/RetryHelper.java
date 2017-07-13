@@ -16,6 +16,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -44,4 +45,13 @@ public class RetryHelper {
                 .throwingOn(RuntimeException.class)
                 .runAsync(futureSupplier, executor);
     }
+
+    public static <U> CompletableFuture<U> withIndefiniteRetriesAsync(Supplier<CompletableFuture<U>> futureSupplier,
+                                                                      Consumer<Throwable> exceptionConsumer,
+                                                                      ScheduledExecutorService executor) {
+        return Retry
+                .indefinitelyWithExpBackoff(100, 2, 10000, exceptionConsumer)
+                .runAsync(futureSupplier, executor);
+    }
+
 }
