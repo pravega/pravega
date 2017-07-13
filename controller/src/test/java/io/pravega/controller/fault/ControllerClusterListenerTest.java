@@ -85,7 +85,7 @@ public class ControllerClusterListenerTest {
         curatorClient.start();
 
         // 3. Start executor service.
-        executor = Executors.newScheduledThreadPool(10);
+        executor = Executors.newScheduledThreadPool(5);
 
         // 4. start cluster event listener
         clusterZK = new ClusterZKImpl(curatorClient, ClusterType.CONTROLLER);
@@ -230,8 +230,8 @@ public class ControllerClusterListenerTest {
         });
 
         // Create ControllerClusterListener.
-        ControllerClusterListener clusterListener = spy(new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, Optional.of(txnSweeper), executor));
+        ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, Optional.empty(),
+                        taskSweeper, Optional.of(txnSweeper), executor);
 
         clusterListener.startAsync();
         clusterListener.awaitRunning();
