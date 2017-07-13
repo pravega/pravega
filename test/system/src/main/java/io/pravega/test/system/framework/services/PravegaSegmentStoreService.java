@@ -128,6 +128,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
 
         //System properties to configure SS service.
+        Map<String, String> map = new HashMap<>();
+        map.put("ZK_URL", zk);
+        map.put("BK_ZK_URL", zk);
+        map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+        map.put("CONTROLLER_URI", conUri.toString());
+        map.put("TIER2_STORAGE", "HDFS");
+
+        //Properties set to override defaults for system tests
         String hostSystemProperties = setSystemProperty("autoScale.muteInSeconds", "120") +
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
@@ -135,12 +143,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
 
-        Map<String, String> map = new HashMap<>();
-        map.put("ZK_URL", zk);
-        map.put("BK_ZK_URL", zk);
-        map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
-        map.put("CONTROLLER_URI", conUri.toString());
-        map.put("TIER2_STORAGE", "HDFS");
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("segmentstore"));
