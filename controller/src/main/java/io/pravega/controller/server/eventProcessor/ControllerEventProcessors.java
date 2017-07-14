@@ -82,7 +82,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
-    private RequestHandlerMultiplexer requestHandler;
+    private final RequestHandlerMultiplexer requestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
