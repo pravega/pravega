@@ -15,6 +15,9 @@ import java.util.function.Supplier;
 
 public interface FailoverSweeper {
     /**
+     * Check if the sweeper is ready to sweep.
+     *
+     * @return true if ready, false otherwise.
      */
     boolean isReady();
 
@@ -30,6 +33,7 @@ public interface FailoverSweeper {
 
     /**
      * Method to receive notification for failed process.
+     *
      * @param failedProcess identifier for the failed process.
      * @return Do not block, process asynchronously and return a future
      */
