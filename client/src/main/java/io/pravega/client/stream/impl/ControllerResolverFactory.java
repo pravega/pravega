@@ -20,8 +20,8 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
