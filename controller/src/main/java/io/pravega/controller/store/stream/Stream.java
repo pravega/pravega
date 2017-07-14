@@ -308,9 +308,11 @@ interface Stream {
 
     /**
      * Returns the currently active stream epoch.
+     *
+     * @param ignoreCached if ignore cache is set to true then fetch the value from the store. 
      * @return currently active stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean forceFetch);
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
