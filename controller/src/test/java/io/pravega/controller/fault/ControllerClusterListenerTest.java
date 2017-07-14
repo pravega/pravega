@@ -38,7 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -137,8 +136,7 @@ public class ControllerClusterListenerTest {
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Create ControllerClusterListener.
-        ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, clusterZK, executor,taskSweeper, txnSweeper);
+        ControllerClusterListener clusterListener =  new ControllerClusterListener(host, clusterZK, executor, taskSweeper, txnSweeper);
         clusterListener.startAsync();
 
         clusterListener.awaitRunning();
