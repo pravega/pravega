@@ -42,8 +42,9 @@ public interface ClientConnection extends AutoCloseable {
      * Sends a wire command asynchronously.
      *
      * @param cmd The wire command to be sent.
+     * @throws ConnectionFailedException If sending fails for some reason.
      */
-    void sendAsync(WireCommand cmd);
+    void sendAsync(WireCommand cmd) throws ConnectionFailedException;
 
     /**
      * Sends the provided append commands.

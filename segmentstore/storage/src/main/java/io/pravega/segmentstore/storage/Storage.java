@@ -29,8 +29,10 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      *
      * @param streamSegmentName Name of the StreamSegment to be opened.
      * @return A CompletableFuture that, when completed, will contain a read-write SegmentHandle that can be used to access
-     * the segment for read and write activities (ex: read, get, write, seal, concat). If the operation failed, it will be
-     * failed with the cause of the failure. Notable exceptions:
+     * the segment for read and write activities (ex: read, get, write, seal, concat).
+     * If the segment is sealed, then a Read-Only handle is returned.
+     *
+     * If the operation failed, it will be failed with the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>

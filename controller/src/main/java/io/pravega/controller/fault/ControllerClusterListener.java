@@ -9,27 +9,22 @@
  */
 package io.pravega.controller.fault;
 
-import io.pravega.common.LoggerHelpers;
-import io.pravega.common.cluster.Cluster;
-import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.util.RetryHelper;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractIdleService;
-import lombok.Synchronized;
+import io.pravega.common.LoggerHelpers;
+import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterException;
+import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -49,11 +44,10 @@ public class ControllerClusterListener extends AbstractIdleService {
     private final Host host;
     private final Cluster cluster;
     private final ScheduledExecutorService executor;
-    private final Map<FailoverSweeper, PendingSweepQueue> failoverSweepers;
+    private final List<FailoverSweeper> sweepers;
 
     public ControllerClusterListener(final Host host, final Cluster cluster,
-                                     final ScheduledExecutorService executor,
-                                     final FailoverSweeper... sweepers) {
+                                     final ScheduledExecutorService executor, final FailoverSweeper... sweepers) {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
@@ -62,15 +56,22 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.host = host;
         this.cluster = cluster;
         this.executor = executor;
-        failoverSweepers = Arrays.stream(sweepers).collect(Collectors.toMap(in -> in, in -> new PendingSweepQueue()));
+        this.sweepers = Lists.newArrayList(sweepers);
     }
 
     @Override
-    protected void startUp() throws Exception {
+    protected void startUp() throws InterruptedException {
         long traceId = LoggerHelpers.traceEnter(log, objectId, "startUp");
         try {
             log.info("Registering host {} with controller cluster", host);
             cluster.registerHost(host);
+
+            // It is important to first register the listener and then perform sweeps so that no notifications of HostRemoved
+            // are lost.
+            // While processing a notification we will first check if the handler is ready or not, if its not, then we can be
+            // sure that handler.sweep has not happened yet either. And handler.sweep will take care of this host lost.
+            // If sweep is happening and since listener is registered, any new notification can be concurrently handled
+            // with the sweep.
 
             // Register cluster listener.
             log.info("Adding controller cluster listener");
@@ -82,7 +83,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                         break;
                     case HOST_REMOVED:
                         log.info("Received controller cluster event: {} for host: {}", type, host);
-                        handleFailedProcess(host);
+                        handleHostRemoved(host);
                         break;
                     case ERROR:
                         // This event should be due to ZK connection errors. If it is session lost error then
@@ -93,20 +94,22 @@ public class ControllerClusterListener extends AbstractIdleService {
                 }
             }, executor);
 
-            log.info("Sweeping orphaned tasks at startup");
             Supplier<Set<String>> processes = () -> {
                 try {
                     return cluster.getClusterMembers()
                             .stream()
                             .map(Host::getHostId)
                             .collect(Collectors.toSet());
-                } catch (Exception e) {
+                } catch (ClusterException e) {
                     log.error("error fetching cluster members {}", e);
                     throw new CompletionException(e);
                 }
             };
 
-            bootstrapSweep(processes);
+            // This method should not block and process all sweepers asynchronously.
+            // Also, it should retry any errors during processing as this is the only opportunity to process all failed hosts
+            // that are no longer part of the cluster as we wont get any notification for them.
+            sweepAll(processes);
 
             log.info("Controller cluster listener startUp complete");
         } finally {
@@ -114,39 +117,27 @@ public class ControllerClusterListener extends AbstractIdleService {
         }
     }
 
-    private void handleFailedProcess(Host host) {
-        FutureHelpers.allOf(failoverSweepers.entrySet().stream().map(entry -> {
-            Supplier<CompletableFuture<Void>> futureSupplier = () -> RetryHelper.withIndefiniteRetriesAsync(() -> {
-                log.info("handling host removed", host.getHostId());
-                return entry.getKey().handleFailedProcess(host.getHostId());
-            }, e -> log.warn(e.getMessage()), executor);
-
-            // if queue is not sealed, then add to queue. Else process asynchronously
-            if (!entry.getValue().enqueue(futureSupplier)) {
-                return futureSupplier.get();
+    private CompletableFuture<Void> handleHostRemoved(Host host) {
+        return FutureHelpers.allOf(sweepers.stream().map(sweeper -> {
+            if (sweeper.isReady()) {
+                // Note: if we find sweeper to be ready, it is possible that this processes can be swept by both
+                // sweepFailedProcesses and handleFailedProcess. A sweep is safe and idempotent operation.
+                return RetryHelper.withIndefiniteRetriesAsync(() -> sweeper.handleFailedProcess(host.getHostId()),
+                        e -> log.warn(e.getMessage()), executor);
             } else {
-                CompletableFuture<Void> v = CompletableFuture.completedFuture(null);
-                return v;
+                return CompletableFuture.completedFuture((Void) (null));
             }
         }).collect(Collectors.toList()));
     }
 
-    private void bootstrapSweep(Supplier<Set<String>> processes) {
-        FutureHelpers.allOf(failoverSweepers.entrySet().stream().map(entry -> {
-            // Await initialization of eventProcesorsOpt
-            return RetryHelper.withIndefiniteRetriesAsync(() -> {
-                try {
-                    entry.getKey().checkReady();
-                } catch (SweeperNotReadyException e) {
-                    throw new RuntimeException(e);
-                }
-                // Sweep orphaned tasks or readers at startup.
-                return entry.getKey().sweepFailedProcesses(processes);
-            }, e -> log.warn(e.getMessage()), executor).thenCompose((Void v) ->
-                    // drain pending queue and process
-                    FutureHelpers.allOf(entry.getValue().drainAndSeal()
-                            .stream().map(Supplier::get).collect(Collectors.toList())));
-        }).collect(Collectors.toList()));
+    private CompletableFuture<Void> sweepAll(Supplier<Set<String>> processes) {
+        return FutureHelpers.allOf(sweepers.stream().map(sweeper -> RetryHelper.withIndefiniteRetriesAsync(() -> {
+            if (!sweeper.isReady()) {
+                log.trace("sweeper not ready, retrying with exponential backoff");
+                throw new RuntimeException("sweeper not ready");
+            }
+            return sweeper.sweepFailedProcesses(processes);
+        }, e -> log.warn(e.getMessage()), executor)).collect(Collectors.toList()));
     }
 
     @Override
@@ -158,30 +149,6 @@ public class ControllerClusterListener extends AbstractIdleService {
             log.info("Controller cluster listener shutDown complete");
         } finally {
             LoggerHelpers.traceLeave(log, objectId, "shutDown", traceId);
-        }
-    }
-
-    @VisibleForTesting
-    static class PendingSweepQueue {
-        private final ConcurrentLinkedQueue<Supplier<CompletableFuture<Void>>> workQueue = new ConcurrentLinkedQueue<>();
-        private final AtomicBoolean isSealed = new AtomicBoolean(false);
-
-        @Synchronized
-        @VisibleForTesting
-        boolean enqueue(Supplier<CompletableFuture<Void>> futureSupplier) {
-            if (!isSealed.get()) {
-                workQueue.add(futureSupplier);
-            }
-            return !isSealed.get();
-        }
-
-        @Synchronized
-        @VisibleForTesting
-        List<Supplier<CompletableFuture<Void>>> drainAndSeal() {
-            Preconditions.checkState(!isSealed.get());
-            isSealed.set(true);
-
-            return Lists.newArrayList(workQueue);
         }
     }
 }

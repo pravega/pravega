@@ -28,13 +28,15 @@ import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    
+
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    static final String STREAM_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
+    private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
+    static final String STREAM_TX_ROOT = SCOPE_TX_ROOT + "/%s";
     private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
-    
+    static final String SCOPE_COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
+    static final String COMPLETED_TX_PATH = SCOPE_COMPLETED_TX_PATH + "/%s";
+
     private final CuratorFramework client;
     private final Executor executor;
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {

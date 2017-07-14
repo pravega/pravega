@@ -63,8 +63,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
-    private final static String SCOPE = "testReadAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
-    private final static String STREAM_NAME = "testScaleUp";
+    private final static String STREAM_NAME = "testTxnScaleUpWithRead";
     private final static String READER_GROUP_NAME = "testReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
 
     //Initial number of segments is 2.

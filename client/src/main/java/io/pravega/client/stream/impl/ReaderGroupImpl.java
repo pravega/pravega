@@ -111,6 +111,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
+    public Set<String> getStreamNames() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
+        return synchronizer.getState().getStreamNames();
+    }
+
+    @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));

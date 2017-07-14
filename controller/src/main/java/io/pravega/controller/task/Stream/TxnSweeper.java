@@ -10,11 +10,13 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.fault.SweeperNotReadyException;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -36,13 +39,11 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
  */
 @Slf4j
 public class TxnSweeper implements FailoverSweeper {
-    private final static String NAME = "TxnSweeper";
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamTransactionMetadataTasks transactionMetadataTasks;
     private final long maxTxnTimeoutMillis;
     private final ScheduledExecutorService executor;
-    private final AtomicBoolean running;
 
     @Data
     private static class Result {
@@ -64,19 +65,15 @@ public class TxnSweeper implements FailoverSweeper {
         this.transactionMetadataTasks = transactionMetadataTasks;
         this.maxTxnTimeoutMillis = maxTxnTimeoutMillis;
         this.executor = executor;
-        this.running = new AtomicBoolean(false);
     }
 
     public void awaitInitialization() throws InterruptedException {
         transactionMetadataTasks.awaitInitialization();
-        running.set(true);
     }
 
     @Override
-    public void checkReady() throws SweeperNotReadyException {
-        if (!running.get()) {
-            throw new SweeperNotReadyException("TxnSweeper");
-        }
+    public boolean isReady() {
+        return transactionMetadataTasks.isReady();
     }
 
     @Override
@@ -137,7 +134,17 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).thenComposeAsync(txData -> {
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).handle((r, e) -> {
+            if (e != null) {
+                if (ExceptionHelpers.getRealException(e) instanceof StoreException.DataNotFoundException) {
+                    // transaction not found, which means it should already have completed. We will ignore such txns
+                    return VersionedTransactionData.EMPTY;
+                } else {
+                    throw new CompletionException(e);
+                }
+            }
+            return r;
+        }).thenComposeAsync(txData -> {
             int epoch = txData.getEpoch();
             switch (txData.getStatus()) {
                 case OPEN:
@@ -149,8 +156,10 @@ public class TxnSweeper implements FailoverSweeper {
                 case COMMITTING:
                     return failOverCommittingTxn(failedHost, epoch, txn)
                             .handleAsync((v, e) -> new Result(txn, v, e), executor);
+                case UNKNOWN:
                 default:
-                    return CompletableFuture.completedFuture(new Result(txn, null, null));
+                    return streamMetadataStore.removeTxnFromIndex(failedHost, txn, true)
+                            .thenApply(x -> new Result(txn, null, null));
             }
         }, executor).whenComplete((v, e) ->
                 log.debug("Host = {}, processing transaction {}/{}/{} complete", failedHost, scope, stream, txnId));

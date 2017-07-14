@@ -11,7 +11,6 @@ package io.pravega.controller.task;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.fault.SweeperNotReadyException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -45,7 +44,6 @@ public class TaskSweeper implements FailoverSweeper {
     private final Map<String, TaskBase> objectMap = new HashMap<>();
     private final String hostId;
     private final ScheduledExecutorService executor;
-    private final AtomicBoolean running;
 
     @Data
     static class Result {
@@ -66,16 +64,13 @@ public class TaskSweeper implements FailoverSweeper {
         // following arrays can alternatively be populated by dynamically finding all sub-classes of TaskBase using
         // reflection library org.reflections. However, this library is flagged by checkstyle as disallowed library.
         this.taskClassObjects = classes;
-        this.running = new AtomicBoolean(true);
 
         initializeMappingTable();
     }
 
     @Override
-    public void checkReady() throws SweeperNotReadyException {
-        if (!running.get()) {
-            throw new SweeperNotReadyException("TaskSweeper");
-        }
+    public boolean isReady() {
+        return true;
     }
 
     @Override

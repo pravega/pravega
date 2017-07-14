@@ -15,14 +15,8 @@ import java.util.function.Supplier;
 
 public interface FailoverSweeper {
     /**
-     * Method to check if a component is ready. Throw sweeperNotReadyException if the implementer is not ready to handle
-     * failed processes. The fail over will only be attempted iff this method completes successfully. Otherwise it will be
-     * retried periodically.
-     * So do not block here. Return quickly with success or failure.
-     *
-     * @throws SweeperNotReadyException throw this exception if implementer is not ready to handle failure notifications.
      */
-    void checkReady() throws SweeperNotReadyException;
+    boolean isReady();
 
     /**
      * Method to start sweeping all failed processes at the time of bootstrap. It will be called during component start,

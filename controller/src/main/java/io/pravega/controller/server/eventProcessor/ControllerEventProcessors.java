@@ -25,7 +25,6 @@ import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.fault.SweeperNotReadyException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -155,10 +154,8 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     @Override
-    public void checkReady() throws SweeperNotReadyException {
-        if (!isRunning()) {
-            throw new SweeperNotReadyException("Controller Event Processors");
-        }
+    public boolean isReady() {
+        return isRunning();
     }
 
     @Override
