@@ -132,7 +132,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
         map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
-        map.put("CONTROLLER_URI", conUri.toString());
+        map.put("CONTROLLER_URL", conUri.toString());
         map.put("TIER2_STORAGE", "HDFS");
 
         //Properties set to override defaults for system tests
