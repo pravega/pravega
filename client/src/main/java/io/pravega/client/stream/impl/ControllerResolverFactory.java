@@ -106,8 +106,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         private final ScheduledExecutorService scheduledExecutor;
 
         // The supplied gRPC listener using which we need to update the controller server list.
-        @GuardedBy("$lock")
-        private Listener resolverUpdater = null;
+        private volatile Listener resolverUpdater = null;
 
         // The scheduledFuture for the discovery task to track future schedules.
         @GuardedBy("$lock")
