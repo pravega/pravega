@@ -17,20 +17,16 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-
-import java.io.File;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.util.concurrent.CompletableFuture;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
