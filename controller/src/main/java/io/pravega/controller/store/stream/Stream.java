@@ -310,7 +310,7 @@ interface Stream {
      * Returns the currently active stream epoch.
      * @return currently active stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean forceFetch);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

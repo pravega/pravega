@@ -552,12 +552,14 @@ public interface StreamMetadataStore {
      * @param scope    scope.
      * @param stream   stream.
      * @param context  operation context
+     * @param ignoreCached  boolean indicating whether to use cached value or force fetch from underlying store.
      * @param executor callers executor
      * @return         pair containing currently active epoch of the stream, and active segments in current epoch.
      */
     CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(final String scope,
                                                                    final String stream,
                                                                    final OperationContext context,
+                                                                   final boolean ignoreCached,
                                                                    final Executor executor);
 
     /**

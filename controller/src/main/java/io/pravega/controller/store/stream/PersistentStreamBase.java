@@ -717,8 +717,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch() {
-        return getHistoryTable().thenApply(table -> TableHelper.getActiveEpoch(table.getData()));
+    public CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached) {
+        CompletableFuture<Data<T>> historyTableFuture = ignoreCached ? getHistoryTableFromStore() :
+                getHistoryTable();
+
+        return historyTableFuture.thenApply(table -> TableHelper.getActiveEpoch(table.getData()));
     }
 
     @Override
