@@ -23,6 +23,10 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,9 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
@@ -133,10 +134,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
 
         return backoffSchedule.retryingOn(Exception.class)
-                              .throwingOn(ConnectionClosedException.class)
-                              .runAsync(() -> {
-                                  return getConnection().thenCompose(c -> sendRequestOverConnection(request, c));
-                              }, connectionFactory.getInternalExecutor());
+                .throwingOn(ConnectionClosedException.class)
+                .runAsync(() -> {
+                    return getConnection()
+                            .whenComplete((connection, ex) -> {
+                                if (ex != null) {
+                                    log.warn("Exception while establishing connection with Pravega " +
+                                            "node", ex);
+                                    closeConnection(new ConnectionFailedException(ex));
+                                }
+                            }).thenCompose(c -> sendRequestOverConnection(request, c));
+                }, connectionFactory.getInternalExecutor());
     }
     
     @SneakyThrows(ConnectionFailedException.class)
