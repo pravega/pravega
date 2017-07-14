@@ -29,6 +29,7 @@ class TestConfig {
     static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
     static final Property<Integer> MIN_APPEND_SIZE = Property.named("minAppendSize", 100);
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
+    static final Property<Integer> ROUTING_KEY_COUNT = Property.named("routingKeyCount", 10);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<Boolean> VERBOSE_LOGGING = Property.named("verboseLogging", false);
@@ -60,6 +61,8 @@ class TestConfig {
     private int minAppendSize;
     @Getter
     private int maxAppendSize;
+    @Getter
+    private int routingKeyCount;
     @Getter
     private int threadPoolSize;
     @Getter
@@ -100,6 +103,7 @@ class TestConfig {
         this.producerCount = properties.getInt(PRODUCER_COUNT);
         this.minAppendSize = properties.getInt(MIN_APPEND_SIZE);
         this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
+        this.routingKeyCount = properties.getInt(ROUTING_KEY_COUNT);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.verboseLoggingEnabled = properties.getBoolean(VERBOSE_LOGGING);

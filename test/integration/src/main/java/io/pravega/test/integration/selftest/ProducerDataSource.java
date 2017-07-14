@@ -9,18 +9,17 @@
  */
 package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import com.google.common.base.Preconditions;
-import lombok.val;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.val;
 
 /**
  * Represents a Data Source for all Producers of the SelfTest.
@@ -32,7 +31,7 @@ class ProducerDataSource {
     private final TestConfig config;
     private final TestState state;
     private final StoreAdapter store;
-    private final ConcurrentHashMap<String, AppendContentGenerator> appendGenerators;
+    private final ConcurrentHashMap<String, AppendGenerator> appendGenerators;
     private final Random appendSizeGenerator;
     private final boolean sealSupported;
     private final boolean transactionsSupported;
@@ -118,10 +117,10 @@ class ProducerDataSource {
     }
 
     /**
-     * Generates a byte array representing the contents of an append (which follows a deterministic pattern).
+     * Generates a new Append (which follows a deterministic pattern and has a routing key).
      */
-    byte[] generateAppendContent(String segmentName) {
-        AppendContentGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
+    Append nextAppend(String segmentName) {
+        AppendGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
         if (generator == null) {
             // If the argument is indeed correct, this segment was deleted between the time the operation got generated
             // and when this method was invoked.
@@ -165,7 +164,8 @@ class ProducerDataSource {
 
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
-            this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime(), false));
+            int id = (int) System.nanoTime();
+            this.appendGenerators.put(transactionName, new AppendGenerator(id, this.config.getRoutingKeyCount(), false));
         } else if (op.getType() == ProducerOperationType.APPEND) {
             this.state.recordAppend(op.getLength());
         }
@@ -203,12 +203,11 @@ class ProducerDataSource {
         for (int i = 0; i < this.config.getSegmentCount(); i++) {
             final int segmentId = i;
             String name = String.format("Segment_%s", segmentId);
-            segmentFutures.add(
-                    this.store.createStreamSegment(name, null, this.config.getTimeout())
-                              .thenRun(() -> {
-                                  this.state.recordNewSegmentName(name);
-                                  this.appendGenerators.put(name, new AppendContentGenerator(segmentId, true));
-                              }));
+            segmentFutures.add(this.store.createStreamSegment(name, null, this.config.getTimeout())
+                    .thenRun(() -> {
+                        this.state.recordNewSegmentName(name);
+                        this.appendGenerators.put(name, new AppendGenerator(segmentId, this.config.getRoutingKeyCount(), true));
+                    }));
         }
 
         return FutureHelpers.allOf(segmentFutures);

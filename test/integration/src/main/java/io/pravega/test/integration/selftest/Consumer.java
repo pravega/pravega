@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -21,7 +22,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -49,9 +48,6 @@ import lombok.val;
 public class Consumer extends Actor {
     //region Members
 
-    private static final String SOURCE_TAIL_READ = "TailRead";
-    private static final String SOURCE_CATCHUP_READ = "CatchupRead";
-    private static final String SOURCE_STORAGE_READ = "StorageRead";
     private static final Duration READ_TIMEOUT = Duration.ofDays(100);
     private final String logId;
     private final String segmentName;
@@ -153,7 +149,7 @@ public class Consumer extends Actor {
         return isRunning() && this.canContinue.get();
     }
 
-    private void validationFailed(String source, ValidationResult validationResult) {
+    private void validationFailed(ValidationSource source, ValidationResult validationResult) {
         if (source != null) {
             validationResult.setSource(source);
         }
@@ -224,7 +220,7 @@ public class Consumer extends Actor {
     private CompletableFuture<Void> storageSegmentChangedHandler(long segmentLength, boolean sealed, CompletableFuture<Void> processingFuture) {
         if (sealed) {
             // We reached the end of the Segment (this callback is the result of a Seal operation), so no point in listening further.
-            logState(SOURCE_STORAGE_READ, "StorageLength=%s, Sealed=True", segmentLength);
+            logState(ValidationSource.StorageRead.toString(), "StorageLength=%s, Sealed=True", segmentLength);
             processingFuture.complete(null);
             return CompletableFuture.completedFuture(null);
         }
@@ -258,9 +254,9 @@ public class Consumer extends Actor {
                 .thenComposeAsync(handle -> storage.read(handle, segmentStartOffset, storageReadBuffer, 0, length, this.config.getTimeout()), this.executorService)
                 .thenAcceptAsync(l -> {
                     ValidationResult validationResult = validateStorageRead(expectedData, storageReadBuffer, segmentStartOffset);
-                    validationResult.setSource(SOURCE_STORAGE_READ);
+                    validationResult.setSource(ValidationSource.StorageRead);
                     if (!validationResult.isSuccess()) {
-                        validationFailed(SOURCE_STORAGE_READ, validationResult);
+                        validationFailed(ValidationSource.StorageRead, validationResult);
                         return;
                     }
 
@@ -273,7 +269,7 @@ public class Consumer extends Actor {
                     }
 
                     this.testState.recordStorageRead((int) diff);
-                    logState(SOURCE_STORAGE_READ, "StorageLength=%s", segmentLength);
+                    logState(ValidationSource.StorageRead.toString(), "StorageLength=%s", segmentLength);
                 }, this.executorService)
                 .thenComposeAsync(v -> {
                     long truncateOffset;
@@ -304,7 +300,7 @@ public class Consumer extends Actor {
             throw new UncheckedIOException(ex);
         }
 
-        return ValidationResult.success(storageReadBuffer.length);
+        return ValidationResult.success(Append.NO_ROUTING_KEY, storageReadBuffer.length);
     }
 
     //endregion
@@ -381,17 +377,17 @@ public class Consumer extends Actor {
             do {
                 // Validate the tip of the buffer.
                 int validationStartOffset = (int) (this.tailReadValidatedOffset - this.readBufferSegmentOffset);
-                validationResult = AppendContentGenerator.validate(this.readBuffer, validationStartOffset);
+                validationResult = AppendGenerator.validate(this.readBuffer, validationStartOffset);
                 validationResult.setSegmentOffset(this.readBufferSegmentOffset);
-                validationResult.setSource(SOURCE_TAIL_READ);
+                validationResult.setSource(ValidationSource.TailRead);
                 if (validationResult.isSuccess()) {
                     // Successful validation; advance the tail-read validated offset.
                     this.tailReadValidatedOffset += validationResult.getLength();
                     successfulValidations.add(validationResult);
-                    logState(SOURCE_TAIL_READ, null);
+                    logState(ValidationSource.TailRead.toString(), null);
                 } else if (validationResult.isFailed()) {
                     // Validation failed. Invoke callback.
-                    validationFailed(SOURCE_TAIL_READ, validationResult);
+                    validationFailed(ValidationSource.TailRead, validationResult);
                 }
             }
             while (validationResult.isSuccess() && this.readBufferSegmentOffset + this.readBuffer.getLength() > this.tailReadValidatedOffset);
@@ -436,7 +432,7 @@ public class Consumer extends Actor {
                              try {
                                  validationResult = validateCatchupRead(readResult, expectedData, segmentStartOffset, length);
                                  if (!validationResult.isSuccess()) {
-                                     validationFailed(SOURCE_CATCHUP_READ, validationResult);
+                                     validationFailed(ValidationSource.CatchupRead, validationResult);
                                      return;
                                  }
 
@@ -451,11 +447,11 @@ public class Consumer extends Actor {
                                  }
 
                                  this.testState.recordCatchupRead(verifiedLength);
-                                 logState(SOURCE_CATCHUP_READ, null);
+                                 logState(ValidationSource.CatchupRead.toString(), null);
                              } catch (Throwable ex) {
                                  validationResult = ValidationResult.failed(String.format("General failure: ReadLength = %s, Ex = %s.", length, ex));
                                  validationResult.setSegmentOffset(segmentStartOffset);
-                                 validationFailed(SOURCE_CATCHUP_READ, validationResult);
+                                 validationFailed(ValidationSource.CatchupRead, validationResult);
                              } finally {
                                  readResult.close();
                              }
@@ -511,10 +507,10 @@ public class Consumer extends Actor {
         }
 
         if (result == null) {
-            result = ValidationResult.success(initialLength);
+            result = ValidationResult.success(Append.NO_ROUTING_KEY, initialLength); // TODO: actual routing key?
         }
 
-        result.setSource(SOURCE_CATCHUP_READ);
+        result.setSource(ValidationSource.CatchupRead);
         return result;
     }
 
