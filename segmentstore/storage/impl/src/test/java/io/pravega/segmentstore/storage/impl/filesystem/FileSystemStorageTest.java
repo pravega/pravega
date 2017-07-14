@@ -129,57 +129,6 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
     //endregion
 
-    //region synchronization unit tests
-
-    /**
-     * This test case simulates two hosts writing at the same offset at the same time.
-     */
-    @Test(timeout = 30000)
-    public void testParallelWriteTwoHosts() {
-        String segmentName = "foo_write";
-        int appendCount = 5;
-
-        try (Storage s1 = createStorage();
-             Storage s2 = createStorage()) {
-            s1.initialize(DEFAULT_EPOCH);
-            s1.create(segmentName, TIMEOUT).join();
-            SegmentHandle writeHandle1 = s1.openWrite(segmentName).join();
-            SegmentHandle writeHandle2 = s2.openWrite(segmentName).join();
-            long offset = 0;
-            byte[] writeData = String.format("Segment_%s_Append", segmentName).getBytes();
-            for (int j = 0; j < appendCount; j++) {
-                ByteArrayInputStream dataStream1 = new ByteArrayInputStream(writeData);
-                ByteArrayInputStream dataStream2 = new ByteArrayInputStream(writeData);
-                CompletableFuture f1 = s1.write(writeHandle1, offset, dataStream1, writeData.length, TIMEOUT);
-                CompletableFuture f2 = s2.write(writeHandle2, offset, dataStream2, writeData.length, TIMEOUT);
-                assertMayThrow("Write expected to complete OR throw BadOffsetException." +
-                                "threw an unexpected exception.",
-                        () -> CompletableFuture.allOf(f1, f2),
-                        ex -> ex instanceof BadOffsetException);
-
-                // Make sure at least one operation is success.
-                Assert.assertTrue("At least one of the two parallel writes should succeed.",
-                        !f1.isCompletedExceptionally() || !f2.isCompletedExceptionally());
-                offset += writeData.length;
-            }
-            Assert.assertTrue( "Writes at the same offset are expected to be idempotent.",
-                    s1.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength() == offset);
-
-            offset = 0;
-            byte[] readBuffer = new byte[writeData.length];
-            for (int j = 0; j < appendCount; j++) {
-                int bytesRead = s1.read(writeHandle1, j * readBuffer.length, readBuffer,
-                        0, readBuffer.length, TIMEOUT) .join();
-                Assert.assertEquals(String.format("Unexpected number of bytes read from offset %d.", offset),
-                        readBuffer.length, bytesRead);
-                AssertExtensions.assertArrayEquals(String.format("Unexpected read result from offset %d.", offset),
-                        readBuffer, 0, readBuffer, 0, bytesRead);
-            }
-
-            s1.delete(writeHandle1, TIMEOUT).join();
-        }
-    }
-
     @Override
     protected Storage createStorage() {
         return this.storageFactory.createStorageAdapter();
