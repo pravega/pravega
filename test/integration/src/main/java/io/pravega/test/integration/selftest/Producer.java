@@ -161,9 +161,8 @@ class Producer extends Actor {
             // Generate some random data, then append it.
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append to segment");
             Append append = this.dataSource.nextAppend(operation.getTarget());
-            assert append.getSerialization().arrayOffset() == 0 : "for now, only ArrayView that wrap an entire array are supported";
             operation.setLength(append.getSerialization().getLength());
-            return this.store.append(operation.getTarget(), append.getSerialization().array(), null, timer.getRemaining())
+            return this.store.append(operation.getTarget(), append, null, timer.getRemaining())
                              .exceptionally(ex -> attemptReconcile(ex, operation, timer));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the segment.

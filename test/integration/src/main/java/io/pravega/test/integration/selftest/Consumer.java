@@ -385,7 +385,7 @@ public class Consumer extends Actor {
                     this.tailReadValidatedOffset += validationResult.getLength();
                     successfulValidations.add(validationResult);
                     logState(ValidationSource.TailRead.toString(), null);
-                } else if (validationResult.isFailed()) {
+                } else if (!validationResult.isSuccess()) {
                     // Validation failed. Invoke callback.
                     validationFailed(ValidationSource.TailRead, validationResult);
                 }

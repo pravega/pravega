@@ -25,7 +25,7 @@ interface StoreAdapter extends AutoCloseable {
 
     void initialize() throws Exception;
 
-    CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Void> append(String streamSegmentName, Append data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 

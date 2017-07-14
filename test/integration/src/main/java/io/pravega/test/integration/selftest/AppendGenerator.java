@@ -88,14 +88,14 @@ class AppendGenerator {
         try {
             // Deserialize and validate the append.
             Append a = new Append(view, offset);
-            a.validate();
+            a.validateContents();
             result = ValidationResult.success(a.getRoutingKey(), a.getTotalLength());
             if (a.getStartTime() >= 0) {
                 // Set the elapsed time, but only for successful operations that did encode the start time.
                 result.setElapsed(Duration.ofNanos(getCurrentTimeNanos() - a.getStartTime()));
             }
         } catch (Exception ex) {
-            // Any validation exceptions are thrown either from the Append Constructor or from validate().
+            // Any validation exceptions are thrown either from the Append Constructor or from validateContents().
             result = ValidationResult.failed(ex.getMessage());
         }
 

@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -28,6 +29,7 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -168,9 +170,11 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, Append data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.append(streamSegmentName, data, attributeUpdates, timeout);
+        ArrayView s = data.getSerialization();
+        byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
+        return this.streamSegmentStore.append(streamSegmentName, payload, attributeUpdates, timeout);
     }
 
     @Override

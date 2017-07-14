@@ -14,13 +14,14 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
-import java.util.Random;
 import lombok.Getter;
 
 /**
  * Represents an Append with a Routing Key and payload.
  */
 class Append {
+    //region Members
+
     private static final int PREFIX_LENGTH = Integer.BYTES;
     private static final int OWNER_ID_LENGTH = Integer.BYTES;
     private static final int ROUTING_KEY_LENGTH = Integer.BYTES;
@@ -43,7 +44,21 @@ class Append {
     private final int contentLength;
     @Getter
     private final ArrayView serialization;
+    private final int contentOffset;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the Append class.
+     *
+     * @param ownerId    Owner Id (Stream Id, Segment Id, etc)
+     * @param routingKey Routing Key to use.
+     * @param sequence   Append Sequence Number.
+     * @param startTime  Start (creation) time, in Nanos.
+     * @param length     Desired length of the append.
+     */
     Append(int ownerId, int routingKey, int sequence, long startTime, int length) {
         this.ownerId = ownerId;
         this.routingKey = routingKey;
@@ -51,8 +66,15 @@ class Append {
         this.startTime = startTime;
         this.serialization = new ByteArraySegment(serialize(length));
         this.contentLength = this.serialization.getLength() - PREFIX_LENGTH;
+        this.contentOffset = HEADER_LENGTH;
     }
 
+    /**
+     * Creates a new instance of the Append class.
+     *
+     * @param source       A Source ArrayView to deserialize from.
+     * @param sourceOffset A starting offset within the Source where to begin deserializing from.
+     */
     Append(ArrayView source, int sourceOffset) {
         this.serialization = Preconditions.checkNotNull(source, "source");
 
@@ -80,21 +102,31 @@ class Append {
         sourceOffset += LENGTH_LENGTH;
         Preconditions.checkArgument(this.contentLength >= 0, "Payload length must be a positive integer.");
         Preconditions.checkArgument(sourceOffset + contentLength <= source.getLength(), "Insufficient data in given source.");
+        this.contentOffset = sourceOffset;
     }
 
-    ArrayView getContent() {
-        return new ByteArraySegment(this.serialization.array(), this.serialization.arrayOffset() + HEADER_LENGTH, this.contentLength);
-    }
+    //endregion
 
+    //region Properties
+
+    /**
+     * Gets a value indicating the total length of the append, including the Header and its Contents.
+     *
+     * @return The result.
+     */
     int getTotalLength() {
-        return this.serialization.getLength();
+        return HEADER_LENGTH + this.contentLength;
     }
 
     @Override
     public String toString() {
-        return String.format("Owner = %d, Key = %d, Sequence = %d, Start = %d, ContentLength = %d",
-                this.ownerId, this.routingKey, this.sequence, this.startTime, this.contentLength);
+        return String.format("Owner = %d, Key = %d, Sequence = %d, Start = %d, Length = %d",
+                this.ownerId, this.routingKey, this.sequence, this.startTime, getTotalLength());
     }
+
+    //endregion
+
+    //region Serialization, Deserialization and Validation
 
     private byte[] serialize(int length) {
         Preconditions.checkArgument(length >= HEADER_LENGTH, "length is insufficient to accommodate header.");
@@ -112,42 +144,37 @@ class Append {
         assert offset == HEADER_LENGTH : "Append header has a different length than expected";
 
         // Content
-        writeContent(payload, offset, contentLength, sequence);
+        writeContent(payload, offset);
         return payload;
     }
 
-    private void writeContent(byte[] result, int offset, int length, int sequence) {
-        Random contentGenerator = new Random(calculateContentKey(this.ownerId, sequence));
-        while (offset < length) {
-            int value = contentGenerator.nextInt();
-
-            for (int counter = Math.min(length - offset, 4); counter-- > 0; value >>= 8) {
-                result[offset++] = (byte) value;
-            }
+    private void writeContent(byte[] result, int offset) {
+        int nextValue = this.sequence;
+        while (offset < result.length) {
+            result[offset++] = (byte) (nextValue % 255 + Byte.MIN_VALUE);
+            nextValue += this.routingKey + 1;
         }
     }
 
-    void validate() {
-        Random contentGenerator = new Random(calculateContentKey(this.ownerId, this.sequence));
-        ArrayView view = getContent();
-        int offset = 0;
-        int length = view.getLength();
-        while (offset < length) {
-            int value = contentGenerator.nextInt();
-
-            for (int counter = Math.min(length - offset, 4); counter-- > 0; value >>= 8) {
-                if (view.get(offset) != (byte) value) {
-                    throw new IllegalStateException(String.format(
-                            "Append Corrupted. Payload at index %d differs. Expected %d, actual %d.",
-                            offset, (byte) value, view.get(offset)));
-                }
-
-                offset++;
+    /**
+     * Validates the contents of the Append, based on information from its Header.
+     */
+    void validateContents() {
+        int offset = this.contentOffset;
+        int endOffset = offset + this.contentLength;
+        int nextValue = this.sequence;
+        while (offset < endOffset) {
+            byte expectedValue = (byte) (nextValue % 255 + Byte.MIN_VALUE);
+            if (this.serialization.get(offset) != expectedValue) {
+                throw new IllegalStateException(String.format(
+                        "Append Corrupted. Payload at index %d differs. Expected %d, actual %d.",
+                        offset - this.contentOffset, expectedValue, this.serialization.get(offset)));
             }
+
+            nextValue += this.routingKey + 1;
+            offset++;
         }
     }
 
-    private static int calculateContentKey(int ownerId, int sequence) {
-        return ownerId ^ sequence;
-    }
+    //endregion
 }

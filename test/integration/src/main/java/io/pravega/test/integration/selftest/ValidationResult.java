@@ -55,7 +55,7 @@ class ValidationResult {
      * Creates a new instance of the ValidationResult class. Not to be used externally (use the static factory methods instead).
      */
     private ValidationResult() {
-        this.length = Append.HEADER_LENGTH;
+        this.length = 0;
         this.routingKey = -1;
         this.failureMessage = null;
         this.elapsed = null;
@@ -73,10 +73,12 @@ class ValidationResult {
 
     /**
      * Creates a new ValidationResult for a successful test.
+     * @param routingKey  The Append Routing Key.
+     * @param totalAppendLength  The append size, in bytes, including header and contents.
      */
-    static ValidationResult success(int routingKey, int length) {
+    static ValidationResult success(int routingKey, int totalAppendLength) {
         ValidationResult result = new ValidationResult();
-        result.length = Append.HEADER_LENGTH + length;
+        result.length = totalAppendLength;
         result.routingKey = routingKey;
         return result;
     }
@@ -86,25 +88,18 @@ class ValidationResult {
     //region Properties
 
     /**
-     * Gets a value indicating whether the verification failed.
-     */
-    boolean isFailed() {
-        return this.failureMessage != null;
-    }
-
-    /**
      * Gets a value indicating whether the verification succeeded.
      */
     boolean isSuccess() {
-        return !isFailed();
+        return this.failureMessage == null;
     }
 
     @Override
     public String toString() {
-        if (isFailed()) {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this.failureMessage);
-        } else {
+        if (isSuccess()) {
             return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset, this.length);
+        } else {
+            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this.failureMessage);
         }
     }
 
