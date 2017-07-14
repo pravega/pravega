@@ -86,11 +86,13 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
             assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
-                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0,
+                            new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes", expectedMetricsSize, Metrics.WRITE_BYTES.get());
-            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful event in case of unsuccessful writes",
+            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
+                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
                     expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
 
             val writeHandle = s.openWrite(segmentName).join();
@@ -101,9 +103,10 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 expectedMetricsSize += writeData.length;
                 expectedMetricsSuccesses += 1;
-                Assert.assertEquals("WRITE_LATENCY should increase the count of successful event in case of successful writes",
+                Assert.assertEquals("WRITE_LATENCY should increase the count of successful events in case of successful writes",
                         expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
-                Assert.assertEquals("WRITE_BYTES should increase by the size of successful writes", expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                Assert.assertEquals("WRITE_BYTES should increase by the size of successful writes",
+                        expectedMetricsSize, Metrics.WRITE_BYTES.get());
 
                 offset += writeData.length;
             }
@@ -113,16 +116,18 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             assertThrows("write() did not throw bad offset write (larger).",
                     () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
-            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes", expectedMetricsSize, Metrics.WRITE_BYTES.get());
-            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful event in case of unsuccessful writes",
+            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
+                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
                     expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             // Check post-delete write.
             s.delete(writeHandle, TIMEOUT).join();
             assertThrows("write() did not throw for a deleted StreamSegment.",
                     () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
-            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes", expectedMetricsSize, Metrics.WRITE_BYTES.get());
-            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful event in case of unsuccessful writes",
+            Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
+                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+            Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
                     expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
         }
     }
