@@ -125,7 +125,7 @@ public class ControllerClusterListener extends AbstractIdleService {
                 return RetryHelper.withIndefiniteRetriesAsync(() -> sweeper.handleFailedProcess(host.getHostId()),
                         e -> log.warn(e.getMessage()), executor);
             } else {
-                return CompletableFuture.completedFuture((Void) (null));
+                return CompletableFuture.completedFuture((Void) null);
             }
         }).collect(Collectors.toList()));
     }
