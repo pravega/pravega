@@ -48,7 +48,7 @@ class AppendGenerator {
 
     //endregion
 
-    //region New Append
+    //region New Event
 
     /**
      * Generates a byte array containing data for an append.
@@ -61,11 +61,11 @@ class AppendGenerator {
      * @param length The total length of the append (including overhead).
      * @return The generated array.
      */
-    Append newAppend(int length) {
+    Event newAppend(int length) {
         int sequence = this.sequence.getAndIncrement();
         int routingKey = sequence % this.routingKeyCount;
         long startTime = this.recordStartTime ? getCurrentTimeNanos() : Long.MIN_VALUE;
-        return new Append(this.ownerId, routingKey, sequence, startTime, length);
+        return new Event(this.ownerId, routingKey, sequence, startTime, length);
     }
 
     private static long getCurrentTimeNanos() {
@@ -77,7 +77,7 @@ class AppendGenerator {
     //region Validation
 
     /**
-     * Validates that the given ArrayView contains a valid Append, starting at the given offset.
+     * Validates that the given ArrayView contains a valid Event, starting at the given offset.
      *
      * @param view   The view to inspect.
      * @param offset The offset to start inspecting at.
@@ -87,7 +87,7 @@ class AppendGenerator {
         ValidationResult result;
         try {
             // Deserialize and validate the append.
-            Append a = new Append(view, offset);
+            Event a = new Event(view, offset);
             a.validateContents();
             result = ValidationResult.success(a.getRoutingKey(), a.getTotalLength());
             if (a.getStartTime() >= 0) {
@@ -95,7 +95,7 @@ class AppendGenerator {
                 result.setElapsed(Duration.ofNanos(getCurrentTimeNanos() - a.getStartTime()));
             }
         } catch (Exception ex) {
-            // Any validation exceptions are thrown either from the Append Constructor or from validateContents().
+            // Any validation exceptions are thrown either from the Event Constructor or from validateContents().
             result = ValidationResult.failed(ex.getMessage());
         }
 

@@ -16,16 +16,16 @@ import lombok.Getter;
  */
 class ValidationException extends Exception {
     @Getter
-    private final String segmentName;
+    private final String target;
 
     /**
      * Creates a new instance of the ValidationException class.
      *
-     * @param segmentName      The name of the Segment that failed validation.
+     * @param target           The name of the Target(Stream/Segment) that failed validation.
      * @param validationResult The ValidationResult that triggered this.
      */
-    ValidationException(String segmentName, ValidationResult validationResult) {
-        super(String.format("Segment = %s, Offset = %s, Reason = %s", segmentName, validationResult.getSegmentOffset(), validationResult.getFailureMessage()));
-        this.segmentName = segmentName;
+    ValidationException(String target, ValidationResult validationResult) {
+        super(String.format("Target = %s, Offset = %s, Reason = %s", target, validationResult.getOffset(), validationResult.getFailureMessage()));
+        this.target = target;
     }
 }

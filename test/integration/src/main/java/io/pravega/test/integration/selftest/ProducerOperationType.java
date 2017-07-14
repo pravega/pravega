@@ -14,9 +14,9 @@ package io.pravega.test.integration.selftest;
  */
 final class ProducerOperationType extends OperationType {
     /**
-     * An Append Operation triggered by a Producer.
+     * An Event Operation triggered by a Producer.
      */
-    static final ProducerOperationType APPEND = new ProducerOperationType("Append");
+    static final ProducerOperationType APPEND = new ProducerOperationType("Event");
 
     /**
      * A Seal Operation triggered by a Producer.

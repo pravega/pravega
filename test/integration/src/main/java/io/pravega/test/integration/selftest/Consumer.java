@@ -292,7 +292,7 @@ public class Consumer extends Actor {
                 if (expected != storageReadBuffer[i]) {
                     // This also includes the case when one stream ends prematurely.
                     val result = ValidationResult.failed(String.format("Corrupted data at Segment offset %s. Expected '%s', found '%s'.", segmentOffset + i, expected, storageReadBuffer[i]));
-                    result.setSegmentOffset(segmentOffset + i);
+                    result.setOffset(segmentOffset + i);
                     return result;
                 }
             }
@@ -300,7 +300,7 @@ public class Consumer extends Actor {
             throw new UncheckedIOException(ex);
         }
 
-        return ValidationResult.success(Append.NO_ROUTING_KEY, storageReadBuffer.length);
+        return ValidationResult.success(Event.NO_ROUTING_KEY, storageReadBuffer.length);
     }
 
     //endregion
@@ -325,7 +325,7 @@ public class Consumer extends Actor {
                             AsyncReadResultProcessor.process(readResult, entryHandler, this.executorService);
                             return entryHandler.completed.thenAccept(readOffset::addAndGet);
                         }, this.executorService)
-                        .thenCompose(v -> this.store.getStreamSegmentInfo(this.segmentName, this.config.getTimeout()))
+                        .thenCompose(v -> this.store.getInfo(this.segmentName, this.config.getTimeout()))
                         .handle((r, ex) -> {
                             if (ex != null) {
                                 ex = ExceptionHelpers.getRealException(ex);
@@ -356,7 +356,7 @@ public class Consumer extends Actor {
                 this.readBufferSegmentOffset = segmentOffset;
             }
 
-            // Append data to buffer.
+            // Event data to buffer.
             this.readBuffer.append(data, length);
             logState("PROCESS_READ", "Offset=%s, Length=%s", segmentOffset, length);
         }
@@ -378,7 +378,7 @@ public class Consumer extends Actor {
                 // Validate the tip of the buffer.
                 int validationStartOffset = (int) (this.tailReadValidatedOffset - this.readBufferSegmentOffset);
                 validationResult = AppendGenerator.validate(this.readBuffer, validationStartOffset);
-                validationResult.setSegmentOffset(this.readBufferSegmentOffset);
+                validationResult.setOffset(this.readBufferSegmentOffset);
                 validationResult.setSource(ValidationSource.TailRead);
                 if (validationResult.isSuccess()) {
                     // Successful validation; advance the tail-read validated offset.
@@ -450,7 +450,7 @@ public class Consumer extends Actor {
                                  logState(ValidationSource.CatchupRead.toString(), null);
                              } catch (Throwable ex) {
                                  validationResult = ValidationResult.failed(String.format("General failure: ReadLength = %s, Ex = %s.", length, ex));
-                                 validationResult.setSegmentOffset(segmentStartOffset);
+                                 validationResult.setOffset(segmentStartOffset);
                                  validationFailed(ValidationSource.CatchupRead, validationResult);
                              } finally {
                                  readResult.close();
@@ -501,13 +501,13 @@ public class Consumer extends Actor {
 
             // If we have a failure, don't bother continuing.
             if (result != null) {
-                result.setSegmentOffset(segmentOffset);
+                result.setOffset(segmentOffset);
                 break;
             }
         }
 
         if (result == null) {
-            result = ValidationResult.success(Append.NO_ROUTING_KEY, initialLength); // TODO: actual routing key?
+            result = ValidationResult.success(Event.NO_ROUTING_KEY, initialLength); // TODO: actual routing key?
         }
 
         result.setSource(ValidationSource.CatchupRead);

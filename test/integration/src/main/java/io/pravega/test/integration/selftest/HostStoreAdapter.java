@@ -14,7 +14,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -24,7 +23,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -107,38 +105,38 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
-            if (this.writers.containsKey(streamSegmentName)) {
-                throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
+            if (this.writers.containsKey(streamName)) {
+                throw new CompletionException(new StreamSegmentExistsException(streamName));
             }
 
-            this.streamManager.createStream(SCOPE, streamSegmentName, null);
-            WriterCollection producers = new WriterCollection(streamSegmentName, this.writerCount, this.streamManager);
-            this.writers.putIfAbsent(streamSegmentName, producers);
+            this.streamManager.createStream(SCOPE, streamName, null);
+            WriterCollection producers = new WriterCollection(streamName, this.writerCount, this.streamManager);
+            this.writers.putIfAbsent(streamName, producers);
         }, this.testExecutor);
     }
 
     @Override
-    public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        throw new UnsupportedOperationException("deleteStreamSegment is not supported.");
+        throw new UnsupportedOperationException("delete is not supported.");
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, Append data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
-            WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamSegmentName, null);
+            WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamName, null);
             if (segmentWriterCollection == null) {
-                throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                throw new CompletionException(new StreamSegmentNotExistsException(streamName));
             }
 
             EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
-            ArrayView s = data.getSerialization();
+            ArrayView s = event.getSerialization();
             byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-            Future<Void> r = writer.writeEvent(Integer.toString(data.getRoutingKey()), payload);
+            Future<Void> r = writer.writeEvent(Integer.toString(event.getRoutingKey()), payload);
             if (this.autoFlush) {
                 writer.flush();
             }
@@ -152,25 +150,25 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> sealStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        throw new UnsupportedOperationException("sealStreamSegment is not supported.");
+        throw new UnsupportedOperationException("seal is not supported.");
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        throw new UnsupportedOperationException("getStreamSegmentInfo is not supported.");
+        throw new UnsupportedOperationException("getInfo is not supported.");
     }
 
     @Override
-    public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
+    public CompletableFuture<ReadResult> read(String streamName, long offset, int maxLength, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("read is not supported.");
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("transactions are not supported.");
     }

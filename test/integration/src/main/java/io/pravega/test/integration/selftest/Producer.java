@@ -10,20 +10,15 @@
 package io.pravega.test.integration.selftest;
 
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.SneakyThrows;
 
 /**
  * Represents an Operation Producer for the Self Tester.
@@ -145,64 +140,39 @@ class Producer extends Actor {
      * Executes the given operation.
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
-        TimeoutTimer timer = new TimeoutTimer(this.config.getTimeout());
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            return this.store.createTransaction(operation.getTarget(), null, timer.getRemaining())
+            return this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
                              .thenAccept(operation::setResult);
         } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
-            // Seal & Merge the Transaction.
-            StoreAdapter.Feature.Seal.ensureSupported(this.store, "create transaction");
-            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            return this.store.sealStreamSegment(operation.getTarget(), timer.getRemaining())
-                             .thenCompose(v -> this.store.mergeTransaction(operation.getTarget(), timer.getRemaining()));
+            // Merge the Transaction.
+            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "merge transaction");
+            return this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
-            StoreAdapter.Feature.Append.ensureSupported(this.store, "append to segment");
-            Append append = this.dataSource.nextAppend(operation.getTarget());
-            operation.setLength(append.getSerialization().getLength());
-            return this.store.append(operation.getTarget(), append, null, timer.getRemaining())
-                             .exceptionally(ex -> attemptReconcile(ex, operation, timer));
+            StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
+            Event event = this.dataSource.nextEvent(operation.getTarget());
+            operation.setLength(event.getSerialization().getLength());
+            return this.store.append(operation.getTarget(), event, this.config.getTimeout())
+                    .exceptionally(ex -> attemptReconcile(ex, operation));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
-            // Seal the segment.
-            StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal segment");
-            return this.store.sealStreamSegment(operation.getTarget(), this.config.getTimeout());
+            // Seal the target.
+            StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal");
+            return this.store.seal(operation.getTarget(), this.config.getTimeout());
         } else {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }
     }
 
-    private Void attemptReconcile(Throwable ex, ProducerOperation operation, TimeoutTimer timer) {
+    @SneakyThrows
+    private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
         ex = ExceptionHelpers.getRealException(ex);
-        boolean reconciled = false;
-        if (isPossibleEndOfSegment(ex)) {
-            reconciled = this.dataSource.isClosed(operation.getTarget());
-
-            if (!reconciled) {
-                // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
-                StoreAdapter.Feature.GetInfo.ensureSupported(this.store, "reconcile");
-                try {
-                    SegmentProperties sp = this.store.getStreamSegmentInfo(operation.getTarget(), timer.getRemaining())
-                                                     .get(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
-                    reconciled = sp.isSealed() || sp.isDeleted();
-                } catch (Throwable ex2) {
-                    reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
-                }
-            }
-        }
-
-        if (reconciled) {
+        if (this.dataSource.isClosed(operation.getTarget())) {
             return null;
         } else {
-            throw new CompletionException(ex);
+            throw ex;
         }
-    }
-
-    private boolean isPossibleEndOfSegment(Throwable ex) {
-        return ex instanceof StreamSegmentSealedException
-                || ex instanceof StreamSegmentNotExistsException
-                || ex instanceof StreamSegmentMergedException;
     }
 
     //endregion

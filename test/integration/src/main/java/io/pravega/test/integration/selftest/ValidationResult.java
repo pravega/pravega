@@ -27,7 +27,7 @@ class ValidationResult {
     private Duration elapsed;
     @Getter
     @Setter
-    private long segmentOffset;
+    private long offset;
 
     /**
      * Indicates the length of the validated append. This value is undefined if isSuccess() == false.
@@ -73,12 +73,12 @@ class ValidationResult {
 
     /**
      * Creates a new ValidationResult for a successful test.
-     * @param routingKey  The Append Routing Key.
-     * @param totalAppendLength  The append size, in bytes, including header and contents.
+     * @param routingKey  The Event Routing Key.
+     * @param length      The Event size, in bytes, including header and contents.
      */
-    static ValidationResult success(int routingKey, int totalAppendLength) {
+    static ValidationResult success(int routingKey, int length) {
         ValidationResult result = new ValidationResult();
-        result.length = totalAppendLength;
+        result.length = length;
         result.routingKey = routingKey;
         return result;
     }
@@ -97,9 +97,9 @@ class ValidationResult {
     @Override
     public String toString() {
         if (isSuccess()) {
-            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset, this.length);
+            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.offset, this.length);
         } else {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this.failureMessage);
+            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.offset, this.failureMessage);
         }
     }
 

@@ -66,7 +66,7 @@ class ProducerDataSource {
      * Generates the next ProducerOperation to be executed. Based on the current TestState, this operation can be:
      * * CreateTransaction: If no CreateTransaction happened for a while (based on the TestConfig).
      * * MergeTransaction: If a transaction has exceeded its maximum number of appends (based on the TestConfig).
-     * * Append: If any of the above are not met (this represents the majority of cases).
+     * * Event: If any of the above are not met (this represents the majority of cases).
      *
      * @return The next ProducerOperation, or null if not such operation can be generated (we reached the end of the test).
      */
@@ -117,9 +117,9 @@ class ProducerDataSource {
     }
 
     /**
-     * Generates a new Append (which follows a deterministic pattern and has a routing key).
+     * Generates a new Event (which follows a deterministic pattern and has a routing key).
      */
-    Append nextAppend(String segmentName) {
+    Event nextEvent(String segmentName) {
         AppendGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
         if (generator == null) {
             // If the argument is indeed correct, this segment was deleted between the time the operation got generated
@@ -203,7 +203,7 @@ class ProducerDataSource {
         for (int i = 0; i < this.config.getSegmentCount(); i++) {
             final int segmentId = i;
             String name = String.format("Segment_%s", segmentId);
-            segmentFutures.add(this.store.createStreamSegment(name, null, this.config.getTimeout())
+            segmentFutures.add(this.store.createStream(name, this.config.getTimeout())
                     .thenRun(() -> {
                         this.state.recordNewSegmentName(name);
                         this.appendGenerators.put(name, new AppendGenerator(segmentId, this.config.getRoutingKeyCount(), true));
@@ -237,7 +237,7 @@ class ProducerDataSource {
     }
 
     private CompletableFuture<Void> deleteSegment(String name) {
-        return this.store.deleteStreamSegment(name, this.config.getTimeout())
+        return this.store.delete(name, this.config.getTimeout())
                          .exceptionally(ex -> {
                              ex = ExceptionHelpers.getRealException(ex);
                              if (!(ex instanceof StreamSegmentNotExistsException)) {

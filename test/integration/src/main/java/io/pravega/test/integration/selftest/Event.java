@@ -17,9 +17,9 @@ import io.pravega.common.util.ByteArraySegment;
 import lombok.Getter;
 
 /**
- * Represents an Append with a Routing Key and payload.
+ * Represents an Event with a Routing Key and payload.
  */
-class Append {
+class Event {
     //region Members
 
     private static final int PREFIX_LENGTH = Integer.BYTES;
@@ -51,15 +51,15 @@ class Append {
     //region Constructor
 
     /**
-     * Creates a new instance of the Append class.
+     * Creates a new instance of the Event class.
      *
      * @param ownerId    Owner Id (Stream Id, Segment Id, etc)
      * @param routingKey Routing Key to use.
-     * @param sequence   Append Sequence Number.
+     * @param sequence   Event Sequence Number.
      * @param startTime  Start (creation) time, in Nanos.
      * @param length     Desired length of the append.
      */
-    Append(int ownerId, int routingKey, int sequence, long startTime, int length) {
+    Event(int ownerId, int routingKey, int sequence, long startTime, int length) {
         this.ownerId = ownerId;
         this.routingKey = routingKey;
         this.sequence = sequence;
@@ -70,12 +70,12 @@ class Append {
     }
 
     /**
-     * Creates a new instance of the Append class.
+     * Creates a new instance of the Event class.
      *
      * @param source       A Source ArrayView to deserialize from.
      * @param sourceOffset A starting offset within the Source where to begin deserializing from.
      */
-    Append(ArrayView source, int sourceOffset) {
+    Event(ArrayView source, int sourceOffset) {
         this.serialization = Preconditions.checkNotNull(source, "source");
 
         // Extract prefix and validate.
@@ -141,7 +141,7 @@ class Append {
         offset += BitConverter.writeLong(payload, offset, this.startTime);
         int contentLength = length - HEADER_LENGTH;
         offset += BitConverter.writeInt(payload, offset, contentLength);
-        assert offset == HEADER_LENGTH : "Append header has a different length than expected";
+        assert offset == HEADER_LENGTH : "Event header has a different length than expected";
 
         // Content
         writeContent(payload, offset);
@@ -157,7 +157,7 @@ class Append {
     }
 
     /**
-     * Validates the contents of the Append, based on information from its Header.
+     * Validates the contents of the Event, based on information from its Header.
      */
     void validateContents() {
         int offset = this.contentOffset;
@@ -167,7 +167,7 @@ class Append {
             byte expectedValue = (byte) (nextValue % 255 + Byte.MIN_VALUE);
             if (this.serialization.get(offset) != expectedValue) {
                 throw new IllegalStateException(String.format(
-                        "Append Corrupted. Payload at index %d differs. Expected %d, actual %d.",
+                        "Event Corrupted. Payload at index %d differs. Expected %d, actual %d.",
                         offset - this.contentOffset, expectedValue, this.serialization.get(offset)));
             }
 

@@ -10,13 +10,17 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -30,12 +34,12 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
@@ -45,7 +49,8 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 /**
- * Store Adapter wrapping a real StreamSegmentStore.
+ * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
+ * ignored.
  */
 class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Members
@@ -70,7 +75,7 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     /**
      * Creates a new instance of the StreamSegmentStoreAdapter class.
      *
-     * @param builderConfig The Test Configuration to use.
+     * @param testConfig    The Test Configuration to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
@@ -170,53 +175,62 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, Append data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureInitializedAndNotClosed();
-        ArrayView s = data.getSerialization();
+        ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-        return this.streamSegmentStore.append(streamSegmentName, payload, attributeUpdates, timeout);
+        return this.streamSegmentStore.append(streamName, payload, null, timeout)
+                                      .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.getStreamSegmentInfo(streamSegmentName, false, timeout);
+        return this.streamSegmentStore.getStreamSegmentInfo(streamName, false, timeout);
     }
 
     @Override
-    public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
+    public CompletableFuture<ReadResult> read(String streamName, long offset, int maxLength, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.read(streamSegmentName, offset, maxLength, timeout);
+        return this.streamSegmentStore.read(streamName, offset, maxLength, timeout);
     }
 
     @Override
-    public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createStreamSegment(streamSegmentName, attributes, timeout);
+    public StoreReader createReader() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<String> createTransaction(String parentStreamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
+    public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.createTransaction(parentStreamSegmentName, UUID.randomUUID(), attributes, timeout);
+        return this.streamSegmentStore.createStreamSegment(streamName, null, timeout);
+    }
+
+    @Override
+    public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
+        ensureInitializedAndNotClosed();
+        return this.streamSegmentStore.createTransaction(parentStream, UUID.randomUUID(), null, timeout);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.mergeTransaction(transactionName, timeout);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.streamSegmentStore
+                .sealStreamSegment(transactionName, timer.getRemaining())
+                .thenCompose(v -> this.streamSegmentStore.mergeTransaction(transactionName, timer.getRemaining()));
     }
 
     @Override
-    public CompletableFuture<Void> sealStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamSegmentName, timeout));
+        return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.deleteStreamSegment(streamSegmentName, timeout);
+        return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }
 
     @Override
@@ -236,6 +250,33 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     //endregion
 
     //region Helpers
+
+    @SneakyThrows
+    private Void attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
+        ex = ExceptionHelpers.getRealException(ex);
+        boolean reconciled = false;
+        if (isPossibleEndOfSegment(ex)) {
+            // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
+            try {
+                SegmentProperties sp = getInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                reconciled = sp.isSealed() || sp.isDeleted();
+            } catch (Throwable ex2) {
+                reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
+            }
+        }
+
+        if (reconciled) {
+            return null;
+        } else {
+            throw ex;
+        }
+    }
+
+    private boolean isPossibleEndOfSegment(Throwable ex) {
+        return ex instanceof StreamSegmentSealedException
+                || ex instanceof StreamSegmentNotExistsException
+                || ex instanceof StreamSegmentMergedException;
+    }
 
     protected void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
