@@ -15,14 +15,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
+import io.grpc.EquivalentAddressGroup;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
-import io.grpc.ResolvedServerInfo;
-import io.grpc.ResolvedServerInfoGroup;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import io.grpc.util.RoundRobinLoadBalancerFactory;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,7 +31,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -174,14 +172,13 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
             // If the servers comprise only of IP addresses then we need to update the controller list only once.
             if (this.scheduledExecutor == null) {
-                final ResolvedServerInfoGroup serverInfoGroup = ResolvedServerInfoGroup.builder()
-                        .addAll(this.bootstrapServers.stream()
-                                .map(address -> new ResolvedServerInfo(
-                                        new InetSocketAddress(address.getHostString(), address.getPort())))
-                                .collect(Collectors.toList()))
-                        .build();
-                log.info("Updating client with controllers: {}", serverInfoGroup);
-                this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+                // Use the bootstrapped server list as the final set of controllers.
+                List<EquivalentAddressGroup> servers = this.bootstrapServers.stream()
+                        .map(address -> new EquivalentAddressGroup(
+                                new InetSocketAddress(address.getHostString(), address.getPort())))
+                        .collect(Collectors.toList());
+                log.info("Updating client with controllers: {}", servers);
+                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);
                 return;
             }
 
@@ -234,40 +231,32 @@ public class ControllerResolverFactory extends NameResolver.Factory {
          */
         private void getControllers() {
             log.info("Attempting to refresh the controller server endpoints");
-            final ResolvedServerInfoGroup serverInfoGroup;
+            final List<EquivalentAddressGroup> servers;
             long nextScheduleTimeMS = REFRESH_INTERVAL_MS;
             try {
                 if (this.enableDiscovery) {
                     // Make an RPC call to the bootstrapped controller servers to fetch all active controllers.
                     final ServerResponse controllerServerList =
                             this.client.getControllerServerList(ServerRequest.getDefaultInstance());
-                    serverInfoGroup = ResolvedServerInfoGroup.builder()
-                            .addAll(controllerServerList.getNodeURIList()
-                                    .stream()
-                                    .map(node ->
-                                            new ResolvedServerInfo(
-                                                    new InetSocketAddress(node.getEndpoint(), node.getPort())))
-                                    .collect(Collectors.toList()))
-                            .build();
+                    servers = controllerServerList.getNodeURIList().stream()
+                            .map(node ->
+                                    new EquivalentAddressGroup(new InetSocketAddress(node.getEndpoint(), node.getPort())))
+                            .collect(Collectors.toList());
                 } else {
                     // Resolve the bootstrapped server hostnames to get the set of controllers.
-                    final ArrayList<InetSocketAddress> resolvedAddresses = new ArrayList<>();
+                    servers = new ArrayList<>();
                     this.bootstrapServers.forEach(address -> {
                         final InetSocketAddress socketAddress = new InetSocketAddress(address.getHostString(),
                                 address.getPort());
                         if (!socketAddress.isUnresolved()) {
-                            resolvedAddresses.add(socketAddress);
+                            servers.add(new EquivalentAddressGroup(socketAddress));
                         }
                     });
-                    serverInfoGroup = ResolvedServerInfoGroup.builder().addAll(resolvedAddresses.stream()
-                            .map(ResolvedServerInfo::new)
-                            .collect(Collectors.toList()))
-                            .build();
                 }
 
                 // Update gRPC load balancer with the new set of server addresses.
-                log.info("Updating client with controllers: {}", serverInfoGroup);
-                this.resolverUpdater.onUpdate(Collections.singletonList(serverInfoGroup), Attributes.EMPTY);
+                log.info("Updating client with controllers: {}", servers);
+                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);
 
                 // We have found at least one controller endpoint. Repeat discovery after the regular schedule.
                 nextScheduleTimeMS = REFRESH_INTERVAL_MS;
