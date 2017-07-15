@@ -124,7 +124,12 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     @Test
     public void testContainerFailureOnStartup() throws Exception {
         final int containerId = 123;
-        TestContainerFactory factory = new TestContainerFactory(new IntentionalException());
+
+        // We insert a ReusableLatch that will allow us to manually delay the TestContainer's shutdown/closing process
+        // so that we have enough time to verify that calling getContainer() on a currently shutting down container will
+        // throw the appropriate exception.
+        ReusableLatch closeReleaseSignal = new ReusableLatch();
+        TestContainerFactory factory = new TestContainerFactory(new IntentionalException(), closeReleaseSignal);
         @Cleanup
         StreamSegmentContainerRegistry registry = new StreamSegmentContainerRegistry(factory, executorService());
 
@@ -134,7 +139,15 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IntentionalException || (ex instanceof IllegalStateException && ex.getCause() instanceof IntentionalException));
 
         AssertExtensions.assertThrows(
-                "Container is registered even if it failed to start.",
+                "Container is registered even if it failed to start (and is currently shut down).",
+                () -> registry.getContainer(containerId),
+                ex -> ex instanceof ContainerNotFoundException);
+
+        // Unblock container closing, which will, in turn, unblock its de-registration.
+        closeReleaseSignal.release();
+
+        AssertExtensions.assertThrows(
+                "Container is registered even if it failed to start (and has been unregistered).",
                 () -> registry.getContainer(containerId),
                 ex -> ex instanceof ContainerNotFoundException);
     }
@@ -220,18 +233,20 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
     private class TestContainerFactory implements SegmentContainerFactory {
         private final Exception startException;
+        private final ReusableLatch startReleaseSignal;
 
         TestContainerFactory() {
-            this(null);
+            this(null, null);
         }
 
-        TestContainerFactory(Exception startException) {
+        TestContainerFactory(Exception startException, ReusableLatch startReleaseSignal) {
             this.startException = startException;
+            this.startReleaseSignal = startReleaseSignal;
         }
 
         @Override
         public SegmentContainer createStreamSegmentContainer(int containerId) {
-            return new TestContainer(containerId, this.startException);
+            return new TestContainer(containerId, this.startException, this.startReleaseSignal);
         }
     }
 
@@ -242,13 +257,15 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
     private class TestContainer extends AbstractService implements SegmentContainer {
         private final int id;
         private final Exception startException;
+        private final ReusableLatch closeReleaseSignal;
         private Exception stopException;
         private final AtomicBoolean closed;
         private ReusableLatch stopSignal;
 
-        TestContainer(int id, Exception startException) {
+        TestContainer(int id, Exception startException, ReusableLatch closeReleaseSignal) {
             this.id = id;
             this.startException = startException;
+            this.closeReleaseSignal = closeReleaseSignal;
             this.closed = new AtomicBoolean();
         }
 
@@ -270,6 +287,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         public void close() {
             if (!this.closed.getAndSet(true)) {
                 FutureHelpers.await(ServiceHelpers.stopAsync(this, executorService()));
+                ReusableLatch signal = this.closeReleaseSignal;
+                if (signal != null) {
+                    // Wait until we are told to complete.
+                    signal.awaitUninterruptibly();
+                }
             }
         }
 
