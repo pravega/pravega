@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
@@ -18,6 +19,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
+import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
@@ -75,6 +77,7 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer releaseTimer;
     private final TimeoutTimer acquireTimer;
     private final TimeoutTimer fetchStateTimer;
+    private final TimeoutTimer checkpointTimer;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -90,6 +93,7 @@ public class ReaderGroupStateManager {
         releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         fetchStateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
+        checkpointTimer = new TimeoutTimer(UPDATE_WINDOW, nanoClock);
     }
 
     static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
@@ -332,10 +336,22 @@ public class ReaderGroupStateManager {
     }
     
     String getCheckpoint() throws ReinitializationRequiredException {
+        fetchUpdatesIfNeeded();
         ReaderGroupState state = sync.getState();
+        long automaticCpInterval = state.getConfig().getAutomaticCheckpointIntervalMillis();
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
+        String checkpoint = state.getCheckpointsForReader(readerId);
+        if (checkpoint != null) {
+            checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
+            return checkpoint;
+        }
+        if (automaticCpInterval <= 0 || checkpointTimer.hasRemaining() || state.hasOngoingCheckpoint()) {
+            return null;
+        }
+        sync.updateState(s -> s.hasOngoingCheckpoint() ? null : ImmutableList.of(new CreateCheckpoint()));
+        checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
         return state.getCheckpointsForReader(readerId);
     }
     

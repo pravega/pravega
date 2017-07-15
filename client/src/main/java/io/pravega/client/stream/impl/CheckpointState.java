@@ -101,6 +101,11 @@ public class CheckpointState {
     }
     
     @Synchronized
+    boolean hasOngoingCheckpoint() {
+        return !uncheckpointedHosts.isEmpty();
+    }
+    
+    @Synchronized
     void clearCheckpointsThrough(String checkpointId) {
         if (checkpointPositions.containsKey(checkpointId)) {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
