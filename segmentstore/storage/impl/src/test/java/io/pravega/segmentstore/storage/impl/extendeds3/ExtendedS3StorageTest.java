@@ -16,8 +16,6 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.nio.channels.FileChannel;
@@ -57,8 +55,6 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
         s3Proxy = new S3ProxyImpl(endpoint, s3Config);
         s3Proxy.start();
-        MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
-        MetricsProvider.initialize(metricsConfig);
         metrics = new ExtendedS3StorageMetrics();
         createStorage();
         client.createBucket(bucketName);

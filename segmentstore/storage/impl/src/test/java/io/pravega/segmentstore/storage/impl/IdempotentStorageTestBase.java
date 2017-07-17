@@ -14,6 +14,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Assert;
@@ -32,6 +34,12 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
 
     protected StroageMetricsBase metrics;
+
+    protected IdempotentStorageTestBase() {
+        MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
+        MetricsProvider.initialize(metricsConfig);
+    }
+
     //region Fencing tests
 
     /**
