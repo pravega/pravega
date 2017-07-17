@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.common.MathHelpers;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,13 +33,13 @@ public class Orderer {
             return null;
         }
         for (int i = 0; i < segments.size(); i++) {
-            SegmentInputStream inputStream = segments.get(counter.incrementAndGet() % segments.size());
+            SegmentInputStream inputStream = segments.get(MathHelpers.abs(counter.incrementAndGet()) % segments.size());
             if (inputStream.canReadWithoutBlocking()) {
                 return inputStream;
             } else {
                 inputStream.fillBuffer();
             }
         }
-        return segments.get(counter.incrementAndGet() % segments.size());
+        return segments.get(MathHelpers.abs(counter.incrementAndGet()) % segments.size());
     }
 }
