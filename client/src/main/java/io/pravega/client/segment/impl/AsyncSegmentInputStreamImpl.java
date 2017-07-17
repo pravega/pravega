@@ -133,10 +133,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
 
         return backoffSchedule.retryingOn(Exception.class)
-                              .throwingOn(ConnectionClosedException.class)
-                              .runAsync(() -> {
-                                  return getConnection().thenCompose(c -> sendRequestOverConnection(request, c));
-                              }, connectionFactory.getInternalExecutor());
+                .throwingOn(ConnectionClosedException.class)
+                .runAsync(() -> {
+                    return getConnection()
+                            .whenComplete((connection, ex) -> {
+                                if (ex != null) {
+                                    log.warn("Exception while establishing connection with Pravega " +
+                                            "node", ex);
+                                    closeConnection(new ConnectionFailedException(ex));
+                                }
+                            }).thenCompose(c -> sendRequestOverConnection(request, c));
+                }, connectionFactory.getInternalExecutor());
     }
     
     @SneakyThrows(ConnectionFailedException.class)
@@ -182,8 +189,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
                 }
-                return connection; 
-            } 
+                return connection;
+            }
         });
     }
 
