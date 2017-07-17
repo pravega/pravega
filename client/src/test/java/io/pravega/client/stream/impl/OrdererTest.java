@@ -50,7 +50,7 @@ public class OrdererTest {
         public boolean canReadWithoutBlocking() {
             return canReadWithoutBlocking;
         }
-    };
+    }
 
     @Test
     public void testChangingLogs() {
@@ -91,8 +91,9 @@ public class OrdererTest {
     public void testFindsNonblocking() {
         List<StubSegmentInputStream> streams = createInputStreams(13);
         for (StubSegmentInputStream stream : streams) {
-            if (stream.getNumber() != 7)
+            if (stream.getNumber() != 7) {
                 stream.setCanReadWithoutBlocking(false);
+            }
         }
         Orderer o = new Orderer();
         StubSegmentInputStream chosen = o.nextSegment(streams);
