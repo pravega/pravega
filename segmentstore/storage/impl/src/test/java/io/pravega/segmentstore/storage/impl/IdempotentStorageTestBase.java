@@ -17,14 +17,11 @@ import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.util.concurrent.CompletableFuture;
-
-import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 /**
@@ -32,13 +29,11 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  */
 public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
-
-    protected StroageMetricsBase metrics;
-
-    protected IdempotentStorageTestBase() {
+    static {
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
     }
+    protected StroageMetricsBase metrics;
 
     //region Fencing tests
 
@@ -162,7 +157,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
     /**
      * This test case simulates two hosts writing at the same offset at the same time.
-     */
+     *
     @Test(timeout = 30000)
     public void testParallelWriteTwoHosts() {
         String segmentName = "foo_write";
