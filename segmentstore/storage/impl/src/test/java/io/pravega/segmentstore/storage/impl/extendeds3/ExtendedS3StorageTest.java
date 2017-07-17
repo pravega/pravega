@@ -16,6 +16,7 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
+import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.nio.channels.FileChannel;
@@ -39,6 +40,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private final int port = TestUtils.getAvailableListenPort();
     private final String endpoint = "http://127.0.0.1:" + port;
     private S3Config s3Config;
+    private StroageMetricsBase metrics;
 
     @Before
     public void setUp() throws Exception {
@@ -55,6 +57,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
         s3Proxy = new S3ProxyImpl(endpoint, s3Config);
         s3Proxy.start();
+        metrics = new ExtendedS3StorageMetrics();
         createStorage();
         client.createBucket(bucketName);
         List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map((object) -> {
@@ -78,7 +81,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         client = new S3JerseyClientWrapper(s3Config, s3Proxy);
 
-        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService());
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService(), metrics);
         return storage;
     }
 
