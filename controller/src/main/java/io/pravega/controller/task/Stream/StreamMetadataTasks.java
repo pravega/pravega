@@ -189,10 +189,12 @@ public class StreamMetadataTasks extends TaskBase {
                 streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
                         context, executor)
                         .thenComposeAsync(startScaleResponse -> {
+                            int activeEpoch = startScaleResponse.getActiveEpoch();
                             AtomicBoolean scaling = new AtomicBoolean(true);
-                            return FutureHelpers.loop(scaling::get, () ->
-                                    streamMetadataStore.getState(scope, stream, null, executor)
-                                            .thenAccept(state -> scaling.set(state.equals(State.SCALING))), executor)
+                            return FutureHelpers.loop(scaling::get, () -> FutureHelpers.delayedFuture(() ->
+                                            streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
+                                                    .thenAccept(state -> scaling.set(state.getKey() == activeEpoch)),
+                                    1000, executor), executor)
                                     .thenApply(r -> startScaleResponse);
                         })
                         .handle((startScaleResponse, e) -> {

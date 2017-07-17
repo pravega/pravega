@@ -90,7 +90,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
+        streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
             // Note, transaction's epoch either equals stream's current epoch or is one more than it,
             // because stream scale operation ensures that all transactions in current epoch are
             // complete before transitioning the stream to new epoch.
