@@ -9,19 +9,22 @@
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
+import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 
 /**
- * Defines all Metrics used by the FilesystemStorage class.
+ * Defines all FileSystemStorageMetrics used by the FilesystemStorage class.
  */
-final class Metrics {
+public final class FileSystemStorageMetrics extends StroageMetricsBase {
     private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("filesystem");
-    static final OpStatsLogger READ_LATENCY = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
-    static final OpStatsLogger WRITE_LATENCY = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
-    static final Counter READ_BYTES = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
-    static final Counter WRITE_BYTES = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+
+    public FileSystemStorageMetrics() {
+        readLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
+        writeLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
+        readBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
+        writeBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+    }
+
 }

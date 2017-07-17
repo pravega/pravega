@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,6 +82,7 @@ public class FileSystemStorage implements Storage {
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
+    private StroageMetricsBase metrics;
 
     //endregion
 
@@ -88,16 +90,17 @@ public class FileSystemStorage implements Storage {
 
     /**
      * Creates a new instance of the FileSystemStorage class.
-     *
-     * @param config   The configuration to use.
+     *  @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
+     * @param metrics  Metrics to record the stats.
      */
-    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
+    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor, StroageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.closed = new AtomicBoolean(false);
         this.config = config;
         this.executor = executor;
+        this.metrics = metrics;
     }
 
     //endregion
@@ -235,8 +238,8 @@ public class FileSystemStorage implements Storage {
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
-            Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.READ_BYTES.add(totalBytesRead);
+            metrics.readLatency.reportSuccessEvent(timer.getElapsed());
+            metrics.readBytes.add(totalBytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -307,8 +310,8 @@ public class FileSystemStorage implements Storage {
                     length -= bytesWritten;
                 }
             }
-            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.WRITE_BYTES.add(totalBytesWritten);
+            metrics.writeLatency.reportSuccessEvent(timer.getElapsed());
+            metrics.writeBytes.add(totalBytesWritten);
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }
