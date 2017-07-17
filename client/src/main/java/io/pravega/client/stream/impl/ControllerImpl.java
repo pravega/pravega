@@ -282,7 +282,7 @@ public class ControllerImpl implements Controller {
                         + stream);
             case TIMEDOUT:
                 log.warn("Controller failed to complete scale within stipulated time: {}", stream.getStreamName());
-                throw new ControllerFailureException("Controller failed scale stream and timed out: "
+                throw new ControllerFailureException("Controller failed to scale stream within desired time: "
                         + stream);
             case UNRECOGNIZED:
             default:

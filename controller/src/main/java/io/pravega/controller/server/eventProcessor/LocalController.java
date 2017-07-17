@@ -180,7 +180,7 @@ public class LocalController implements Controller {
                     case SUCCESS:
                         return true;
                     case TIMEDOUT:
-                        throw new ControllerFailureException("Controller failed scale stream and timed out: "
+                        throw new ControllerFailureException("Controller failed to scale stream within desired time: "
                                 + stream);
                     case TXN_CONFLICT:
                         throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "

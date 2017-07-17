@@ -193,7 +193,7 @@ public class StreamMetadataTasksTest {
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
                 Arrays.asList(segment3, segment4, segment5), 30, null).get();
 
-        // scaling operation fails once a stream is sealed.
+        // scaling operation should timeout as we dont have an actual writer to write to the stream.
         assertEquals(ScaleStreamStatus.TIMEDOUT, scaleOpResult.getStatus());
     }
 
