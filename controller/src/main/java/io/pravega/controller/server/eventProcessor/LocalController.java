@@ -179,6 +179,9 @@ public class LocalController implements Controller {
                         return false;
                     case SUCCESS:
                         return true;
+                    case TIMEDOUT:
+                        throw new ControllerFailureException("Controller failed scale stream and timed out: "
+                                + stream);
                     case TXN_CONFLICT:
                         throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
                                 + stream);
