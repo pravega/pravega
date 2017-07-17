@@ -415,9 +415,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
             CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
-                .thenCompose((PravegaNodeUri uri) -> {
-                    return connectionFactory.establishConnection(uri, responseProcessor);
-                });
+                    .thenCompose((PravegaNodeUri uri) -> {
+                        return connectionFactory.establishConnection(uri, responseProcessor);
+                    }).whenComplete((connection, ex) -> {
+                        if (ex != null) {
+                            log.warn("Exception while establishing connection with Pravega node", ex);
+                            state.failConnection(new ConnectionFailedException(ex));
+                        }
+                    });
+
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
