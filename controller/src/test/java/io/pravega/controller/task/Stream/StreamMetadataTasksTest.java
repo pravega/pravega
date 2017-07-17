@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -179,4 +180,21 @@ public class StreamMetadataTasksTest {
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.SUCCESS, scaleOpResult.getStatus());
     }
+
+    @Test
+    public void manualScaleTest() throws Exception {
+        //scale operation on the sealed stream.
+        AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.2);
+        AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.2, 0.4);
+        AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.4, 0.5);
+
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock());
+        streamMetadataTasks.setScaleRequestTimeout(Duration.ofSeconds(1));
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, stream1, Collections.singletonList(0),
+                Arrays.asList(segment3, segment4, segment5), 30, null).get();
+
+        // scaling operation fails once a stream is sealed.
+        assertEquals(ScaleStreamStatus.TIMEDOUT, scaleOpResult.getStatus());
+    }
+
 }

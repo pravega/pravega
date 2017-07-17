@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -70,6 +71,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
+    private final AtomicLong scaleTimeout = new AtomicLong(TIMEOUT);
     private ClientFactory clientFactory;
     private String requestStreamName;
 
@@ -197,7 +199,7 @@ public class StreamMetadataTasks extends TaskBase {
                                             streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                                                     .thenAccept(state -> {
                                                         if (state.getKey() == activeEpoch) {
-                                                            if (startTime + TIMEOUT < System.currentTimeMillis()) {
+                                                            if (startTime + scaleTimeout.get() < System.currentTimeMillis()) {
                                                                 done.completeExceptionally(new ScaleOperationExceptions.ManualScaleTimedOut());
                                                             }
                                                         } else {
@@ -205,7 +207,13 @@ public class StreamMetadataTasks extends TaskBase {
                                                         }
                                                     }),
                                     1000, executor), executor)
-                                    .thenApply(r -> startScaleResponse);
+                                    .thenApply(r -> {
+                                        if (!done.isCompletedExceptionally()) {
+                                            return startScaleResponse;
+                                        } else {
+                                            throw new CompletionException(new ScaleOperationExceptions.ManualScaleTimedOut());
+                                        }
+                                    });
                         })
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -233,6 +241,11 @@ public class StreamMetadataTasks extends TaskBase {
                             }
                             return response.build();
                         }));
+    }
+
+    @VisibleForTesting
+    void setScaleRequestTimeout(Duration timeout) {
+        scaleTimeout.set(timeout.toMillis());
     }
 
     /**
