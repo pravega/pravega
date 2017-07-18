@@ -3,7 +3,7 @@
     "awsregion" :{
       "Type" : "String",
       "AllowedValues" : [ "us-east-1", "us-west-1"],
-      "Description" : "The region you are, and Pravega supports only these 2 regions. us-east-1 is the normal mode, us-west-2 is high-performance mode."
+      "Description" : "The region you are, and Pravega supports only these 2 regions. us-east-1 is the normal mode, us-west-1 is high-performance mode."
     },
     "keypair" : {
       "Type" : "String",
