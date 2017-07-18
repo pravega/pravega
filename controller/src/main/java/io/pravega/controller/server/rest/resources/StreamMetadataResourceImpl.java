@@ -386,8 +386,6 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     streamsList.forEach(stream -> {
                         // If internal streams are requested select only the ones that have the special stream names
                         // otherwise display the regular user created streams.
-                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
-                        // is fixed.
                         if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
                             streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
                         }
