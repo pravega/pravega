@@ -207,7 +207,7 @@ public class MultiReaderWriterWithFailOverTest {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().retryAttempts(10).maxBackoffMillis(10000).build());
                 writerList.add(writer);
             }
 
@@ -338,7 +338,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(120000);
+        Thread.sleep(60000);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventData.get();
@@ -355,7 +355,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(120000);
+        Thread.sleep(60000);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventData.get();
