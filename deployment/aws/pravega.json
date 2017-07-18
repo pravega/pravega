@@ -4,11 +4,10 @@
       "Type" : "String",
       "Default" : "us-east-1",
       "AllowedValues" : [ "us-east-1", "us-west-1"],
-      "Description" : "Pravega supports only these 2 regions"
+      "Description" : "The region you are, and Pravega supports only these 2 regions. us-east-1 is the normal mode, us-west-2 is high-performance mode."
     },
     "keypair" : {
       "Type" : "String",
-      "Default" : "pravega-deploy",
       "Description" : "Key Pair name in AWS"
     },
     "key" : {
@@ -19,11 +18,11 @@
   "Mappings" : {
       "AMIMap" : {
         "us-east-1" : { "AMI" : "ami-7747d01e" },
-        "us-west-1" : { "AMI" : "ami-2afbde4a" }
+        "us-west-1" : { "AMI" : "ami-a6f0ddc6" }
       },
       "InstanceTypeMap" : {
         "us-east-1" : { "InstanceType" : "m3.2xlarge" },
-        "us-west-1" : { "InstanceType" : "i3.4xlarge" }
+        "us-west-1" : { "InstanceType" : "i2.8xlarge" }
       }
   },
   "Resources" : {
@@ -150,11 +149,11 @@
         }
       },
 
-      "emrprofilepravega" : {
+      "emrprofile" : {
         "Type": "AWS::IAM::InstanceProfile",
          "Properties": {
             "Roles":  [{ "Ref": "iamemrprofilerole" }],
-            "InstanceProfileName": "emrprofilepravega"
+            "InstanceProfileName": "emrprofile"
          }
       },
       "awsiamrolepolicy": {
@@ -348,7 +347,7 @@
               }
             },
             "Name": "EMRCluster",
-            "JobFlowRole": { "Ref" : "emrprofilepravega"},
+            "JobFlowRole": { "Ref" : "emrprofile"},
             "ServiceRole": { "Ref" : "iamemrservicerole"},
             "ReleaseLabel": "emr-5.5.0"
           }
