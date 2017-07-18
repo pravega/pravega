@@ -740,7 +740,6 @@ public class StreamMetaDataTests {
                 new GenericType<List<ScaleMetadata>>() { });
         assertEquals("List Size", 50000, scaleMetadataListResponse.size());
 
-
         // Test for getScalingEvents for invalid scope/stream.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
         completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, ""));
