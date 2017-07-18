@@ -43,12 +43,13 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -65,10 +66,12 @@ import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries
 @Slf4j
 public class StreamMetadataTasks extends TaskBase {
 
+    private static final long TIMEOUT = Duration.ofMinutes(2).toMillis();
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
+    private final AtomicLong scaleTimeout = new AtomicLong(TIMEOUT);
     private ClientFactory clientFactory;
     private String requestStreamName;
 
@@ -190,12 +193,27 @@ public class StreamMetadataTasks extends TaskBase {
                         context, executor)
                         .thenComposeAsync(startScaleResponse -> {
                             int activeEpoch = startScaleResponse.getActiveEpoch();
-                            AtomicBoolean scaling = new AtomicBoolean(true);
-                            return FutureHelpers.loop(scaling::get, () -> FutureHelpers.delayedFuture(() ->
+                            long startTime = System.currentTimeMillis();
+                            final CompletableFuture<Void> done = new CompletableFuture<>();
+                            return FutureHelpers.loop(() -> !done.isDone(), () -> FutureHelpers.delayedFuture(() ->
                                             streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
-                                                    .thenAccept(state -> scaling.set(state.getKey() == activeEpoch)),
+                                                    .thenAccept(state -> {
+                                                        if (state.getKey() == activeEpoch) {
+                                                            if (startTime + scaleTimeout.get() < System.currentTimeMillis()) {
+                                                                done.completeExceptionally(new ScaleOperationExceptions.ManualScaleTimedOut());
+                                                            }
+                                                        } else {
+                                                            done.complete(null);
+                                                        }
+                                                    }),
                                     1000, executor), executor)
-                                    .thenApply(r -> startScaleResponse);
+                                    .thenApply(r -> {
+                                        if (!done.isCompletedExceptionally()) {
+                                            return startScaleResponse;
+                                        } else {
+                                            throw new CompletionException(new ScaleOperationExceptions.ManualScaleTimedOut());
+                                        }
+                                    });
                         })
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -204,6 +222,12 @@ public class StreamMetadataTasks extends TaskBase {
                                 Throwable cause = ExceptionHelpers.getRealException(e);
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
+                                } else if (cause instanceof ScaleOperationExceptions.ManualScaleTimedOut) {
+                                    // Note: timedout does not mean the scale operation failed. In fact scale operation once started,
+                                    // is guaranteed to be retried on all retryable failures ad infinitum.
+                                    // We return this so that we do not block the grpc call if scale fails to complete within stipulated time.
+                                    // If a client gets timedout, it means scale was started, and should eventually complete.
+                                    response.setStatus(ScaleResponse.ScaleStreamStatus.TIMEDOUT);
                                 } else {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
@@ -217,6 +241,11 @@ public class StreamMetadataTasks extends TaskBase {
                             }
                             return response.build();
                         }));
+    }
+
+    @VisibleForTesting
+    void setScaleRequestTimeout(Duration timeout) {
+        scaleTimeout.set(timeout.toMillis());
     }
 
     /**

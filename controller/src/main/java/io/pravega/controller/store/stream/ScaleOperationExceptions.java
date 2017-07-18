@@ -31,6 +31,9 @@ public class ScaleOperationExceptions {
     public static class ScalePostException extends ScaleOperationException implements RetryableException {
     }
 
+    public static class ManualScaleTimedOut extends ScaleOperationException {
+    }
+
     public static class ScaleRequestNotEnabledException extends ScaleOperationException {
     }
 }

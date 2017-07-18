@@ -286,6 +286,10 @@ public class ControllerImpl implements Controller {
                 log.warn("Controller failed to properly abort transactions on stream: {}", stream.getStreamName());
                 throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
                         + stream);
+            case TIMEDOUT:
+                log.warn("Controller failed to complete scale within stipulated time: {}", stream.getStreamName());
+                throw new ControllerFailureException("Controller failed to scale stream within desired time: "
+                        + stream);
             case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scaling stream " + stream

@@ -241,6 +241,7 @@ message ScaleResponse {
         FAILURE = 1;
         PRECONDITION_FAILED = 2;
         TXN_CONFLICT = 3;
+        TIMEDOUT = 4;
     }
     ScaleStreamStatus status = 1;
     repeated SegmentRange segments = 2;
