@@ -17,12 +17,14 @@ import io.pravega.controller.server.ControllerService;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.ws.rs.core.UriBuilder;
 
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.netty.channel.Channel;
-import org.glassfish.jersey.netty.httpserver.NettyHttpContainerProvider;
+import org.glassfish.grizzly.GrizzlyFuture;
+import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
 
@@ -38,7 +40,7 @@ public class RESTServer extends AbstractIdleService {
     private final RESTServerConfig restServerConfig;
     private final URI baseUri;
     private final ResourceConfig resourceConfig;
-    private Channel channel;
+    private HttpServer httpServer;
 
     public RESTServer(ControllerService controllerService, RESTServerConfig restServerConfig) {
         this.objectId = "RESTServer";
@@ -67,7 +69,7 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
-            channel = NettyHttpContainerProvider.createServer(baseUri, resourceConfig, false);
+            httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
@@ -81,9 +83,9 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
         try {
             log.info("Stopping REST server listening on port: {}", this.restServerConfig.getPort());
-            channel.close();
+            final GrizzlyFuture<HttpServer> shutdown = httpServer.shutdown(30, TimeUnit.SECONDS);
             log.info("Awaiting termination of REST server");
-            channel.closeFuture().sync();
+            shutdown.get();
             log.info("REST server terminated");
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
