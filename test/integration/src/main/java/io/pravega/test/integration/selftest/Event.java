@@ -32,18 +32,47 @@ class Event {
     static final int HEADER_LENGTH = PREFIX_LENGTH + OWNER_ID_LENGTH + ROUTING_KEY_LENGTH + SEQUENCE_LENGTH + START_TIME_LENGTH + LENGTH_LENGTH;
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
 
+    /**
+     * Event Owner. Generally test-assigned StreamId/SegmentId.
+     */
     @Getter
     private final int ownerId;
+
+    /**
+     * Event Routing Key.
+     */
     @Getter
     private final int routingKey;
+
+    /**
+     * Sequence within Owner.
+     */
     @Getter
     private final int sequence;
+
+    /**
+     * Test-assigned start time, in Nanos. This value only makes sense within the context of the Test process that
+     * created this object.
+     */
     @Getter
     private final long startTime;
+
+    /**
+     * Length of the Event payload, in bytes (this excludes the HEADER_LENGTH, which will need to be added in order to
+     * determine full serialization length.
+     */
     @Getter
     private final int contentLength;
+
+    /**
+     * Full serialization, including Header and Content.
+     */
     @Getter
     private final ArrayView serialization;
+
+    /**
+     * Offset within this.serialization where content starts at.
+     */
     private final int contentOffset;
 
     //endregion
@@ -101,7 +130,7 @@ class Event {
         this.contentLength = BitConverter.readInt(source, sourceOffset);
         sourceOffset += LENGTH_LENGTH;
         Preconditions.checkArgument(this.contentLength >= 0, "Payload length must be a positive integer.");
-        Preconditions.checkArgument(sourceOffset + contentLength <= source.getLength(), "Insufficient data in given source.");
+        Preconditions.checkElementIndex(sourceOffset + contentLength, source.getLength(), "Insufficient data in given source.");
         this.contentOffset = sourceOffset;
     }
 
@@ -128,6 +157,16 @@ class Event {
 
     //region Serialization, Deserialization and Validation
 
+    /**
+     * Format: [Header][Key][Length][Contents]
+     * * [Header]: is a sequence of bytes identifying the start of an append
+     * * [OwnerId]: the owning Stream/Segment id
+     * * [RoutingKey]: the event's routing key
+     * * [Sequence]: the event's sequence number
+     * * [StartTime]: the event's start time.
+     * * [Length]: length of [Contents]
+     * * [Contents]: a deterministic result of [Key] & [Length].
+     */
     private byte[] serialize(int length) {
         Preconditions.checkArgument(length >= HEADER_LENGTH, "length is insufficient to accommodate header.");
         byte[] payload = new byte[length];

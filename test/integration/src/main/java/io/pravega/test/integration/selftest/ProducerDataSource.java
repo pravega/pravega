@@ -31,7 +31,7 @@ class ProducerDataSource {
     private final TestConfig config;
     private final TestState state;
     private final StoreAdapter store;
-    private final ConcurrentHashMap<String, AppendGenerator> appendGenerators;
+    private final ConcurrentHashMap<String, EventGenerator> appendGenerators;
     private final Random appendSizeGenerator;
     private final boolean sealSupported;
     private final boolean transactionsSupported;
@@ -120,7 +120,7 @@ class ProducerDataSource {
      * Generates a new Event (which follows a deterministic pattern and has a routing key).
      */
     Event nextEvent(String segmentName) {
-        AppendGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
+        EventGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
         if (generator == null) {
             // If the argument is indeed correct, this segment was deleted between the time the operation got generated
             // and when this method was invoked.
@@ -134,7 +134,7 @@ class ProducerDataSource {
             size = this.appendSizeGenerator.nextInt(maxSize - minSize) + minSize;
         }
 
-        return generator.newAppend(size);
+        return generator.newEvent(size);
     }
 
     /**
@@ -165,7 +165,7 @@ class ProducerDataSource {
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
             int id = (int) System.nanoTime();
-            this.appendGenerators.put(transactionName, new AppendGenerator(id, this.config.getRoutingKeyCount(), false));
+            this.appendGenerators.put(transactionName, new EventGenerator(id, this.config.getRoutingKeyCount(), false));
         } else if (op.getType() == ProducerOperationType.APPEND) {
             this.state.recordAppend(op.getLength());
         }
@@ -206,7 +206,7 @@ class ProducerDataSource {
             segmentFutures.add(this.store.createStream(name, this.config.getTimeout())
                     .thenRun(() -> {
                         this.state.recordNewSegmentName(name);
-                        this.appendGenerators.put(name, new AppendGenerator(segmentId, this.config.getRoutingKeyCount(), true));
+                        this.appendGenerators.put(name, new EventGenerator(segmentId, this.config.getRoutingKeyCount(), true));
                     }));
         }
 

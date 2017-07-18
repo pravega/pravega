@@ -77,7 +77,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (this.testConfig.isUseClient()) {
             return new HostStoreAdapter(this.testConfig, builderConfig, this.executor);
         } else {
-            return new StreamSegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
+            return new SegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
         }
     }
 

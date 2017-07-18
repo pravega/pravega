@@ -27,7 +27,7 @@ class ValidationResult {
     private Duration elapsed;
     @Getter
     @Setter
-    private long offset;
+    private Object address;
 
     /**
      * Indicates the length of the validated append. This value is undefined if isSuccess() == false.
@@ -97,9 +97,9 @@ class ValidationResult {
     @Override
     public String toString() {
         if (isSuccess()) {
-            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.offset, this.length);
+            return String.format("Success (Source=%s, Address=[%s])", this.source, this.address);
         } else {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.offset, this.failureMessage);
+            return String.format("Failed (Source=%s, Address=[%s], Reason=%s)", this.source, this.address, this.failureMessage);
         }
     }
 

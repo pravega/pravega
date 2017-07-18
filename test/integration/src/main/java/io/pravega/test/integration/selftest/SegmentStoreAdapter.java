@@ -16,7 +16,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -52,7 +51,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
  * ignored.
  */
-class StreamSegmentStoreAdapter implements StoreAdapter {
+class SegmentStoreAdapter implements StoreAdapter {
     //region Members
 
     static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
@@ -73,13 +72,13 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentStoreAdapter class.
+     * Creates a new instance of the SegmentStoreAdapter class.
      *
      * @param testConfig    The Test Configuration to use.
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    StreamSegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testExecutor) {
+    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.closed = new AtomicBoolean();
@@ -190,12 +189,6 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<ReadResult> read(String streamName, long offset, int maxLength, Duration timeout) {
-        ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.read(streamName, offset, maxLength, timeout);
-    }
-
-    @Override
     public StoreReader createReader() {
         throw new UnsupportedOperationException();
     }
@@ -231,11 +224,6 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
     public CompletableFuture<Void> delete(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
-    }
-
-    @Override
-    public VerificationStorage getStorageAdapter() {
-        return this.storage.get();
     }
 
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {

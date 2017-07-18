@@ -10,7 +10,6 @@
 package io.pravega.test.integration.selftest;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -45,17 +44,6 @@ interface StoreAdapter extends AutoCloseable {
      * @return A CompletableFuture that will be completed with the result, when it is available.
      */
     CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout);
-
-    /**
-     * Reads from a Stream.
-     * @param streamName The Name of the Stream to read from.
-     * @param offset The offset to start reading at.
-     * @param maxLength The maximum length to read.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that will be completed with the result, when it is available.
-     */
-    @Deprecated
-    CompletableFuture<ReadResult> read(String streamName, long offset, int maxLength, Duration timeout);
 
     /**
      * Creates a new StoreReader that can read from this Store.
@@ -106,8 +94,6 @@ interface StoreAdapter extends AutoCloseable {
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
     CompletableFuture<Void> delete(String streamName, Duration timeout);
-
-    VerificationStorage getStorageAdapter();
 
     ExecutorServiceHelpers.Snapshot getStorePoolSnapshot();
 

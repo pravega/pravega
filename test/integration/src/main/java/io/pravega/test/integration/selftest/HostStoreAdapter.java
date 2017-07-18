@@ -14,7 +14,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -37,7 +36,7 @@ import lombok.val;
 /**
  * Store adapter wrapping a real StreamSegmentStore and Connection Listener.
  */
-public class HostStoreAdapter extends StreamSegmentStoreAdapter {
+public class HostStoreAdapter extends SegmentStoreAdapter {
     private static final String LOG_ID = "HostStoreAdapter";
     private static final String SCOPE = "scope";
     private static final String LISTENING_ADDRESS = "localhost";
@@ -159,12 +158,6 @@ public class HostStoreAdapter extends StreamSegmentStoreAdapter {
     public CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
         throw new UnsupportedOperationException("getInfo is not supported.");
-    }
-
-    @Override
-    public CompletableFuture<ReadResult> read(String streamName, long offset, int maxLength, Duration timeout) {
-        ensureInitializedAndNotClosed();
-        throw new UnsupportedOperationException("read is not supported.");
     }
 
     @Override

@@ -19,7 +19,7 @@ import net.jcip.annotations.ThreadSafe;
  * Generates sequential Appends using arbitrary routing keys.
  */
 @ThreadSafe
-class AppendGenerator {
+class EventGenerator {
     //region Members
 
     private final int ownerId;
@@ -32,13 +32,13 @@ class AppendGenerator {
     //region Constructor
 
     /**
-     * Creates a new instance of the AppendGenerator class.
+     * Creates a new instance of the EventGenerator class.
      *
      * @param ownerId         The Id to attach to all appends generated with this instance.
      * @param routingKeyCount The number of routing keys to use.
      * @param recordStartTime Whether to record start times in the appends.
      */
-    AppendGenerator(int ownerId, int routingKeyCount, boolean recordStartTime) {
+    EventGenerator(int ownerId, int routingKeyCount, boolean recordStartTime) {
         Preconditions.checkArgument(routingKeyCount > 0, "routingKeyCount must be a positive integer.");
         this.ownerId = ownerId;
         this.routingKeyCount = routingKeyCount;
@@ -51,17 +51,12 @@ class AppendGenerator {
     //region New Event
 
     /**
-     * Generates a byte array containing data for an append.
-     * Format: [Header][Key][Length][Contents]
-     * * [Header]: is a sequence of bytes identifying the start of an append
-     * * [Key]: a randomly generated sequence of bytes
-     * * [Length]: length of [Contents]
-     * * [Contents]: a deterministic result of [Key] & [Length].
+     * Generates new Event.
      *
-     * @param length The total length of the append (including overhead).
-     * @return The generated array.
+     * @param length The total length of the Event (including header).
+     * @return The generated Event.
      */
-    Event newAppend(int length) {
+    Event newEvent(int length) {
         int sequence = this.sequence.getAndIncrement();
         int routingKey = sequence % this.routingKeyCount;
         long startTime = this.recordStartTime ? getCurrentTimeNanos() : Long.MIN_VALUE;
@@ -87,12 +82,24 @@ class AppendGenerator {
         ValidationResult result;
         try {
             // Deserialize and validate the append.
-            Event a = new Event(view, offset);
-            a.validateContents();
-            result = ValidationResult.success(a.getRoutingKey(), a.getTotalLength());
-            if (a.getStartTime() >= 0) {
+            result = validate(new Event(view, offset));
+        } catch (Exception ex) {
+            // Any validation exceptions are thrown either from the Event Constructor or from validateContents().
+            result = ValidationResult.failed(ex.getMessage());
+        }
+
+        return result;
+    }
+
+    static ValidationResult validate(Event event) {
+        ValidationResult result;
+        try {
+            // Deserialize and validate the append.
+            event.validateContents();
+            result = ValidationResult.success(event.getRoutingKey(), event.getTotalLength());
+            if (event.getStartTime() >= 0) {
                 // Set the elapsed time, but only for successful operations that did encode the start time.
-                result.setElapsed(Duration.ofNanos(getCurrentTimeNanos() - a.getStartTime()));
+                result.setElapsed(Duration.ofNanos(getCurrentTimeNanos() - event.getStartTime()));
             }
         } catch (Exception ex) {
             // Any validation exceptions are thrown either from the Event Constructor or from validateContents().

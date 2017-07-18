@@ -73,7 +73,7 @@ public class SelfTestRunner {
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/selftest/segmentstore/containers")
-                                         .with(BookKeeperConfig.BK_LEDGER_PATH, StreamSegmentStoreAdapter.BK_LEDGER_PATH)
+                                         .with(BookKeeperConfig.BK_LEDGER_PATH, SegmentStoreAdapter.BK_LEDGER_PATH)
                                          .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
                                          .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
                                          .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1))

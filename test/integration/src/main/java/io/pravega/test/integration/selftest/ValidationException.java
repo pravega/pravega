@@ -25,7 +25,7 @@ class ValidationException extends Exception {
      * @param validationResult The ValidationResult that triggered this.
      */
     ValidationException(String target, ValidationResult validationResult) {
-        super(String.format("Target = %s, Offset = %s, Reason = %s", target, validationResult.getOffset(), validationResult.getFailureMessage()));
+        super(String.format("Target = %s, Address = %s, Reason = %s", target, validationResult.getAddress(), validationResult.getFailureMessage()));
         this.target = target;
     }
 }
