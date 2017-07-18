@@ -259,7 +259,10 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
-      "wget ${var.pravega_release} && mv pravega*.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
+      "cd /tmp && git clone https://github.com/pravega/pravega.git && cd pravega/",
+      "sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk",
+      "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew distTar && mv build/distributions/pravega*.tgz /home/ubuntu/data/pravega-0.1.0-SNAPSHOT.tgz",
+      "cd /home/ubuntu",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
