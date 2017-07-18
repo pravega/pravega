@@ -60,8 +60,8 @@ public class ExceptionHelpers {
      * @return The cause or the exception provided.
      */
     public static Throwable unwrapIfRequired(Throwable e) {
-        if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
-            return e.getCause();
+        while ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
+            e = e.getCause();
         }
         return e;
     }

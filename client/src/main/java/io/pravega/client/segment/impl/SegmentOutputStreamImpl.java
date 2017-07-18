@@ -421,7 +421,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
-            connection.send(cmd);
+            try {
+                connection.send(cmd);
+            } catch (ConnectionFailedException e) {
+                state.failConnection(e);
+                throw e;
+            }
         }
     }
 
