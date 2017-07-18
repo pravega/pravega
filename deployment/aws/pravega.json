@@ -252,7 +252,7 @@
             "echo -ne '-----END RSA PRIVATE KEY-----' >> /tmp/private_key\n",
             "chmod 400 /tmp/private_key\n",
             "cd installer\n",
-            "su ubuntu 'ansible-playbook -i hosts entry_point.yml --private-key=/tmp/private_key'"
+            "ansible-playbook -i hosts entry_point.yml --private-key=/tmp/private_key"
             ]]}
             }
         },
