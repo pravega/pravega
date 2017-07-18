@@ -30,7 +30,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -41,6 +40,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.AccessControlException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -409,7 +409,7 @@ public class FileSystemStorage implements Storage {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 
-        if (e instanceof AccessDeniedException) {
+        if (e instanceof AccessControlException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
 

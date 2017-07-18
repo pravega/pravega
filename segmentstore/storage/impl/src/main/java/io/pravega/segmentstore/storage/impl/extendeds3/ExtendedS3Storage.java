@@ -40,7 +40,7 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AccessDeniedException;
+import java.security.AccessControlException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -429,7 +429,7 @@ public class ExtendedS3Storage implements Storage {
             retVal = new ArrayIndexOutOfBoundsException(e.getMessage());
         }
 
-        if (e instanceof AccessDeniedException) {
+        if (e instanceof AccessControlException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
 
