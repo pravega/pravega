@@ -68,7 +68,7 @@ public class AutoScaleTest extends AbstractScaleTests {
 
     private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
             .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
+    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
 
     @Environment
     public static void setup() {
@@ -142,16 +142,17 @@ public class AutoScaleTest extends AbstractScaleTests {
         keyRanges.put(0.5, 1.0);
 
         Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
-                                                Collections.singletonList(0),
-                                                keyRanges)
-                                   .get();
+                Collections.singletonList(0),
+                keyRanges,
+                Duration.ofMinutes(2).toMillis(),
+                EXECUTOR_SERVICE).get();
         assertTrue(status);
 
         createStreamStatus = controller.createStream(CONFIG_TXN).get();
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
-    @Test
+    @Test (timeout = 300000) // 5 minutes
     public void scaleTests() throws URISyntaxException, InterruptedException {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
@@ -210,7 +211,6 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
-     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
@@ -243,7 +243,6 @@ public class AutoScaleTest extends AbstractScaleTests {
      * The test will periodically check if a scale event has occured by talking to controller via
      * controller client.
      *
-     * @param controllerUri Controller URI
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */

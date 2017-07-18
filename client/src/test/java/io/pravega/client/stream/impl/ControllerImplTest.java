@@ -21,6 +21,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -49,6 +51,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +62,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,6 +95,7 @@ public class ControllerImplTest {
 
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
+    private ScheduledExecutorService executor;
 
     @Before
     public void setup() throws IOException {
@@ -333,7 +338,7 @@ public class ControllerImplTest {
             public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(ScaleResponse.newBuilder()
-                                                    .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS)
+                                                    .setStatus(ScaleResponse.ScaleStreamStatus.STARTED)
                                                     .addSegments(ModelHelper.createSegmentRange("scope1",
                                                                                                 "stream1",
                                                                                                 0,
@@ -344,7 +349,19 @@ public class ControllerImplTest {
                                                                                                 1,
                                                                                                 0.5,
                                                                                                 1.0))
+                                                    .setEpoch(0)
                                                     .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(ScaleStatusResponse.newBuilder()
+                            .setStatus(true).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -545,10 +562,13 @@ public class ControllerImplTest {
                 .build()
                 .start();
         controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+
+        executor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void tearDown() {
+        executor.shutdown();
         fakeServer.shutdown();
     }
 
@@ -724,8 +744,9 @@ public class ControllerImplTest {
     @Test
     public void testScale() throws Exception {
         CompletableFuture<Boolean> scaleStream;
-        scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream1"), new ArrayList<>(),
-                                                   new HashMap<>());
+        StreamImpl stream = new StreamImpl("scope1", "stream1");
+        scaleStream = controllerClient.scaleStream(stream, new ArrayList<>(),
+                                                   new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
         assertTrue(scaleStream.get());
         CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
         assertEquals(2, segments.get().getSegments().size());
@@ -733,7 +754,7 @@ public class ControllerImplTest {
         assertEquals(new Segment("scope1", "stream1", 7), segments.get().getSegmentForKey(0.75));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
-                                                   new HashMap<>());
+                                                   new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
     }
 

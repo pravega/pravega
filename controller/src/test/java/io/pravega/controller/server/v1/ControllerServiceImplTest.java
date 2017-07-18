@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -406,7 +407,22 @@ public abstract class ControllerServiceImplTest {
         ResultObserver<ScaleResponse> result2 = new ResultObserver<>();
         this.controllerService.scale(scaleRequest, result2);
         final ScaleResponse scaleResponse = result2.get();
-        Assert.assertEquals(ScaleResponse.ScaleStreamStatus.SUCCESS, scaleResponse.getStatus());
+        Assert.assertEquals(ScaleResponse.ScaleStreamStatus.STARTED, scaleResponse.getStatus());
+
+        boolean done = false;
+        while (!done) {
+            final Controller.ScaleStatusRequest scalestatusRequest = Controller.ScaleStatusRequest.newBuilder()
+                    .setStreamInfo(ModelHelper.createStreamInfo(SCOPE1, STREAM1))
+                    .setEpoch(scaleResponse.getEpoch())
+                    .build();
+
+            ResultObserver<Controller.ScaleStatusResponse> checkScaleResult = new ResultObserver<>();
+
+            this.controllerService.checkScale(scalestatusRequest, checkScaleResult);
+            final Controller.ScaleStatusResponse scalestatusResponse = checkScaleResult.get();
+            done = scalestatusResponse.getStatus();
+        }
+
         Assert.assertEquals(2, scaleResponse.getSegmentsCount());
 
         ResultObserver<SegmentRanges> result3 = new ResultObserver<>();

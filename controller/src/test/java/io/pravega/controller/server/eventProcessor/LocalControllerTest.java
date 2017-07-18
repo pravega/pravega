@@ -15,21 +15,27 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,11 +51,18 @@ public class LocalControllerTest {
 
     private ControllerService mockControllerService;
     private LocalController testController;
+    private ScheduledExecutorService executor;
 
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
         this.testController = new LocalController(this.mockControllerService);
+        this.executor = Executors.newSingleThreadScheduledExecutor();
+    }
+
+    @After
+    public void teardown() {
+        this.executor.shutdown();
     }
 
     @Test
@@ -269,31 +282,26 @@ public class LocalControllerTest {
 
     @Test
     public void testScaleStream() throws ExecutionException, InterruptedException {
+        when(this.mockControllerService.checkScale(anyString(), anyString(), anyInt())).thenReturn(
+                CompletableFuture.completedFuture(Controller.ScaleStatusResponse.newBuilder()
+                        .setStatus(true).build()));
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
-                        .setStatus(Controller.ScaleResponse.ScaleStreamStatus.SUCCESS).build()));
+                        .setStatus(Controller.ScaleResponse.ScaleStreamStatus.STARTED).build()));
         Assert.assertTrue(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>()).join());
+                new ArrayList<>(), new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor).join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED).build()));
         Assert.assertFalse(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>()).join());
+                new ArrayList<>(), new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor).join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                        new ArrayList<>(), new HashMap<>()).join(),
-                ex -> ex instanceof ControllerFailureException);
-
-        when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
-                CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
-                        .setStatus(Controller.ScaleResponse.ScaleStreamStatus.TXN_CONFLICT).build()));
-        assertThrows("Expected ControllerFailureException",
-                () -> this.testController.scaleStream(new StreamImpl("scope", "stream"),
+                () -> this.testController.startScale(new StreamImpl("scope", "stream"),
                         new ArrayList<>(), new HashMap<>()).join(),
                 ex -> ex instanceof ControllerFailureException);
 
@@ -301,7 +309,7 @@ public class LocalControllerTest {
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.scaleStream(new StreamImpl("scope", "stream"),
+                () -> this.testController.startScale(new StreamImpl("scope", "stream"),
                         new ArrayList<>(), new HashMap<>()).join(),
                 ex -> ex instanceof ControllerFailureException);
     }

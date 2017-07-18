@@ -21,11 +21,15 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.TxnSegments;
+
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import io.pravega.test.common.TestingServerStarter;
 import lombok.Cleanup;
@@ -39,88 +43,95 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  */
 @Slf4j
 public class ScaleTest {
-    
+
     public static void main(String[] args) throws Exception {
-        @Cleanup
-        TestingServer zkTestServer = new TestingServerStarter().start();
+        try {
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            @Cleanup
+            TestingServer zkTestServer = new TestingServerStarter().start();
 
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        int port = Config.SERVICE_PORT;
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
-        server.startListening();
+            ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+            serviceBuilder.initialize();
+            StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            int port = Config.SERVICE_PORT;
+            @Cleanup
+            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+            server.startListening();
 
-        // Create controller object for testing against a separate controller report.
-        @Cleanup
-        ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
-        Controller controller = controllerWrapper.getController();
+            // Create controller object for testing against a separate controller report.
+            @Cleanup
+            ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
+            Controller controller = controllerWrapper.getController();
 
-        final String scope = "scope";
-        controllerWrapper.getControllerService().createScope(scope).get();
+            final String scope = "scope";
+            controllerWrapper.getControllerService().createScope(scope).get();
 
-        final String streamName = "stream1";
-        final StreamConfiguration config =
-                StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
-                        ScalingPolicy.fixed(1)).build();
+            final String streamName = "stream1";
+            final StreamConfiguration config =
+                    StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
+                            ScalingPolicy.fixed(1)).build();
 
-        Stream stream = new StreamImpl(scope, streamName);
+            Stream stream = new StreamImpl(scope, streamName);
 
-        log.info("Creating stream {}/{}", scope, streamName);
-        if (!controller.createStream(config).get()) {
-            log.error("Stream already existed, exiting");
-            return;
-        }
-
-        // Test 1: scale stream: split one segment into two
-        log.info("Scaling stream {}/{}, splitting one segment into two", scope, streamName);
-        Map<Double, Double> map = new HashMap<>();
-        map.put(0.0, 0.5);
-        map.put(0.5, 1.0);
-
-        if (!controller.scaleStream(stream, Collections.singletonList(0), map).get()) {
-            log.error("Scale stream: splitting segment into two failed, exiting");
-            return;
-        }
-
-        // Test 2: scale stream: merge two segments into one
-        log.info("Scaling stream {}/{}, merging two segments into one", scope, streamName);
-        CompletableFuture<Boolean> scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1, 2), Collections.singletonMap(0.0, 1.0));
-        
-        if (!scaleResponseFuture.get()) {
-            log.error("Scale stream: merging two segments into one failed, exiting");
-            return;
-        }
-
-        // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
-        CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 29000);
-        TxnSegments transaction = txnFuture.get();
-        if (transaction == null) {
-            log.error("Create transaction failed, exiting");
-            return;
-        }
-
-        log.info("Scaling stream {}/{}, splitting one segment into two, while transaction is ongoing",
-                scope, streamName);
-        scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map);
-        CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
-            if (e != null) {
-                log.error("Failed: scale with ongoing transaction.", e);
-            } else if (getAndHandleExceptions(controller.checkTransactionStatus(stream, transaction.getTxnId()),
-                    RuntimeException::new) != Transaction.Status.OPEN) {
-                log.info("Success: scale with ongoing transaction.");
-            } else {
-                log.error("Failed: scale with ongoing transaction.");
+            log.info("Creating stream {}/{}", scope, streamName);
+            if (!controller.createStream(config).get()) {
+                log.error("Stream already existed, exiting");
+                return;
             }
-        });
 
-        CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, transaction.getTxnId());
-        statusFuture.get();
-        future.get();
+            // Test 1: scale stream: split one segment into two
+            log.info("Scaling stream {}/{}, splitting one segment into two", scope, streamName);
+            Map<Double, Double> map = new HashMap<>();
+            map.put(0.0, 0.5);
+            map.put(0.5, 1.0);
 
-        log.info("All scaling test PASSED");
+            if (!controller.scaleStream(stream, Collections.singletonList(0), map, Duration.ofSeconds(5).toMillis(), executor).get()) {
+                log.error("Scale stream: splitting segment into two failed, exiting");
+                return;
+            }
 
-        System.exit(0);
+            // Test 2: scale stream: merge two segments into one
+            log.info("Scaling stream {}/{}, merging two segments into one", scope, streamName);
+            CompletableFuture<Boolean> scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1, 2),
+                    Collections.singletonMap(0.0, 1.0), Duration.ofSeconds(5).toMillis(), executor);
+
+            if (!scaleResponseFuture.get()) {
+                log.error("Scale stream: merging two segments into one failed, exiting");
+                return;
+            }
+
+            // Test 3: create a transaction, and try scale operation, it should fail with precondition check failure
+            CompletableFuture<TxnSegments> txnFuture = controller.createTransaction(stream, 5000, 3600000, 29000);
+            TxnSegments transaction = txnFuture.get();
+            if (transaction == null) {
+                log.error("Create transaction failed, exiting");
+                return;
+            }
+
+            log.info("Scaling stream {}/{}, splitting one segment into two, while transaction is ongoing",
+                    scope, streamName);
+            scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map, Duration.ofSeconds(5).toMillis(), executor);
+            CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
+                if (e != null) {
+                    log.error("Failed: scale with ongoing transaction.", e);
+                } else if (getAndHandleExceptions(controller.checkTransactionStatus(stream, transaction.getTxnId()),
+                        RuntimeException::new) != Transaction.Status.OPEN) {
+                    log.info("Success: scale with ongoing transaction.");
+                } else {
+                    log.error("Failed: scale with ongoing transaction.");
+                }
+            });
+
+            CompletableFuture<Void> statusFuture = controller.abortTransaction(stream, transaction.getTxnId());
+            statusFuture.get();
+            future.get();
+
+            log.info("All scaling test PASSED");
+            executor.shutdown();
+            System.exit(0);
+        } catch (Throwable t) {
+            log.error("test failed with {}", t);
+            System.exit(-1);
+        }
     }
 }

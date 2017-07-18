@@ -176,7 +176,6 @@ public class StreamMetadataTasksTest {
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
                 newRanges, 30, null).get();
 
-        // scaling operation fails once a stream is sealed.
-        assertEquals(ScaleStreamStatus.SUCCESS, scaleOpResult.getStatus());
+        assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
     }
 }

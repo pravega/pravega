@@ -22,7 +22,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
@@ -144,6 +146,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                       entry -> entry.getStart(), entry -> entry.getEnd())),
                                               request.getScaleTimestamp()),
                       responseObserver);
+    }
+
+    @Override
+    public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
+        log.info("check scale status called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
+        processResult(controllerService.checkScale(request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(),
+                request.getEpoch()),
+                responseObserver);
     }
 
     @Override

@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -138,7 +139,18 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+    public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
+                                                  long timeout, ScheduledExecutorService executor) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScaleStatus(Stream stream, int epoch) {
         throw new NotImplementedException();
     }
 

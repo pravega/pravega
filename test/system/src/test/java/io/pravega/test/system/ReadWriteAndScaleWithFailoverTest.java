@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -88,7 +89,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
         //executor service
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         testState = new TestState();
@@ -131,7 +132,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
                     Collections.singletonList(0),
-                    keyRanges);
+                    keyRanges,
+                    Duration.ofMinutes(2).toMillis(),
+                    executorService);
 
             //run the failover test while scaling
             performFailoverTest();
