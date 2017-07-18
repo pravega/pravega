@@ -13,6 +13,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
+/**
+ * Interface to be implemented by components that are registered with Cluster Listener to listen for failed host notifications.
+ * The components need to implement two methods, once which is invoked during bootstrap, where cluster listener supplies
+ * a lambda for fetching all existing processes. Using this, the component needs to determine if there are failed processes that
+ * it needs to sweep and takeover their dangling work.
+ * Apart from this, the sweeper is also notified whenever a controller process fails. The sweeper can use this notification to
+ * attempt to take over sweeper specific dangling work from the failed host. 
+ */
 public interface FailoverSweeper {
     /**
      * Check if the sweeper is ready to sweep.
