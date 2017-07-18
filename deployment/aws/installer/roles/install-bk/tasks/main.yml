@@ -38,7 +38,7 @@
   sudo: yes
 
 - name: Format the volume one
-  shell: mkfs -t ext4 /dev/xvdb
+  shell: mkfs -t ext4 /dev/nvme0n1
   sudo: yes
   when: high_performance_mode == true
 
@@ -48,12 +48,12 @@
   when: high_performance_mode == true
 
 - name: Mount the volume one
-  shell: mount /dev/xvdb /bk/ledgers
+  shell: mount /dev/nvme0n1 /bk/ledgers
   sudo: yes
   when: high_performance_mode == true
 
 - name: Format volume two
-  shell: mkfs -t ext4 /dev/xvdc
+  shell: mkfs -t ext4 /dev/nvme1n1
   sudo: yes
   when: high_performance_mode == true
 
@@ -63,7 +63,7 @@
   when: high_performance_mode == true
 
 - name: Mount the volume two
-  shell: mount /dev/xvdc /bk/journal
+  shell: mount /dev/nvme1n1 /bk/journal
   sudo: yes
   when: high_performance_mode == true
 
