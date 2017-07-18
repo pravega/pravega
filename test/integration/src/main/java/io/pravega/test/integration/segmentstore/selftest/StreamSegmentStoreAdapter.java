@@ -26,6 +26,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -85,7 +86,8 @@ class StreamSegmentStoreAdapter implements StoreAdapter {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).createStorageAdapter();
+                    InMemoryMetrics metrics = new InMemoryMetrics();
+                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor(), metrics).createStorageAdapter();
                     innerStorage.initialize(1);
 
                     // ... and the Test executor for the verification storage (to invoke callbacks).

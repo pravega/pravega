@@ -22,7 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -238,8 +238,8 @@ public class FileSystemStorage implements Storage {
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
-            metrics.readLatency.reportSuccessEvent(timer.getElapsed());
-            metrics.readBytes.add(totalBytesRead);
+            metrics.getReadLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getReadBytes().add(totalBytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -310,8 +310,8 @@ public class FileSystemStorage implements Storage {
                     length -= bytesWritten;
                 }
             }
-            metrics.writeLatency.reportSuccessEvent(timer.getElapsed());
-            metrics.writeBytes.add(totalBytesWritten);
+            metrics.getWriteLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getWriteBytes().add(totalBytesWritten);
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }

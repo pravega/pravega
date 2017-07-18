@@ -15,7 +15,7 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -62,6 +62,7 @@ public class HDFSStorageTest extends StorageTestBase {
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
+        metrics = new HDFSMetrics();
     }
 
     @After
@@ -136,7 +137,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new TestHDFSStorage(this.adapterConfig, executorService(), new HDFSMetrics());
+        return new TestHDFSStorage(this.adapterConfig, executorService(), metrics);
     }
 
     //region TestHDFSStorage

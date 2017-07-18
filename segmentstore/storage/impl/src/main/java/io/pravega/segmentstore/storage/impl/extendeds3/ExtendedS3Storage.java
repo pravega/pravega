@@ -39,7 +39,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
@@ -227,8 +227,8 @@ public class ExtendedS3Storage implements Storage {
             }
 
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
-            metrics.readLatency.reportSuccessEvent(timer.getElapsed());
-            metrics.readBytes.add(bytesRead);
+            metrics.getReadLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getReadBytes().add(bytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -334,8 +334,8 @@ public class ExtendedS3Storage implements Storage {
         client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
 
-        metrics.writeLatency.reportSuccessEvent(timer.getElapsed());
-        metrics.writeBytes.add(length);
+        metrics.getWriteLatency().reportSuccessEvent(timer.getElapsed());
+        metrics.getWriteBytes().add(length);
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
     }

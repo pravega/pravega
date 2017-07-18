@@ -43,6 +43,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -636,7 +637,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         TestContext() {
             this.cacheFactory = new InMemoryCacheFactory();
-            this.storage = new InMemoryStorage(executorService());
+            this.storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ConfigHelpers

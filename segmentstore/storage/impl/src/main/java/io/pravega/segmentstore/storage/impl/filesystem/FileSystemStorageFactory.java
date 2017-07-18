@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.util.concurrent.ExecutorService;
 
 /**

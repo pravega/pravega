@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import lombok.val;
 
@@ -24,7 +25,7 @@ public class SegmentStateStoreTests extends StateStoreTests {
 
     @Override
     protected AsyncMap<String, SegmentState> createStateStore() {
-        val storage = new InMemoryStorage(executorService());
+        val storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
         return new SegmentStateStore(storage, executorService());
     }

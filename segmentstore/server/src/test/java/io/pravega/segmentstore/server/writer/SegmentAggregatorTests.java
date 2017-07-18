@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -1524,7 +1525,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         TestContext(WriterConfig config) {
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = new TestStorage(new InMemoryStorage(executorService()));
+            this.storage = new TestStorage(new InMemoryStorage(executorService(), new InMemoryMetrics()));
             this.storage.initialize(1);
             this.timer = new ManualTimer();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();

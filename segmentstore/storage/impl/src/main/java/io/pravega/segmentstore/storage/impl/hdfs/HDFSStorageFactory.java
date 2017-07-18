@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.util.concurrent.Executor;
 
 /**

@@ -14,7 +14,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,8 +87,8 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
-        metrics.writeLatency.reportSuccessEvent(timer.getElapsed());
-        metrics.writeBytes.add(this.length);
+        metrics.getWriteLatency().reportSuccessEvent(timer.getElapsed());
+        metrics.getWriteBytes().add(this.length);
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 }

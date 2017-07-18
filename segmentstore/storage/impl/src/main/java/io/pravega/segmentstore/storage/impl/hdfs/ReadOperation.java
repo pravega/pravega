@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -90,8 +90,8 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
             }
         }
 
-        metrics.readLatency.reportSuccessEvent(timer.getElapsed());
-        metrics.readBytes.add(totalBytesRead.get());
+        metrics.getReadLatency().reportSuccessEvent(timer.getElapsed());
+        metrics.getReadBytes().add(totalBytesRead.get());
         LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
         return totalBytesRead.get();
     }

@@ -7,14 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl;
+package io.pravega.segmentstore.storage;
 
 import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.OpStatsLogger;
+import lombok.Getter;
 
 public class StorageMetricsBase {
-    public OpStatsLogger readLatency;
-    public OpStatsLogger writeLatency;
-    public Counter readBytes;
-    public Counter writeBytes;
+    @Getter
+    protected OpStatsLogger readLatency;
+    @Getter
+    protected OpStatsLogger writeLatency;
+    @Getter
+    protected Counter readBytes;
+    @Getter
+    protected Counter writeBytes;
 }

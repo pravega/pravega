@@ -33,8 +33,10 @@ import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -339,10 +341,11 @@ public final class ServiceBuilder implements AutoCloseable {
     }
 
     private static ServiceBuilder attachDefaultComponents(ServiceBuilder serviceBuilder) {
+        StorageMetricsBase metrics = new InMemoryMetrics();
         return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
                              .withContainerManager(setup -> new LocalSegmentContainerManager(
                                      setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
-                             .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
+                             .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor(), metrics))
                              .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));

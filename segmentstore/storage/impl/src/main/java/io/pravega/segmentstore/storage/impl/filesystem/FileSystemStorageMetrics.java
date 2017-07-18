@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsLogger;

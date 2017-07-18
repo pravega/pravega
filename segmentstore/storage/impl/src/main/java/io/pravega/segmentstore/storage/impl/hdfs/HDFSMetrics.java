@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsLogger;
@@ -18,13 +18,13 @@ import io.pravega.shared.metrics.StatsLogger;
  * Defines all Metrics used by the HDFSStorage class.
  */
 public final class HDFSMetrics extends StorageMetricsBase {
-    private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("hdfs");
+    private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("hdfs");
 
     public HDFSMetrics() {
-        readLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
-        writeLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
-        readBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
-        writeBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+        readLatency = HDFS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
+        writeLatency = HDFS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
+        readBytes = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
+        writeBytes = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
     }
 
 }

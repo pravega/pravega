@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.TruncateableStorage;
 import com.google.common.base.Preconditions;
 import java.io.InputStream;
@@ -29,8 +30,8 @@ import lombok.RequiredArgsConstructor;
 public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     private final InMemoryStorage baseStorage;
 
-    public InMemoryStorageFactory(ScheduledExecutorService executor) {
-        this.baseStorage = new InMemoryStorage(executor);
+    public InMemoryStorageFactory(ScheduledExecutorService executor, StorageMetricsBase metrics) {
+        this.baseStorage = new InMemoryStorage(executor, metrics);
         this.baseStorage.initialize(1); // InMemoryStorage does not use epochs.
     }
 

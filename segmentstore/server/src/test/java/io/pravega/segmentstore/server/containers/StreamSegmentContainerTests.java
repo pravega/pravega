@@ -57,8 +57,10 @@ import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.mocks.ListenableStorage;
 import io.pravega.test.common.AssertExtensions;
@@ -1367,7 +1369,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ContainerConfig config) {
-            this.storageFactory = new InMemoryStorageFactory(executorService());
+            StorageMetricsBase metrics = new InMemoryMetrics();
+            this.storageFactory = new InMemoryStorageFactory(executorService(), metrics);
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();

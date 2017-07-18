@@ -15,7 +15,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;

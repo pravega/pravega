@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import lombok.Cleanup;

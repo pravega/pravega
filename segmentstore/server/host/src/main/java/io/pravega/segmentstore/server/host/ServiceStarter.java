@@ -19,7 +19,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
@@ -33,6 +33,7 @@ import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -184,7 +185,8 @@ public final class ServiceStarter {
                         return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), metrics);
 
                     case INMEMORY:
-                        return new InMemoryStorageFactory(setup.getExecutor());
+                        metrics = new InMemoryMetrics();
+                        return new InMemoryStorageFactory(setup.getExecutor(), metrics);
 
                     default:
                         throw new IllegalStateException("Undefined storage implementation");
