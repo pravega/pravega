@@ -14,6 +14,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,21 +32,23 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
     private final long offset;
     private final InputStream data;
     private final int length;
+    private StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the WriteOperation class.
-     *
-     * @param handle  A WriteHandle that contains information about the Segment to write to.
+     *  @param handle  A WriteHandle that contains information about the Segment to write to.
      * @param offset  The offset within the segment to write at.
      * @param data    An InputStream representing the data to write.
      * @param length  The number of bytes to write.
      * @param context Context for the operation.
+     * @param metrics Class to record the stats.
      */
-    WriteOperation(HDFSSegmentHandle handle, long offset, InputStream data, int length, OperationContext context) {
+    WriteOperation(HDFSSegmentHandle handle, long offset, InputStream data, int length, OperationContext context, StorageMetricsBase metrics) {
         super(handle, context);
         this.offset = offset;
         this.data = data;
         this.length = length;
+        this.metrics = metrics;
     }
 
     @Override
@@ -84,8 +87,8 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
-        Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        Metrics.WRITE_BYTES.add(this.length);
+        metrics.writeLatency.reportSuccessEvent(timer.getElapsed());
+        metrics.writeBytes.add(this.length);
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 }

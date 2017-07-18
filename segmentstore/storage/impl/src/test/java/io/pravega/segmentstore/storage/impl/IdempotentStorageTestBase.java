@@ -35,7 +35,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
     }
-    protected StroageMetricsBase metrics;
+    protected StorageMetricsBase metrics;
 
     //region Fencing tests
 

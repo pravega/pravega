@@ -18,7 +18,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3Storage;
@@ -123,7 +123,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            StroageMetricsBase metrics = new ExtendedS3StorageMetrics();
+            StorageMetricsBase metrics = new ExtendedS3StorageMetrics();
             return new ExtendedS3Storage(client, config, executorService(), metrics);
         }
     }

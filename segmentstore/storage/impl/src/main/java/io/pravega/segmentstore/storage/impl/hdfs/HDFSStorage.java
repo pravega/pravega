@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -83,6 +84,7 @@ class HDFSStorage implements Storage {
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
     private FileSystemOperation.OperationContext context;
+    private StorageMetricsBase metrics;
 
     //endregion
 
@@ -90,11 +92,12 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     *
-     * @param config   The configuration to use.
+     *  @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
+     * @param metrics  Class to record stats.
      */
-    HDFSStorage(HDFSStorageConfig config, Executor executor) {
+    HDFSStorage(HDFSStorageConfig config, Executor executor, StorageMetricsBase metrics) {
+        this.metrics = metrics;
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -159,7 +162,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-        return runAsync(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context));
+        return runAsync(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context, metrics));
     }
 
     @Override
@@ -179,7 +182,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context));
+        return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context, metrics));
     }
 
     @Override

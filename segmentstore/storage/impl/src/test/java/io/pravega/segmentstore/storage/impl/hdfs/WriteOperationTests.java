@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -19,6 +20,7 @@ import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -33,6 +35,12 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
     private static final int WRITE_SIZE = 100;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests a normal write across many epochs.
@@ -57,16 +65,16 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
                 // BadOffset write.
                 AssertExtensions.assertThrows(
                         "WriteOperation allowed writing at wrong offset.",
-                        new WriteOperation(handle, offset + 1, new ByteArrayInputStream(data), data.length, context)::run,
+                        new WriteOperation(handle, offset + 1, new ByteArrayInputStream(data), data.length, context, metrics)::run,
                         ex -> ex instanceof BadOffsetException);
 
                 // Successful write.
-                new WriteOperation(handle, offset, new ByteArrayInputStream(data), data.length, context).run();
+                new WriteOperation(handle, offset, new ByteArrayInputStream(data), data.length, context, metrics).run();
                 writtenData.write(data);
                 offset += data.length;
 
                 // Zero-length write (should succeed, but be a no-op.
-                new WriteOperation(handle, offset, new ByteArrayInputStream(data), 0, context).run();
+                new WriteOperation(handle, offset, new ByteArrayInputStream(data), 0, context, metrics).run();
             }
         }
 
@@ -109,7 +117,7 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
 
         AssertExtensions.assertThrows(
                 "WriteOperation did not fail when it was fenced out by removing a file.",
-                new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1)::run,
+                new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1, metrics)::run,
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertEquals("Unexpected number of files in the filesystem.", 1, fs.getFileCount());
@@ -127,14 +135,14 @@ public class WriteOperationTests extends FileSystemOperationTestBase {
         val context1 = newContext(1, fs);
         new CreateOperation(SEGMENT_NAME, context1).call();
         val handle1 = new OpenWriteOperation(SEGMENT_NAME, context1).call();
-        new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1).run();
+        new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1, metrics).run();
 
         val context2 = newContext(2, fs);
         val handle2 = new OpenWriteOperation(SEGMENT_NAME, context2).call();
 
         AssertExtensions.assertThrows(
                 "WriteOperation did not fail when it was fenced out by making a file read-only.",
-                new WriteOperation(handle1, 1, new ByteArrayInputStream(new byte[1]), 1, context1)::run,
+                new WriteOperation(handle1, 1, new ByteArrayInputStream(new byte[1]), 1, context1, metrics)::run,
                 ex -> ex instanceof StorageNotPrimaryException);
 
         Assert.assertEquals("Unexpected number of files in the filesystem.", 2, fs.getFileCount());

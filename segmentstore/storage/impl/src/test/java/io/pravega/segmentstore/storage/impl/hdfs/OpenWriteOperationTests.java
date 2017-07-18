@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.util.Arrays;
@@ -17,6 +18,7 @@ import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.fs.Path;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -28,6 +30,12 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests the case when the last file has en epoch larger than ours.
@@ -199,7 +207,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
             val context = newContext(epoch++, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
             byte toWrite = (byte) iteration;
-            new WriteOperation(handle, iteration, new ByteArrayInputStream(new byte[]{toWrite}), 1, context).run();
+            new WriteOperation(handle, iteration, new ByteArrayInputStream(new byte[]{toWrite}), 1, context, metrics).run();
             expectedData[iteration] = toWrite;
             if (epoch % emptyFileEvery == 0) {
                 // Every now and then, just open the file without writing anything. The next time OpenWrite is called
@@ -213,7 +221,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         val readHandle = new OpenReadOperation(SEGMENT_NAME, readContext).call();
         Assert.assertEquals("Unexpected total segment length in the file system.", expectedData.length, readHandle.getLastFile().getLastOffset());
         byte[] actualData = new byte[expectedData.length];
-        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, readContext).call();
+        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, readContext, metrics).call();
         Assert.assertArrayEquals("Unexpected data read back from the file system.", expectedData, actualData);
         Assert.assertTrue("First file in the chain is not read-only.", readHandle.getFiles().get(0).isReadOnly());
     }
@@ -227,7 +235,7 @@ public class OpenWriteOperationTests extends FileSystemOperationTestBase {
         Assert.assertTrue("Higher epoch file is not present after fencing out empty file.", fs.exists(handle2.getLastFile().getPath()));
 
         // Non-empty file: keep and ensure read-only.
-        new WriteOperation(handle2, 0, new ByteArrayInputStream(new byte[1]), 1, context2).run();
+        new WriteOperation(handle2, 0, new ByteArrayInputStream(new byte[1]), 1, context2, metrics).run();
         val context3 = newContext(3, fs);
         val handle3 = new OpenWriteOperation(SEGMENT_NAME, context3).call();
 

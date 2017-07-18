@@ -10,11 +10,13 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -26,6 +28,12 @@ public class SealOperationTests extends FileSystemOperationTestBase {
     private static final String SEGMENT_NAME = "segment";
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests the case when the last file is non-empty non-read-only. This is a normal operation.
@@ -38,7 +46,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
         val context = newContext(1, fs);
         new CreateOperation(SEGMENT_NAME, context).call();
         val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
-        new WriteOperation(handle, 0, new ByteArrayInputStream(new byte[1]), 1, context).run();
+        new WriteOperation(handle, 0, new ByteArrayInputStream(new byte[1]), 1, context, metrics).run();
         new SealOperation(handle, context).run();
 
         Assert.assertTrue("Last file in handle was not marked as read-only.", handle.getLastFile().isReadOnly());
@@ -68,7 +76,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
         fs.clear();
         new CreateOperation(SEGMENT_NAME, context1).call();
         handle = new OpenWriteOperation(SEGMENT_NAME, context1).call();
-        new WriteOperation(handle, 0, new ByteArrayInputStream(new byte[1]), 1, context1).run();
+        new WriteOperation(handle, 0, new ByteArrayInputStream(new byte[1]), 1, context1, metrics).run();
 
         val context2 = newContext(context1.epoch + 1, fs);
         new SealOperation(handle, context2).run();
@@ -107,7 +115,7 @@ public class SealOperationTests extends FileSystemOperationTestBase {
         // Part 1: non-empty segment first file (it will be marked read-only when OpenWrite is invoked with epoch 2)
         new CreateOperation(nonEmptySegment, context1).call();
         val nonEmptySegmentHandle1 = new OpenWriteOperation(nonEmptySegment, context1).call();
-        new WriteOperation(nonEmptySegmentHandle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1).run();
+        new WriteOperation(nonEmptySegmentHandle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1, metrics).run();
         new OpenWriteOperation(nonEmptySegment, context2).call();
         AssertExtensions.assertThrows(
                 "SealOperation did not fail when it was fenced out (non-empty segment).",

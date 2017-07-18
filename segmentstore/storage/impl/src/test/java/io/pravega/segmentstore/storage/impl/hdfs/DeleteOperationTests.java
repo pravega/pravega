@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -16,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -28,6 +30,12 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
     private static final int FILE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests the ability to delete segments without outside interference.
@@ -80,7 +88,7 @@ public class DeleteOperationTests extends FileSystemOperationTestBase {
         for (int i = 0; i < FILE_COUNT; i++) {
             val context = newContext(i, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
-            new WriteOperation(handle, i, new ByteArrayInputStream(new byte[]{(byte) i}), 1, context).run();
+            new WriteOperation(handle, i, new ByteArrayInputStream(new byte[]{(byte) i}), 1, context, metrics).run();
         }
     }
 }

@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage.impl;
 import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.OpStatsLogger;
 
-public class StroageMetricsBase {
+public class StorageMetricsBase {
     public OpStatsLogger readLatency;
     public OpStatsLogger writeLatency;
     public Counter readBytes;

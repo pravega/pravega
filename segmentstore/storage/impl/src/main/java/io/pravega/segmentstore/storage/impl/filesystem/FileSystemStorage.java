@@ -22,7 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,7 +82,7 @@ public class FileSystemStorage implements Storage {
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
-    private StroageMetricsBase metrics;
+    private StorageMetricsBase metrics;
 
     //endregion
 
@@ -94,7 +94,7 @@ public class FileSystemStorage implements Storage {
      * @param executor The executor to use for running async operations.
      * @param metrics  Metrics to record the stats.
      */
-    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor, StroageMetricsBase metrics) {
+    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.closed = new AtomicBoolean(false);

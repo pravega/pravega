@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.storage.impl.extendeds3;
 
-import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsLogger;
 
-public class ExtendedS3StorageMetrics extends StroageMetricsBase {
+public class ExtendedS3StorageMetrics extends StorageMetricsBase {
     private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("extendeds3");
 
     public ExtendedS3StorageMetrics() {

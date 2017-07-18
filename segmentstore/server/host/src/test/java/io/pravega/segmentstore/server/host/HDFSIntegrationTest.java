@@ -14,9 +14,11 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSClusterHelpers;
+import io.pravega.segmentstore.storage.impl.hdfs.HDFSMetrics;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -82,7 +84,8 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
-                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
+                    StorageMetricsBase metrics = new HDFSMetrics();
+                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor(), metrics);
                     return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));

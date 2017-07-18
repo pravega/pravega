@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.filesystem;
+package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.shared.MetricsNames;
@@ -15,12 +15,12 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsLogger;
 
 /**
- * Defines all FileSystemStorageMetrics used by the FilesystemStorage class.
+ * Defines all Metrics used by the HDFSStorage class.
  */
-public final class FileSystemStorageMetrics extends StorageMetricsBase {
-    private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("filesystem");
+public final class HDFSMetrics extends StorageMetricsBase {
+    private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("hdfs");
 
-    public FileSystemStorageMetrics() {
+    public HDFSMetrics() {
         readLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
         writeLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
         readBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);

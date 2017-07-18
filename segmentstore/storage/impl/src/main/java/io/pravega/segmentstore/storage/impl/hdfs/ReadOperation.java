@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.util.CollectionHelpers;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -31,18 +32,19 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
     private final byte[] buffer;
     private final int bufferOffset;
     private final int length;
+    private final StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the ReadOperation class.
-     *
-     * @param handle       A Read or ReadWrite handle for the Segment to read from.
+     *  @param handle       A Read or ReadWrite handle for the Segment to read from.
      * @param offset       The offset in the Segment to begin reading at.
      * @param buffer       A buffer to load read data into.
      * @param bufferOffset An offset in the buffer to start loading the data at.
      * @param length       The number of bytes to read.
      * @param context      Context for the operation.
+     * @param metrics      Class to record the stats.
      */
-    ReadOperation(HDFSSegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, OperationContext context) {
+    ReadOperation(HDFSSegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, OperationContext context, StorageMetricsBase metrics) {
         super(handle, context);
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
@@ -54,6 +56,7 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
         this.buffer = buffer;
         this.bufferOffset = bufferOffset;
         this.length = length;
+        this.metrics = metrics;
     }
 
     @Override
@@ -87,8 +90,8 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
             }
         }
 
-        Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-        Metrics.READ_BYTES.add(totalBytesRead.get());
+        metrics.readLatency.reportSuccessEvent(timer.getElapsed());
+        metrics.readBytes.add(totalBytesRead.get());
         LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
         return totalBytesRead.get();
     }

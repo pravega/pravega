@@ -15,7 +15,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 
-import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -24,7 +24,7 @@ import java.util.concurrent.ExecutorService;
 public class ExtendedS3StorageFactory implements StorageFactory {
     private final ExtendedS3StorageConfig config;
     private final ExecutorService executor;
-    private StroageMetricsBase metrics;
+    private StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the NFSStorageFactory class.
@@ -32,7 +32,7 @@ public class ExtendedS3StorageFactory implements StorageFactory {
      * @param executor An executor to use for background operations.
      * @param metrics  Class for recording storage statistics.
      */
-    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor, StroageMetricsBase metrics) {
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
         this.metrics = metrics;
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");

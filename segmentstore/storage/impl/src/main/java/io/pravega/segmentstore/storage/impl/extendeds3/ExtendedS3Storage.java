@@ -39,7 +39,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.impl.StroageMetricsBase;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
@@ -89,7 +89,7 @@ public class ExtendedS3Storage implements Storage {
     private final S3Client client;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
-    private final StroageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     //endregion
 
@@ -101,7 +101,7 @@ public class ExtendedS3Storage implements Storage {
      * @param executor The executor to use for running async operations.
      * @param metrics  Metrics to record the stats.
      */
-    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor, StroageMetricsBase metrics) {
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         this.config = config;
         this.client = client;

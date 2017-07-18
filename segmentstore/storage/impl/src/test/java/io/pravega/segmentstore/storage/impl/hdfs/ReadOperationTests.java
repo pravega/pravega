@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -17,6 +18,7 @@ import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -31,6 +33,12 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
     private static final int WRITE_SIZE = 100;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests a read scenario with no issues or failures.
@@ -51,7 +59,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
             for (int writeId = 0; writeId < WRITES_PER_FILE; writeId++) {
                 byte[] data = new byte[WRITE_SIZE];
                 rnd.nextBytes(data);
-                new WriteOperation(handle, length, new ByteArrayInputStream(data), data.length, context).run();
+                new WriteOperation(handle, length, new ByteArrayInputStream(data), data.length, context, metrics).run();
                 writtenData.write(data);
                 length += data.length;
             }
@@ -64,7 +72,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
         for (int startOffset = 0; startOffset < length / 2; startOffset++) {
             int readLength = length - 2 * startOffset;
             byte[] actualData = new byte[readLength];
-            int readBytes = new ReadOperation(readHandle, startOffset, actualData, 0, actualData.length, creationContext).call();
+            int readBytes = new ReadOperation(readHandle, startOffset, actualData, 0, actualData.length, creationContext, metrics).call();
 
             Assert.assertEquals("Unexpected number of bytes read with start offset " + startOffset, actualData.length, readBytes);
             AssertExtensions.assertArrayEquals("Unexpected data read back with start offset " + startOffset,
@@ -90,7 +98,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
 
         // Write #1.
         rnd.nextBytes(data);
-        new WriteOperation(writeHandle1, length, new ByteArrayInputStream(data), data.length, context1).run();
+        new WriteOperation(writeHandle1, length, new ByteArrayInputStream(data), data.length, context1, metrics).run();
         writtenData.write(data);
         length += data.length;
 
@@ -101,14 +109,14 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
         val context2 = newContext(context1.epoch + 1, fs);
         val writeHandle2 = new OpenWriteOperation(SEGMENT_NAME, context2).call();
         rnd.nextBytes(data);
-        new WriteOperation(writeHandle2, length, new ByteArrayInputStream(data), data.length, context1).run();
+        new WriteOperation(writeHandle2, length, new ByteArrayInputStream(data), data.length, context1, metrics).run();
         writtenData.write(data);
         length += data.length;
 
         // Check written data via a Read Operation, from every offset from 0 to length/2
         byte[] expectedData = writtenData.toByteArray();
         byte[] actualData = new byte[length];
-        int readBytes = new ReadOperation(readHandle, 0, actualData, 0, actualData.length, context1).call();
+        int readBytes = new ReadOperation(readHandle, 0, actualData, 0, actualData.length, context1, metrics).call();
 
         Assert.assertEquals("Unexpected number of bytes read.", actualData.length, readBytes);
         Assert.assertArrayEquals("Unexpected data read back.", expectedData, actualData);
@@ -156,7 +164,7 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
         Assert.assertFalse("Write Handle last file is read-only.", writeHandle.getLastFile().isReadOnly());
 
         byte[] actualData = new byte[length];
-        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext).call();
+        new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext, metrics).call();
         AssertExtensions.assertListEquals("Unexpected files in read handle after read operation.",
                 writeHandle.getFiles(), readHandle.getFiles(), (f1, f2) ->
                         f1.getPath().toString().equals(f2.getPath().toString())
@@ -173,13 +181,13 @@ public class ReadOperationTests extends FileSystemOperationTestBase {
         // With a write handle.
         AssertExtensions.assertThrows(
                 "ReadOperation did not throw when file was actually missing (write handle).",
-                () -> new ReadOperation(writeHandle, 0, actualData, 0, actualData.length, finalContext).call(),
+                () -> new ReadOperation(writeHandle, 0, actualData, 0, actualData.length, finalContext, metrics).call(),
                 ex -> ex instanceof FileNotFoundException || ex instanceof SegmentFilesCorruptedException);
 
         // With a read handle.
         AssertExtensions.assertThrows(
                 "ReadOperation did not throw when file was actually missing (read handle).",
-                () -> new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext).call(),
+                () -> new ReadOperation(readHandle, 0, actualData, 0, actualData.length, finalContext, metrics).call(),
                 ex -> ex instanceof FileNotFoundException || ex instanceof SegmentFilesCorruptedException);
     }
 }

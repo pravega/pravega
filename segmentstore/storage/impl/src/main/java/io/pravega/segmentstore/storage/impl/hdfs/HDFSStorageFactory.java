@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.impl.StorageMetricsBase;
 import java.util.concurrent.Executor;
 
 /**
@@ -20,22 +21,24 @@ import java.util.concurrent.Executor;
 public class HDFSStorageFactory implements StorageFactory {
     private final HDFSStorageConfig config;
     private final Executor executor;
+    private StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the HDFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
+     *  @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
+     * @param metrics  Class to record the stats.
      */
-    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
+    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor, StorageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
+        this.metrics = metrics;
     }
 
     @Override
     public Storage createStorageAdapter() {
-        return new HDFSStorage(this.config, this.executor);
+        return new HDFSStorage(this.config, this.executor, metrics);
     }
 }
