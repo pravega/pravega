@@ -338,7 +338,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(120000);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventData.get();
@@ -355,7 +355,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(120000);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventData.get();
@@ -373,7 +373,7 @@ public class MultiReaderWriterWithFailOverTest {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(new Random().nextInt(50000) + 60000);
+        Thread.sleep( 60000);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventData.get();
@@ -403,6 +403,7 @@ public class MultiReaderWriterWithFailOverTest {
                     log.error("Test exception writing events: ", e);
                 }
             }
+            log.info("Closing the writers.Stop write flag status: {}", stopWriteFlag.get());
         }, executorService);
     }
 
@@ -429,6 +430,7 @@ public class MultiReaderWriterWithFailOverTest {
                     log.error("Test Exception while reading from the stream: ", e);
                 }
             }
+            log.info("Closing the readers.Stop read flag status: {}", exitFlag.get());
         }, executorService);
     }
 }
