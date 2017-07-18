@@ -1,0 +1,357 @@
+{
+  "Parameters": {
+    "awsregion" :{
+      "Type" : "String",
+      "Default" : "us-east-1",
+      "AllowedValues" : [ "us-east-1", "us-west-1"],
+      "Description" : "Pravega supports only these 2 regions"
+    },
+    "keypair" : {
+      "Type" : "String",
+      "Default" : "pravega-deploy",
+      "Description" : "Key Pair name in AWS"
+    },
+    "key" : {
+      "Type" : "String",
+      "Description" : "Key Pair Content, but please don't include BEGIN and END header"
+    }
+  },
+  "Mappings" : {
+      "AMIMap" : {
+        "us-east-1" : { "AMI" : "ami-7747d01e" },
+        "us-west-1" : { "AMI" : "ami-2afbde4a" }
+      },
+      "InstanceTypeMap" : {
+        "us-east-1" : { "InstanceType" : "m3.2xlarge" },
+        "us-west-1" : { "InstanceType" : "i3.4xlarge" }
+      }
+  },
+  "Resources" : {
+    "iamemrservicerole" : {
+      "Type": "AWS::IAM::Role",
+      "Description" : "IAM role for EMR Service",
+      "Properties": {
+        "RoleName": "iamemrservicerole",
+        "AssumeRolePolicyDocument": {
+          "Version": "2008-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "elasticmapreduce.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      }
+    },
+    "iamemrservicepolicy": {
+      "Type": "AWS::IAM::Policy",
+        "Properties": {
+            "PolicyName": "iamemrservicepolicy",
+            "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                "Effect": "Allow",
+                "Resource": "*",
+                  "Action": [
+                      "ec2:AuthorizeSecurityGroupEgress",
+                      "ec2:AuthorizeSecurityGroupIngress",
+                      "ec2:CancelSpotInstanceRequests",
+                      "ec2:CreateNetworkInterface",
+                      "ec2:CreateSecurityGroup",
+                      "ec2:CreateTags",
+                      "ec2:DeleteNetworkInterface",
+                      "ec2:DeleteSecurityGroup",
+                      "ec2:DeleteTags",
+                      "ec2:DescribeAvailabilityZones",
+                      "ec2:DescribeAccountAttributes",
+                      "ec2:DescribeDhcpOptions",
+                      "ec2:DescribeInstanceStatus",
+                      "ec2:DescribeInstances",
+                      "ec2:DescribeKeyPairs",
+                      "ec2:DescribeNetworkAcls",
+                      "ec2:DescribeNetworkInterfaces",
+                      "ec2:DescribePrefixLists",
+                      "ec2:DescribeRouteTables",
+                      "ec2:DescribeSecurityGroups",
+                      "ec2:DescribeSpotInstanceRequests",
+                      "ec2:DescribeSpotPriceHistory",
+                      "ec2:DescribeSubnets",
+                      "ec2:DescribeVpcAttribute",
+                      "ec2:DescribeVpcEndpoints",
+                      "ec2:DescribeVpcEndpointServices",
+                      "ec2:DescribeVpcs",
+                      "ec2:DetachNetworkInterface",
+                      "ec2:ModifyImageAttribute",
+                      "ec2:ModifyInstanceAttribute",
+                      "ec2:RequestSpotInstances",
+                      "ec2:RevokeSecurityGroupEgress",
+                      "ec2:RunInstances",
+                      "ec2:TerminateInstances",
+                      "ec2:DeleteVolume",
+                      "ec2:DescribeVolumeStatus",
+                      "ec2:DescribeVolumes",
+                      "ec2:DetachVolume",
+                      "iam:GetRole",
+                      "iam:GetRolePolicy",
+                      "iam:ListInstanceProfiles",
+                      "iam:ListRolePolicies",
+                      "iam:PassRole",
+                      "s3:CreateBucket",
+                      "s3:Get*",
+                      "s3:List*",
+                      "sdb:BatchPutAttributes",
+                      "sdb:Select",
+                      "sqs:CreateQueue",
+                      "sqs:Delete*",
+                      "sqs:GetQueue*",
+                      "sqs:PurgeQueue",
+                      "sqs:ReceiveMessage",
+                      "cloudwatch:PutMetricAlarm",
+                      "cloudwatch:DescribeAlarms",
+                      "cloudwatch:DeleteAlarms",
+                      "application-autoscaling:RegisterScalableTarget",
+                      "application-autoscaling:DeregisterScalableTarget",
+                      "application-autoscaling:PutScalingPolicy",
+                      "application-autoscaling:DeleteScalingPolicy",
+                      "application-autoscaling:Describe*"
+                  ]
+                }]
+          },
+        "Roles": [ { "Ref": "iamemrservicerole" } ]
+        }
+      },
+
+      "iamemrprofilerole" : {
+        "Type": "AWS::IAM::Role",
+        "Description" : "IAM Role for EC2 Instance Profile",
+        "Properties": {
+          "RoleName": "iamemrprofilerole",
+          "AssumeRolePolicyDocument": {
+        "Version": "2008-10-17",
+        "Statement": [
+          {
+            "Sid": "",
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [
+                "ec2.amazonaws.com"
+              ]
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+        }
+      },
+
+      "emrprofilepravega" : {
+        "Type": "AWS::IAM::InstanceProfile",
+         "Properties": {
+            "Roles":  [{ "Ref": "iamemrprofilerole" }],
+            "InstanceProfileName": "emrprofilepravega"
+         }
+      },
+      "awsiamrolepolicy": {
+        "Type": "AWS::IAM::Policy",
+           "Properties": {
+              "PolicyName": "iam_emr_profile_policy",
+              "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+              "Effect": "Allow",
+              "Resource": "*",
+              "Action": [
+                  "cloudwatch:*",
+                  "dynamodb:*",
+                  "ec2:Describe*",
+                  "elasticmapreduce:Describe*",
+                  "elasticmapreduce:ListBootstrapActions",
+                  "elasticmapreduce:ListClusters",
+                  "elasticmapreduce:ListInstanceGroups",
+                  "elasticmapreduce:ListInstances",
+                  "elasticmapreduce:ListSteps",
+                  "kinesis:CreateStream",
+                  "kinesis:DeleteStream",
+                  "kinesis:DescribeStream",
+                  "kinesis:GetRecords",
+                  "kinesis:GetShardIterator",
+                  "kinesis:MergeShards",
+                  "kinesis:PutRecord",
+                  "kinesis:SplitShard",
+                  "rds:Describe*",
+                  "s3:*",
+                  "sdb:*",
+                  "sns:*",
+                  "sqs:*"
+              ]
+          }]
+      },
+              "Roles": [ { "Ref": "iamemrprofilerole" } ]
+           }
+      },
+      "pravegadefault" : {
+          "Type" : "AWS::EC2::SecurityGroup",
+          "Properties" : {
+            "GroupDescription" : "Default security group for pravega",
+              "SecurityGroupIngress" : [{
+                "IpProtocol" : "-1",
+                "FromPort" : "0",
+                "ToPort" : "0",
+                "CidrIp" : "0.0.0.0/0"
+            }]
+          }
+      },
+      "boot" : {
+        "Type" : "AWS::EC2::Instance",
+        "Properties" : {
+            "ImageId" : {
+              "Fn::FindInMap" : [ "AMIMap", { "Ref" : "awsregion" }, "AMI" ]
+            },
+            "InstanceType" : "m3.medium" ,
+            "KeyName" : { "Ref" : "keypair"} ,
+            "SecurityGroups" :  [{"Ref" : "pravegadefault"}],
+            "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+            "#!/bin/bash\n",
+            "echo 'hello' > hello\n",
+            "apt-get install -y yum\n",
+            "yum install -y aws-cfn-bootstrap\n",
+            "apt-add-repository ppa:ansible/ansible -y\n",
+            "apt-get -y update\n",
+            "apt-get install -y software-properties-common\n",
+            "apt-get install -y ansible\n", 
+            "apt-get install -y git\n",
+            "cd /home/ubuntu\n",
+            "git clone https://github.com/BenWangufl/pravega.git\n",
+            "cd pravega/deployment/aws\n",
+            "wget https://github.com/pravega/pravega/releases/download/v0.1.0-prerelease2/pravega-0.1.0-1404.04e62df.tgz\n",
+            "mv pravega*.tgz installer/data/pravega-0.1.0-SNAPSHOT.tgz\n",
+            "chmod +x bootstrap.sh\n",
+            "./bootstrap.sh ", 
+            {"Fn::GetAtt" : [ "pravega1", "PublicIp"] }, 
+            ",",
+            {"Fn::GetAtt" : ["pravega2", "PublicIp"] },
+            ",",
+            {"Fn::GetAtt" : ["pravega3", "PublicIp"] },
+            " ",
+            {"Fn::GetAtt" : [ "emr", "MasterPublicDNS"] },
+            " ",
+            { "Ref" : "awsregion"},
+            "\n",
+            "echo ",
+            {"Ref" : "key"},
+            " > /tmp/private_key_tmp",
+            "\n",
+            "echo '-----BEGIN RSA PRIVATE KEY-----' >> /tmp/private_key\n",
+            "cat /tmp/private_key_tmp | tr ' ' '\n'  >> /tmp/private_key\n",
+            "echo -ne '-----END RSA PRIVATE KEY-----' >> /tmp/private_key\n",
+            "chmod 400 /tmp/private_key\n",
+            "cd installer\n",
+            "su ubuntu 'ansible-playbook -i hosts entry_point.yml --private-key=/tmp/private_key'"
+            ]]}
+            }
+        },
+        "DependsOn" : ["pravega1", "pravega2", "pravega3"]
+      },
+      "pravega1" : {
+        "Type" : "AWS::EC2::Instance",
+          "Properties" : {
+            "ImageId" : {
+              "Fn::FindInMap" : [ "AMIMap", { "Ref" : "awsregion" }, "AMI" ]
+            },
+            "InstanceType" : {
+              "Fn::FindInMap" : [ "InstanceTypeMap", { "Ref": "awsregion" }, "InstanceType" ]
+            },
+            "KeyName" : { "Ref" : "keypair"} ,
+            "SecurityGroups" :  [{"Ref" : "pravegadefault"}],
+            "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+            "#!/bin/bash\n",
+            "echo 'test'> /home/ubuntu/output.txt\n",
+            "wget -c http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz\n",
+            "wget -c http://www.apache.org/dist/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz\n",
+            "wget -c http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz\n",
+            "apt-get install -y python\n",
+            "cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/"
+            ]]}
+          }
+        },
+        "DependsOn" :  "emr"
+      },
+      "pravega2" : {
+        "Type" : "AWS::EC2::Instance",
+          "Properties" : {
+            "ImageId" : {
+              "Fn::FindInMap" : [ "AMIMap", { "Ref" : "awsregion" }, "AMI" ]
+            },
+            "InstanceType" : {
+              "Fn::FindInMap" : [ "InstanceTypeMap", { "Ref" : "awsregion" }, "InstanceType" ]
+            },
+            "KeyName" : { "Ref" : "keypair"} ,
+            "SecurityGroups" :  [{"Ref" : "pravegadefault"}],
+            "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+            "#!/bin/bash\n",
+            "echo 'test'> /home/ubuntu/output.txt\n",
+            "wget -c http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz\n",
+            "wget -c http://www.apache.org/dist/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz\n",
+            "wget -c http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz\n",
+            "apt-get install -y python\n",
+            "cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/"
+            ]]}
+            }
+          },
+        "DependsOn" :  "emr"
+      },
+      "pravega3" : {
+        "Type" : "AWS::EC2::Instance",
+          "Properties" : {
+            "ImageId" : {
+              "Fn::FindInMap" : [ "AMIMap", { "Ref" : "awsregion" }, "AMI" ]
+            },
+            "InstanceType" : {
+              "Fn::FindInMap" : [ "InstanceTypeMap", { "Ref" : "awsregion" }, "InstanceType" ]
+            },
+            "KeyName" : { "Ref" : "keypair"} ,
+            "SecurityGroups" :  [{"Ref" : "pravegadefault"}],
+            "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+            "#!/bin/bash\n",
+            "echo 'test'> /home/ubuntu/output.txt\n",
+            "wget -c http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz\n",
+            "wget -c http://www.apache.org/dist/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz\n",
+            "wget -c http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz\n",
+            "apt-get install -y python\n",
+            "cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/"
+            ]]}
+            }
+          },
+        "DependsOn" :  "emr"
+      },
+      "emr" : {
+          "Type": "AWS::EMR::Cluster",
+          "Properties": {
+            "Instances": {
+              "MasterInstanceGroup": {
+                "InstanceCount": 1,
+                "InstanceType": "m3.xlarge",
+                "Market": "ON_DEMAND",
+                "Name": "Master"
+              },
+              "CoreInstanceGroup": {
+                "InstanceCount": 2,
+                "InstanceType": "m3.xlarge",
+                "Market": "ON_DEMAND",
+                "Name": "Core"
+              }
+            },
+            "Name": "EMRCluster",
+            "JobFlowRole": { "Ref" : "emrprofilepravega"},
+            "ServiceRole": { "Ref" : "iamemrservicerole"},
+            "ReleaseLabel": "emr-5.5.0"
+          }
+      }
+  }
+}     
