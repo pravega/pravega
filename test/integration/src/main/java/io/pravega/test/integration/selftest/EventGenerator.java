@@ -72,25 +72,11 @@ class EventGenerator {
     //region Validation
 
     /**
-     * Validates that the given ArrayView contains a valid Event, starting at the given offset.
+     * Validates that the given Event is valid.
      *
-     * @param view   The view to inspect.
-     * @param offset The offset to start inspecting at.
+     * @param event The event to inspect.
      * @return A ValidationResult representing the validation.
      */
-    static ValidationResult validate(ArrayView view, int offset) {
-        ValidationResult result;
-        try {
-            // Deserialize and validate the append.
-            result = validate(new Event(view, offset));
-        } catch (Exception ex) {
-            // Any validation exceptions are thrown either from the Event Constructor or from validateContents().
-            result = ValidationResult.failed(ex.getMessage());
-        }
-
-        return result;
-    }
-
     static ValidationResult validate(Event event) {
         ValidationResult result;
         try {

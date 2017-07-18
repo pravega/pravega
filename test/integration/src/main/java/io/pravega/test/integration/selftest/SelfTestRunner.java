@@ -81,7 +81,7 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 100;
+        final int producers = 1000;
         final boolean useClient = false;
 
         final int testThreadPoolAddition = useClient ? producers : 0;
@@ -95,7 +95,7 @@ public class SelfTestRunner {
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
-                .with(TestConfig.TRANSACTION_FREQUENCY, 500)
+                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                 // Test setup.
                 .with(TestConfig.THREAD_POOL_SIZE, 80 + testThreadPoolAddition)

@@ -11,31 +11,23 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
-import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.val;
 
 /**
  * Represents an operation consumer. Attaches to a StoreAdapter, listens to tail-reads (on segments), and validates
@@ -85,7 +77,7 @@ public class Consumer extends Actor {
     protected CompletableFuture<Void> run() {
         CompletableFuture<Void> tailReadProcessor = processTailReads();
         CompletableFuture<Void> catchupReadProcessor = processCatchupReads();
-        CompletableFuture<Void> storageReadProcessor = processStorageReads();
+        CompletableFuture<Void> storageReadProcessor = CompletableFuture.completedFuture(null);//processStorageReads();
         return CompletableFuture.allOf(tailReadProcessor, catchupReadProcessor, storageReadProcessor);
     }
 
@@ -239,16 +231,16 @@ public class Consumer extends Actor {
      * of that read as a 'tail read', then re-issuing concise reads from the store for those offsets.
      */
     private CompletableFuture<Void> processTailReads() {
-        return this.reader.readAll(this.segmentName, this::processTailEvent, this.cancellationToken);
+        return this.reader.readAll(this.segmentName, this::processTailEvent, this.cancellationToken)
+                .thenRun(() -> this.catchupQueue.add(new EndItem())); // Signal that we are done.
     }
 
     private void processTailEvent(StoreReader.ReadItem readItem) {
-        // TODO: synchronized
-
         ValidationResult validationResult = EventGenerator.validate(readItem.getEvent());
         validationResult.setAddress(readItem.getAddress());
         validationResult.setSource(ValidationSource.TailRead);
         if (validationResult.isSuccess()) {
+            this.catchupQueue.add(readItem);
             this.testState.recordTailRead(validationResult.getLength());
             Duration elapsed = validationResult.getElapsed();
             if (elapsed != null) {
@@ -263,9 +255,18 @@ public class Consumer extends Actor {
         return FutureHelpers.loop(
                 this::canRun,
                 () -> this.catchupQueue
-                        .take(1000)
+                        .take(10000)
                         .thenComposeAsync(this::processCatchupReads, this.executorService),
-                this.executorService);
+                this.executorService)
+                .exceptionally(ex -> {
+                    ex = ExceptionHelpers.getRealException(ex);
+                    if (ex instanceof ObjectClosedException) {
+                        // This a normal shutdown, as the catchupQueue is closed when we are done.
+                        return null;
+                    }
+
+                    throw new CompletionException(ex);
+                });
     }
 
     private CompletableFuture<Void> processCatchupReads(Queue<StoreReader.ReadItem> catchupReads) {
@@ -276,6 +277,12 @@ public class Consumer extends Actor {
     }
 
     private CompletableFuture<?> processCatchupRead(StoreReader.ReadItem toValidate) {
+        if (toValidate instanceof EndItem) {
+            System.out.println("DONE");
+            this.catchupQueue.close();
+            return CompletableFuture.completedFuture(null);
+        }
+
         final Timer timer = new Timer();
         return this.reader
                 .readExact(this.segmentName, toValidate.getAddress())
@@ -311,13 +318,13 @@ public class Consumer extends Actor {
         Event actualEvent = actual.getEvent();
         String mismatchProperty = null;
 
-        if (expectedEvent.getOwnerId() == actualEvent.getOwnerId()) {
+        if (expectedEvent.getOwnerId() != actualEvent.getOwnerId()) {
             mismatchProperty = "OwnerId";
-        } else if (expectedEvent.getRoutingKey() == actualEvent.getRoutingKey()) {
+        } else if (expectedEvent.getRoutingKey() != actualEvent.getRoutingKey()) {
             mismatchProperty = "RoutingKey";
-        } else if (expectedEvent.getSequence() == actualEvent.getSequence()) {
+        } else if (expectedEvent.getSequence() != actualEvent.getSequence()) {
             mismatchProperty = "Sequence";
-        } else if (expectedEvent.getContentLength() == actualEvent.getContentLength()) {
+        } else if (expectedEvent.getContentLength() != actualEvent.getContentLength()) {
             mismatchProperty = "ContentLength";
         } else {
             // Check, byte-by-byte, that the data matches what we expect.
@@ -349,6 +356,18 @@ public class Consumer extends Actor {
 
 
     //endregion
+
+    private static class EndItem implements StoreReader.ReadItem {
+        @Override
+        public Event getEvent() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object getAddress() {
+            throw new UnsupportedOperationException();
+        }
+    }
 
     //region FutureExecutionSerializer
 

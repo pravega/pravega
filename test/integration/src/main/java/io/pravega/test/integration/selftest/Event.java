@@ -11,10 +11,13 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import java.io.IOException;
 import lombok.Getter;
+import lombok.SneakyThrows;
 
 /**
  * Represents an Event with a Routing Key and payload.
@@ -70,11 +73,6 @@ class Event {
     @Getter
     private final ArrayView serialization;
 
-    /**
-     * Offset within this.serialization where content starts at.
-     */
-    private final int contentOffset;
-
     //endregion
 
     //region Constructor
@@ -95,7 +93,6 @@ class Event {
         this.startTime = startTime;
         this.serialization = new ByteArraySegment(serialize(length));
         this.contentLength = this.serialization.getLength() - PREFIX_LENGTH;
-        this.contentOffset = HEADER_LENGTH;
     }
 
     /**
@@ -104,9 +101,8 @@ class Event {
      * @param source       A Source ArrayView to deserialize from.
      * @param sourceOffset A starting offset within the Source where to begin deserializing from.
      */
+    @SneakyThrows(IOException.class)
     Event(ArrayView source, int sourceOffset) {
-        this.serialization = Preconditions.checkNotNull(source, "source");
-
         // Extract prefix and validate.
         int prefix = BitConverter.readInt(source, sourceOffset);
         sourceOffset += PREFIX_LENGTH;
@@ -130,8 +126,12 @@ class Event {
         this.contentLength = BitConverter.readInt(source, sourceOffset);
         sourceOffset += LENGTH_LENGTH;
         Preconditions.checkArgument(this.contentLength >= 0, "Payload length must be a positive integer.");
-        Preconditions.checkElementIndex(sourceOffset + contentLength, source.getLength(), "Insufficient data in given source.");
-        this.contentOffset = sourceOffset;
+        Preconditions.checkElementIndex(sourceOffset + contentLength, source.getLength() + 1, "Insufficient data in given source.");
+
+        // We make a copy of the necessary range in the input ArrayView since it may be unusable by the time we read from
+        // it again. TODO: make TruncateableArray return a sub-TruncateableArray which does not require copying.
+        this.serialization = new ByteArraySegment(StreamHelpers.readAll(
+                source.getReader(sourceOffset - HEADER_LENGTH, getTotalLength()), getTotalLength()));
     }
 
     //endregion
@@ -199,7 +199,7 @@ class Event {
      * Validates the contents of the Event, based on information from its Header.
      */
     void validateContents() {
-        int offset = this.contentOffset;
+        int offset = HEADER_LENGTH;
         int endOffset = offset + this.contentLength;
         int nextValue = this.sequence;
         while (offset < endOffset) {
@@ -207,7 +207,7 @@ class Event {
             if (this.serialization.get(offset) != expectedValue) {
                 throw new IllegalStateException(String.format(
                         "Event Corrupted. Payload at index %d differs. Expected %d, actual %d.",
-                        offset - this.contentOffset, expectedValue, this.serialization.get(offset)));
+                        offset - HEADER_LENGTH, expectedValue, this.serialization.get(offset)));
             }
 
             nextValue += this.routingKey + 1;

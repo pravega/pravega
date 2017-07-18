@@ -190,7 +190,7 @@ class SegmentStoreAdapter implements StoreAdapter {
 
     @Override
     public StoreReader createReader() {
-        throw new UnsupportedOperationException();
+        return new SegmentStoreReader(this.streamSegmentStore, this.storage.get(), this.testExecutor);
     }
 
     @Override

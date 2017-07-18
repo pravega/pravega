@@ -4,23 +4,26 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
+import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -66,30 +69,56 @@ class SegmentStoreReader implements StoreReader {
     public CompletableFuture<ReadItem> readExact(String segmentName, Object address) {
         Preconditions.checkArgument(address instanceof Address, "Unexpected address type.");
         Address a = (Address) address;
-        AtomicReference<ReadItem> result = new AtomicReference<>();
         return this.store
                 .read(segmentName, a.offset, a.length, READ_TIMEOUT)
-                .thenComposeAsync(readResult -> {
-                    SegmentReader reader = new SegmentReader(segmentName, result::set, null, this.store, this.executor);
-                    reader.setLimits(a.getOffset(), a.getOffset() + a.getLength());
-                    return reader.run();
-                }, this.executor)
-                .thenApply(v -> result.get());
+                .thenApplyAsync(readResult -> {
+                    byte[] data = new byte[a.length];
+                    quickRead(readResult, data);
+                    return new SegmentStoreReadItem(new Event(new ByteArraySegment(data), 0), address);
+                }, this.executor);
+
     }
 
     @Override
     public CompletableFuture<ReadItem> readStorage(String segmentName, Object address) {
         Preconditions.checkArgument(address instanceof Address, "Unexpected address type.");
         Address a = (Address) address;
-        byte[] buffer = new byte[a.getLength()];
+        byte[] buffer = new byte[a.length];
         return this.storage
                 .openRead(segmentName)
                 .thenCompose(handle -> this.storage.read(handle, a.offset, buffer, 0, a.length, READ_TIMEOUT))
                 .thenApply(bytesRead -> {
-                    assert bytesRead == a.getLength() : "Unexpected number of bytes read.";
+                    assert bytesRead == a.length : "Unexpected number of bytes read.";
                     Event e = new Event(new ByteArraySegment(buffer), 0);
                     return new SegmentStoreReadItem(e, address);
                 });
+    }
+
+    //endregion
+
+    //region Helpers
+
+    /**
+     * Reads the contents of the ReadResult into the given array. TODO: consider moving as a default method in ReadResult.
+     */
+    @SneakyThrows(IOException.class)
+    private int quickRead(ReadResult readResult, byte[] target) {
+        int bytesRead = 0;
+        while (readResult.hasNext()) {
+            ReadResultEntry entry = readResult.next();
+            if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() == ReadResultEntryType.Future) {
+                // Reached the end.
+                break;
+            } else if (!entry.getContent().isDone()) {
+                entry.requestContent(READ_TIMEOUT);
+            }
+
+            ReadResultEntryContents contents = entry.getContent().join();
+            StreamHelpers.readAll(contents.getData(), target, bytesRead, Math.min(contents.getLength(), target.length - bytesRead));
+            bytesRead += contents.getLength();
+        }
+
+        return bytesRead;
     }
 
     //endregion
@@ -107,22 +136,12 @@ class SegmentStoreReader implements StoreReader {
         private final TruncateableArray readBuffer = new TruncateableArray();
         @GuardedBy("readBuffer")
         private long startOffset = 0;
-        @GuardedBy("readBuffer")
-        private long endOffset = Long.MAX_VALUE;
-
-        void setLimits(long startOffset, long endOffset) {
-            Preconditions.checkArgument(startOffset <= endOffset, "startOffset must be smaller than endOffset");
-            synchronized (this.readBuffer) {
-                this.startOffset = startOffset;
-                this.endOffset = endOffset;
-            }
-        }
 
         CompletableFuture<Void> run() {
             return FutureHelpers.loop(
-                    this::canRun,
+                    () -> !this.cancellationToken.isCancellationRequested(),
                     () -> this.store
-                            .read(segmentName, getReadOffset(), getReadLength(), READ_TIMEOUT)
+                            .read(segmentName, getReadOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
                             .thenComposeAsync(this::processReadResult, this.executor)
                             .thenCompose(v -> this.store.getStreamSegmentInfo(segmentName, false, READ_TIMEOUT))
                             .handle(this::readCompleteCallback),
@@ -148,7 +167,7 @@ class SegmentStoreReader implements StoreReader {
                 while (this.readBuffer.getLength() > 0) {
                     try {
                         val e = new Event(this.readBuffer, 0);
-                        events.add(new SegmentStoreReadItem(e, this.startOffset));
+                        events.add(new SegmentStoreReadItem(e, new Address(this.startOffset, e.getTotalLength())));
                         this.readBuffer.truncate(e.getTotalLength());
                         this.startOffset += e.getTotalLength();
                     } catch (IndexOutOfBoundsException ex) {
@@ -163,22 +182,6 @@ class SegmentStoreReader implements StoreReader {
         private long getReadOffset() {
             synchronized (this.readBuffer) {
                 return this.startOffset + this.readBuffer.getLength();
-            }
-        }
-
-        private int getReadLength() {
-            synchronized (this.readBuffer) {
-                return (int) Math.min(Integer.MAX_VALUE, this.endOffset - getReadOffset());
-            }
-        }
-
-        private boolean canRun() {
-            if (this.cancellationToken.isCancellationRequested()) {
-                return false;
-            }
-
-            synchronized (this.readBuffer) {
-                return getReadOffset() < this.endOffset;
             }
         }
 
@@ -237,7 +240,11 @@ class SegmentStoreReader implements StoreReader {
         @Override
         public void processError(Throwable cause) {
             cause = ExceptionHelpers.getRealException(cause);
-            this.completion.completeExceptionally(cause);
+            if (cause instanceof StreamSegmentSealedException) {
+                processResultComplete();
+            } else {
+                this.completion.completeExceptionally(cause);
+            }
         }
 
         @Override
@@ -259,14 +266,14 @@ class SegmentStoreReader implements StoreReader {
         private final Object address;
     }
 
-    @Data
+    @RequiredArgsConstructor
     private static class Address {
         private final long offset;
         private final int length;
 
         @Override
         public String toString() {
-            return String.format("Offset = %d, Length = %d", this.offset, this.length);
+            return String.format("%d,%d", this.offset, this.length);
         }
     }
 
