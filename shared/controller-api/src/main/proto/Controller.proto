@@ -253,7 +253,14 @@ message ScaleStatusRequest {
 }
 
 message ScaleStatusResponse {
-    bool status = 1;
+    enum ScaleStatus {
+        IN_PROGRESS = 0;
+        SUCCESS = 1;
+        INVALID_INPUT = 2;
+        INTERNAL_ERROR = 3;
+    }
+
+    ScaleStatus status = 1;
 }
 
 message SegmentRanges {

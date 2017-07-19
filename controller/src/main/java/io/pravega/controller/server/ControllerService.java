@@ -199,6 +199,7 @@ public class ControllerService {
     public CompletableFuture<ScaleStatusResponse> checkScale(final String scope, final String stream, final int epoch) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Exceptions.checkArgument(epoch >= 0, "epoch", "Epoch cannot be less than 0");
 
         return streamMetadataTasks.checkScale(scope, stream, epoch, null);
     }

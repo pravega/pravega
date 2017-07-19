@@ -87,7 +87,8 @@ public interface Controller {
     CompletableFuture<Boolean> deleteStream(final String scope, final String streamName);
 
     /**
-     * API to merge or split stream segments.
+     * API to request start of scale operation on controller. This method returns a future that will complete when
+     * controller service accepts the scale request.
      *
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
@@ -99,23 +100,26 @@ public interface Controller {
                                            final Map<Double, Double> newKeyRanges);
 
     /**
-     * API to merge or split stream segments.
+     * API to merge or split stream segments. This call returns a future that completes when either the scale
+     * operation is completed on controller service (succeeded or failed) or the specified timeout elapses.
      * 
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
-     * @param timeout timeout and throw exception if scale does not complete withing specified timeout.
+     * @param timeoutMillis timeout and throw exception if scale does not complete withing specified timeout.
      * @param executorService executor to be used for busy waiting.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the scaling was started or not.
+     *         indicate that the scaling was completed successfully or not. It can also throw exception if the specified
+     *         timeout elapses.
      */
     CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
                                            final Map<Double, Double> newKeyRanges,
-                                           final long timeout,
+                                           final long timeoutMillis,
                                            final ScheduledExecutorService executorService);
 
     /**
      * API to check the status of scale for a given epoch.
+     *
      * @param stream Stream object.
      * @param scaleEpoch stream's epoch for which the scale was started.
      * @return True if scale completed, false otherwise.

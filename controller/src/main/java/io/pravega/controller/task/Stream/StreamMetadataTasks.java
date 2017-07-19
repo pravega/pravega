@@ -224,10 +224,27 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
         return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
-                        .thenApply(activeEpoch -> {
+                        .handle((activeEpoch, ex) -> {
                             Preconditions.checkNotNull(activeEpoch);
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
-                            response.setStatus(activeEpoch.getKey() > epoch);
+
+                            if (ex != null) {
+                                Throwable e = ExceptionHelpers.getRealException(ex);
+                                if (e instanceof StoreException.DataNotFoundException) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                }
+                            } else {
+                                if (epoch > activeEpoch.getKey()) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else if (activeEpoch.getKey() == epoch) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                } else {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
+                                }
+                            }
+
                             return response.build();
                         });
     }

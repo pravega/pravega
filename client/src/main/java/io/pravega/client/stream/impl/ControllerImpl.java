@@ -258,7 +258,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
-                                                  final Map<Double, Double> newKeyRanges, final long timeout,
+                                                  final Map<Double, Double> newKeyRanges, final long timeoutMillis,
                                                   final ScheduledExecutorService executor) {
         return startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .thenCompose(startScaleResponse -> {
@@ -270,7 +270,7 @@ public class ControllerImpl implements Controller {
                                     .thenAccept(isDone -> {
                                         done.set(isDone);
                                         if (!isDone) {
-                                            if (System.currentTimeMillis() > (start + timeout)) {
+                                            if (System.currentTimeMillis() > (start + timeoutMillis)) {
                                                 throw new ControllerFailureException("scale request timed out");
                                             }
                                         }
@@ -318,13 +318,24 @@ public class ControllerImpl implements Controller {
                         .setEpoch(scaleEpoch)
                         .build(),
                 callback);
-        return callback.getFuture().thenApply(ScaleStatusResponse::getStatus)
-                .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("checking status failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "checkScale", traceId);
-                });
+        return callback.getFuture().thenApply(response -> {
+            switch (response.getStatus()) {
+                case IN_PROGRESS:
+                    return false;
+                case SUCCESS:
+                    return true;
+                case INVALID_INPUT:
+                    throw new ControllerFailureException("invalid input");
+                case INTERNAL_ERROR:
+                default:
+                    throw new ControllerFailureException("unknown error");
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("checking status failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "checkScale", traceId);
+        });
     }
 
     private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,

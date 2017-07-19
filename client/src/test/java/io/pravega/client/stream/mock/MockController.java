@@ -145,7 +145,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
-                                                  long timeout, ScheduledExecutorService executor) {
+                                                  long timeoutMillis, ScheduledExecutorService executor) {
         throw new NotImplementedException();
     }
 
