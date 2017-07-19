@@ -423,7 +423,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
             try {
                 connection.send(cmd);
-            } catch (ConnectionFailedException e) {
+            } catch (Exception e) {
                 state.failConnection(e);
                 throw e;
             }
@@ -461,7 +461,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              ClientConnection connection = getConnection();
                              try {
                                  connection.send(new KeepAlive());
-                             } catch (ConnectionFailedException e) {
+                             } catch (Exception e) {
                                  state.failConnection(e);
                                  throw e;
                              }

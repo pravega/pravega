@@ -9,7 +9,6 @@
  */
 package io.pravega.common;
 
-import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
@@ -29,10 +28,10 @@ public class ExceptionHelpers {
     }
 
     /**
-     * Extracts the inner exception from any Exception that may have an inner exception.
+     * If the provided exception is a CompletionException or ExecutionException which need be unwraped.
      *
-     * @param ex The exception to query.
-     * @return Throwable corresponding to the inner exception.
+     * @param e The exception to be unwrapped.
+     * @return The cause or the exception provided.
      */
     public static Throwable getRealException(Throwable ex) {
         if (canInspectCause(ex)) {
@@ -54,21 +53,9 @@ public class ExceptionHelpers {
         return c.equals(CompletionException.class) || c.equals(ExecutionException.class);
     }
     
-    /**
-     * If the provided exception is a CompletionException or ExecutionException which need be unwraped.
-     * @param e The exception to be unwrapped.
-     * @return The cause or the exception provided.
-     */
-    public static Throwable unwrapIfRequired(Throwable e) {
-        while ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
-            e = e.getCause();
-        }
-        return e;
-    }
     
     private static boolean canInspectCause(Throwable ex) {
         return ex instanceof CompletionException
-                || ex instanceof ExecutionException
-                || ex instanceof IOException;
+                || ex instanceof ExecutionException;
     }
 }
