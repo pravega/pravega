@@ -270,7 +270,7 @@ public final class Retry {
             if (ExceptionHelpers.shouldUnwrap(retryType) || ExceptionHelpers.shouldUnwrap(throwType)) {
                 return e.getClass();
             } else {
-                return ExceptionHelpers.unwrapIfRequired(e).getClass();
+                return ExceptionHelpers.getRealException(e).getClass();
             }
         }
     }
