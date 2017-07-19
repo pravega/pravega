@@ -76,6 +76,10 @@ public class MultiReaderWriterWithFailOverTest {
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
     private URI controllerURIDirect = null;
+    //zk session timeout to detect failure (30s) +
+    // rebalance time to update ownership change (10s) +
+    // time taken to start a segment container
+    private final int sleepTimeAfterFailover = 60000;
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -337,8 +341,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(sleepTimeAfterFailover);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventData.get();
@@ -354,8 +357,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(sleepTimeAfterFailover);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventData.get();
@@ -372,8 +374,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Thread.sleep(sleepTimeAfterFailover);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventData.get();
