@@ -16,7 +16,7 @@ final class ProducerOperationType extends OperationType {
     /**
      * An Event Operation triggered by a Producer.
      */
-    static final ProducerOperationType APPEND = new ProducerOperationType("Event");
+    static final ProducerOperationType APPEND = new ProducerOperationType("Append");
 
     /**
      * A Seal Operation triggered by a Producer.

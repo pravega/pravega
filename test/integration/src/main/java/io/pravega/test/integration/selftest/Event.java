@@ -130,8 +130,12 @@ class Event {
 
         // We make a copy of the necessary range in the input ArrayView since it may be unusable by the time we read from
         // it again. TODO: make TruncateableArray return a sub-TruncateableArray which does not require copying.
-        this.serialization = new ByteArraySegment(StreamHelpers.readAll(
-                source.getReader(sourceOffset - HEADER_LENGTH, getTotalLength()), getTotalLength()));
+        if (source instanceof TruncateableArray || sourceOffset != HEADER_LENGTH) {
+            this.serialization = new ByteArraySegment(StreamHelpers.readAll(
+                    source.getReader(sourceOffset - HEADER_LENGTH, getTotalLength()), getTotalLength()));
+        } else {
+            this.serialization = source;
+        }
     }
 
     //endregion

@@ -57,7 +57,7 @@ class TruncateableArray implements ArrayView {
 
     @Override
     public byte get(int index) {
-        Preconditions.checkArgument(index >= 0 && index < this.length, "index must be non-negative and less than the length of the array.");
+        Preconditions.checkElementIndex(index, this.length, "index must be non-negative and less than the length of the array.");
 
         // Adjust the index based on the first entry offset.
         index += this.firstArrayOffset;

@@ -88,10 +88,10 @@ public class SelfTestRunner {
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.OPERATION_COUNT, 1000000)
+                .with(TestConfig.OPERATION_COUNT, 1000)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 100)
-                .with(TestConfig.MAX_APPEND_SIZE, 100)
+                .with(TestConfig.MIN_APPEND_SIZE, 1000000)
+                .with(TestConfig.MAX_APPEND_SIZE, 1000000)
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
@@ -103,7 +103,7 @@ public class SelfTestRunner {
                 .with(TestConfig.VERBOSE_LOGGING, false)
 
                 // Tier1
-                .with(TestConfig.USE_BOOKKEEPER, false)
+                .with(TestConfig.USE_BOOKKEEPER, true)
                 .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
 
                 // Client-specific settings.
