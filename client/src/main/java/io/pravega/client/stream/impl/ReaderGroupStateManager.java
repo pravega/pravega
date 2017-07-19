@@ -93,7 +93,7 @@ public class ReaderGroupStateManager {
         releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         acquireTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         fetchStateTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
-        checkpointTimer = new TimeoutTimer(UPDATE_WINDOW, nanoClock);
+        checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     static void initializeReaderGroup(StateSynchronizer<ReaderGroupState> sync,
