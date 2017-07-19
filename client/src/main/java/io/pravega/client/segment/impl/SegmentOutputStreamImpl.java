@@ -459,7 +459,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          .throwingOn(SegmentSealedException.class)
                          .run(() -> {
                              ClientConnection connection = getConnection();
-                             connection.send(new KeepAlive());
+                             try {
+                                 connection.send(new KeepAlive());
+                             } catch (ConnectionFailedException e) {
+                                 state.failConnection(e);
+                                 throw e;
+                             }
                              FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>getThrowingException(state.getEmptyInflightFuture());
                              return null;
                          });
