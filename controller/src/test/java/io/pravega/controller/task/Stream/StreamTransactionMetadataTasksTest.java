@@ -282,7 +282,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
         AssertExtensions.assertThrows("IllegalStateException before initialization",
-                txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")),
+                txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")),
                 ex -> ex instanceof IllegalStateException);
 
         // Initialize stream writers.
@@ -292,7 +292,7 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(txnTasks.isReady());
 
         // Sweep txns that were being managed by failedHost.
-        txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")).join();
+        txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")).join();
 
         // Validate that sweeping completes correctly.
         Assert.assertEquals(0, streamStore.listHostsOwningTxn().join().size());

@@ -21,7 +21,6 @@ import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -90,15 +89,10 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
     }
 
     @Override
-    public Collection<Integer> getRegisteredContainerIds() {
-        return this.containers.keySet();
-    }
-
-    @Override
     public SegmentContainer getContainer(int containerId) throws ContainerNotFoundException {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ContainerWithHandle result = this.containers.getOrDefault(containerId, null);
-        if (result == null) {
+        if (result == null || isShutdown(result.container.state())) {
             throw new ContainerNotFoundException(containerId);
         }
 
