@@ -39,7 +39,7 @@ variable "pravega_aws_amis" {
 
 variable "pravega_instance_type" {
   default = {
-    us-east-1 = "m3.2xlarge"
+    us-east-1 = "m3.xlarge"
     us-west-1 = "i3.4xlarge"
   }
 }
