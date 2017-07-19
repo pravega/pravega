@@ -90,4 +90,62 @@ public class AutoCheckpointTest {
         assertTrue("Count was " + checkpointCount, checkpointCount < 20);
     }
 
+    @Test(timeout = 60000)
+    public void testOnlyOneOutstanding() throws ReinitializationRequiredException, DurableDataLogException,
+                                       InterruptedException {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        String readerGroup = "group";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world: ";
+        String scope = "Scope1";
+        @Cleanup
+        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .startingPosition(Sequence.MIN_VALUE)
+                                                         .automaticCheckpointIntervalMillis(10)
+                                                         .build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, null);
+        streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                                                                             EventWriterConfig.builder().build());
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent(testString + i);
+        }
+        producer.flush();
+
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroup, serializer,
+                                                                      ReaderConfig.builder().build());
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroup, serializer,
+                                                                      ReaderConfig.builder().build());
+        int numRead = 0;
+        int checkpointCount = 0;
+        while (numRead < 100) {
+            EventRead<String> event = reader1.readNextEvent(1000);
+            if (event.isCheckpoint()) {
+                checkpointCount++;
+            } else {
+                String message = event.getEvent();
+                assertEquals(testString + numRead, message);
+                numRead++;
+                Thread.sleep(10);
+            }
+        }
+        assertEquals("As there is a second reader that does not pass the checkpoint, only one should occur", 1, checkpointCount);
+    }
+
+    
 }
