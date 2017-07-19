@@ -33,14 +33,14 @@ variable "pravega_num" {
 variable "pravega_aws_amis" {
   default = {
     us-east-1 = "ami-7747d01e"
-    us-west-1 = "ami-a6f0ddc6"
+    us-west-1 = "ami-96f1dcf6"
   }
 }
 
 variable "pravega_instance_type" {
   default = {
     us-east-1 = "m3.2xlarge"
-    us-west-1 = "i2.8xlarge"
+    us-west-1 = "i3.4xlarge"
   }
 }
 

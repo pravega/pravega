@@ -17,11 +17,11 @@
   "Mappings" : {
       "AMIMap" : {
         "us-east-1" : { "AMI" : "ami-7747d01e" },
-        "us-west-1" : { "AMI" : "ami-a6f0ddc6" }
+        "us-west-1" : { "AMI" : "ami-96f1dcf6" }
       },
       "InstanceTypeMap" : {
         "us-east-1" : { "InstanceType" : "m3.2xlarge" },
-        "us-west-1" : { "InstanceType" : "i2.8xlarge" }
+        "us-west-1" : { "InstanceType" : "i3.4xlarge" }
       }
   },
   "Resources" : {
