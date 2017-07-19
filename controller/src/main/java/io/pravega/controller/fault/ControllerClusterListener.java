@@ -10,6 +10,7 @@
 package io.pravega.controller.fault;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
@@ -57,7 +58,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         this.host = host;
         this.cluster = cluster;
         this.executor = executor;
-        this.sweepers = sweepers;
+        this.sweepers = Lists.newArrayList(sweepers);
     }
 
     @Override
