@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,7 +11,6 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -50,8 +49,9 @@ class TestState {
     @GuardedBy("allSegmentNames")
     private final ArrayList<String> allSegmentNames;
     @GuardedBy("durations")
-    private final AbstractMap<OperationType, List<Integer>> durations;
+    private final HashMap<OperationType, List<Integer>> durations;
     private final AtomicLong startTimeNanos;
+    private final AtomicLong lastAppendTime;
 
     //endregion
 
@@ -71,6 +71,7 @@ class TestState {
         this.verifiedStorageLength = new AtomicLong();
         this.durations = new HashMap<>();
         this.startTimeNanos = new AtomicLong();
+        this.lastAppendTime = new AtomicLong();
         resetClock();
 
         synchronized (this.durations) {
@@ -88,7 +89,7 @@ class TestState {
      * Gets the throughput since the last time resetClock() was called in Bytes/Second.
      */
     double getThroughput() {
-        double durationSeconds = (System.nanoTime() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
+        double durationSeconds = (this.lastAppendTime.get() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
         return this.producedLength.get() / durationSeconds;
     }
 
@@ -242,6 +243,7 @@ class TestState {
      */
     void resetClock() {
         this.startTimeNanos.set(System.nanoTime());
+        this.lastAppendTime.set(this.startTimeNanos.get());
     }
 
     /**
@@ -299,6 +301,7 @@ class TestState {
      */
     void recordAppend(int length) {
         this.producedLength.addAndGet(length);
+        this.lastAppendTime.set(System.nanoTime());
     }
 
     void recordTailRead(int length) {

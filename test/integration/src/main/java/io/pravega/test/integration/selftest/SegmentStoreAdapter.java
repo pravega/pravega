@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +36,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,7 +56,7 @@ class SegmentStoreAdapter implements StoreAdapter {
 
     static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     private static final String LOG_ID = "SegmentStoreAdapter";
-    protected final Executor testExecutor;
+    protected final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
@@ -78,7 +78,7 @@ class SegmentStoreAdapter implements StoreAdapter {
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, Executor testExecutor) {
+    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.closed = new AtomicBoolean();

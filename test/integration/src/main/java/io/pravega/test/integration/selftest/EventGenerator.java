@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -10,10 +10,9 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.util.ArrayView;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.jcip.annotations.ThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Generates sequential Appends using arbitrary routing keys.

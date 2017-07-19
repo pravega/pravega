@@ -1,7 +1,17 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
@@ -17,12 +27,15 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
+import io.pravega.segmentstore.storage.TruncateableStorage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
@@ -37,23 +50,21 @@ import lombok.val;
  */
 @ThreadSafe
 class SegmentStoreReader implements StoreReader {
+    //region Members
 
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     private final StreamSegmentStore store;
     private final ReadOnlyStorage storage;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
-    SegmentStoreReader(StreamSegmentStore store, ReadOnlyStorage storage, Executor executor) {
+    //endregion
+
+    //region Constructor
+
+    SegmentStoreReader(StreamSegmentStore store, ReadOnlyStorage storage, ScheduledExecutorService executor) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-    }
-
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-
     }
 
     //endregion
@@ -62,11 +73,18 @@ class SegmentStoreReader implements StoreReader {
 
     @Override
     public CompletableFuture<Void> readAll(String segmentName, Consumer<ReadItem> eventHandler, CancellationToken cancellationToken) {
+        Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+        Preconditions.checkNotNull(eventHandler, "eventHandler");
+        if (cancellationToken == null) {
+            cancellationToken = CancellationToken.NONE;
+        }
+
         return new SegmentReader(segmentName, eventHandler, cancellationToken, this.store, this.executor).run();
     }
 
     @Override
     public CompletableFuture<ReadItem> readExact(String segmentName, Object address) {
+        Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         Preconditions.checkArgument(address instanceof Address, "Unexpected address type.");
         Address a = (Address) address;
         return this.store
@@ -76,22 +94,17 @@ class SegmentStoreReader implements StoreReader {
                     quickRead(readResult, data);
                     return new SegmentStoreReadItem(new Event(new ByteArraySegment(data), 0), address);
                 }, this.executor);
-
     }
 
     @Override
-    public CompletableFuture<ReadItem> readStorage(String segmentName, Object address) {
-        Preconditions.checkArgument(address instanceof Address, "Unexpected address type.");
-        Address a = (Address) address;
-        byte[] buffer = new byte[a.length];
-        return this.storage
-                .openRead(segmentName)
-                .thenCompose(handle -> this.storage.read(handle, a.offset, buffer, 0, a.length, READ_TIMEOUT))
-                .thenApply(bytesRead -> {
-                    assert bytesRead == a.length : "Unexpected number of bytes read.";
-                    Event e = new Event(new ByteArraySegment(buffer), 0);
-                    return new SegmentStoreReadItem(e, address);
-                });
+    public CompletableFuture<Void> readAllStorage(String segmentName, Consumer<Event> eventHandler, CancellationToken cancellationToken) {
+        Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+        Preconditions.checkNotNull(eventHandler, "eventHandler");
+        if (cancellationToken == null) {
+            cancellationToken = CancellationToken.NONE;
+        }
+
+        return new StorageReader(segmentName, eventHandler, cancellationToken, this.storage, this.executor).run();
     }
 
     //endregion
@@ -123,8 +136,106 @@ class SegmentStoreReader implements StoreReader {
 
     //endregion
 
+    //region StorageReader
+
+    /**
+     * Reads all data from Storage for a given Segment.
+     */
+    @RequiredArgsConstructor
+    private static class StorageReader {
+        private static final Duration WAIT_DURATION = Duration.ofMillis(500);
+        private final String segmentName;
+        private final Consumer<Event> eventHandler;
+        private final CancellationToken cancellationToken;
+        private final ReadOnlyStorage storage;
+        private final ScheduledExecutorService executor;
+        @GuardedBy("readBuffer")
+        private final TruncateableArray readBuffer = new TruncateableArray();
+        @GuardedBy("readBuffer")
+        private long readBufferOffset;
+
+        /**
+         * Runs in a loop as long as the CancellationToken is not cancelled. Checks, on a periodic basis, if the Segment's
+         * length changed in Storage. If so, it reads the outstanding data and interprets it as an ordered sequence of Events,
+         * which are then passed on via the given event handler.
+         */
+        CompletableFuture<Void> run() {
+            return FutureHelpers.loop(
+                    () -> !this.cancellationToken.isCancellationRequested(),
+                    () -> this.storage
+                            .getStreamSegmentInfo(segmentName, READ_TIMEOUT)
+                            .thenComposeAsync(this::performRead, this.executor),
+                    this.executor);
+        }
+
+        /**
+         * Executes a read from Storage using the current, given state of the Segment.
+         */
+        private CompletableFuture<Void> performRead(SegmentProperties segmentInfo) {
+            // Calculate the last offset we read up to.
+            long lastReadOffset;
+            synchronized (this.readBuffer) {
+                lastReadOffset = this.readBufferOffset + this.readBuffer.getLength();
+            }
+
+            long diff = segmentInfo.getLength() - lastReadOffset;
+            if (diff <= 0) {
+                if (segmentInfo.isSealed()) {
+                    // Segment has been sealed; no point in looping anymore.
+                    return FutureHelpers.failedFuture(new StreamSegmentSealedException(this.segmentName));
+                } else {
+                    // No change in the segment.
+                    return FutureHelpers.delayedFuture(WAIT_DURATION, this.executor);
+                }
+            } else {
+                byte[] buffer = new byte[(int) Math.min(Integer.MAX_VALUE, diff)];
+                return this.storage
+                        .openRead(segmentName)
+                        .thenCompose(handle -> this.storage.read(handle, lastReadOffset, buffer, 0, buffer.length, READ_TIMEOUT))
+                        .thenComposeAsync(bytesRead -> {
+                            processRead(buffer, bytesRead);
+                            return truncateIfPossible(segmentInfo.getLength());
+                        }, this.executor);
+            }
+        }
+
+        private void processRead(byte[] buffer, int bytesRead) {
+            val events = new ArrayList<Event>();
+            synchronized (this.readBuffer) {
+                this.readBuffer.append(new ByteArrayInputStream(buffer), bytesRead);
+
+                // Drain the read buffer (as much as we can) by extracting Events out of it.
+                while (this.readBuffer.getLength() > 0) {
+                    try {
+                        val e = new Event(this.readBuffer, 0);
+                        events.add(e);
+                        this.readBuffer.truncate(e.getTotalLength());
+                        this.readBufferOffset += e.getTotalLength();
+                    } catch (IndexOutOfBoundsException ex) {
+                        break;
+                    }
+                }
+            }
+
+            events.forEach(this.eventHandler);
+        }
+
+        private CompletableFuture<Void> truncateIfPossible(long offset) {
+            if (this.storage instanceof TruncateableStorage) {
+                return ((TruncateableStorage) this.storage).truncate(this.segmentName, offset, READ_TIMEOUT);
+            } else {
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+    }
+
+    //endregion
+
     //region SegmentReader
 
+    /**
+     * Reads the entire Segment from the SegmentStore.
+     */
     @RequiredArgsConstructor
     private static class SegmentReader {
         private final String segmentName;
@@ -136,16 +247,28 @@ class SegmentStoreReader implements StoreReader {
         private final TruncateableArray readBuffer = new TruncateableArray();
         @GuardedBy("readBuffer")
         private long startOffset = 0;
+        @GuardedBy("readBuffer")
+        private boolean isClosed = false;
 
+        /**
+         * Runs in a loop as long as the CancellationToken is not cancelled. Asynchronously invokes the given callback
+         * whenever there is new data available, which is interpreted as Events.
+         */
         CompletableFuture<Void> run() {
             return FutureHelpers.loop(
-                    () -> !this.cancellationToken.isCancellationRequested(),
+                    this::canRun,
                     () -> this.store
                             .read(segmentName, getReadOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
                             .thenComposeAsync(this::processReadResult, this.executor)
                             .thenCompose(v -> this.store.getStreamSegmentInfo(segmentName, false, READ_TIMEOUT))
                             .handle(this::readCompleteCallback),
                     this.executor);
+        }
+
+        private boolean canRun() {
+            synchronized (this.readBuffer) {
+                return !this.cancellationToken.isCancellationRequested() && !this.isClosed;
+            }
         }
 
         private CompletableFuture<Void> processReadResult(ReadResult readResult) {
@@ -191,14 +314,18 @@ class SegmentStoreReader implements StoreReader {
                 ex = ExceptionHelpers.getRealException(ex);
                 if (ex instanceof StreamSegmentNotExistsException) {
                     // Cannot continue anymore (segment has been deleted).
-                    this.cancellationToken.requestCancellation();
+                    synchronized (this.readBuffer) {
+                        this.isClosed = true;
+                    }
                 } else {
                     // Unexpected exception.
                     throw ex;
                 }
             } else if (r.isSealed() && getReadOffset() >= r.getLength()) {
                 // Cannot continue anymore (segment has been sealed and we reached its end).
-                this.cancellationToken.requestCancellation();
+                synchronized (this.readBuffer) {
+                    this.isClosed = true;
+                }
             }
 
             return null;
@@ -260,6 +387,8 @@ class SegmentStoreReader implements StoreReader {
 
     //endregion
 
+    //region Other Nested Classes
+
     @Data
     private static class SegmentStoreReadItem implements ReadItem {
         private final Event event;
@@ -281,4 +410,6 @@ class SegmentStoreReader implements StoreReader {
     private interface ReadCallback {
         void accept(InputStream data, long segmentOffset, int length);
     }
+
+    //endregion
 }

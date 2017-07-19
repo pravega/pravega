@@ -31,7 +31,6 @@ class Event {
     private static final int SEQUENCE_LENGTH = Integer.BYTES;
     private static final int START_TIME_LENGTH = Long.BYTES;
     private static final int LENGTH_LENGTH = Integer.BYTES;
-    static final int NO_ROUTING_KEY = -1;
     static final int HEADER_LENGTH = PREFIX_LENGTH + OWNER_ID_LENGTH + ROUTING_KEY_LENGTH + SEQUENCE_LENGTH + START_TIME_LENGTH + LENGTH_LENGTH;
     private static final int PREFIX = (int) Math.pow(Math.E, 20);
 
