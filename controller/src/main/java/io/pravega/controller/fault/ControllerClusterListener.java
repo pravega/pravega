@@ -20,6 +20,7 @@ import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -50,6 +51,7 @@ public class ControllerClusterListener extends AbstractIdleService {
         Preconditions.checkNotNull(host, "host");
         Preconditions.checkNotNull(cluster, "cluster");
         Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkArgument(sweepers.stream().noneMatch(Objects::isNull));
 
         this.objectId = "ControllerClusterListener";
         this.host = host;

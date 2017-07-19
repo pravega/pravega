@@ -183,7 +183,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 List<FailoverSweeper> failoverSweepers = new ArrayList<>();
                 failoverSweepers.add(taskSweeper);
                 failoverSweepers.add(txnSweeper);
-                if (controllerEventProcessors != null) {
+                if (serviceConfig.getEventProcessorConfig().isPresent()) {
+                    assert controllerEventProcessors != null;
                     failoverSweepers.add(controllerEventProcessors);
                 }
 
