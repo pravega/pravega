@@ -182,7 +182,7 @@ public class StreamMetadataTasksTest {
         Controller.ScaleStatusResponse scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "UNKNOWN", 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
 
-        scaleStatusResult = streamMetadataTasks.checkScale("UNKNWON", "test", 0, null).get();
+        scaleStatusResult = streamMetadataTasks.checkScale("UNKNOWN", "test", 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
 
         scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 5, null).get();
