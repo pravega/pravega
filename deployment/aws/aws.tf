@@ -259,14 +259,15 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
-      "cd /tmp && git clone https://github.com/pravega/pravega.git && cd pravega/",
-      "sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk",
-      "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew distTar && mv build/distributions/pravega*.tgz /home/ubuntu/data/pravega-0.1.0-SNAPSHOT.tgz",
-      "cd /home/ubuntu",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
+      "sudo apt-get install -y git",
+      "cd /tmp && git clone https://github.com/pravega/pravega.git && cd pravega/",
+      "sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk",
+      "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew distTar && mv build/distributions/pravega*.tgz /home/ubuntu/data/pravega-0.1.0-SNAPSHOT.tgz",
+      "cd /home/ubuntu",
       "chmod 400 $(basename ${var.cred_path})",
       "ansible-playbook -i hosts entry_point.yml --private-key=$(basename ${var.cred_path})",
    ]
