@@ -284,7 +284,7 @@ public class LocalControllerTest {
     public void testScaleStream() throws ExecutionException, InterruptedException {
         when(this.mockControllerService.checkScale(anyString(), anyString(), anyInt())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleStatusResponse.newBuilder()
-                        .setStatus(true).build()));
+                        .setStatus(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS).build()));
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.STARTED).build()));

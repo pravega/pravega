@@ -123,13 +123,13 @@ public class ControllerServiceWithZKStreamTest {
         keyRanges.put(0.5, 0.75);
         keyRanges.put(0.75, 1.0);
 
-        assertFalse(consumer.checkScale(SCOPE, STREAM, 0).get().getStatus());
+        assertFalse(consumer.checkScale(SCOPE, STREAM, 0).get().getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS));
         Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, Arrays.asList(1), keyRanges, start + 20)
                 .get();
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.STARTED, scaleStatus.getStatus());
         AtomicBoolean done = new AtomicBoolean(false);
         FutureHelpers.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch())
-                .thenAccept(x -> done.set(x.getStatus())), executor).get();
+                .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
         //After scale the current number of segments is 3;
         List<Controller.SegmentRange> currentSegmentsAfterScale = consumer.getCurrentSegments(SCOPE, STREAM).get();
         assertEquals(3, currentSegmentsAfterScale.size());

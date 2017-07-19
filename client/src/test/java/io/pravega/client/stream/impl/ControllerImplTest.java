@@ -361,7 +361,7 @@ public class ControllerImplTest {
             public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(ScaleStatusResponse.newBuilder()
-                            .setStatus(true).build());
+                            .setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -755,6 +755,14 @@ public class ControllerImplTest {
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
                                                    new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+
+        scaleStream = controllerClient.scaleStream(new StreamImpl("UNKNOWN", "stream2"), new ArrayList<>(),
+                new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+
+        scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "UNKNOWN"), new ArrayList<>(),
+                new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
     }
 

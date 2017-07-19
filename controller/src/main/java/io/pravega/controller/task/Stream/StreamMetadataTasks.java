@@ -225,7 +225,6 @@ public class StreamMetadataTasks extends TaskBase {
                                                                         OperationContext context) {
         return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                         .handle((activeEpoch, ex) -> {
-                            Preconditions.checkNotNull(activeEpoch);
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
                             if (ex != null) {
@@ -236,6 +235,8 @@ public class StreamMetadataTasks extends TaskBase {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
                                 }
                             } else {
+                                Preconditions.checkNotNull(activeEpoch);
+
                                 if (epoch > activeEpoch.getKey()) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
                                 } else if (activeEpoch.getKey() == epoch) {

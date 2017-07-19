@@ -420,7 +420,7 @@ public abstract class ControllerServiceImplTest {
 
             this.controllerService.checkScale(scalestatusRequest, checkScaleResult);
             final Controller.ScaleStatusResponse scalestatusResponse = checkScaleResult.get();
-            done = scalestatusResponse.getStatus();
+            done = scalestatusResponse.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS);
         }
 
         Assert.assertEquals(2, scaleResponse.getSegmentsCount());
