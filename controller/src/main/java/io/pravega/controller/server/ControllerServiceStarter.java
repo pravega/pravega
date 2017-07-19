@@ -159,6 +159,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
             TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
 
+            if (serviceConfig.isControllerClusterListenerEnabled()) {
+                cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
+            }
+
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
 
@@ -179,7 +183,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Setup and start controller cluster listener after all sweepers have been initialized.
             if (serviceConfig.isControllerClusterListenerEnabled()) {
-                cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
                 List<FailoverSweeper> failoverSweepers = new ArrayList<>();
                 failoverSweepers.add(taskSweeper);
                 failoverSweepers.add(txnSweeper);
