@@ -463,4 +463,45 @@ public class ReaderGroupStateManagerTest {
         assertNull(readerState.getCheckpoint());
     }
     
+    @Test(timeout = 10000)
+    public void testCheckpointContainsAllShards() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        Segment segment0 = new Segment(scope, stream, 0);
+        Segment segment1 = new Segment(scope, stream, 1);
+        Segment segment2 = new Segment(scope, stream, 2);
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of()));
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+                                                            streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = clientFactory.createStateSynchronizer(stream,
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      new JavaSerializer<>(),
+                                                                                                      config);
+        Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
+        ReaderGroupStateManager.initializeReaderGroup(stateSynchronizer, ReaderGroupConfig.builder().build(), segments);
+        val readerState1 = new ReaderGroupStateManager("reader1", stateSynchronizer, controller, null);
+        readerState1.initializeReader(0);
+        val readerState2 = new ReaderGroupStateManager("reader2", stateSynchronizer, controller, null);
+        readerState2.initializeReader(0);
+        
+        assertEquals(segments, stateSynchronizer.getState().getUnassignedSegments());
+        stateSynchronizer.updateStateUnconditionally(new CreateCheckpoint("CP1"));
+        stateSynchronizer.fetchUpdates();
+        assertEquals("CP1", readerState1.getCheckpoint());
+        assertEquals(Collections.emptyMap(), readerState1.acquireNewSegmentsIfNeeded(1));
+        assertEquals(Collections.emptyMap(), readerState2.acquireNewSegmentsIfNeeded(2));
+        assertEquals("CP1", readerState2.getCheckpoint());
+        readerState1.checkpoint("CP1", new PositionImpl(Collections.emptyMap()));
+        readerState2.checkpoint("CP1", new PositionImpl(Collections.emptyMap()));
+        assertTrue(stateSynchronizer.getState().isCheckpointComplete("CP1"));
+        assertEquals(segments, stateSynchronizer.getState().getPositionsForCompletedCheckpoint("CP1"));
+    }
+    
 }
