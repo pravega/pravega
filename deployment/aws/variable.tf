@@ -33,7 +33,7 @@ variable "pravega_num" {
 variable "pravega_aws_amis" {
   default = {
     us-east-1 = "ami-7747d01e"
-    us-west-1 = "ami-96f1dcf6"
+    us-west-1 = "ami-73f7da13"
   }
 }
 
