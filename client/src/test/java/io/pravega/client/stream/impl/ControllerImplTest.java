@@ -11,15 +11,17 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
-import io.grpc.inprocess.InProcessChannelBuilder;
-import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.StatusRuntimeException;
 import io.grpc.internal.ServerImpl;
+import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -49,6 +51,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,11 +60,14 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.test.common.TestUtils;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -84,10 +90,13 @@ public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
-    private ServerImpl fakeServer = null;
+    private ControllerServiceImplBase testServerImpl;
+    private ServerImpl testGRPCServer = null;
+
+    private int serverPort;
 
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
@@ -95,8 +104,8 @@ public class ControllerImplTest {
     @Before
     public void setup() throws IOException {
 
-        // Setup fake server generating different success and failure responses.
-        ControllerServiceImplBase fakeServerImpl = new ControllerServiceImplBase() {
+        // Setup test server generating different success and failure responses.
+        testServerImpl = new ControllerServiceImplBase() {
             @Override
             public void createStream(StreamConfig request,
                     StreamObserver<CreateStreamStatus> responseObserver) {
@@ -128,16 +137,19 @@ public class ControllerImplTest {
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
 
                     // Simulating delay in sending response.
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        log.error("Unexpected interrupt");
-                        responseObserver.onError(e);
-                        return;
-                    }
+                    Exceptions.handleInterrupted(() -> Thread.sleep(500));
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.SUCCESS)
                                                     .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("streamdelayed")) {
+
+                    // Simulating delay in sending response. This is used for the keepalive test,
+                    // where response time > 30 seconds is required to simulate a failure.
+                    Exceptions.handleInterrupted(() -> Thread.sleep(40000));
+                    responseObserver.onNext(CreateStreamStatus.newBuilder()
+                            .setStatus(CreateStreamStatus.Status.SUCCESS)
+                            .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -250,13 +262,7 @@ public class ControllerImplTest {
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        log.error("Unexpected interrupt");
-                        responseObserver.onError(e);
-                        return;
-                    }
+                    Exceptions.handleInterrupted(() -> Thread.sleep(500));
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "streamparallel",
@@ -539,17 +545,49 @@ public class ControllerImplTest {
             }
         };
 
-        fakeServer = InProcessServerBuilder.forName("fakeserver")
-                .addService(fakeServerImpl)
-                .directExecutor()
+        serverPort = TestUtils.getAvailableListenPort();
+        testGRPCServer = NettyServerBuilder.forPort(serverPort)
+                .addService(testServerImpl)
                 .build()
                 .start();
-        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+        controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort));
     }
 
     @After
     public void tearDown() {
-        fakeServer.shutdown();
+        testGRPCServer.shutdownNow();
+    }
+
+    @Test
+    public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
+
+        // Verify that keep-alive timeout less than permissible by the server results in a failure.
+        ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
+        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        AssertExtensions.assertThrows("Should throw Exception", createStreamStatus,
+                throwable -> throwable instanceof StatusRuntimeException);
+
+        // Verify that the same RPC with permissible keepalive time succeeds.
+        int serverPort2 = TestUtils.getAvailableListenPort();
+        ServerImpl testServer = NettyServerBuilder.forPort(serverPort2)
+                .addService(testServerImpl)
+                .permitKeepAliveTime(5, TimeUnit.SECONDS)
+                .build()
+                .start();
+        controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
+        createStreamStatus = controller.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        assertTrue(createStreamStatus.get());
+        testServer.shutdownNow();
     }
 
     @Test
