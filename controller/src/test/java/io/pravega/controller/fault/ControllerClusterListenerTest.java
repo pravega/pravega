@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.fault;
 
+import com.google.common.collect.Lists;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -136,7 +137,8 @@ public class ControllerClusterListenerTest {
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Create ControllerClusterListener.
-        ControllerClusterListener clusterListener =  new ControllerClusterListener(host, clusterZK, executor, taskSweeper, txnSweeper);
+        ControllerClusterListener clusterListener =  new ControllerClusterListener(host, clusterZK, executor,
+                Lists.newArrayList(taskSweeper, txnSweeper));
         clusterListener.startAsync();
 
         clusterListener.awaitRunning();
@@ -229,7 +231,7 @@ public class ControllerClusterListenerTest {
 
         // Create ControllerClusterListener.
         ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
-                        taskSweeper, txnSweeper);
+                Lists.newArrayList(taskSweeper, txnSweeper));
 
         clusterListener.startAsync();
         clusterListener.awaitRunning();
