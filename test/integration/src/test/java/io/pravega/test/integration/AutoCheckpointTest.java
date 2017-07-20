@@ -35,7 +35,7 @@ import static org.junit.Assert.*;
 
 public class AutoCheckpointTest {
 
-    private final long NANOS_PER_SECOND = 1000000000;
+    private static final long NANOS_PER_SECOND = 1000000000;
 
     @Test(timeout = 30000)
     public void testCheckpointsOccur() throws ReinitializationRequiredException, DurableDataLogException {
