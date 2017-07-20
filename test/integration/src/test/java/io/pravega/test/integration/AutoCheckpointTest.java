@@ -34,7 +34,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class AutoCheckpointTest {
-    
+
     private final long NANOS_PER_SECOND = 1000000000;
 
     @Test(timeout = 30000)
@@ -65,13 +65,13 @@ public class AutoCheckpointTest {
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
         populateEvents(streamName, testString, clientFactory, serializer);
-        
+
         AtomicLong fakeClock = new AtomicLong(0);
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer,
                                                                       ReaderConfig.builder().build(),
                                                                       () -> fakeClock.get(),
-                                                                      () -> fakeClock.get()/NANOS_PER_SECOND);
+                                                                      () -> fakeClock.get() / NANOS_PER_SECOND);
         int numRead = 0;
         int checkpointCount = 0;
         while (numRead < 100) {
@@ -132,12 +132,12 @@ public class AutoCheckpointTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroup, serializer,
                                                                        ReaderConfig.builder().build(),
                                                                        () -> fakeClock.get(),
-                                                                       () -> fakeClock.get()/NANOS_PER_SECOND);
+                                                                       () -> fakeClock.get() / NANOS_PER_SECOND);
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroup, serializer,
                                                                        ReaderConfig.builder().build(),
                                                                        () -> fakeClock.get(),
-                                                                       () -> fakeClock.get()/NANOS_PER_SECOND);
+                                                                       () -> fakeClock.get() / NANOS_PER_SECOND);
         int numRead = 0;
         int checkpointCount = 0;
         while (numRead < 100) {
@@ -151,8 +151,8 @@ public class AutoCheckpointTest {
                 numRead++;
             }
         }
-        assertEquals("As there is a second reader that does not pass the checkpoint, only one should occur", 1, checkpointCount);
+        assertEquals("As there is a second reader that does not pass the checkpoint, only one should occur", 1,
+                     checkpointCount);
     }
 
-    
 }
