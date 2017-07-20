@@ -176,7 +176,8 @@ public class ReaderGroupStateManager {
         fetchUpdatesIfNeeded();
         Segment segment = null;
         synchronized (decisionLock) {
-            if (!releaseTimer.hasRemaining() && doesReaderOwnTooManySegments(sync.getState())) {
+            if (!releaseTimer.hasRemaining() && sync.getState().getCheckpointForReader(readerId) == null
+                    && doesReaderOwnTooManySegments(sync.getState())) {
                 segment = findSegmentToRelease();
                 if (segment != null) {
                     releaseTimer.reset(UPDATE_WINDOW);
@@ -223,7 +224,8 @@ public class ReaderGroupStateManager {
     boolean releaseSegment(Segment segment, long lastOffset, long timeLag) throws ReinitializationRequiredException {
         sync.updateState(state -> {
             Set<Segment> segments = state.getSegments(readerId);
-            if (segments == null || !segments.contains(segment) || !doesReaderOwnTooManySegments(state)) {
+            if (segments == null || !segments.contains(segment) || state.getCheckpointForReader(readerId) != null
+                    || !doesReaderOwnTooManySegments(state)) {
                 return null;
             }
             List<ReaderGroupStateUpdate> result = new ArrayList<>(2);
@@ -275,6 +277,9 @@ public class ReaderGroupStateManager {
             if (sync.getState().getNumberOfUnassignedSegments() == 0) {
                 return false;
             }
+            if (sync.getState().getCheckpointForReader(readerId) != null) {
+                return false;
+            }
             acquireTimer.reset(UPDATE_WINDOW);
             return true;
         }
@@ -286,6 +291,9 @@ public class ReaderGroupStateManager {
         sync.updateState(state -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
+                return null;
+            }
+            if (state.getCheckpointForReader(readerId) != null) {
                 return null;
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
@@ -336,7 +344,7 @@ public class ReaderGroupStateManager {
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
         }
-        return state.getCheckpointsForReader(readerId);
+        return state.getCheckpointForReader(readerId);
     }
     
     void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {

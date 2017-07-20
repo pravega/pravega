@@ -136,18 +136,20 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
         try {
-            if (atCheckpoint) {
-                releaseSegmentsIfNeeded();
-                atCheckpoint = false;
-            }
-            acquireSegmentsIfNeeded();
             String checkpoint = groupState.getCheckpoint();
-            if (checkpoint != null) {
+            if (checkpoint == null) {
+                if (atCheckpoint) {
+                    releaseSegmentsIfNeeded();
+                    atCheckpoint = false;
+                }
+                acquireSegmentsIfNeeded();
+                return null;
+            } else {
                 log.info("{} at checkpoint {}", this, checkpoint);
                 groupState.checkpoint(checkpoint, getPosition());
                 atCheckpoint = true;
+                return checkpoint;
             }
-            return checkpoint;
         } catch (ReinitializationRequiredException e) {
             close();
             throw e;
@@ -160,8 +162,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             log.info("{} releasing segment {}", this, segment);
             SegmentInputStream reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                groupState.releaseSegment(segment, reader.getOffset(), getLag());
-                readers.remove(reader);
+                if (groupState.releaseSegment(segment, reader.getOffset(), getLag())) {
+                    readers.remove(reader);
+                }
             }
         }
     }
