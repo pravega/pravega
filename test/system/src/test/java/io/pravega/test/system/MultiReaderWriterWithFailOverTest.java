@@ -66,6 +66,9 @@ public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
+    private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -207,7 +210,8 @@ public class MultiReaderWriterWithFailOverTest {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(writer);
             }
 
