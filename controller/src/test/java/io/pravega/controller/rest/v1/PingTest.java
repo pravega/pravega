@@ -36,7 +36,7 @@ public class PingTest {
 
     //Ensure each test completes within 30 seconds.
     @Rule
-    public Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
