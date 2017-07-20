@@ -27,16 +27,18 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestUtils;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
 public class AutoCheckpointTest {
+    
+    private final long NANOS_PER_SECOND = 1000000000;
 
-    @Test(timeout = 60000)
-    public void testCheckpointsOccur() throws ReinitializationRequiredException, DurableDataLogException,
-                                       InterruptedException {
+    @Test(timeout = 30000)
+    public void testCheckpointsOccur() throws ReinitializationRequiredException, DurableDataLogException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
@@ -56,26 +58,24 @@ public class AutoCheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .startingPosition(Sequence.MIN_VALUE)
-                                                         .automaticCheckpointIntervalMillis(100)
+                                                         .automaticCheckpointIntervalMillis(10000)
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
-                                                                             EventWriterConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
-            producer.writeEvent(testString + i);
-        }
-        producer.flush();
-
+        populateEvents(streamName, testString, clientFactory, serializer);
+        
+        AtomicLong fakeClock = new AtomicLong(0);
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer,
-                                                                      ReaderConfig.builder().build());
+                                                                      ReaderConfig.builder().build(),
+                                                                      () -> fakeClock.get(),
+                                                                      () -> fakeClock.get()/NANOS_PER_SECOND);
         int numRead = 0;
         int checkpointCount = 0;
         while (numRead < 100) {
+            fakeClock.addAndGet(NANOS_PER_SECOND);
             EventRead<String> event = reader.readNextEvent(1000);
             if (event.isCheckpoint()) {
                 checkpointCount++;
@@ -83,16 +83,25 @@ public class AutoCheckpointTest {
                 String message = event.getEvent();
                 assertEquals(testString + numRead, message);
                 numRead++;
-                Thread.sleep(10);
             }
         }
         assertTrue("Count was " + checkpointCount, checkpointCount > 5);
         assertTrue("Count was " + checkpointCount, checkpointCount < 20);
     }
 
-    @Test(timeout = 60000)
-    public void testOnlyOneOutstanding() throws ReinitializationRequiredException, DurableDataLogException,
-                                       InterruptedException {
+    private void populateEvents(String streamName, String testString, MockClientFactory clientFactory,
+                                JavaSerializer<String> serializer) {
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                                                                             EventWriterConfig.builder().build());
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent(testString + i);
+        }
+        producer.flush();
+    }
+
+    @Test(timeout = 30000)
+    public void testOnlyOneOutstanding() throws ReinitializationRequiredException, DurableDataLogException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerGroup = "group";
@@ -111,29 +120,28 @@ public class AutoCheckpointTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                                                          .startingPosition(Sequence.MIN_VALUE)
-                                                         .automaticCheckpointIntervalMillis(10)
+                                                         .automaticCheckpointIntervalMillis(1000)
                                                          .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));
         JavaSerializer<String> serializer = new JavaSerializer<>();
-        @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
-                                                                             EventWriterConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
-            producer.writeEvent(testString + i);
-        }
-        producer.flush();
-
+        populateEvents(streamName, testString, clientFactory, serializer);
+        AtomicLong fakeClock = new AtomicLong(0);
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroup, serializer,
-                                                                      ReaderConfig.builder().build());
+                                                                       ReaderConfig.builder().build(),
+                                                                       () -> fakeClock.get(),
+                                                                       () -> fakeClock.get()/NANOS_PER_SECOND);
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroup, serializer,
-                                                                      ReaderConfig.builder().build());
+                                                                       ReaderConfig.builder().build(),
+                                                                       () -> fakeClock.get(),
+                                                                       () -> fakeClock.get()/NANOS_PER_SECOND);
         int numRead = 0;
         int checkpointCount = 0;
         while (numRead < 100) {
+            fakeClock.addAndGet(NANOS_PER_SECOND);
             EventRead<String> event = reader1.readNextEvent(1000);
             if (event.isCheckpoint()) {
                 checkpointCount++;
@@ -141,7 +149,6 @@ public class AutoCheckpointTest {
                 String message = event.getEvent();
                 assertEquals(testString + numRead, message);
                 numRead++;
-                Thread.sleep(10);
             }
         }
         assertEquals("As there is a second reader that does not pass the checkpoint, only one should occur", 1, checkpointCount);
