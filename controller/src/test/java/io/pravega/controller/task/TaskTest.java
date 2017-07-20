@@ -183,7 +183,7 @@ public class TaskTest {
         taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
-        taskSweeper.sweepOrphanedTasks(deadHost).get();
+        taskSweeper.handleFailedProcess(deadHost).get();
 
         Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
         assertFalse(data.isPresent());
@@ -239,7 +239,7 @@ public class TaskTest {
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
         AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
-        sweeper.sweepOrphanedTasks(hostId).join();
+        sweeper.handleFailedProcess(hostId).join();
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());
     }
@@ -339,7 +339,7 @@ public class TaskTest {
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(() -> Collections.singleton(hostId))
+            taskSweeper.sweepFailedProcesses(() -> Collections.singleton(hostId))
                     .whenComplete((value, e) -> {
                         if (e != null) {
                             result.completeExceptionally(e);

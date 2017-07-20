@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -62,6 +63,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +75,9 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  */
 @Slf4j
 public class ControllerImpl implements Controller {
+
+    // The default keepalive interval for the gRPC transport to ensure long running RPCs are tested for connectivity.
+    private static final long DEFAULT_KEEPALIVE_TIME_SECONDS = 60;
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
@@ -87,9 +92,10 @@ public class ControllerImpl implements Controller {
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      */
     public ControllerImpl(final URI controllerURI) {
-        this(ManagedChannelBuilder.forTarget(controllerURI.toString())
+        this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_SECONDS, TimeUnit.SECONDS)
                 .usePlaintext(true));
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }

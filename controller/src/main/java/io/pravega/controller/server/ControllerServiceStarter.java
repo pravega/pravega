@@ -45,7 +45,6 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -160,9 +159,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Setup and start controller cluster listener.
             if (serviceConfig.isControllerClusterListenerEnabled()) {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
-                controllerClusterListener = new ControllerClusterListener(host, cluster,
-                        Optional.ofNullable(controllerEventProcessors),
-                        taskSweeper, Optional.of(txnSweeper), controllerExecutor);
+                controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor,
+                        controllerEventProcessors, taskSweeper, txnSweeper);
 
                 log.info("Starting controller cluster listener");
                 controllerClusterListener.startAsync();

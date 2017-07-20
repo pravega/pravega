@@ -34,7 +34,7 @@ public class ServiceConfig {
     public static final Property<String> ZK_URL = Property.named("zkURL", "localhost:2181");
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
-    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 30000);
+    public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
                                                         "INMEMORY");
