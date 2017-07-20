@@ -18,6 +18,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.integration.selftest.adapters.InProcessClientAdapter;
+import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -74,10 +77,14 @@ class SelfTest extends AbstractService implements AutoCloseable {
     }
 
     private StoreAdapter createStoreAdapter(ServiceBuilderConfig builderConfig) {
-        if (this.testConfig.isUseClient()) {
-            return new HostStoreAdapter(this.testConfig, builderConfig, this.executor);
-        } else {
-            return new SegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
+        switch (this.testConfig.getTestType()) {
+            case SegmentStoreDirect:
+                return new SegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
+            case InProcessClient:
+                return new InProcessClientAdapter(this.testConfig, builderConfig, this.executor);
+            case OutOfProcessClient:
+            default:
+                throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + this.testConfig.getTestType());
         }
     }
 

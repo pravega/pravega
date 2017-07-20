@@ -16,10 +16,10 @@ import java.time.Duration;
 /**
  * Logging for Self tester
  */
-class TestLogger {
+public final class TestLogger {
     private static final Timer TIME = new Timer();
 
-    static void log(String component, String messageFormat, Object... args) {
+    public static void log(String component, String messageFormat, Object... args) {
         String header = String.format("%s [%s]: ", formatTime(TIME.getElapsed()), component);
         String message = String.format(messageFormat, args);
         System.out.println(header + message);

@@ -17,6 +17,8 @@ import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import io.pravega.test.integration.selftest.adapters.StoreReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -45,6 +47,7 @@ public class Consumer extends Actor {
     private final TestState testState;
     private final StoreReader reader;
     private final CancellationToken cancellationToken;
+   // private final Map<Integer, Long> lastSequenceNumbers;
     private final BlockingDrainingQueue<StoreReader.ReadItem> catchupQueue;
     @GuardedBy("storageQueue")
     private final ArrayDeque<StoreReader.ReadItem> storageQueue;
@@ -74,6 +77,7 @@ public class Consumer extends Actor {
         this.testState = Preconditions.checkNotNull(testState, "testState");
         this.reader = store.createReader();
         this.cancellationToken = new CancellationToken();
+        //this.lastSequenceNumbers = new
         this.catchupQueue = new BlockingDrainingQueue<>();
         this.storageQueue = new ArrayDeque<>();
         this.storageReadQueue = new ArrayDeque<>();

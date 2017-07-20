@@ -15,6 +15,7 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.test.integration.selftest.adapters.TruncateableArray;
 import java.io.IOException;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -22,7 +23,7 @@ import lombok.SneakyThrows;
 /**
  * Represents an Event with a Routing Key and payload.
  */
-class Event {
+public class Event {
     //region Members
 
     private static final int PREFIX_LENGTH = Integer.BYTES;
@@ -101,7 +102,7 @@ class Event {
      * @param sourceOffset A starting offset within the Source where to begin deserializing from.
      */
     @SneakyThrows(IOException.class)
-    Event(ArrayView source, int sourceOffset) {
+    public Event(ArrayView source, int sourceOffset) {
         // Extract prefix and validate.
         int prefix = BitConverter.readInt(source, sourceOffset);
         sourceOffset += PREFIX_LENGTH;
@@ -146,7 +147,7 @@ class Event {
      *
      * @return The result.
      */
-    int getTotalLength() {
+    public int getTotalLength() {
         return HEADER_LENGTH + this.contentLength;
     }
 

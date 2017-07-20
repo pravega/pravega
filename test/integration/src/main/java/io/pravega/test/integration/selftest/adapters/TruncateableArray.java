@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
@@ -27,7 +27,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * Represents an ArrayView that can append at one end and truncate at the other one.
  */
 @NotThreadSafe
-class TruncateableArray implements ArrayView {
+public class TruncateableArray implements ArrayView {
     //region Members
 
     /**

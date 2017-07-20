@@ -7,18 +7,22 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
+import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,60 +31,59 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.SneakyThrows;
 import lombok.val;
 
 /**
- * Store adapter wrapping a real StreamSegmentStore and Connection Listener.
+ * Store adapter wrapping a real Pravega Client.
  */
-public class HostStoreAdapter extends SegmentStoreAdapter {
-    private static final String LOG_ID = "HostStoreAdapter";
+abstract class ClientAdapterBase implements StoreAdapter {
+    //region Members
+    private static final String LOG_ID = "ClientAdapter";
     private static final String SCOPE = "scope";
     private static final String LISTENING_ADDRESS = "localhost";
-    private final int listeningPort;
-    private final boolean autoFlush;
-    private final int writerCount;
+    private static final int WRITER_COUNT = 1;
+    protected final int listeningPort;
+    private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, WriterCollection> writers;
-    private PravegaConnectionListener listener;
+    private final AtomicBoolean closed;
+    private final AtomicBoolean initialized;
     private MockStreamManager streamManager;
 
+    //endregion
+
     /**
-     * Creates a new instance of the HostStoreAdapter class.
+     * Creates a new instance of the ClientAdapterBase class.
      *
      * @param testConfig    The TestConfig to use.
-     * @param builderConfig The ServiceBuilderConfig to use.
-     * @param testExecutor  An Executor to use for test-related async operations.
      */
-    HostStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
-        super(testConfig, builderConfig, testExecutor);
+    ClientAdapterBase(TestConfig testConfig, ScheduledExecutorService testExecutor) {
         this.listeningPort = testConfig.getClientPort();
-        this.autoFlush = testConfig.isClientAutoFlush();
-        this.writerCount = testConfig.getClientWriterCount();
+        this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.writers = new ConcurrentHashMap<>();
+        this.closed = new AtomicBoolean();
+        this.initialized = new AtomicBoolean();
+
     }
 
     //region AutoCloseable Implementation
 
     @Override
     public void close() {
-        this.writers.values().forEach(WriterCollection::close);
-        this.writers.clear();
+        if(!this.closed.getAndSet(true)) {
+            this.writers.values().forEach(WriterCollection::close);
+            this.writers.clear();
 
-        if (this.streamManager != null) {
-            this.streamManager.close();
-            this.streamManager = null;
+            if (this.streamManager != null) {
+                this.streamManager.close();
+                this.streamManager = null;
+            }
+
+            TestLogger.log(LOG_ID, "Closed.");
         }
-
-        if (this.listener != null) {
-            this.listener.close();
-            this.listener = null;
-        }
-
-        TestLogger.log(LOG_ID, "Closed.");
-        super.close();
     }
 
     //endregion
@@ -95,11 +98,11 @@ public class HostStoreAdapter extends SegmentStoreAdapter {
 
     @Override
     public void initialize() throws Exception {
-        super.initialize();
-        this.listener = new PravegaConnectionListener(false, this.listeningPort, getStreamSegmentStore());
-        this.listener.startListening();
+        Preconditions.checkState(!this.initialized.getAndSet(true), "Cannot call initialize() after initialization happened.");
+        TestLogger.log(LOG_ID, "Initializing.");
         this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.listeningPort);
         this.streamManager.createScope(SCOPE);
+        this.initialized.set(true);
         TestLogger.log(LOG_ID, "Initialized.");
     }
 
@@ -112,7 +115,7 @@ public class HostStoreAdapter extends SegmentStoreAdapter {
             }
 
             this.streamManager.createStream(SCOPE, streamName, null);
-            WriterCollection producers = new WriterCollection(streamName, this.writerCount, this.streamManager);
+            WriterCollection producers = new WriterCollection(streamName, WRITER_COUNT, this.streamManager);
             this.writers.putIfAbsent(streamName, producers);
         }, this.testExecutor);
     }
@@ -124,28 +127,18 @@ public class HostStoreAdapter extends SegmentStoreAdapter {
     }
 
     @Override
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return CompletableFuture.runAsync(() -> {
-            WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamName, null);
-            if (segmentWriterCollection == null) {
-                throw new CompletionException(new StreamSegmentNotExistsException(streamName));
-            }
+        WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamName, null);
+        if (segmentWriterCollection == null) {
+            throw new StreamSegmentNotExistsException(streamName);
+        }
 
-            EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
-            ArrayView s = event.getSerialization();
-            byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-            Future<Void> r = writer.writeEvent(Integer.toString(event.getRoutingKey()), payload);
-            if (this.autoFlush) {
-                writer.flush();
-            }
-
-            try {
-                r.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            } catch (Exception ex) {
-                throw new CompletionException(ex);
-            }
-        }, this.testExecutor);
+        ArrayView s = event.getSerialization();
+        byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
+        EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
+        return writer.writeEvent(Integer.toString(event.getRoutingKey()), payload);
     }
 
     @Override
@@ -172,7 +165,22 @@ public class HostStoreAdapter extends SegmentStoreAdapter {
         throw new UnsupportedOperationException("transactions are not supported.");
     }
 
+    @Override
+    public StoreReader createReader() {
+        return null;
+    }
+
+    @Override
+    public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
+        return null;
+    }
+
     //endregion
+
+    private void ensureInitializedAndNotClosed() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
+    }
 
     private static class WriterCollection implements AutoCloseable {
         private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();

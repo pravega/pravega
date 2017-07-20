@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
@@ -202,7 +203,7 @@ class ProducerDataSource {
         StoreAdapter.Feature.Create.ensureSupported(this.store, "create segments");
         for (int i = 0; i < this.config.getSegmentCount(); i++) {
             final int segmentId = i;
-            String name = String.format("Segment_%s", segmentId);
+            String name = String.format("Segment%s", segmentId);
             segmentFutures.add(this.store.createStream(name, this.config.getTimeout())
                     .thenRun(() -> {
                         this.state.recordNewSegmentName(name);

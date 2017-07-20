@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.TruncateableStorage;
+import io.pravega.test.integration.selftest.Event;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

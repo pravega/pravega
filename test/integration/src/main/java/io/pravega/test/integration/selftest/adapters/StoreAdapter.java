@@ -7,17 +7,18 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.test.integration.selftest.Event;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Abstraction layer for Pravega operations that are valid from the Self Tester.
  */
-interface StoreAdapter extends AutoCloseable {
+public interface StoreAdapter extends AutoCloseable {
 
     /**
      * Initializes the Adapter.
@@ -145,7 +146,7 @@ interface StoreAdapter extends AutoCloseable {
          */
         StorageDirect;
 
-        protected void ensureSupported(StoreAdapter storeAdapter, String operationName) {
+        public void ensureSupported(StoreAdapter storeAdapter, String operationName) {
             if (!storeAdapter.isFeatureSupported(this)) {
                 throw new UnsupportedOperationException(String.format("Cannot %s because StoreAdapter does not support '%s'.", operationName, this));
             }

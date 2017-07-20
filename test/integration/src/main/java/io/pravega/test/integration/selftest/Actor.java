@@ -15,6 +15,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;

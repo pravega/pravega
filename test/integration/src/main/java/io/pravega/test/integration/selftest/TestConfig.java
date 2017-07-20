@@ -19,7 +19,7 @@ import lombok.Getter;
 /**
  * Configuration for Self-Tester.
  */
-class TestConfig {
+public class TestConfig {
     //region Config Names
 
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
@@ -32,15 +32,12 @@ class TestConfig {
     static final Property<Integer> ROUTING_KEY_COUNT = Property.named("routingKeyCount", 10);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
-    static final Property<Boolean> VERBOSE_LOGGING = Property.named("verboseLogging", false);
     static final Property<Integer> DATA_LOG_APPEND_DELAY = Property.named("dataLogAppendDelayMillis", 0);
     static final Property<Boolean> USE_BOOKKEEPER = Property.named("useBk", false);
     static final Property<Integer> ZK_PORT = Property.named("zkPort", 9001);
     static final Property<Integer> BK_PORT = Property.named("bkPort", 9002);
-    static final Property<Boolean> USE_CLIENT = Property.named("useClient", false);
+    static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStoreDirect.toString());
     static final Property<Integer> CLIENT_PORT = Property.named("clientPort", 9876);
-    static final Property<Boolean> CLIENT_AUTO_FLUSH = Property.named("clientAutoFlush", true);
-    static final Property<Integer> CLIENT_WRITER_COUNT = Property.named("clientWriterCount", 1);
     private static final String COMPONENT_CODE = "selftest";
 
     //endregion
@@ -68,8 +65,6 @@ class TestConfig {
     @Getter
     private Duration timeout;
     @Getter
-    private boolean verboseLoggingEnabled;
-    @Getter
     private Duration dataLogAppendDelay;
     @Getter
     private boolean useBookKeeper;
@@ -78,13 +73,9 @@ class TestConfig {
     @Getter
     private int zkPort;
     @Getter
-    private boolean useClient;
+    private TestType testType;
     @Getter
     private int clientPort;
-    @Getter
-    private boolean clientAutoFlush;
-    @Getter
-    private int clientWriterCount;
 
     //endregion
 
@@ -106,15 +97,12 @@ class TestConfig {
         this.routingKeyCount = properties.getInt(ROUTING_KEY_COUNT);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
-        this.verboseLoggingEnabled = properties.getBoolean(VERBOSE_LOGGING);
         this.dataLogAppendDelay = Duration.ofMillis(properties.getInt(DATA_LOG_APPEND_DELAY));
         this.useBookKeeper = properties.getBoolean(USE_BOOKKEEPER);
         this.bkPort = properties.getInt(BK_PORT);
         this.zkPort = properties.getInt(ZK_PORT);
-        this.useClient = properties.getBoolean(USE_CLIENT);
+        this.testType = TestType.valueOf(properties.get(TEST_TYPE));
         this.clientPort = properties.getInt(CLIENT_PORT);
-        this.clientAutoFlush = properties.getBoolean(CLIENT_AUTO_FLUSH);
-        this.clientWriterCount = properties.getInt(CLIENT_WRITER_COUNT);
     }
 
     /**
@@ -122,9 +110,15 @@ class TestConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<TestConfig> builder() {
+    static ConfigBuilder<TestConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, TestConfig::new);
     }
 
     //endregion
+
+    enum TestType {
+        SegmentStoreDirect,
+        InProcessClient,
+        OutOfProcessClient
+    }
 }

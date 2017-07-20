@@ -7,15 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.CancellationToken;
+import io.pravega.test.integration.selftest.Event;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a general Reader that can be used to access data within a StoreAdapter.
  */
-interface StoreReader {
+public interface StoreReader {
 
     /**
      * Reads the entire Target (Stream/Segment) from the beginning, one Event at a time. When (if) the read catches up

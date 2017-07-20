@@ -12,6 +12,7 @@ package io.pravega.test.integration.selftest;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;

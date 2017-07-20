@@ -20,6 +20,7 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
@@ -81,39 +82,31 @@ public class SelfTestRunner {
     }
 
     private static TestConfig getTestConfig() {
-        final int producers = 1000;
-        final boolean useClient = false;
-
-        final int testThreadPoolAddition = useClient ? producers : 0;
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.OPERATION_COUNT, 1000)
+                .with(TestConfig.PRODUCER_COUNT, 10000)
+                .with(TestConfig.OPERATION_COUNT, 2000000)
+                .with(TestConfig.ROUTING_KEY_COUNT, 10)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 1000000)
-                .with(TestConfig.MAX_APPEND_SIZE, 1000000)
+                .with(TestConfig.MIN_APPEND_SIZE, 100)
+                .with(TestConfig.MAX_APPEND_SIZE, 100)
+                .with(TestConfig.TEST_TYPE, TestConfig.TestType.InProcessClient.toString())
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
                 .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                 // Test setup.
-                .with(TestConfig.THREAD_POOL_SIZE, 80 + testThreadPoolAddition)
+                .with(TestConfig.THREAD_POOL_SIZE, 80)
                 .with(TestConfig.TIMEOUT_MILLIS, 3000)
-                .with(TestConfig.VERBOSE_LOGGING, false)
 
                 // Tier1
-                .with(TestConfig.USE_BOOKKEEPER, true)
-                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0)
+                .with(TestConfig.USE_BOOKKEEPER, false)
+                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0) // For InMemory Tier1.
 
                 // Client-specific settings.
-                .with(TestConfig.CLIENT_AUTO_FLUSH, false)
                 .with(TestConfig.CLIENT_PORT, 9876)
-
-                // Settings set via variables (see above).
-                .with(TestConfig.PRODUCER_COUNT, producers)
-                .with(TestConfig.USE_CLIENT, useClient)
-                .with(TestConfig.CLIENT_WRITER_COUNT, producers)
                 .build();
     }
 

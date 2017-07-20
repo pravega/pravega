@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
@@ -23,7 +23,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.storage.TruncateableStorage;
+import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
@@ -31,6 +32,9 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
+import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,17 +55,17 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
  * ignored.
  */
-class SegmentStoreAdapter implements StoreAdapter {
+public class SegmentStoreAdapter implements StoreAdapter {
     //region Members
 
-    static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
+    public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     private static final String LOG_ID = "SegmentStoreAdapter";
-    protected final ScheduledExecutorService testExecutor;
+    private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
-    private final AtomicReference<VerificationStorage> storage;
+    private final AtomicReference<Storage> storage;
     private final AtomicReference<ExecutorService> storeExecutor;
     private BookKeeperServiceRunner bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
@@ -78,7 +82,7 @@ class SegmentStoreAdapter implements StoreAdapter {
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+    public SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.closed = new AtomicBoolean();
@@ -91,12 +95,8 @@ class SegmentStoreAdapter implements StoreAdapter {
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
-                    TruncateableStorage innerStorage = new InMemoryStorageFactory(setup.getExecutor()).createStorageAdapter();
-                    innerStorage.initialize(1);
-
-                    // ... and the Test executor for the verification storage (to invoke callbacks).
-                    VerificationStorage.Factory factory = new VerificationStorage.Factory(innerStorage, testExecutor);
-                    this.storage.set((VerificationStorage) factory.createStorageAdapter());
+                    SingletonStorageFactory factory = new SingletonStorageFactory(setup.getExecutor());
+                    this.storage.set(factory.createStorageAdapter());
 
                     // A bit hack-ish, but we need to get a hold of the Store Executor, so we can request snapshots for it.
                     this.storeExecutor.set(setup.getExecutor());
@@ -266,12 +266,12 @@ class SegmentStoreAdapter implements StoreAdapter {
                 || ex instanceof StreamSegmentMergedException;
     }
 
-    protected void ensureInitializedAndNotClosed() {
+    private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
     }
 
-    protected StreamSegmentStore getStreamSegmentStore() {
+    StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
     }
 
@@ -287,4 +287,34 @@ class SegmentStoreAdapter implements StoreAdapter {
     }
 
     //endregion
+
+    //region SingletonStorageFactory
+
+    private static class SingletonStorageFactory implements StorageFactory, AutoCloseable {
+        private final AtomicBoolean closed;
+        private final Storage storage;
+
+        SingletonStorageFactory(ScheduledExecutorService executor) {
+            this.storage = new InMemoryStorageFactory(executor).createStorageAdapter();
+            this.storage.initialize(1);
+            this.closed = new AtomicBoolean();
+        }
+
+        @Override
+        public Storage createStorageAdapter() {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            return this.storage;
+        }
+
+        @Override
+        public void close() {
+            if (!this.closed.get()) {
+                this.storage.close();
+                this.closed.set(true);
+            }
+        }
+    }
+
+    //endregion
+
 }
