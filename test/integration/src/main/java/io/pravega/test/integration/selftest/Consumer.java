@@ -39,6 +39,7 @@ import lombok.val;
 public class Consumer extends Actor {
     //region Members
 
+    private static final int CATCHUP_READ_COUNT = 10000;
     private final String logId;
     private final String streamName;
     private final TestState testState;
@@ -146,7 +147,8 @@ public class Consumer extends Actor {
             // if that's the case, then store it, and we'll check it later.
             this.storageReadQueue.addLast(event);
 
-            // Fetch all comparison pairs.
+            // Fetch all comparison pairs. Both of these Queues should have elements in the same order, so create the pairs
+            // by picking the first element from each.
             while (!this.storageReadQueue.isEmpty() && !this.storageQueue.isEmpty()) {
                 toCompare.add(new AbstractMap.SimpleImmutableEntry<>(this.storageQueue.removeFirst(), this.storageReadQueue.removeFirst()));
             }
@@ -163,7 +165,6 @@ public class Consumer extends Actor {
             }
 
             if (!validationResult.isSuccess()) {
-                validationResult.setSource(ValidationSource.StorageRead);
                 validationResult.setAddress(e.getKey().getAddress());
                 validationFailed(ValidationSource.StorageRead, validationResult);
                 break;
@@ -188,7 +189,6 @@ public class Consumer extends Actor {
     private void processTailEvent(StoreReader.ReadItem readItem) {
         ValidationResult validationResult = EventGenerator.validate(readItem.getEvent());
         validationResult.setAddress(readItem.getAddress());
-        validationResult.setSource(ValidationSource.TailRead);
         if (validationResult.isSuccess()) {
             this.catchupQueue.add(readItem);
             synchronized (this.storageQueue) {
@@ -208,8 +208,7 @@ public class Consumer extends Actor {
     private CompletableFuture<Void> processCatchupReads() {
         return FutureHelpers.loop(
                 this::canRun,
-                () -> this.catchupQueue
-                        .take(10000)
+                () -> this.catchupQueue.take(CATCHUP_READ_COUNT)
                         .thenComposeAsync(this::processCatchupReads, this.executorService),
                 this.executorService)
                 .exceptionally(ex -> {
@@ -226,11 +225,11 @@ public class Consumer extends Actor {
     private CompletableFuture<Void> processCatchupReads(Queue<StoreReader.ReadItem> catchupReads) {
         return FutureHelpers.loop(
                 () -> !catchupReads.isEmpty(),
-                () -> FutureHelpers.toVoid(processCatchupRead(catchupReads.poll())),
+                () -> processCatchupRead(catchupReads.poll()),
                 this.executorService);
     }
 
-    private CompletableFuture<?> processCatchupRead(StoreReader.ReadItem toValidate) {
+    private CompletableFuture<Void> processCatchupRead(StoreReader.ReadItem toValidate) {
         if (toValidate instanceof EndItem) {
             this.catchupQueue.close();
             return CompletableFuture.completedFuture(null);
@@ -239,30 +238,28 @@ public class Consumer extends Actor {
         final Timer timer = new Timer();
         return this.reader
                 .readExact(this.streamName, toValidate.getAddress())
-                .thenApplyAsync(actualRead -> compareReads(toValidate, actualRead.getEvent()), this.executorService)
-                .whenComplete((validationResult, ex) -> {
+                .handleAsync((actualRead, ex) -> {
+                    ValidationResult validationResult;
                     try {
-                        if (validationResult == null) {
-                            if (ex == null) {
-                                validationResult = ValidationResult.failed("No exception and no result set.");
-                            } else {
-                                validationResult = ValidationResult.failed(ex.getMessage());
-                            }
-                        } else {
+                        if (ex == null) {
+                            validationResult = compareReads(toValidate, actualRead.getEvent());
                             Event e = toValidate.getEvent();
                             this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
                             this.testState.recordCatchupRead(e.getTotalLength());
+                        } else {
+                            validationResult = ValidationResult.failed(ex.getMessage());
                         }
                     } catch (Throwable ex2) {
                         validationResult = ValidationResult.failed(String.format("General failure: Ex = %s.", ex2));
                     }
 
-                    validationResult.setSource(ValidationSource.CatchupRead);
-                    validationResult.setAddress(toValidate.getAddress());
                     if (!validationResult.isSuccess()) {
+                        validationResult.setAddress(toValidate.getAddress());
                         validationFailed(ValidationSource.CatchupRead, validationResult);
                     }
-                });
+
+                    return null;
+                }, this.executorService);
     }
 
     @SneakyThrows(IOException.class)
