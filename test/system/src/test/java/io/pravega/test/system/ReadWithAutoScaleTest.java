@@ -277,7 +277,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         Transaction<Long> txn = null;
         try {
             //Default max scale grace period is 30000
-            txn = writer.beginTxn(25 * 1000, 3600000, 29000);
+            txn = writer.beginTxn(5000, 3600000, 29000);
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
