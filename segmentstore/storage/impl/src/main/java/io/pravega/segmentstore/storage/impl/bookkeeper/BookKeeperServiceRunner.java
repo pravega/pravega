@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.lang.ProcessHelpers;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -119,7 +120,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         String znode;
         StringBuilder znodePath = new StringBuilder();
-        for (String z : ledgersPath.split("/")) {
+        for (String z : this.ledgersPath.split("/")) {
             znodePath.append(z);
             znode = znodePath.toString();
             if (!znode.isEmpty()) {
@@ -169,4 +170,44 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     //endregion
+
+    /**
+     * Starts a BookKeeper Service Cluster out of process.
+     *
+     * @param bkBasePort  The first port where to start the Bookie on.
+     * @param bookieCount The number of Bookies to start. Each will get a port assigned incrementally starting at bkBasePort.
+     * @param zkPort      The port where ZooKeeper is listening at.
+     * @param ledgersPath Path in ZooKeeper where to store BookKeeper ledger metadata.
+     * @return A Process reference.
+     * @throws IOException If an exception occurred.
+     */
+    public static Process startOutOfProcess(int bkBasePort, int bookieCount, int zkPort, String ledgersPath) throws IOException {
+        return ProcessHelpers.exec(BookKeeperServiceRunner.class, bkBasePort, bookieCount, zkPort, ledgersPath);
+    }
+
+    public static void main(String[] args) throws Exception {
+        val b = BookKeeperServiceRunner.builder();
+        b.startZk(false);
+        try {
+            int argIndex = 0;
+            int bkBasePort = Integer.parseInt(args[argIndex++]);
+            int bkCount = Integer.parseInt(args[argIndex++]);
+            val bkPorts = new ArrayList<Integer>();
+            for (int i = 0; i < bkCount; i++) {
+                bkPorts.add(bkBasePort + i);
+            }
+
+            b.bookiePorts(bkPorts);
+            b.zkPort(Integer.parseInt(args[argIndex++]));
+            b.ledgersPath(args[argIndex]);
+        } catch (Exception ex) {
+            System.out.println(String.format("Invalid or missing arguments. Expected: [BKPort(int) ZKPort(int) LedgersPath(String)] (%s).", ex.getMessage()));
+            System.exit(-1);
+            return;
+        }
+
+        BookKeeperServiceRunner runner = b.build();
+        runner.startAll();
+        Thread.sleep(Long.MAX_VALUE);
+    }
 }

@@ -52,12 +52,12 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private static final String LOG_ID = "ClientAdapter";
     private static final String SCOPE = "scope";
     private static final String LISTENING_ADDRESS = "localhost";
-    private final int listeningPort;
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> streamWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
+    protected final TestConfig testConfig;
 
     //endregion
 
@@ -67,7 +67,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
      * @param testConfig    The TestConfig to use.
      */
     ClientAdapterBase(TestConfig testConfig, ScheduledExecutorService testExecutor) {
-        this.listeningPort = testConfig.getClientPort();
+        this.testConfig = testConfig;
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.streamWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();
@@ -100,9 +100,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.getAndSet(true), "Cannot call initialize() after initialization happened.");
-        TestLogger.log(LOG_ID, "Initializing.");
         this.initialized.set(true);
-        TestLogger.log(LOG_ID, "Initialized.");
     }
 
     @Override
@@ -250,7 +248,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
      * Gets a value representing the Port where the SegmentStore is listening on.
      */
     protected int getListeningPort() {
-        return this.listeningPort;
+        return this.testConfig.getClientPort();
     }
 
     private void closeWriter(String streamName) {

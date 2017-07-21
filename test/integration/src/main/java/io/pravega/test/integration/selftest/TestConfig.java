@@ -33,8 +33,8 @@ public class TestConfig {
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<Integer> DATA_LOG_APPEND_DELAY = Property.named("dataLogAppendDelayMillis", 0);
     static final Property<Boolean> USE_BOOKKEEPER = Property.named("useBk", false);
-    static final Property<Integer> ZK_PORT = Property.named("zkPort", 9001);
-    static final Property<Integer> BK_PORT = Property.named("bkPort", 9002);
+    static final Property<Integer> ZK_PORT = Property.named("zkPort", 2181);
+    static final Property<Integer> BK_PORT = Property.named("bkPort", 9001);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStoreDirect.toString());
     static final Property<Integer> CLIENT_PORT = Property.named("clientPort", 9876);
     private static final String COMPONENT_CODE = "selftest";

@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.test.integration.selftest.TestConfig;
+import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,7 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
-
+    private static final String LOG_ID = "InProcessAdapter";
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
 
@@ -73,6 +74,7 @@ public class InProcessMockClientAdapter extends ClientAdapterBase {
             this.streamManager.close();
             this.streamManager = null;
         }
+        TestLogger.log(LOG_ID, "Closed.");
     }
 
     //endregion
@@ -87,6 +89,7 @@ public class InProcessMockClientAdapter extends ClientAdapterBase {
         this.streamManager = new MockStreamManager(getScope(), getListeningAddress(), getListeningPort());
         this.streamManager.createScope(getScope());
 
+        TestLogger.log(LOG_ID, "Initialized.");
         super.initialize();
     }
 

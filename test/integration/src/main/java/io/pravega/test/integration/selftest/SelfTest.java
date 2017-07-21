@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.InProcessMockClientAdapter;
 import io.pravega.test.integration.selftest.adapters.InProcessListenerWithRealStoreAdapter;
+import io.pravega.test.integration.selftest.adapters.OutOfProcessAdapter;
 import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -86,6 +87,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
             case InProcessStoreListener:
                 return new InProcessListenerWithRealStoreAdapter(this.testConfig, builderConfig, this.executor);
             case OutOfProcessClient:
+                return new OutOfProcessAdapter(this.testConfig, builderConfig, this.executor);
             default:
                 throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + this.testConfig.getTestType());
         }

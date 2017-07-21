@@ -90,7 +90,7 @@ public class SelfTestRunner {
                 .with(TestConfig.SEGMENT_COUNT, 1)
                 .with(TestConfig.MIN_APPEND_SIZE, 1000)
                 .with(TestConfig.MAX_APPEND_SIZE, 1000)
-                .with(TestConfig.TEST_TYPE, TestConfig.TestType.InProcessStoreListener.toString())
+                .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
