@@ -10,6 +10,7 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
@@ -32,6 +33,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -48,7 +50,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -188,15 +189,6 @@ public class StreamMetadataTasks extends TaskBase {
         return postScale(event).thenCompose(x ->
                 streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
                         context, executor)
-                        .thenComposeAsync(startScaleResponse -> {
-                            int activeEpoch = startScaleResponse.getActiveEpoch();
-                            AtomicBoolean scaling = new AtomicBoolean(true);
-                            return FutureHelpers.loop(scaling::get, () -> FutureHelpers.delayedFuture(() ->
-                                            streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
-                                                    .thenAccept(state -> scaling.set(state.getKey() == activeEpoch)),
-                                    1000, executor), executor)
-                                    .thenApply(r -> startScaleResponse);
-                        })
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
@@ -208,15 +200,54 @@ public class StreamMetadataTasks extends TaskBase {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
-                                response.setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS);
+                                response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
                                         startScaleResponse.getSegmentsCreated()
                                                 .stream()
                                                 .map(segment -> convert(scope, stream, segment))
                                                 .collect(Collectors.toList()));
+                                response.setEpoch(startScaleResponse.getActiveEpoch());
                             }
                             return response.build();
                         }));
+    }
+
+    /**
+     * Helper method to check if scale operation against an epoch completed or not.
+     *
+     * @param scope          scope.
+     * @param stream         stream name.
+     * @param epoch          stream epoch.
+     * @param context        optional context
+     * @return returns the newly created segments.
+     */
+    public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
+                                                                        OperationContext context) {
+        return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
+                        .handle((activeEpoch, ex) -> {
+                            ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
+
+                            if (ex != null) {
+                                Throwable e = ExceptionHelpers.getRealException(ex);
+                                if (e instanceof StoreException.DataNotFoundException) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                }
+                            } else {
+                                Preconditions.checkNotNull(activeEpoch);
+
+                                if (epoch > activeEpoch.getKey()) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else if (activeEpoch.getKey() == epoch) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                } else {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
+                                }
+                            }
+
+                            return response.build();
+                        });
     }
 
     /**

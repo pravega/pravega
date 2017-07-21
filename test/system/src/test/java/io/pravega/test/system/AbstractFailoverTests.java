@@ -41,7 +41,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -65,7 +65,7 @@ abstract class AbstractFailoverTests {
     Service controllerInstance;
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
-    ExecutorService executorService;
+    ScheduledExecutorService executorService;
     Controller controller;
     TestState testState;
 
