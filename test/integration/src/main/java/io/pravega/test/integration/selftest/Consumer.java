@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.SneakyThrows;
@@ -47,7 +48,7 @@ public class Consumer extends Actor {
     private final TestState testState;
     private final StoreReader reader;
     private final CancellationToken cancellationToken;
-   // private final Map<Integer, Long> lastSequenceNumbers;
+    private final ConcurrentHashMap<Integer, Integer> lastSequenceNumbers;
     private final BlockingDrainingQueue<StoreReader.ReadItem> catchupQueue;
     @GuardedBy("storageQueue")
     private final ArrayDeque<StoreReader.ReadItem> storageQueue;
@@ -77,7 +78,7 @@ public class Consumer extends Actor {
         this.testState = Preconditions.checkNotNull(testState, "testState");
         this.reader = store.createReader();
         this.cancellationToken = new CancellationToken();
-        //this.lastSequenceNumbers = new
+        this.lastSequenceNumbers = new ConcurrentHashMap<>();
         this.catchupQueue = new BlockingDrainingQueue<>();
         this.storageQueue = new ArrayDeque<>();
         this.storageReadQueue = new ArrayDeque<>();
@@ -193,6 +194,17 @@ public class Consumer extends Actor {
     private void processTailEvent(StoreReader.ReadItem readItem) {
         ValidationResult validationResult = EventGenerator.validate(readItem.getEvent());
         validationResult.setAddress(readItem.getAddress());
+        Event event = readItem.getEvent();
+        if (validationResult.isSuccess() && event.getOwnerId() >= 0) {
+            // Verify order.
+            int currentSequence = event.getSequence();
+            Integer prevSequence = this.lastSequenceNumbers.put(event.getRoutingKey(), currentSequence);
+            if (prevSequence != null && prevSequence >= currentSequence) {
+                validationResult = ValidationResult.failed(String.format(
+                        "Out of order events detected. Previous Sequence = %d, Event = '%s'", prevSequence, readItem));
+            }
+        }
+
         if (validationResult.isSuccess()) {
             this.catchupQueue.add(readItem);
             synchronized (this.storageQueue) {

@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration.selftest;
 
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.ThreadSafe;
@@ -22,7 +21,6 @@ class EventGenerator {
     //region Members
 
     private final int ownerId;
-    private final int routingKeyCount;
     private final boolean recordStartTime;
     private final AtomicInteger sequence;
 
@@ -34,13 +32,10 @@ class EventGenerator {
      * Creates a new instance of the EventGenerator class.
      *
      * @param ownerId         The Id to attach to all appends generated with this instance.
-     * @param routingKeyCount The number of routing keys to use.
      * @param recordStartTime Whether to record start times in the appends.
      */
-    EventGenerator(int ownerId, int routingKeyCount, boolean recordStartTime) {
-        Preconditions.checkArgument(routingKeyCount > 0, "routingKeyCount must be a positive integer.");
+    EventGenerator(int ownerId, boolean recordStartTime) {
         this.ownerId = ownerId;
-        this.routingKeyCount = routingKeyCount;
         this.recordStartTime = recordStartTime;
         this.sequence = new AtomicInteger(0);
     }
@@ -50,14 +45,14 @@ class EventGenerator {
     //region New Event
 
     /**
-     * Generates new Event.
+     * Generates a new Event.
      *
      * @param length The total length of the Event (including header).
+     * @param routingKey The routing key of the Event.
      * @return The generated Event.
      */
-    Event newEvent(int length) {
+    Event newEvent(int length, int routingKey) {
         int sequence = this.sequence.getAndIncrement();
-        int routingKey = sequence % this.routingKeyCount;
         long startTime = this.recordStartTime ? getCurrentTimeNanos() : Long.MIN_VALUE;
         return new Event(this.ownerId, routingKey, sequence, startTime, length);
     }

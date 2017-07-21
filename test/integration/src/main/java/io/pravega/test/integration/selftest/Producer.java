@@ -13,7 +13,6 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,7 +29,7 @@ class Producer extends Actor {
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
-    private final UUID clientId = UUID.randomUUID();
+    private final int id;
 
     //endregion
 
@@ -45,9 +44,10 @@ class Producer extends Actor {
      * @param store      A StoreAdapter to execute operations on.
      * @param executor   An Executor to use for async operations.
      */
-    Producer(String id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
+    Producer(int id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
         super(config, dataSource, store, executor);
 
+        this.id = id;
         this.logId = String.format("Producer[%s]", id);
         this.iterationCount = new AtomicInteger();
         this.canContinue = new AtomicBoolean(true);
@@ -118,7 +118,7 @@ class Producer extends Actor {
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
         // Log & throw every exception.
         ex = ExceptionHelpers.getRealException(ex);
-        if (ex instanceof ProducerDataSource.UnknownSegmentException) {
+        if (ex instanceof ProducerDataSource.UnknownStreamException) {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
             return true;
@@ -153,7 +153,7 @@ class Producer extends Actor {
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
-            Event event = this.dataSource.nextEvent(operation.getTarget());
+            Event event = this.dataSource.nextEvent(operation.getTarget(), this.id);
             operation.setLength(event.getSerialization().getLength());
             return this.store.append(operation.getTarget(), event, this.config.getTimeout())
                     .exceptionally(ex -> attemptReconcile(ex, operation));

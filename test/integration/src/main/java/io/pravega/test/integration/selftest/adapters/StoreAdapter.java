@@ -79,7 +79,7 @@ public interface StoreAdapter extends AutoCloseable {
     CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
 
     /**
-     * Seals a Stream
+     * Seals a Stream.
      *
      * @param streamName The Stream to seal.
      * @param timeout    Timeout for the operation.

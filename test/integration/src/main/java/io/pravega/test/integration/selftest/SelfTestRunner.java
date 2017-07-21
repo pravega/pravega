@@ -87,7 +87,6 @@ public class SelfTestRunner {
                 // Test params.
                 .with(TestConfig.PRODUCER_COUNT, 10000)
                 .with(TestConfig.OPERATION_COUNT, 2000000)
-                .with(TestConfig.ROUTING_KEY_COUNT, 10)
                 .with(TestConfig.SEGMENT_COUNT, 1)
                 .with(TestConfig.MIN_APPEND_SIZE, 100)
                 .with(TestConfig.MAX_APPEND_SIZE, 100)

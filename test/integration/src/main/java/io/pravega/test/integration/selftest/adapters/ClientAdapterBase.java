@@ -24,31 +24,27 @@ import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.SneakyThrows;
-import lombok.val;
 
 /**
  * Store adapter wrapping a real Pravega Client.
  */
 abstract class ClientAdapterBase implements StoreAdapter {
     //region Members
+    private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
+    private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
     private static final String LOG_ID = "ClientAdapter";
     private static final String SCOPE = "scope";
     private static final String LISTENING_ADDRESS = "localhost";
-    private static final int WRITER_COUNT = 1;
     protected final int listeningPort;
     private final ScheduledExecutorService testExecutor;
-    private final ConcurrentHashMap<String, WriterCollection> writers;
+    private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> writers;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private MockStreamManager streamManager;
@@ -73,8 +69,8 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public void close() {
-        if(!this.closed.getAndSet(true)) {
-            this.writers.values().forEach(WriterCollection::close);
+        if (!this.closed.getAndSet(true)) {
+            this.writers.values().forEach(EventStreamWriter::close);
             this.writers.clear();
 
             if (this.streamManager != null) {
@@ -115,8 +111,11 @@ abstract class ClientAdapterBase implements StoreAdapter {
             }
 
             this.streamManager.createStream(SCOPE, streamName, null);
-            WriterCollection producers = new WriterCollection(streamName, WRITER_COUNT, this.streamManager);
-            this.writers.putIfAbsent(streamName, producers);
+            EventStreamWriter<byte[]> writer = this.streamManager.getClientFactory()
+                    .createEventWriter(streamName,
+                            SERIALIZER,
+                            WRITER_CONFIG);
+            this.writers.putIfAbsent(streamName, writer);
         }, this.testExecutor);
     }
 
@@ -130,14 +129,13 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @SneakyThrows(StreamSegmentNotExistsException.class)
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureInitializedAndNotClosed();
-        WriterCollection segmentWriterCollection = this.writers.getOrDefault(streamName, null);
-        if (segmentWriterCollection == null) {
+        EventStreamWriter<byte[]> writer = this.writers.getOrDefault(streamName, null);
+        if (writer == null) {
             throw new StreamSegmentNotExistsException(streamName);
         }
 
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-        EventStreamWriter<byte[]> writer = segmentWriterCollection.next();
         return writer.writeEvent(Integer.toString(event.getRoutingKey()), payload);
     }
 
@@ -180,33 +178,5 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
-    }
-
-    private static class WriterCollection implements AutoCloseable {
-        private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
-        private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
-        private final List<EventStreamWriter<byte[]>> writers;
-        private final AtomicInteger nextWriterId;
-
-        WriterCollection(String segmentName, int count, MockStreamManager streamManager) {
-            this.writers = Collections.synchronizedList(new ArrayList<>(count));
-            this.nextWriterId = new AtomicInteger();
-            for (int i = 0; i < count; i++) {
-                val writer = streamManager.getClientFactory()
-                                          .createEventWriter(segmentName,
-                                                  SERIALIZER,
-                                                  WRITER_CONFIG);
-                this.writers.add(writer);
-            }
-        }
-
-        EventStreamWriter<byte[]> next() {
-            return this.writers.get(this.nextWriterId.getAndIncrement() % this.writers.size());
-        }
-
-        @Override
-        public void close() {
-            this.writers.forEach(EventStreamWriter::close);
-        }
     }
 }

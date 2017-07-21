@@ -14,7 +14,7 @@ import io.pravega.common.Timer;
 import java.time.Duration;
 
 /**
- * Logging for Self tester
+ * Logging for Self tester.
  */
 public final class TestLogger {
     private static final Timer TIME = new Timer();

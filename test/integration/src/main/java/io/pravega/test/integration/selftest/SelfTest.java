@@ -96,7 +96,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     public void close() {
         if (!this.closed.get()) {
             FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
-            this.dataSource.deleteAllSegments()
+            this.dataSource.deleteAllStreams()
                            .exceptionally(ex -> {
                                TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
                                return null;
@@ -126,7 +126,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         // Create all segments, then start the Actor Manager.
         CompletableFuture<Void> startFuture = CompletableFuture
                 .runAsync(this::initializeStore)
-                .thenCompose(v -> this.dataSource.createSegments())
+                .thenCompose(v -> this.dataSource.createStreams())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
                             createTestActors();
@@ -193,7 +193,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor));
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
