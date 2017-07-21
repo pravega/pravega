@@ -89,17 +89,6 @@ public class AutoCheckpointTest {
         assertTrue("Count was " + checkpointCount, checkpointCount < 20);
     }
 
-    private void populateEvents(String streamName, String testString, MockClientFactory clientFactory,
-                                JavaSerializer<String> serializer) {
-        @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
-                                                                             EventWriterConfig.builder().build());
-        for (int i = 0; i < 100; i++) {
-            producer.writeEvent(testString + i);
-        }
-        producer.flush();
-    }
-
     @Test(timeout = 30000)
     public void testOnlyOneOutstanding() throws ReinitializationRequiredException, DurableDataLogException {
         String endpoint = "localhost";
@@ -153,6 +142,17 @@ public class AutoCheckpointTest {
         }
         assertEquals("As there is a second reader that does not pass the checkpoint, only one should occur", 1,
                      checkpointCount);
+    }
+    
+    private void populateEvents(String streamName, String testString, MockClientFactory clientFactory,
+                                JavaSerializer<String> serializer) {
+        @Cleanup
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                                                                             EventWriterConfig.builder().build());
+        for (int i = 0; i < 100; i++) {
+            producer.writeEvent(testString + i);
+        }
+        producer.flush();
     }
 
 }

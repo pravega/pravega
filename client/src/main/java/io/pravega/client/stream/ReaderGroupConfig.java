@@ -27,7 +27,7 @@ public class ReaderGroupConfig implements Serializable {
 
    public static final class ReaderGroupConfigBuilder {
        private long groupRefreshTimeMillis = 3000;
-       private long automaticCheckpointIntervalMillis = -1;
+       private long automaticCheckpointIntervalMillis = 120000;
 
        /**
          * Returns a config builder that started at  a given time.
