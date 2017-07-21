@@ -114,7 +114,8 @@ public class TestConfig {
 
     enum TestType {
         SegmentStoreDirect,
-        InProcessClient,
+        InProcessMockListener,
+        InProcessStoreListener,
         OutOfProcessClient
     }
 }
