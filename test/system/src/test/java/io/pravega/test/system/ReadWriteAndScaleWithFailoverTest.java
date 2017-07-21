@@ -102,7 +102,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         testState.eventsReadFromPravega.clear();
     }
 
-    @Test(timeout = 600000)
+    @Test(timeout = 12 * 60 * 1000)
     public void readWriteAndScaleWithFailoverTest() throws Exception {
         createScopeAndStream(scope, STREAM_NAME, config, controllerURIDirect);
 
@@ -119,7 +119,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //bring the instances back to 3 before performing failover during scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //scale manually
             log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, STREAM_NAME)
@@ -144,7 +144,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //bring the instances back to 3 before performing failover after scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //run the failover test after scaling
             performFailoverTest();

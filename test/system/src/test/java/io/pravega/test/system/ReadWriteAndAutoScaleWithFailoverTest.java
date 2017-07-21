@@ -105,7 +105,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     }
 
 
-    @Test(timeout = 600000)
+    @Test(timeout = 12 * 60 * 1000)
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
         createScopeAndStream(scope, STREAM, config, controllerURIDirect);
         log.info("Scope passed to client factory {}", scope);
@@ -121,7 +121,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //bring the instances back to 3 before performing failover during scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, STREAM);
 
@@ -133,7 +133,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //bring the instances back to 3 before performing failover
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //run the failover test after scaling
             performFailoverTest();

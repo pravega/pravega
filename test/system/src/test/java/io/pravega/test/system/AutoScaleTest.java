@@ -299,7 +299,7 @@ public class AutoScaleTest extends AbstractScaleTests {
 
             while (!exit.get()) {
                 try {
-                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 29000);
+                    Transaction<String> transaction = writer.beginTxn(25 * 1000, 3600000, 29000);
 
                     for (int i = 0; i < 100; i++) {
                         transaction.writeEvent("0", "txntest");
