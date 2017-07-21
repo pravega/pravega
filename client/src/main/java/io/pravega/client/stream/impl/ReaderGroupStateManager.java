@@ -340,6 +340,7 @@ public class ReaderGroupStateManager {
     }
     
     String getCheckpoint() throws ReinitializationRequiredException {
+        fetchUpdatesIfNeeded();
         ReaderGroupState state = sync.getState();
         if (!state.isReaderOnline(readerId)) {
             throw new ReinitializationRequiredException();
