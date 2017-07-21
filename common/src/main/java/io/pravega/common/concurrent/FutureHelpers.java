@@ -140,7 +140,7 @@ public final class FutureHelpers {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(ExceptionHelpers.unwrapIfRequired(e));
+            throw Lombok.sneakyThrow(ExceptionHelpers.getRealException(e));
         }
     }
 

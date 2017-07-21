@@ -81,7 +81,8 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 public class ControllerImpl implements Controller {
 
     // The default keepalive interval for the gRPC transport to ensure long running RPCs are tested for connectivity.
-    private static final long DEFAULT_KEEPALIVE_TIME_SECONDS = 60;
+    // This value should be greater than the permissible value configured at the server which is by default 5 minutes.
+    private static final long DEFAULT_KEEPALIVE_TIME_MINUTES = 6;
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
@@ -99,7 +100,7 @@ public class ControllerImpl implements Controller {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_SECONDS, TimeUnit.SECONDS)
+                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
                 .usePlaintext(true));
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }

@@ -323,10 +323,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 .thenApply(streamsList -> {
                     ReaderGroupsList readerGroups = new ReaderGroupsList();
                     streamsList.forEach(stream -> {
-                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
-                        // is fixed.
-                        if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX) &&
-                                readerGroups.getReaderGroups().size() < 200) {
+                        if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
                             ReaderGroupsListReaderGroups readerGroup = new ReaderGroupsListReaderGroups();
                             readerGroup.setReaderGroupName(stream.getStreamName().substring(
                                     READER_GROUP_STREAM_PREFIX.length()));
@@ -389,10 +386,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     streamsList.forEach(stream -> {
                         // If internal streams are requested select only the ones that have the special stream names
                         // otherwise display the regular user created streams.
-                        // TODO: Remove the 200 size limit once issue - https://github.com/pravega/pravega/issues/926
-                        // is fixed.
-                        if ((!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) &&
-                                streams.getStreams().size() < 200) {
+                        if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
                             streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
                         }
                     });
