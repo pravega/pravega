@@ -292,7 +292,7 @@ public class ControllerImpl implements Controller {
                 log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
                 return false;
             case STARTED:
-                log.info("Successfully scaled stream: {}", stream.getStreamName());
+                log.info("Successfully started scale stream: {}", stream.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:

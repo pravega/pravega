@@ -150,12 +150,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
-        log.info("check scale status called for stream {}/{}.", request.getStreamInfo().getScope(),
+        log.debug("check scale status called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.checkScale(request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(),
-                request.getEpoch()),
-                responseObserver);
+        processResult(controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
+                request.getEpoch()), responseObserver);
     }
 
     @Override

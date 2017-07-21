@@ -61,7 +61,7 @@ public class LocalControllerTest {
     }
 
     @After
-    public void teardown() {
+    public void tearDown() {
         this.executor.shutdown();
     }
 
