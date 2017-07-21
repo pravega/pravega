@@ -109,7 +109,7 @@ public class ZKHostIndex implements HostIndex {
                         event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
                     result.complete(null);
                 } else {
-                    result.completeExceptionally(translateErrorCode(event));
+                    result.completeExceptionally(translateErrorCode(path, event));
                 }
             };
             if (createParents) {
@@ -119,7 +119,7 @@ public class ZKHostIndex implements HostIndex {
                 client.create().withMode(createMode).inBackground(callback, executor).forPath(path, data);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
         }
         return result;
     }
@@ -134,11 +134,11 @@ public class ZKHostIndex implements HostIndex {
                     log.debug("Node {} does not exist.", path);
                     result.complete(null);
                 } else {
-                    result.completeExceptionally(translateErrorCode(event));
+                    result.completeExceptionally(translateErrorCode(path, event));
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
         }
         return result;
     }
@@ -151,11 +151,11 @@ public class ZKHostIndex implements HostIndex {
                         event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
                     result.complete(null);
                 } else {
-                    result.completeExceptionally(translateErrorCode(event));
+                    result.completeExceptionally(translateErrorCode(path, event));
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
         }
         return result;
     }
@@ -169,32 +169,33 @@ public class ZKHostIndex implements HostIndex {
                 } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
                     result.complete(Collections.emptyList());
                 } else {
-                    result.completeExceptionally(translateErrorCode(event));
+                    result.completeExceptionally(translateErrorCode(path, event));
                 }
             }, executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
         }
         return result;
     }
 
-    private StoreException translateErrorCode(CuratorEvent event) {
+    private StoreException translateErrorCode(String path, CuratorEvent event) {
         StoreException ex;
         if (event.getResultCode() == KeeperException.Code.CONNECTIONLOSS.intValue() ||
                 event.getResultCode() == KeeperException.Code.SESSIONEXPIRED.intValue() ||
                 event.getResultCode() == KeeperException.Code.SESSIONMOVED.intValue() ||
                 event.getResultCode() == KeeperException.Code.OPERATIONTIMEOUT.intValue()) {
-            ex = new StoreException.StoreConnectionException();
+            ex = StoreException.create(StoreException.Type.CONNECTION_ERROR, path);
         } else if (event.getResultCode() == KeeperException.Code.NODEEXISTS.intValue()) {
-            ex = new StoreException.DataExistsException();
+            ex = StoreException.create(StoreException.Type.DATA_EXISTS, path);
         } else if (event.getResultCode() == KeeperException.Code.BADVERSION.intValue()) {
-            ex = new StoreException.WriteConflictException();
+            ex = StoreException.create(StoreException.Type.WRITE_CONFLICT, path);
         } else if (event.getResultCode() == KeeperException.Code.NONODE.intValue()) {
-            ex = new StoreException.DataNotFoundException();
+            ex = StoreException.create(StoreException.Type.DATA_NOT_FOUND, path);
         } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
-            ex = new StoreException.DataNotEmptyException();
+            ex = StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, path);
         } else {
-            ex = new StoreException.UnknownException();
+            ex = StoreException.create(StoreException.Type.UNKNOWN,
+                    KeeperException.create(KeeperException.Code.get(event.getResultCode()), path));
         }
         return ex;
     }

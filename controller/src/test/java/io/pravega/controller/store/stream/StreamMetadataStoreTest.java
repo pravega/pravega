@@ -173,7 +173,7 @@ public abstract class StreamMetadataStoreTest {
         // Delete a deleted stream, should fail with node not found error.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
 
         // Delete other stream from the scope.
         assertNull(store.deleteStream(scope, stream2, null, executor).join());
@@ -187,7 +187,7 @@ public abstract class StreamMetadataStoreTest {
         // Deleting non-existing stream should return null.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, "nonExistent", null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
         // endregion
     }
 
@@ -209,9 +209,10 @@ public abstract class StreamMetadataStoreTest {
             store.listStreamsInScope("Scope1").join();
         } catch (StoreException se) {
             assertTrue("List streams in non-existent scope Scope1",
-                    se.getType() == StoreException.Type.DATA_NOT_FOUND);
+                    se instanceof StoreException.DataNotFoundException);
         } catch (CompletionException ce) {
-            checkStoreExceptionType(ce.getCause(), StoreException.Type.DATA_NOT_FOUND);
+            assertTrue("List streams in non-existent scope Scope1",
+                    ce.getCause() instanceof StoreException.DataNotFoundException);
         }
     }
 
@@ -249,7 +250,7 @@ public abstract class StreamMetadataStoreTest {
         // get non-existent scope
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
     }
 
     @Test
@@ -525,10 +526,6 @@ public abstract class StreamMetadataStoreTest {
 
         deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
         assertEquals(false, deleteResponse.isDeleted());
-    }
-
-    private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {
-        return t instanceof StoreException && ((StoreException) t).getType() == type;
     }
 }
 

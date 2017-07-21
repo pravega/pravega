@@ -50,7 +50,8 @@ public class TableHelper {
                     record.getRoutingKeyStart(),
                     record.getRoutingKeyEnd());
         } else {
-            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.valueOf(number));
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                    "Segment number: " + String.valueOf(number));
         }
     }
 
@@ -509,7 +510,7 @@ public class TableHelper {
         }
 
         return record.orElseThrow(() -> StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                "epoch not found in history table")).getSegments();
+                "Epoch: " + epoch + " not found in history table")).getSegments();
     }
 
     /**
