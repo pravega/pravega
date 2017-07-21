@@ -42,7 +42,7 @@ public class CheckpointState {
             if (!currentReaders.isEmpty()) {
                 uncheckpointedHosts.put(checkpointId, new ArrayList<>(currentReaders));
             }
-            checkpointPositions.put(checkpointId, knownPositions);
+            checkpointPositions.put(checkpointId, new HashMap<>(knownPositions));
             checkpoints.add(checkpointId);
         }
     }
