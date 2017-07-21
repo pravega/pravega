@@ -5,16 +5,6 @@
 @rem
 @rem ##########################################################################
 
-@rem
-@rem  Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
-@rem
-@rem  Licensed under the Apache License, Version 2.0 (the "License");
-@rem  you may not use this file except in compliance with the License.
-@rem  You may obtain a copy of the License at
-@rem
-@rem      http://www.apache.org/licenses/LICENSE-2.0
-@rem
-
 @rem Set local scope for the variables with windows NT shell
 if "%OS%"=="Windows_NT" setlocal
 

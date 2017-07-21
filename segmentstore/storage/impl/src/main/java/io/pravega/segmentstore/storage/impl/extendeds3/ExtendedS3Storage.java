@@ -429,10 +429,6 @@ public class ExtendedS3Storage implements Storage {
             retVal = new ArrayIndexOutOfBoundsException(e.getMessage());
         }
 
-        if (e instanceof AccessControlException) {
-            retVal = new StreamSegmentSealedException(segmentName, e);
-        }
-
         return retVal;
     }
 
