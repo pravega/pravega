@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -47,6 +48,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
@@ -62,6 +65,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +78,10 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  */
 @Slf4j
 public class ControllerImpl implements Controller {
+
+    // The default keepalive interval for the gRPC transport to ensure long running RPCs are tested for connectivity.
+    // This value should be greater than the permissible value configured at the server which is by default 5 minutes.
+    private static final long DEFAULT_KEEPALIVE_TIME_MINUTES = 6;
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
@@ -87,9 +96,10 @@ public class ControllerImpl implements Controller {
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      */
     public ControllerImpl(final URI controllerURI) {
-        this(ManagedChannelBuilder.forTarget(controllerURI.toString())
+        this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
                 .usePlaintext(true));
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
@@ -247,25 +257,36 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+                                                  final Map<Double, Double> newKeyRanges,
+                                                  final ScheduledExecutorService executor) {
+        CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
+
+        startScaleInternal(stream, sealedSegments, newKeyRanges)
+                .whenComplete((startScaleResponse, e) -> {
+                    if (e != null) {
+                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                    } else {
+                        final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
+
+                        cancellableRequest.start(() -> {
+                            if (started) {
+                                return checkScaleStatus(stream, startScaleResponse.getEpoch());
+                            } else {
+                                return CompletableFuture.completedFuture(false);
+                            }
+                        }, isDone -> !started || isDone, executor);
+                    }
+                });
+
+        return cancellableRequest;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
-        Preconditions.checkNotNull(stream, "stream");
-        Preconditions.checkNotNull(sealedSegments, "sealedSegments");
-        Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
-
-        RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>();
-        client.scale(ScaleRequest.newBuilder()
-                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                             .addAllSealedSegments(sealedSegments)
-                             .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
-                                                         .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
-                                                                 .setStart(x.getKey()).setEnd(x.getValue()).build())
-                                                         .collect(Collectors.toList()))
-                             .setScaleTimestamp(System.currentTimeMillis())
-                             .build(),
-                     callback);
-        return callback.getFuture().thenApply(x -> {
+        return startScaleInternal(stream, sealedSegments, newKeyRanges).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 log.warn("Failed to scale stream: {}", stream.getStreamName());
@@ -273,13 +294,9 @@ public class ControllerImpl implements Controller {
             case PRECONDITION_FAILED:
                 log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
                 return false;
-            case SUCCESS:
-                log.info("Successfully scaled stream: {}", stream.getStreamName());
+            case STARTED:
+                log.info("Successfully started scale stream: {}", stream.getStreamName());
                 return true;
-            case TXN_CONFLICT:
-                log.warn("Controller failed to properly abort transactions on stream: {}", stream.getStreamName());
-                throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
-                        + stream);
             case UNRECOGNIZED:
             default:
                 throw new ControllerFailureException("Unknown return status scaling stream " + stream
@@ -291,6 +308,57 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "scaleStream", traceId);
         });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScaleStatus(final Stream stream, final int scaleEpoch) {
+        long traceId = LoggerHelpers.traceEnter(log, "checkScale", stream);
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkArgument(scaleEpoch >= 0);
+        RPCAsyncCallback<ScaleStatusResponse> callback = new RPCAsyncCallback<>();
+        client.checkScale(ScaleStatusRequest.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                        .setEpoch(scaleEpoch)
+                        .build(),
+                callback);
+        return callback.getFuture().thenApply(response -> {
+            switch (response.getStatus()) {
+                case IN_PROGRESS:
+                    return false;
+                case SUCCESS:
+                    return true;
+                case INVALID_INPUT:
+                    throw new ControllerFailureException("invalid input");
+                case INTERNAL_ERROR:
+                default:
+                    throw new ControllerFailureException("unknown error");
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("checking status failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "checkScale", traceId);
+        });
+    }
+
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+                                                                final Map<Double, Double> newKeyRanges) {
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(sealedSegments, "sealedSegments");
+        Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
+
+        RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>();
+        client.scale(ScaleRequest.newBuilder()
+                        .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                        .addAllSealedSegments(sealedSegments)
+                        .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
+                                .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
+                                        .setStart(x.getKey()).setEnd(x.getValue()).build())
+                                .collect(Collectors.toList()))
+                        .setScaleTimestamp(System.currentTimeMillis())
+                        .build(),
+                callback);
+        return callback.getFuture();
     }
 
     @Override

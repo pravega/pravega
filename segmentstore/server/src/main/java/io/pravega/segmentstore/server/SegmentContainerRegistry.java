@@ -10,9 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
-
 import java.time.Duration;
-import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -23,11 +21,6 @@ public interface SegmentContainerRegistry extends AutoCloseable {
      * Gets the number of registered containers.
      */
     int getContainerCount();
-
-    /**
-     * Gets a read-only collection of registered container ids.
-     */
-    Collection<Integer> getRegisteredContainerIds();
 
     /**
      * Gets a reference to the SegmentContainer with given Id.

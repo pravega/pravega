@@ -421,7 +421,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
             state.newConnection(connection);
             SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
-            connection.send(cmd);
+            try {
+                connection.send(cmd);
+            } catch (Exception e) {
+                state.failConnection(e);
+                throw e;
+            }
         }
     }
 
@@ -454,7 +459,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          .throwingOn(SegmentSealedException.class)
                          .run(() -> {
                              ClientConnection connection = getConnection();
-                             connection.send(new KeepAlive());
+                             try {
+                                 connection.send(new KeepAlive());
+                             } catch (Exception e) {
+                                 state.failConnection(e);
+                                 throw e;
+                             }
                              FutureHelpers.<Void, ConnectionFailedException, SegmentSealedException, RuntimeException>getThrowingException(state.getEmptyInflightFuture());
                              return null;
                          });

@@ -9,11 +9,13 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -26,6 +28,7 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -163,30 +167,80 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(final Stream stream,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+                                                   final Map<Double, Double> newKeyRanges,
+                                                   final ScheduledExecutorService executor) {
+        CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
+
+        startScaleInternal(stream, sealedSegments, newKeyRanges)
+                .whenComplete((startScaleResponse, e) -> {
+                    if (e != null) {
+                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                    } else {
+                        final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
+
+                        cancellableRequest.start(() -> {
+                            if (started) {
+                                return checkScaleStatus(stream, startScaleResponse.getEpoch());
+                            } else {
+                                return CompletableFuture.completedFuture(false);
+                            }
+                        }, isDone -> !started || isDone, executor);
+                    }
+                });
+
+        return cancellableRequest;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> startScale(final Stream stream,
                                                   final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
-        return this.controller.scale(stream.getScope(),
-                                     stream.getStreamName(),
-                                     sealedSegments,
-                                     newKeyRanges,
-                                     System.currentTimeMillis())
+        return startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .thenApply(x -> {
                     switch (x.getStatus()) {
                     case FAILURE:
                         throw new ControllerFailureException("Failed to scale stream: " + stream);
                     case PRECONDITION_FAILED:
                         return false;
-                    case SUCCESS:
+                    case STARTED:
                         return true;
-                    case TXN_CONFLICT:
-                        throw new ControllerFailureException("Controller failed to properly abort transactions on stream: "
-                                + stream);
                     default:
                         throw new ControllerFailureException("Unknown return status scaling stream "
                                 + stream + " " + x.getStatus());
                     }
                 });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScaleStatus(final Stream stream, final int epoch) {
+        return this.controller.checkScale(stream.getScope(), stream.getStreamName(), epoch)
+                .thenApply(response -> {
+                    switch (response.getStatus()) {
+                        case IN_PROGRESS:
+                            return false;
+                        case SUCCESS:
+                            return true;
+                        case INVALID_INPUT:
+                            throw new ControllerFailureException("invalid input");
+                        case INTERNAL_ERROR:
+                        default:
+                            throw new ControllerFailureException("unknown error");
+                    }
+                });
+    }
+
+    private CompletableFuture<ScaleResponse> startScaleInternal(final Stream stream, final List<Integer> sealedSegments,
+                                                                final Map<Double, Double> newKeyRanges) {
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(sealedSegments, "sealedSegments");
+        Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
+
+        return this.controller.scale(stream.getScope(),
+                stream.getStreamName(),
+                sealedSegments,
+                newKeyRanges,
+                System.currentTimeMillis());
     }
 
     @Override
@@ -205,7 +259,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
-                                                     final long scaleGracePeriod) {
+                                                            final long scaleGracePeriod) {
         return controller
                 .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
                 .thenApply(pair -> {

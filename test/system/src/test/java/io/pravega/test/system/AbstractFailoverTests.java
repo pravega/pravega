@@ -41,7 +41,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -58,11 +58,14 @@ abstract class AbstractFailoverTests {
     static final String STREAM_NAME = "testReadWriteAndScaleStream";
     static final int ADD_NUM_WRITERS = 6;
     static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
+    static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+
     final String readerName = "reader";
     Service controllerInstance;
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
-    ExecutorService executorService;
+    ScheduledExecutorService executorService;
     Controller controller;
     TestState testState;
 
@@ -234,7 +237,8 @@ abstract class AbstractFailoverTests {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(tmpWriter);
                 writerFutureList.add(startWriting(tmpWriter));
             }
@@ -281,7 +285,8 @@ abstract class AbstractFailoverTests {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 newlyAddedWriterList.add(tmpWriter);
                 newWritersFutureList.add(startWriting(tmpWriter));
             }

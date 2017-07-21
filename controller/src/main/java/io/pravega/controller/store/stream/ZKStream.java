@@ -263,7 +263,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        return getActiveEpoch()
+        return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
                         .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))

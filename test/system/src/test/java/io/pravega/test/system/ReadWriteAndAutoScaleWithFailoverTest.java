@@ -90,7 +90,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
         //executor service
-        executorService = Executors.newFixedThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         testState = new TestState();
