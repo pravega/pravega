@@ -19,6 +19,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.SneakyThrows;
+import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Represents an Operation Producer for the Self Tester.
@@ -121,6 +122,10 @@ class Producer extends Actor {
         if (ex instanceof ProducerDataSource.UnknownStreamException) {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
+            return true;
+        } else if (ex instanceof NotImplementedException || ex instanceof UnsupportedOperationException) {
+            // Operation is not supported. No need to fail the test; just log it.
+            TestLogger.log(getLogId(), "Operation '%s' cannot be executed on '%s' because it is not supported.", op.getType(), op.getTarget());
             return true;
         }
 

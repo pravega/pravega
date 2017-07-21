@@ -10,6 +10,9 @@
 
 package io.pravega.test.integration.selftest.adapters;
 
+import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -22,6 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public class InProcessClientAdapter extends ClientAdapterBase {
     private final SegmentStoreAdapter segmentStoreAdapter;
     private PravegaConnectionListener listener;
+    private MockStreamManager streamManager;
 
     /**
      * Creates a new instance of the InProcessClientAdapter class.
@@ -35,6 +39,8 @@ public class InProcessClientAdapter extends ClientAdapterBase {
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
     }
 
+    //region AutoCloseable Implementation
+
     @Override
     public void close() {
         super.close();
@@ -44,14 +50,41 @@ public class InProcessClientAdapter extends ClientAdapterBase {
             this.listener = null;
         }
 
+        if (this.streamManager != null) {
+            this.streamManager.close();
+            this.streamManager = null;
+        }
+
         this.segmentStoreAdapter.close();
+    }
+
+    @Override
+    protected StreamManager getStreamManager() {
+        return this.streamManager;
+    }
+
+    @Override
+    protected ClientFactory getClientFactory() {
+        return this.streamManager.getClientFactory();
+    }
+
+    //endregion
+
+    @Override
+    public boolean isFeatureSupported(Feature feature) {
+        // This uses MockStreamManager, which only supports Create and Append.
+        return feature == Feature.Create
+                || feature == Feature.Append;
     }
 
     @Override
     public void initialize() throws Exception {
         this.segmentStoreAdapter.initialize();
-        this.listener = new PravegaConnectionListener(false, this.listeningPort, this.segmentStoreAdapter.getStreamSegmentStore());
+        this.listener = new PravegaConnectionListener(false, getListeningPort(), this.segmentStoreAdapter.getStreamSegmentStore());
         this.listener.startListening();
+
+        this.streamManager = new MockStreamManager(getScope(), getListeningAddress(), getListeningPort());
+        this.streamManager.createScope(getScope());
 
         super.initialize();
     }

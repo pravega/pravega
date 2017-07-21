@@ -85,23 +85,23 @@ public class SelfTestRunner {
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.PRODUCER_COUNT, 10000)
-                .with(TestConfig.OPERATION_COUNT, 2000000)
+                .with(TestConfig.PRODUCER_COUNT, 10)
+                .with(TestConfig.OPERATION_COUNT, 1000)
                 .with(TestConfig.SEGMENT_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 100)
-                .with(TestConfig.MAX_APPEND_SIZE, 100)
+                .with(TestConfig.MIN_APPEND_SIZE, 1000)
+                .with(TestConfig.MAX_APPEND_SIZE, 1000)
                 .with(TestConfig.TEST_TYPE, TestConfig.TestType.InProcessClient.toString())
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
-                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
+                .with(TestConfig.TRANSACTION_FREQUENCY, 50)
 
                 // Test setup.
                 .with(TestConfig.THREAD_POOL_SIZE, 80)
                 .with(TestConfig.TIMEOUT_MILLIS, 3000)
 
                 // Tier1
-                .with(TestConfig.USE_BOOKKEEPER, false)
+                .with(TestConfig.USE_BOOKKEEPER, true)
                 .with(TestConfig.DATA_LOG_APPEND_DELAY, 0) // For InMemory Tier1.
 
                 // Client-specific settings.
