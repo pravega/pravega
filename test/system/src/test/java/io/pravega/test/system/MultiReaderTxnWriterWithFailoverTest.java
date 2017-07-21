@@ -70,7 +70,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
     //Duration for which the system test waits for writes/reads to happen post failover.
-    //10s (SessionTimeout) + 10s (ReblanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
 
     private ExecutorService executorService;
