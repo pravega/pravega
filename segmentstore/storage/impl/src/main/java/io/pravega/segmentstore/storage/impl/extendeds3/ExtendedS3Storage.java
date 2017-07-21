@@ -40,7 +40,6 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessControlException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
