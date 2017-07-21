@@ -22,7 +22,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
@@ -289,13 +288,13 @@ public class LocalControllerTest {
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.STARTED).build()));
         Assert.assertTrue(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor).join());
+                new ArrayList<>(), new HashMap<>(), executor).getFuture().join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()
                         .setStatus(Controller.ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED).build()));
         Assert.assertFalse(this.testController.scaleStream(new StreamImpl("scope", "stream"),
-                new ArrayList<>(), new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor).join());
+                new ArrayList<>(), new HashMap<>(), executor).getFuture().join());
 
         when(this.mockControllerService.scale(any(), any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.ScaleResponse.newBuilder()

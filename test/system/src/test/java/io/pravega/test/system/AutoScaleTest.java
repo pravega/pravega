@@ -144,8 +144,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         Boolean status = controller.scaleStream(new StreamImpl(SCOPE, SCALE_DOWN_STREAM_NAME),
                 Collections.singletonList(0),
                 keyRanges,
-                Duration.ofMinutes(2).toMillis(),
-                EXECUTOR_SERVICE).get();
+                EXECUTOR_SERVICE).getFuture().get();
         assertTrue(status);
 
         createStreamStatus = controller.createStream(CONFIG_TXN).get();

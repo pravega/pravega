@@ -26,7 +26,6 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -151,7 +150,7 @@ public class ControllerFailoverTest {
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
         CompletableFuture<Boolean> scaleFuture = controller.scaleStream(
-                new StreamImpl(scope, stream), segmentsToSeal, newRangesToCreate, Duration.ofMinutes(2).toMillis(), EXECUTOR_SERVICE);
+                new StreamImpl(scope, stream), segmentsToSeal, newRangesToCreate, EXECUTOR_SERVICE).getFuture();
 
         // Ensure that scale is not yet done.
         log.info("Status of scale operation isDone={}", scaleFuture.isDone());

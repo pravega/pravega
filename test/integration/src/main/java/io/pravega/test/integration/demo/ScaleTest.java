@@ -22,7 +22,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.TxnSegments;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -85,7 +84,7 @@ public class ScaleTest {
             map.put(0.0, 0.5);
             map.put(0.5, 1.0);
 
-            if (!controller.scaleStream(stream, Collections.singletonList(0), map, Duration.ofSeconds(5).toMillis(), executor).get()) {
+            if (!controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get()) {
                 log.error("Scale stream: splitting segment into two failed, exiting");
                 return;
             }
@@ -93,7 +92,7 @@ public class ScaleTest {
             // Test 2: scale stream: merge two segments into one
             log.info("Scaling stream {}/{}, merging two segments into one", scope, streamName);
             CompletableFuture<Boolean> scaleResponseFuture = controller.scaleStream(stream, Arrays.asList(1, 2),
-                    Collections.singletonMap(0.0, 1.0), Duration.ofSeconds(5).toMillis(), executor);
+                    Collections.singletonMap(0.0, 1.0), executor).getFuture();
 
             if (!scaleResponseFuture.get()) {
                 log.error("Scale stream: merging two segments into one failed, exiting");
@@ -110,7 +109,7 @@ public class ScaleTest {
 
             log.info("Scaling stream {}/{}, splitting one segment into two, while transaction is ongoing",
                     scope, streamName);
-            scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map, Duration.ofSeconds(5).toMillis(), executor);
+            scaleResponseFuture = controller.scaleStream(stream, Collections.singletonList(3), map, executor).getFuture();
             CompletableFuture<Boolean> future = scaleResponseFuture.whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("Failed: scale with ongoing transaction.", e);

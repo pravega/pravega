@@ -32,7 +32,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -85,7 +84,7 @@ public class EndToEndAutoScaleDownTest {
             map.put(0.33, 0.66);
             map.put(0.66, 1.0);
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, Duration.ofSeconds(5).toMillis(), executor).get();
+            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
 
             Retry.withExpBackoff(10, 10, 100, 10000)
                     .retryingOn(NotDoneException.class)

@@ -43,7 +43,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -113,7 +112,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, Duration.ofSeconds(5).toMillis(), executor).get();
+            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
 
             Transaction<String> txn2 = test.beginTxn(30000, 30000, 30000);
 

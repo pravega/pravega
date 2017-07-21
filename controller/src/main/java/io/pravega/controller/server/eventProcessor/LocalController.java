@@ -9,13 +9,13 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -168,27 +167,29 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
-                                                  final Map<Double, Double> newKeyRanges, final long timeoutMillis,
-                                                  final ScheduledExecutorService executor) {
-        return startScaleInternal(stream, sealedSegments, newKeyRanges)
-                .thenCompose(startScaleResponse -> {
-                    final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
-                    final AtomicBoolean done = new AtomicBoolean(!started);
-                    final long start = System.currentTimeMillis();
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+                                                   final Map<Double, Double> newKeyRanges,
+                                                   final ScheduledExecutorService executor) {
+        CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
 
-                    return FutureHelpers.loop(() -> !done.get(), () ->
-                                    FutureHelpers.delayedFuture(() -> checkScaleStatus(stream, startScaleResponse.getEpoch())
-                                            .thenAccept(isDone -> {
-                                                done.set(isDone);
-                                                if (!isDone) {
-                                                    if (System.currentTimeMillis() > (start + timeoutMillis)) {
-                                                        throw new RuntimeException("scale request timed out");
-                                                    }
-                                                }
-                                            }), 1000, executor), executor)
-                            .thenApply(x -> started);
+        startScaleInternal(stream, sealedSegments, newKeyRanges)
+                .whenComplete((startScaleResponse, e) -> {
+                    if (e != null) {
+                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                    } else {
+                        final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
+
+                        cancellableRequest.start(() -> {
+                            if (started) {
+                                return checkScaleStatus(stream, startScaleResponse.getEpoch());
+                            } else {
+                                return CompletableFuture.completedFuture(false);
+                            }
+                        }, isDone -> !started || isDone, executor);
+                    }
                 });
+
+        return cancellableRequest;
     }
 
     @Override

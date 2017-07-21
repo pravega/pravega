@@ -12,7 +12,6 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -54,7 +53,6 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
-import java.time.Duration;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -783,8 +781,7 @@ public class ControllerImplTest {
     public void testScale() throws Exception {
         CompletableFuture<Boolean> scaleStream;
         StreamImpl stream = new StreamImpl("scope1", "stream1");
-        scaleStream = controllerClient.scaleStream(stream, new ArrayList<>(),
-                                                   new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+        scaleStream = controllerClient.scaleStream(stream, new ArrayList<>(), new HashMap<>(), executor).getFuture();
         assertTrue(scaleStream.get());
         CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
         assertEquals(2, segments.get().getSegments().size());
@@ -792,15 +789,15 @@ public class ControllerImplTest {
         assertEquals(new Segment("scope1", "stream1", 7), segments.get().getSegmentForKey(0.75));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
-                                                   new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+                                                   new HashMap<>(), executor).getFuture();
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("UNKNOWN", "stream2"), new ArrayList<>(),
-                new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+                new HashMap<>(), executor).getFuture();
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "UNKNOWN"), new ArrayList<>(),
-                new HashMap<>(), Duration.ofSeconds(5).toMillis(), executor);
+                new HashMap<>(), executor).getFuture();
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
     }
 

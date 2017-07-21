@@ -36,7 +36,6 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.common.TestUtils;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -126,7 +125,7 @@ public class EndToEndTxnWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, Duration.ofSeconds(5).toMillis(), executorService).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executorService).getFuture().get();
 
         assertTrue(result);
 

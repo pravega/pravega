@@ -66,7 +66,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.val;
@@ -258,26 +257,29 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
-                                                  final Map<Double, Double> newKeyRanges, final long timeoutMillis,
+    public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+                                                  final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
-        return startScaleInternal(stream, sealedSegments, newKeyRanges)
-                .thenCompose(startScaleResponse -> {
-                    final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
-                    final AtomicBoolean done = new AtomicBoolean(!started);
-                    final long start = System.currentTimeMillis();
-                    return FutureHelpers.loop(() -> !done.get(), () ->
-                            FutureHelpers.delayedFuture(() -> checkScaleStatus(stream, startScaleResponse.getEpoch())
-                                    .thenAccept(isDone -> {
-                                        done.set(isDone);
-                                        if (!isDone) {
-                                            if (System.currentTimeMillis() > (start + timeoutMillis)) {
-                                                throw new ControllerFailureException("scale request timed out");
-                                            }
-                                        }
-                                    }), 1000, executor), executor)
-                            .thenApply(x -> started);
+        CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
+
+        startScaleInternal(stream, sealedSegments, newKeyRanges)
+                .whenComplete((startScaleResponse, e) -> {
+                    if (e != null) {
+                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                    } else {
+                        final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
+
+                        cancellableRequest.start(() -> {
+                            if (started) {
+                                return checkScaleStatus(stream, startScaleResponse.getEpoch());
+                            } else {
+                                return CompletableFuture.completedFuture(false);
+                            }
+                        }, isDone -> !started || isDone, executor);
+                    }
                 });
+
+        return cancellableRequest;
     }
 
     @Override

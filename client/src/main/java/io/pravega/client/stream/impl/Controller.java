@@ -106,15 +106,11 @@ public interface Controller {
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
-     * @param timeoutMillis timeout and throw exception if scale does not complete withing specified timeout.
      * @param executorService executor to be used for busy waiting.
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the scaling was completed successfully or not. It can also throw exception if the specified
-     *         timeout elapses.
+     * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
      */
-    CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
                                            final Map<Double, Double> newKeyRanges,
-                                           final long timeoutMillis,
                                            final ScheduledExecutorService executorService);
 
     /**

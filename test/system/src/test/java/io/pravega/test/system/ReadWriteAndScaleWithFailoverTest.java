@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -133,8 +132,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
                     Collections.singletonList(0),
                     keyRanges,
-                    Duration.ofMinutes(2).toMillis(),
-                    executorService);
+                    executorService).getFuture();
 
             //run the failover test while scaling
             performFailoverTest();
