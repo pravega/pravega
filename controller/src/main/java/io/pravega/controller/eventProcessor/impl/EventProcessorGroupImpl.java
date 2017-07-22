@@ -82,7 +82,13 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
     void initialize() throws CheckpointStoreException {
 
-        checkpointStore.addReaderGroup(actorSystem.getProcess(), eventProcessorConfig.getConfig().getReaderGroupName());
+        try {
+            checkpointStore.addReaderGroup(actorSystem.getProcess(), eventProcessorConfig.getConfig().getReaderGroupName());
+        } catch (CheckpointStoreException e) {
+            if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
+                throw e;
+            }
+        }
 
         // Continue creating reader group if adding reader group to checkpoint store succeeds.
 

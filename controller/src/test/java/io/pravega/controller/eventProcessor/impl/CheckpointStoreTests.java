@@ -46,7 +46,6 @@ public abstract class CheckpointStoreTests {
         final String reader = UUID.randomUUID().toString();
 
         checkpointStore.addReaderGroup(process1, readerGroup1);
-        checkpointStore.addReaderGroup(process1, readerGroup1);
         checkpointStore.addReader(process1, readerGroup1, reader);
         checkpointStore.removeReader(process1, readerGroup1, reader);
         checkpointStore.removeReader(process1, readerGroup1, reader);
@@ -192,6 +191,13 @@ public abstract class CheckpointStoreTests {
         resultMap = checkpointStore.getPositions(process1, readerGroup1);
         Assert.assertNotNull(resultMap);
         Assert.assertEquals(0, resultMap.size());
+
+        try {
+            checkpointStore.addReaderGroup(process1, readerGroup1);
+            Assert.assertTrue(false);
+        } catch (CheckpointStoreException cse) {
+            Assert.assertEquals(CheckpointStoreException.Type.NodeExists, cse.getType());
+        }
 
         result = checkpointStore.getReaderGroups(process1);
         Assert.assertNotNull(result);
