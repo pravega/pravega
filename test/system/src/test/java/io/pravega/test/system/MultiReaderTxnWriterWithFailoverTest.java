@@ -66,10 +66,12 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
     private static final int NUM_EVENTS_PER_TRANSACTION = 50;
     private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    //Duration for which the system test waits for writes/reads to happen post failover.
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
 
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
@@ -334,8 +336,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -350,8 +351,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventWriteCount.get();
@@ -367,8 +367,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(new Random().nextInt(50000) + ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventWriteCount.get();
