@@ -84,7 +84,13 @@ class ZKCheckpointStore implements CheckpointStore {
     @Override
     public void addReaderGroup(String process, String readerGroup) throws CheckpointStoreException {
         ReaderGroupData data = new ReaderGroupData(ReaderGroupData.State.Active, new ArrayList<>());
-        addNode(getReaderGroupPath(process, readerGroup), groupDataSerializer.serialize(data).array());
+        try {
+            addNode(getReaderGroupPath(process, readerGroup), groupDataSerializer.serialize(data).array());
+        } catch (CheckpointStoreException e) {
+            if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
+                throw e;
+            }
+        }
     }
 
     @Override
