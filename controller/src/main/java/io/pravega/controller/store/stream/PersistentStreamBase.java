@@ -172,7 +172,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                 .thenApply(x -> true);
                     } else {
                         return FutureHelpers.failedFuture(StoreException.create(
-                                StoreException.Type.OPERATION_NOT_ALLOWED, state.name()));
+                                StoreException.Type.OPERATION_NOT_ALLOWED,
+                                "Stream: " + getName() + " State: " + state.name()));
                     }
                 });
     }
@@ -630,17 +631,22 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     if (commit) {
                         return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
                     } else {
-                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Stream: " + getName() + " Transaction: " + txId.toString() +
+                                        " State: " + status.name());
                     }
                 case ABORTING:
                 case ABORTED:
                     if (commit) {
-                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Stream: " + getName() + " Transaction: " + txId.toString() + " State: " +
+                                        status.name());
                     } else {
                         return CompletableFuture.completedFuture(new SimpleEntry<>(status, epoch));
                     }
                 default:
-                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                            "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         });
     }
@@ -656,10 +662,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 case OPEN:
                 case ABORTING:
                 case ABORTED:
-                    throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
+                    throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                            "Stream: " + getName() + " Transaction: " + txId.toString() + " State: " + x.toString());
                 case UNKNOWN:
                 default:
-                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                            "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         }).thenCompose(x -> {
             if (x.equals(TxnStatus.COMMITTING)) {
@@ -680,10 +688,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 case OPEN:
                 case COMMITTING:
                 case COMMITTED:
-                    throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
+                    throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                            "Stream: " + getName() + " Transaction: " + txId.toString() + " State: " + x.name());
                 case UNKNOWN:
                 default:
-                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                    throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                            "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         }).thenCompose(x -> {
             if (x.equals(TxnStatus.ABORTING)) {
@@ -708,9 +718,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
             if ((commit && status == TxnStatus.COMMITTED) || (!commit && status == TxnStatus.ABORTED)) {
                 return status;
             } else if (status == TxnStatus.UNKNOWN) {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString());
             } else {
-                throw StoreException.create(StoreException.Type.ILLEGAL_STATE, txId.toString());
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "Stream: " + getName() + " Transaction: " + txId.toString() + " State: " + status.name());
             }
         });
     }
@@ -764,12 +776,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private <U> CompletableFuture<U> verifyState(Supplier<CompletableFuture<U>> future, List<State> states) {
         return getState()
-                .thenApply(state -> state != null && states.contains(state))
-                .thenCompose(created -> {
-                    if (created) {
+                .thenCompose(state -> {
+                    if (state != null && states.contains(state)) {
                         return future.get();
                     } else {
-                        throw new StoreException.IllegalStateException();
+                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                                "Stream: " + getName() + " State: " + state.name());
                     }
                 });
     }
@@ -777,7 +789,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private CompletableFuture<Void> verifyLegalState() {
         return getState().thenApply(state -> {
             if (state == null || state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                throw new IllegalStateException("stream state unknown or stream is still being created");
+                throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
+                        "Stream: " + getName() + " State: " + state.name());
             }
             return null;
         });

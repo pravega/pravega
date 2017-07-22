@@ -477,7 +477,7 @@ public class StreamMetaDataTests {
 
         // Test to get non-existent scope
         when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw new StoreException.DataNotFoundException();
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope2");
         }));
         response = client.target(resourceURI2).request().buildGet().invoke();
         assertEquals("Get non existent scope", 404, response.getStatus());
@@ -562,7 +562,7 @@ public class StreamMetaDataTests {
 
         // Test for list streams for invalid scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 404, response.getStatus());
@@ -742,7 +742,7 @@ public class StreamMetaDataTests {
 
         // Test for getScalingEvents for invalid scope/stream.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, ""));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream1"));
         when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request().buildGet().invoke();
@@ -809,7 +809,7 @@ public class StreamMetaDataTests {
 
         // Test for list reader groups for non-existing scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Reader Groups response code", 404, response.getStatus());
