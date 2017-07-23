@@ -216,12 +216,13 @@ public final class ServiceStarter {
     public static void main(String[] args) throws Exception {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
-            // Load up the ServiceBuilderConfig, using this priority order:
-            // 1. Configuration file
+            System.err.println(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"));
+            // Load up the ServiceBuilderConfig, using this priority order (lowest to highest):
+            // 1. Configuration file (either default or specified via SystemProperties)
             // 2. System Properties overrides (these will be passed in via the command line or inherited from the JVM)
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
-                    .include(System.getProperty("pravega.configurationFile", "config.properties"))
+                    .include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"))
                     .include(System.getProperties())
                     .build();
             serviceStarter.set(new ServiceStarter(config, Options.builder()

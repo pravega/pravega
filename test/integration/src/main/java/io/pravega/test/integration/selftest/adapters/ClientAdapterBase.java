@@ -141,16 +141,18 @@ abstract class ClientAdapterBase implements StoreAdapter {
         ensureInitializedAndNotClosed();
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
+        String routingKey = Integer.toString(event.getRoutingKey());
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
         if (parentName == null || parentName.length() == streamName.length()) {
-            return getWriter(streamName).writeEvent(Integer.toString(event.getRoutingKey()), payload);
+            return getWriter(streamName).writeEvent(routingKey, payload);
         } else {
             // Dealing with a Transaction.
             UUID txnId = getTransactionId(streamName);
             return CompletableFuture.runAsync(() -> {
                 try {
-                    getWriter(parentName).getTxn(txnId).writeEvent(Integer.toString(event.getRoutingKey()), payload);
+                    getWriter(parentName).getTxn(txnId).writeEvent(routingKey, payload);
                 } catch (TxnFailedException ex) {
+                    this.transactionIds.remove(streamName);
                     throw new CompletionException(ex);
                 }
             }, this.testExecutor);
@@ -198,9 +200,10 @@ abstract class ClientAdapterBase implements StoreAdapter {
             Transaction<byte[]> txn = writer.getTxn(txnId);
             try {
                 txn.commit();
-                this.transactionIds.remove(transactionName);
             } catch (TxnFailedException ex) {
                 throw new CompletionException(ex);
+            }finally {
+                this.transactionIds.remove(transactionName);
             }
         }, this.testExecutor);
     }

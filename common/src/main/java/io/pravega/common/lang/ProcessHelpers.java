@@ -59,6 +59,9 @@ public final class ProcessHelpers {
         // Start the process, but not before setting new environment variables.
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.environment().putAll(envVars);
+        if(sysProps.size() ==1){
+            builder.inheritIO(); // TODO: remove or make config
+        }
         return builder.start();
     }
 }
