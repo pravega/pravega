@@ -293,7 +293,13 @@ public class ExtendedS3Storage implements Storage {
          * But this does not work. Currently all the calls to putObject API fail if made with reqest.setIfNoneMatch("*").
          * once the issue with extended S3 API is fixed, addition of this one line will ensure put-if-absent semantics.
          * See: https://github.com/pravega/pravega/issues/1564
+         *
+         * This issue is fixed in some versions of extended S3 implementation. The following code sets the IfNoneMatch
+         * flag based on configuration.
          */
+        if (config.isIfNoneMatchWorks()) {
+            request.setIfNoneMatch("*");
+        }
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);
