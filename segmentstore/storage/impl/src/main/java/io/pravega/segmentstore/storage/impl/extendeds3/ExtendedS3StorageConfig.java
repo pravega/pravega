@@ -30,7 +30,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> URI = Property.named("url", "");
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> NAMESPACE = Property.named("namespace", ""); // use default namespace
-    private static final Property<Boolean> IFNONEMATCHWORKS = Property.named("ifnonematchworks", false);
+    public static final Property<Boolean> IFNONEMATCHWORKS = Property.named("ifnonematchworks", false);
 
     private static final String COMPONENT_CODE = "extendeds3";
 
