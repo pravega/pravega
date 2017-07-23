@@ -101,6 +101,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         }
     }
     //endregion
+
     @Override
     protected Storage createStorage() {
 
