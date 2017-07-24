@@ -87,6 +87,8 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         } catch (CheckpointStoreException e) {
             if (!e.getType().equals(CheckpointStoreException.Type.NodeExists)) {
                 throw e;
+            } else {
+                log.warn("reader group {} exists", eventProcessorConfig.getConfig().getReaderGroupName());
             }
         }
 
@@ -98,7 +100,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
                 ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build(),
                 Collections.singleton(eventProcessorConfig.getConfig().getStreamName()));
 
-        createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount());
+        createEventProcessors(eventProcessorConfig.getConfig().getEventProcessorCount() - eventProcessorMap.values().size());
     }
 
     private ReaderGroup createIfNotExists(final ReaderGroupManager readerGroupManager,
