@@ -411,15 +411,19 @@ public class ExtendedS3Storage implements Storage {
         Throwable retVal = e;
 
         if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
-            if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
+            String errorCode = ((S3Exception) e).getErrorCode();
+
+            if (errorCode.equals("NoSuchKey")) {
                 retVal = new StreamSegmentNotExistsException(segmentName);
             }
 
-            if (((S3Exception) e).getErrorCode().equals("PreconditionFailed")) {
+            if (errorCode.equals("PreconditionFailed")) {
                 retVal = new StreamSegmentExistsException(segmentName);
             }
 
-            if (((S3Exception) e).getErrorCode().equals("InvalidRange")) {
+            if (errorCode.equals("InvalidRange")
+                    || errorCode.equals("InvalidArgument")
+                    || errorCode.equals("MethodNotAllowed")) {
                 retVal = new IllegalArgumentException(segmentName, e);
             }
         }
