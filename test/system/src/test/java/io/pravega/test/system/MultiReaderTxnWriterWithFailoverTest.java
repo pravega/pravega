@@ -392,7 +392,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
-                        Thread.sleep(100);
                         transaction.writeEvent(String.valueOf(value), value);
                         log.debug("Writing event: {} into transaction: {}", value, transaction);
                     }
