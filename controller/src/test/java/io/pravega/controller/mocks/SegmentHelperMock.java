@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.mocks;
 
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 
@@ -49,6 +50,36 @@ public class SegmentHelperMock {
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyInt(), any(), any());
+        return helper;
+    }
+
+    public static SegmentHelper getFailingTxnOpsSegmentHelperMock() {
+        SegmentHelper helper = spy(new SegmentHelper());
+
+        doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
+                anyString(), anyString(), anyInt(), any());
+
+        doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
+                anyString(), anyString(), anyInt(), any(), any());
+
+        doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
+                anyString(), anyString(), anyInt(), any(), any(), any());
+
+        doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
+                anyString(), anyString(), anyInt(), any(), any());
+
+        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).abortTransaction(
+                anyString(), anyString(), anyInt(), any(), any(), any());
+
+        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).commitTransaction(
+                anyString(), anyString(), anyInt(), any(), any(), any());
+
+        doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
+                anyString(), anyString(), any(), anyInt(), any(), any());
+
+        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).createTransaction(
+                anyString(), anyString(), anyInt(), any(), any(), any());
+
         return helper;
     }
 }

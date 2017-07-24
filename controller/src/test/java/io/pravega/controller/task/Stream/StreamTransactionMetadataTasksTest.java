@@ -420,6 +420,48 @@ public class StreamTransactionMetadataTasksTest {
         assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
     }
 
+    @Test(timeout = 5000)
+    @SuppressWarnings("unchecked")
+    public void partialTxnCreationTest() {
+        // Create mock writer objects.
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
+
+        // Create transaction tasks.
+        txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                SegmentHelperMock.getFailingTxnOpsSegmentHelperMock(), executor, "host", connectionFactory);
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
+                abortWriter);
+
+        // Create ControllerService.
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
+
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+
+        // Create stream and scope
+        Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
+        Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0).join());
+
+        // Create partial transaction
+        final long lease = 5000;
+        final long maxExecutionTime = 10000;
+        final long scaleGracePeriod = 10000;
+
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease,
+                maxExecutionTime, scaleGracePeriod, null).join().getKey();
+        UUID tx1 = txData1.getId();
+
+        // Ensure that transaction state is OPEN.
+        assertEquals(TxnStatus.OPEN, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
+
+        // Ensure that timeout service knows about the transaction.
+        assertTrue(txnTasks.getTimeoutService().containsTxn(SCOPE, STREAM, tx1));
+    }
+
     private <T extends ControllerEvent>
     void createEventProcessor(final String readerGroupName,
                               final String streamName,
