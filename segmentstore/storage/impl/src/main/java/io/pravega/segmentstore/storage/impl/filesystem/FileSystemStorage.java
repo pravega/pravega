@@ -29,6 +29,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
@@ -410,7 +411,9 @@ public class FileSystemStorage implements Storage {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 
-        if (e instanceof AccessControlException || e instanceof AccessDeniedException) {
+        if (e instanceof AccessControlException
+                || e instanceof AccessDeniedException
+                || e instanceof NonWritableChannelException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
 
