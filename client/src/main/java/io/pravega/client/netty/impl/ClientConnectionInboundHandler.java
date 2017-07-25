@@ -17,6 +17,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.protocol.netty.Append;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -60,7 +60,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel c = ctx.channel();
         channel.set(c);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION), c.voidPromise());
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 20, 10, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -68,10 +68,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 
     /**
      * Disconnected.
-     * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
+     * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(io.netty.channel.ChannelHandlerContext)
      */
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -157,10 +157,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         return ch;
     }
     
-    @RequiredArgsConstructor
     private final class KeepAliveTask implements Runnable {
-        private final ChannelHandlerContext ctx;
-
         @Override
         public void run() {
             try {
@@ -168,8 +165,8 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                     send(new WireCommands.KeepAlive());
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection " + connectionName);
-                ctx.close();
+                log.warn("Keep alive failed, killing connection {} due to {} ", connectionName, e.getMessage());
+                close();
             }
         }
     }
