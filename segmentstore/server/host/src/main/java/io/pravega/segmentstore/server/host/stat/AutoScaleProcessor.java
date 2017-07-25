@@ -181,23 +181,13 @@ public class AutoScaleProcessor {
     }
 
     private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        try {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    writer.get().writeEvent(event.getKey(), event).get();
-                    result.complete(null);
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("error sending request to requeststream {}", e);
-                    result.completeExceptionally(e);
-                }
-            }, executor);
-        } catch (RejectedExecutionException e) {
-            log.error("our executor queue is full. failed to post scale event for {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
-            result.completeExceptionally(e);
-        }
-
-        return result;
+        return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
+            if (e != null) {
+                log.error("error sending request to requeststream {}", e);
+            } else {
+                log.debug("scale event posted successfully");
+            }
+        });
     }
 
     void report(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
