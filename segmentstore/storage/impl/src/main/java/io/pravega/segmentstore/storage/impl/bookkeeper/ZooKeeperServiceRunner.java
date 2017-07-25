@@ -9,9 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import io.pravega.common.lang.ProcessHelpers;
 import java.io.File;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
@@ -79,34 +77,4 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + zkPort;
         return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
     }
-
-    //region Out-of-Process
-
-    /**
-     * Starts the ZooKeeper Service out of process.
-     *
-     * @param zkPort The port to start ZooKeeper on.
-     * @return A Process reference.
-     * @throws IOException If an exception occurred.
-     */
-    public static Process startOutOfProcess(int zkPort) throws IOException {
-        return ProcessHelpers.execSimple(ZooKeeperServiceRunner.class, zkPort);
-    }
-
-    public static void main(String[] args) throws Exception {
-        int port;
-        try {
-            port = Integer.parseInt(args[0]);
-        } catch (Exception ex) {
-            System.out.println(String.format("Invalid or missing arguments. Expected: ZKPort (int) (%s).", ex.getMessage()));
-            System.exit(-1);
-            return;
-        }
-
-        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(port);
-        runner.start();
-        Thread.sleep(Long.MAX_VALUE);
-    }
-
-    //endregion
 }

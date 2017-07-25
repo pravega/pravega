@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 
@@ -43,7 +44,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     private static final String LOG_ID = "OutOfProcessAdapter";
     private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10000;
     private final ServiceBuilderConfig builderConfig;
-    private final AtomicReference<Process> zooKeeperProcess;
+    private final AtomicReference<ZooKeeperServiceRunner> zooKeeperProcess;
     private final AtomicReference<Process> bookieProcess;
     private final List<Process> segmentStoreProcesses;
     private final List<Process> controllerProcesses;
@@ -82,13 +83,13 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         super.close();
 
         // Stop all services.
-        int controllerCount = stopAllProcesses(this.controllerProcesses);
+        int controllerCount = stopProcesses(this.controllerProcesses);
         TestLogger.log(LOG_ID, "Controller(s) (%d count) shut down.", controllerCount);
-        int segmentStoreCount = stopAllProcesses(this.segmentStoreProcesses);
+        int segmentStoreCount = stopProcesses(this.segmentStoreProcesses);
         TestLogger.log(LOG_ID, "SegmentStore(s) (%d count) shut down.", segmentStoreCount);
         stopProcess(this.bookieProcess);
         TestLogger.log(LOG_ID, "Bookies shut down.");
-        stopProcess(this.zooKeeperProcess);
+        stopComponent(this.zooKeeperProcess);
         TestLogger.log(LOG_ID, "ZooKeeper shut down.");
 
         // Delete temporary files and directories.
@@ -106,8 +107,9 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
+            Thread.sleep(10000); // TODO: remove
             startAllSegmentStores();
-            Thread.sleep(50000); // TODO: remove
+            Thread.sleep(200000); // TODO: remove
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
                 close();
@@ -132,9 +134,10 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     //region Services Startup/Shutdown
 
-    private void startZooKeeper() throws IOException {
+    private void startZooKeeper() throws Exception {
         Preconditions.checkState(this.zooKeeperProcess.get() == null, "ZooKeeper is already started.");
-        this.zooKeeperProcess.set(ZooKeeperServiceRunner.startOutOfProcess(this.testConfig.getZkPort()));
+        this.zooKeeperProcess.set(new ZooKeeperServiceRunner(this.testConfig.getZkPort()));
+        this.zooKeeperProcess.get().start();
         if (!ZooKeeperServiceRunner.waitForServerUp(this.testConfig.getZkPort())) {
             throw new RuntimeException("Unable to start ZooKeeper at port " + this.testConfig.getZkPort());
         }
@@ -167,7 +170,9 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
                 .put("CONTAINER_COUNT", Integer.toString(this.testConfig.getContainerCount()))
                 .put("ZK_URL", getZkUrl())
                 .put("CONTROLLER_SERVER_PORT", Integer.toString(port))
+                .put("REST_SERVER_IP", LOOPBACK_ADDRESS.getHostName())
                 .put("REST_SERVER_PORT", Integer.toString(restPort))
+                .put("CONTROLLER_RPC_PUBLISHED_HOST", LOOPBACK_ADDRESS.getHostName())
                 .put("CONTROLLER_RPC_PUBLISHED_PORT", Integer.toString(rpcPort))
                 .build();
         Process p = ProcessHelpers.exec(io.pravega.controller.server.Main.class, null, props);
@@ -220,7 +225,14 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         }
 
         this.builderConfig.store(f);
+    }
 
+    @SneakyThrows(Exception.class)
+    private void stopComponent(AtomicReference<? extends AutoCloseable> componentReference) {
+        AutoCloseable p = componentReference.getAndSet(null);
+        if (p != null) {
+            p.close();
+        }
     }
 
     private void stopProcess(AtomicReference<Process> processReference) {
@@ -231,7 +243,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         }
     }
 
-    private int stopAllProcesses(Collection<Process> processList) {
+    private int stopProcesses(Collection<Process> processList) {
         processList.stream().filter(Objects::nonNull).forEach(p -> {
             p.destroy();
             Exceptions.handleInterrupted(() -> p.waitFor(PROCESS_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
@@ -254,7 +266,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     }
 
     private String getControllerRpcUrl() {
-        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostAddress(), this.testConfig.getControllerRpcPort(0));
+        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostName(), this.testConfig.getControllerPort(0));
     }
 
     private String configProperty(String componentCode, Property<?> property) {
