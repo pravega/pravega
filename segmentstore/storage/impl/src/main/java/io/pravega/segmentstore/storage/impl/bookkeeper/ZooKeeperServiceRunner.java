@@ -90,7 +90,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      * @throws IOException If an exception occurred.
      */
     public static Process startOutOfProcess(int zkPort) throws IOException {
-        return ProcessHelpers.exec(ZooKeeperServiceRunner.class, zkPort);
+        return ProcessHelpers.execSimple(ZooKeeperServiceRunner.class, zkPort);
     }
 
     public static void main(String[] args) throws Exception {

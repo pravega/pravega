@@ -9,12 +9,16 @@
  */
 package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Getter;
+import lombok.val;
 
 /**
  * Configuration for Self-Tester.
@@ -23,7 +27,8 @@ public class TestConfig {
     //region Config Names
 
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
-    static final Property<Integer> SEGMENT_COUNT = Property.named("segmentCount", 100);
+    static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
+    static final Property<Integer> STREAM_COUNT = Property.named("streamCount", 100);
     static final Property<Integer> TRANSACTION_FREQUENCY = Property.named("transactionFrequency", 100);
     static final Property<Integer> MAX_TRANSACTION_SIZE = Property.named("maxTransactionSize", 10);
     static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
@@ -31,12 +36,14 @@ public class TestConfig {
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
-    static final Property<Integer> DATA_LOG_APPEND_DELAY = Property.named("dataLogAppendDelayMillis", 0);
-    static final Property<Boolean> USE_BOOKKEEPER = Property.named("useBk", false);
-    static final Property<Integer> ZK_PORT = Property.named("zkPort", 2181);
-    static final Property<Integer> BK_PORT = Property.named("bkPort", 9001);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStoreDirect.toString());
-    static final Property<Integer> CLIENT_PORT = Property.named("clientPort", 9876);
+    static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
+    static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
+    static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
+    private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
+    private static final Property<Integer> BK_PORT = Property.named("bkPort", 9100);
+    private static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
+    private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
     private static final String COMPONENT_CODE = "selftest";
 
     //endregion
@@ -45,6 +52,8 @@ public class TestConfig {
 
     @Getter
     private int operationCount;
+    @Getter
+    private int containerCount;
     @Getter
     private int segmentCount;
     @Getter
@@ -62,17 +71,21 @@ public class TestConfig {
     @Getter
     private Duration timeout;
     @Getter
-    private Duration dataLogAppendDelay;
+    private int bookieCount;
     @Getter
-    private boolean useBookKeeper;
+    private int controllerCount;
+    @Getter
+    private int segmentStoreCount;
     @Getter
     private int bkPort;
     @Getter
     private int zkPort;
     @Getter
-    private TestType testType;
+    private int controllerBasePort;
     @Getter
-    private int clientPort;
+    private int segmentStoreBasePort;
+    @Getter
+    private TestType testType;
 
     //endregion
 
@@ -85,7 +98,8 @@ public class TestConfig {
      */
     private TestConfig(TypedProperties properties) throws ConfigurationException {
         this.operationCount = properties.getInt(OPERATION_COUNT);
-        this.segmentCount = properties.getInt(SEGMENT_COUNT);
+        this.containerCount = properties.getInt(CONTAINER_COUNT);
+        this.segmentCount = properties.getInt(STREAM_COUNT);
         this.transactionFrequency = properties.getInt(TRANSACTION_FREQUENCY);
         this.maxTransactionAppendCount = properties.getInt(MAX_TRANSACTION_SIZE);
         this.producerCount = properties.getInt(PRODUCER_COUNT);
@@ -93,13 +107,95 @@ public class TestConfig {
         this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
-        this.dataLogAppendDelay = Duration.ofMillis(properties.getInt(DATA_LOG_APPEND_DELAY));
-        this.useBookKeeper = properties.getBoolean(USE_BOOKKEEPER);
+        this.bookieCount = properties.getInt(BOOKIE_COUNT);
+        this.controllerCount = properties.getInt(CONTROLLER_COUNT);
+        this.segmentStoreCount = properties.getInt(SEGMENT_STORE_COUNT);
         this.bkPort = properties.getInt(BK_PORT);
         this.zkPort = properties.getInt(ZK_PORT);
+        this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
+        this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
-        this.clientPort = properties.getInt(CLIENT_PORT);
+        checkOverlappingPorts();
     }
+
+    /**
+     * Gets the BookKeeper port for the given BookieId.
+     *
+     * @param bookieId The indexed Id of the Bookie.
+     * @return The port.
+     */
+    public int getBkPort(int bookieId) {
+        Preconditions.checkElementIndex(bookieId, this.bookieCount, "bookieId must be less than bookieCount.");
+        return this.bkPort + bookieId;
+    }
+
+    /**
+     * Gets the Controller Listening port for the given Controller Id.
+     *
+     * @param controllerId The indexed Id of the Controller.
+     * @return The port.
+     */
+    public int getControllerPort(int controllerId) {
+        Preconditions.checkElementIndex(controllerId, this.controllerCount, "controllerId must be less than controllerCount.");
+        return this.controllerBasePort + controllerId * 10;
+    }
+
+    /**
+     * Gets the Controller REST port for the given Controller Id.
+     *
+     * @param controllerId The indexed Id of the Controller.
+     * @return The port.
+     */
+    public int getControllerRestPort(int controllerId) {
+        return getControllerPort(controllerId) + 1;
+    }
+
+    /**
+     * Gets the Controller RPC port for the given Controller Id.
+     *
+     * @param controllerId The indexed Id of the Controller.
+     * @return The port.
+     */
+    public int getControllerRpcPort(int controllerId) {
+        return getControllerPort(controllerId) + 2;
+    }
+
+    /**
+     * Gets the SegmentStore Service Listening port for the given SegmentStore Id.
+     *
+     * @param segmentStoreId The indexed Id of the SegmentStore.
+     * @return The port.
+     */
+    public int getSegmentStorePort(int segmentStoreId) {
+        Preconditions.checkElementIndex(segmentStoreId, this.segmentStoreCount, "segmentStoreId must be less than segmentStoreCount.");
+        return this.segmentStoreBasePort + segmentStoreId;
+    }
+
+    private void checkOverlappingPorts() {
+        val ports = new HashSet<Integer>();
+        checkExistingPort(this.zkPort, ports);
+
+        for (int i = 0; i < this.bookieCount; i++) {
+            checkExistingPort(getBkPort(i), ports);
+        }
+
+        for (int i = 0; i < this.controllerCount; i++) {
+            checkExistingPort(getControllerPort(i), ports);
+            checkExistingPort(getControllerRestPort(i), ports);
+            checkExistingPort(getControllerRpcPort(i), ports);
+        }
+
+        for (int i = 0; i < this.segmentStoreCount; i++) {
+            checkExistingPort(getSegmentStorePort(i), ports);
+        }
+    }
+
+    private void checkExistingPort(int newPort, Set<Integer> ports) {
+        if (!ports.add(newPort)) {
+            throw new ConfigurationException(String.format("Duplicate port found: %d.", newPort));
+        }
+    }
+
 
     /**
      * Creates a new ConfigBuilder that can be used to create instances of this class.

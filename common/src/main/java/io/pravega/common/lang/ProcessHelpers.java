@@ -19,7 +19,7 @@ public final class ProcessHelpers {
      * @return A Process pointing to the new process that was started.
      * @throws IOException If an Exception occurred.
      */
-    public static Process exec(Class c, Object... args) throws IOException {
+    public static Process execSimple(Class c, Object... args) throws IOException {
         return exec(c, null, null, args);
     }
 
@@ -59,9 +59,7 @@ public final class ProcessHelpers {
         // Start the process, but not before setting new environment variables.
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.environment().putAll(envVars);
-        if(sysProps.size() ==1){
-            builder.inheritIO(); // TODO: remove or make config
-        }
+        builder.inheritIO(); // TODO: remove or make config
         return builder.start();
     }
 }

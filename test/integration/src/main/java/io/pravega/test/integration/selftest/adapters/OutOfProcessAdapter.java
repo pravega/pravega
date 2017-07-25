@@ -1,29 +1,37 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessHelpers;
+import io.pravega.common.util.Property;
 import io.pravega.segmentstore.server.host.ServiceStarter;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
+import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
+import org.apache.bookkeeper.util.IOUtils;
 
 /**
  * Store adapter wrapping a real Pravega Client targeting a local cluster out-of-process.
@@ -31,18 +39,16 @@ import lombok.val;
 public class OutOfProcessAdapter extends ClientAdapterBase {
     //region Members
 
+    private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private static final String LOG_ID = "OutOfProcessAdapter";
     private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10000;
-    private static final int BOOKIE_COUNT = 1; // TODO: these should go in some sort of config.
-    private static final int CONTROLLER_COUNT = 1;
-    private static final int SEGMENT_STORE_COUNT = 1;
-
     private final ServiceBuilderConfig builderConfig;
     private final AtomicReference<Process> zooKeeperProcess;
     private final AtomicReference<Process> bookieProcess;
     private final List<Process> segmentStoreProcesses;
     private final List<Process> controllerProcesses;
     private final AtomicReference<File> segmentStoreConfigFile;
+    private final AtomicReference<File> storageRoot;
 
     //endregion
 
@@ -57,12 +63,14 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
      */
     public OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
+        Preconditions.checkArgument(testConfig.getBookieCount() > 0, "OutOfProcessAdapter requires at least one Bookie.");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.zooKeeperProcess = new AtomicReference<>();
         this.bookieProcess = new AtomicReference<>();
         this.segmentStoreProcesses = Collections.synchronizedList(new ArrayList<>());
         this.controllerProcesses = Collections.synchronizedList(new ArrayList<>());
         this.segmentStoreConfigFile = new AtomicReference<>();
+        this.storageRoot = new AtomicReference<>();
     }
 
     //endregion
@@ -72,7 +80,20 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     @Override
     public void close() {
         super.close();
-        stopRunningProcesses();
+
+        // Stop all services.
+        int controllerCount = stopAllProcesses(this.controllerProcesses);
+        TestLogger.log(LOG_ID, "Controller(s) (%d count) shut down.", controllerCount);
+        int segmentStoreCount = stopAllProcesses(this.segmentStoreProcesses);
+        TestLogger.log(LOG_ID, "SegmentStore(s) (%d count) shut down.", segmentStoreCount);
+        stopProcess(this.bookieProcess);
+        TestLogger.log(LOG_ID, "Bookies shut down.");
+        stopProcess(this.zooKeeperProcess);
+        TestLogger.log(LOG_ID, "ZooKeeper shut down.");
+
+        // Delete temporary files and directories.
+        delete(this.segmentStoreConfigFile);
+        delete(this.storageRoot);
         TestLogger.log(LOG_ID, "Closed.");
     }
 
@@ -81,6 +102,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     @Override
     public void initialize() throws Exception {
         try {
+            createSegmentStoreFileSystem();
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
@@ -88,7 +110,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             Thread.sleep(50000); // TODO: remove
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
-                stopRunningProcesses();
+                close();
             }
 
             throw ex;
@@ -122,37 +144,66 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     private void startBookKeeper() throws IOException {
         Preconditions.checkState(this.bookieProcess.get() == null, "Bookies are already started.");
+        int bookieCount = this.testConfig.getBookieCount();
         this.bookieProcess.set(BookKeeperServiceRunner.startOutOfProcess(
-                this.testConfig.getBkPort(), BOOKIE_COUNT, this.testConfig.getZkPort(), SegmentStoreAdapter.BK_LEDGER_PATH));
+                this.testConfig.getBkPort(), bookieCount, this.testConfig.getZkPort(), SegmentStoreAdapter.BK_LEDGER_PATH));
         TestLogger.log(LOG_ID, "Bookies started (Count = %s, Ports = [%s-%s])",
-                BOOKIE_COUNT, this.testConfig.getBkPort(), this.testConfig.getBkPort() + BOOKIE_COUNT - 1);
+                bookieCount, this.testConfig.getBkPort(0), this.testConfig.getBkPort(bookieCount - 1));
     }
 
     private void startAllControllers() throws IOException {
         Preconditions.checkState(this.controllerProcesses.size() == 0, "At least one Controller is already started.");
-        val props = new HashMap<String, String>();
-        props.put("config.controller.server.zk.url", String.format("localhost:%d", this.testConfig.getZkPort()));
-        props.put("config.controller.server.store.host.type", "Zookeeper");
-        for (int i = 0; i < CONTROLLER_COUNT; i++) {
-            this.controllerProcesses.add(ProcessHelpers.exec(io.pravega.controller.server.Main.class, null, props));
-            TestLogger.log(LOG_ID, "Controller %d/%d started", i, CONTROLLER_COUNT);
+        for (int i = 0; i < this.testConfig.getControllerCount(); i++) {
+            this.controllerProcesses.add(startController(i));
         }
+    }
+
+    private Process startController(int controllerId) throws IOException {
+        int port = this.testConfig.getControllerPort(controllerId);
+        int restPort = this.testConfig.getControllerRestPort(controllerId);
+        int rpcPort = this.testConfig.getControllerRpcPort(controllerId);
+        val props = ImmutableMap
+                .<String, String>builder()
+                .put("CONTAINER_COUNT", Integer.toString(this.testConfig.getContainerCount()))
+                .put("ZK_URL", getZkUrl())
+                .put("CONTROLLER_SERVER_PORT", Integer.toString(port))
+                .put("REST_SERVER_PORT", Integer.toString(restPort))
+                .put("CONTROLLER_RPC_PUBLISHED_PORT", Integer.toString(rpcPort))
+                .build();
+        Process p = ProcessHelpers.exec(io.pravega.controller.server.Main.class, null, props);
+        TestLogger.log(LOG_ID, "Controller %d started (Port = %d, RestPort = %d, RPCPort = %d).",
+                controllerId, port, restPort, rpcPort);
+        return p;
     }
 
     private void startAllSegmentStores() throws IOException {
         Preconditions.checkState(this.segmentStoreProcesses.size() == 0, "At least one SegmentStore is already started.");
-        createSegmentStoreConfigFile();
-        // TODO: this may need more config values setup. Seems like some connections cannot be established.
-        // * StorageImplementation & Setup (FileSystem)
-        // * autoScale.controllerUri
-        val props = Collections.singletonMap(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, this.segmentStoreConfigFile.get().getAbsolutePath());
-        for (int i = 0; i < SEGMENT_STORE_COUNT; i++) {
-            this.segmentStoreProcesses.add(ProcessHelpers.exec(ServiceStarter.class, null, props));
-            TestLogger.log(LOG_ID, "SegmentStore %d/%d started", i, SEGMENT_STORE_COUNT);
+        createSegmentStoreFileSystem();
+        for (int i = 0; i < this.testConfig.getSegmentStoreCount(); i++) {
+            this.segmentStoreProcesses.add(startSegmentStore(i));
         }
     }
 
-    private void createSegmentStoreConfigFile() throws IOException {
+    private Process startSegmentStore(int segmentStoreId) throws IOException {
+        int port = this.testConfig.getSegmentStorePort(segmentStoreId);
+        val props = ImmutableMap
+                .<String, String>builder()
+                .put(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, this.segmentStoreConfigFile.get().getAbsolutePath())
+                .put(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
+                .put(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.ZK_ADDRESS), getZkUrl())
+                .put(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.LISTENING_PORT), Integer.toString(port))
+                .put(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.STORAGE_IMPLEMENTATION), ServiceConfig.StorageTypes.FILESYSTEM.toString())
+                .put(configProperty(FileSystemStorageConfig.COMPONENT_CODE, FileSystemStorageConfig.ROOT), this.storageRoot.get().getAbsolutePath())
+                .put(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerRpcUrl())
+                .build();
+
+        Process p = ProcessHelpers.exec(ServiceStarter.class, null, props);
+        TestLogger.log(LOG_ID, "SegmentStore %d started (Port = %d).", segmentStoreId, port);
+        return p;
+    }
+
+    private void createSegmentStoreFileSystem() throws IOException {
+        // Config file.
         File f = this.segmentStoreConfigFile.get();
         if (f == null || !f.exists()) {
             f = File.createTempFile("selftest.segmentstore", "");
@@ -160,19 +211,16 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             this.segmentStoreConfigFile.set(f);
         }
 
+        // Tier2 Storage FileSystem root.
+        File d = this.storageRoot.get();
+        if (d == null || !d.exists()) {
+            d = IOUtils.createTempDir("selftest.segmentstore", "storage");
+            d.deleteOnExit();
+            this.storageRoot.set(d);
+        }
+
         this.builderConfig.store(f);
 
-    }
-
-    private void stopRunningProcesses() {
-        int controllerCount = stopAllProcesses(this.controllerProcesses);
-        TestLogger.log(LOG_ID, "Controller(s) (%d count) shut down.", controllerCount);
-        int segmentStoreCount = stopAllProcesses(this.segmentStoreProcesses);
-        TestLogger.log(LOG_ID, "SegmentStore(s) (%d count) shut down.", segmentStoreCount);
-        stopProcess(this.bookieProcess);
-        TestLogger.log(LOG_ID, "Bookies shut down.");
-        stopProcess(this.zooKeeperProcess);
-        TestLogger.log(LOG_ID, "ZooKeeper shut down.");
     }
 
     private void stopProcess(AtomicReference<Process> processReference) {
@@ -192,6 +240,25 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         int count = processList.size();
         processList.clear();
         return count;
+    }
+
+    private void delete(AtomicReference<File> fileRef) {
+        File f = fileRef.getAndSet(null);
+        if (f != null && f.exists()) {
+            FileHelpers.deleteFileOrDirectory(f);
+        }
+    }
+
+    private String getZkUrl() {
+        return String.format("%s:%d", LOOPBACK_ADDRESS.getHostAddress(), this.testConfig.getZkPort());
+    }
+
+    private String getControllerRpcUrl() {
+        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostAddress(), this.testConfig.getControllerRpcPort(0));
+    }
+
+    private String configProperty(String componentCode, Property<?> property) {
+        return String.format("%s.%s", componentCode, property.getName());
     }
 
     //endregion

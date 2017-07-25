@@ -40,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
     private static final String LOG_ID = "InProcessAdapter";
+    private static final String LISTENING_ADDRESS = "localhost";
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
 
@@ -83,11 +84,11 @@ public class InProcessMockClientAdapter extends ClientAdapterBase {
 
     @Override
     public void initialize() throws Exception {
-        this.listener = new PravegaConnectionListener(false, getListeningPort(), getStreamSegmentStore());
+        this.listener = new PravegaConnectionListener(false, this.testConfig.getSegmentStoreBasePort(), getStreamSegmentStore());
         this.listener.startListening();
 
-        this.streamManager = new MockStreamManager(getScope(), getListeningAddress(), getListeningPort());
-        this.streamManager.createScope(getScope());
+        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.testConfig.getSegmentStoreBasePort());
+        this.streamManager.createScope(SCOPE);
 
         TestLogger.log(LOG_ID, "Initialized.");
         super.initialize();

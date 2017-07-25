@@ -36,22 +36,17 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
-                                                        "INMEMORY");
+    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageTypes.INMEMORY.toString());
 
-    private static final String COMPONENT_CODE = "pravegaservice";
+    public static final String COMPONENT_CODE = "pravegaservice";
 
     //endregion
-    public enum StorageTypes {
-        EXTENDEDS3("EXTENDEDS3"),
-        FILESYSTEM("FILESYSTEM"),
-        HDFS("HDFS"),
-        INMEMORY("INMEMORY");
 
-        private final String type;
-        private StorageTypes(final String type) {
-            this.type = type;
-        }
+    public enum StorageTypes {
+        EXTENDEDS3,
+        FILESYSTEM,
+        HDFS,
+        INMEMORY
     }
 
     //region Members

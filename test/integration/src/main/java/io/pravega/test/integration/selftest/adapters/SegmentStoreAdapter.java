@@ -36,8 +36,8 @@ import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -105,7 +105,8 @@ public class SegmentStoreAdapter implements StoreAdapter {
     }
 
     private ServiceBuilder attachDataLogFactory(ServiceBuilder builder) {
-        if (this.config.isUseBookKeeper()) {
+        if (this.config.getBookieCount() > 0) {
+            // We were instructed to start at least one Bookie.
             this.zkClient = CuratorFrameworkFactory
                     .builder()
                     .connectString("localhost:" + this.config.getZkPort())
@@ -120,12 +121,8 @@ public class SegmentStoreAdapter implements StoreAdapter {
                 return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
             });
         } else {
-            return builder.withDataLogFactory(setup -> {
-                InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(setup.getExecutor());
-                Duration appendDelay = this.config.getDataLogAppendDelay();
-                factory.setAppendDelayProvider(() -> appendDelay);
-                return factory;
-            });
+            // No Bookies -> InMemory Tier1.
+            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()));
         }
     }
 
@@ -163,7 +160,7 @@ public class SegmentStoreAdapter implements StoreAdapter {
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
-        if (this.config.isUseBookKeeper()) {
+        if (this.config.getBookieCount() > 0) {
             this.bookKeeperService = startBookKeeper();
         }
 
@@ -276,8 +273,14 @@ public class SegmentStoreAdapter implements StoreAdapter {
     }
 
     private BookKeeperServiceRunner startBookKeeper() throws Exception {
+        int bookieCount = this.config.getBookieCount();
+        val ports = new ArrayList<Integer>(bookieCount);
+        for (int i = 0; i < bookieCount; i++) {
+            ports.add(this.config.getBkPort() + i);
+        }
+
         val runner = BookKeeperServiceRunner.builder()
-                                            .bookiePorts(Collections.singletonList(this.config.getBkPort()))
+                                            .bookiePorts(ports)
                                             .zkPort(this.config.getZkPort())
                                             .startZk(true)
                                             .ledgersPath(BK_LEDGER_PATH)

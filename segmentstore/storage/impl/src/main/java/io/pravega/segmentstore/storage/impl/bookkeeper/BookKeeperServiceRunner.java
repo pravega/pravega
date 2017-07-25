@@ -182,7 +182,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws IOException If an exception occurred.
      */
     public static Process startOutOfProcess(int bkBasePort, int bookieCount, int zkPort, String ledgersPath) throws IOException {
-        return ProcessHelpers.exec(BookKeeperServiceRunner.class, bkBasePort, bookieCount, zkPort, ledgersPath);
+        return ProcessHelpers.execSimple(BookKeeperServiceRunner.class, bkBasePort, bookieCount, zkPort, ledgersPath);
     }
 
     public static void main(String[] args) throws Exception {

@@ -50,14 +50,13 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
     private static final String LOG_ID = "ClientAdapter";
-    private static final String SCOPE = "scope";
-    private static final String LISTENING_ADDRESS = "localhost";
+    static final String SCOPE = "scope";
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> streamWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
-    protected final TestConfig testConfig;
+    final TestConfig testConfig;
 
     //endregion
 
@@ -232,27 +231,6 @@ abstract class ClientAdapterBase implements StoreAdapter {
      * Gets a reference to the ClientFactory used to create EventStreamWriters and EventStreamReaders.
      */
     protected abstract ClientFactory getClientFactory();
-
-    /**
-     * Gets a value representing the Scope for all Streams.
-     */
-    protected String getScope() {
-        return SCOPE;
-    }
-
-    /**
-     * Gets a value representing the Address where the SegmentStore is listening at.
-     */
-    protected String getListeningAddress() {
-        return LISTENING_ADDRESS;
-    }
-
-    /**
-     * Gets a value representing the Port where the SegmentStore is listening on.
-     */
-    protected int getListeningPort() {
-        return this.testConfig.getClientPort();
-    }
 
     private void closeWriter(String streamName) {
         EventStreamWriter<byte[]> writer = this.streamWriters.remove(streamName);

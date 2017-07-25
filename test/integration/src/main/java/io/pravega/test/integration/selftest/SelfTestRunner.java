@@ -35,7 +35,7 @@ public class SelfTestRunner {
     public static void main(String[] args) throws Exception {
         setupLogging();
         TestConfig testConfig = getTestConfig();
-        ServiceBuilderConfig builderConfig = getBuilderConfig();
+        ServiceBuilderConfig builderConfig = getBaseSegmentStoreConfig(testConfig);
 
         // Create a new SelfTest.
         @Cleanup
@@ -51,11 +51,12 @@ public class SelfTestRunner {
         test.stopAsync().awaitTerminated();
     }
 
-    private static ServiceBuilderConfig getBuilderConfig() {
+    private static ServiceBuilderConfig getBaseSegmentStoreConfig(TestConfig testConfig) {
+        int bkWriteQuorum = Math.min(3, testConfig.getBookieCount());
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                      .with(ServiceConfig.CONTAINER_COUNT, testConfig.getContainerCount())
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 30))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
@@ -69,15 +70,16 @@ public class SelfTestRunner {
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
                                                 ContainerConfig.MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS)
                                         .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
+                // This is for those tests that use BookKeeper for Tier1.
                 .include(BookKeeperConfig.builder()
                                          .with(BookKeeperConfig.MAX_CONCURRENT_WRITES, 4)
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
-                                         .with(BookKeeperConfig.ZK_METADATA_PATH, "/selftest/segmentstore/containers")
+                                         .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
                                          .with(BookKeeperConfig.BK_LEDGER_PATH, SegmentStoreAdapter.BK_LEDGER_PATH)
-                                         .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
-                                         .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                                         .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1))
+                                         .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
+                                         .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
+                                         .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum))
                 .build();
     }
 
@@ -87,7 +89,7 @@ public class SelfTestRunner {
                 // Test params.
                 .with(TestConfig.PRODUCER_COUNT, 10)
                 .with(TestConfig.OPERATION_COUNT, 10000)
-                .with(TestConfig.SEGMENT_COUNT, 1)
+                .with(TestConfig.STREAM_COUNT, 1)
                 .with(TestConfig.MIN_APPEND_SIZE, 1000)
                 .with(TestConfig.MAX_APPEND_SIZE, 1000)
                 .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
@@ -101,11 +103,7 @@ public class SelfTestRunner {
                 .with(TestConfig.TIMEOUT_MILLIS, 3000)
 
                 // Tier1
-                .with(TestConfig.USE_BOOKKEEPER, false)
-                .with(TestConfig.DATA_LOG_APPEND_DELAY, 0) // For InMemory Tier1.
-
-                // Client-specific settings.
-                .with(TestConfig.CLIENT_PORT, 9876)
+                .with(TestConfig.BOOKIE_COUNT, 1)
                 .build();
     }
 
