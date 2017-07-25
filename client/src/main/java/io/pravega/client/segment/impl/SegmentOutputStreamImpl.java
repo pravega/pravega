@@ -288,10 +288,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         @Override
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
-            log.trace("Received SegmentSealed {}", segmentIsSealed);
+            log.info("Received SegmentSealed {}", segmentIsSealed);
             if (state.sealEncountered.compareAndSet(false, true)) {
                 CompletableFuture.<Void>supplyAsync(() -> {
-                    log.trace("Invoking SealedSegment call back for {}", segmentIsSealed);
+                    log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
                     callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
                     return null;
                 }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
@@ -323,6 +323,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
+            log.info("Received AppendSetup {}", appendSetup);
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
@@ -333,6 +334,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                       entry.getValue().getExpectedOffset()))
                                              .collect(Collectors.toList());
             if (toRetransmit == null || toRetransmit.isEmpty()) {
+                log.info("Connection setup complete for writer {}", writerId);
                 state.connectionSetupComplete();
             } else {
                 state.getConnection().sendAsync(toRetransmit, e -> {
@@ -414,8 +416,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
+            log.info("Fetching endpoint for segment {}", segmentName);
             CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
                 .thenCompose((PravegaNodeUri uri) -> {
+                    log.info("Establishing connection to {} for {}", uri, segmentName);
                     return connectionFactory.establishConnection(uri, responseProcessor);
                 });
             ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
