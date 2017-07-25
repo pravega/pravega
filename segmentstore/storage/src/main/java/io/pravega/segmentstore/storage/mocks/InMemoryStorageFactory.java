@@ -35,6 +35,10 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         this.baseStorage.initialize(1); // InMemoryStorage does not use epochs.
     }
 
+    public InMemoryStorageFactory(ScheduledExecutorService executor) {
+        this(executor, new InMemoryMetrics());
+    }
+
     @Override
     public TruncateableStorage createStorageAdapter() {
         return new FencedWrapper(this.baseStorage);

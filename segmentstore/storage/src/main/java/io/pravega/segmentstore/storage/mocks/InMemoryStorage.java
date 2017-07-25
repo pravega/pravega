@@ -82,6 +82,10 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         this.metrics = metrics;
     }
 
+    public InMemoryStorage(ScheduledExecutorService executor) {
+        this(executor, new InMemoryMetrics());
+    }
+
     //endregion
 
     //region AutoCloseable Implementation

@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.impl.filesystem;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-
 import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.util.concurrent.ExecutorService;
 
@@ -36,6 +35,10 @@ public class FileSystemStorageFactory implements StorageFactory {
         this.config = config;
         this.executor = executor;
         this.metrics = metrics;
+    }
+
+    public FileSystemStorageFactory(FileSystemStorageConfig fsConfig, ExecutorService executor) {
+        this(fsConfig, executor, new FileSystemStorageMetrics());
     }
 
     @Override

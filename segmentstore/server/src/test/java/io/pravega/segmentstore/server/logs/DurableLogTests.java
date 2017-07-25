@@ -701,7 +701,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
+        Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;

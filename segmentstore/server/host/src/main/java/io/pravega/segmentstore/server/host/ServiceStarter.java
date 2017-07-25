@@ -13,27 +13,22 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageMetrics;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageMetrics;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSMetrics;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
 import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
-import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -171,22 +166,18 @@ public final class ServiceStarter {
                 switch (storageChoice) {
                     case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        StorageMetricsBase metrics = new HDFSMetrics();
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor(), metrics);
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
 
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        metrics = new FileSystemStorageMetrics();
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor(), metrics);
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
 
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        metrics = new ExtendedS3StorageMetrics();
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), metrics);
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
 
                     case INMEMORY:
-                        metrics = new InMemoryMetrics();
-                        return new InMemoryStorageFactory(setup.getExecutor(), metrics);
+                        return new InMemoryStorageFactory(setup.getExecutor());
 
                     default:
                         throw new IllegalStateException("Undefined storage implementation");

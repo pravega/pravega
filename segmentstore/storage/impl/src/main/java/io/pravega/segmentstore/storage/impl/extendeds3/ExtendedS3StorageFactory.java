@@ -14,7 +14,6 @@ import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-
 import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.util.concurrent.ExecutorService;
 
@@ -38,6 +37,10 @@ public class ExtendedS3StorageFactory implements StorageFactory {
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
+    }
+
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig extendedS3Config, ExecutorService executor) {
+        this(extendedS3Config, executor, new ExtendedS3StorageMetrics());
     }
 
     @Override
