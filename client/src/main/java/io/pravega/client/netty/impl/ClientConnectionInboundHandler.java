@@ -128,12 +128,13 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
         Channel channel = getChannel();
-        ChannelPromise promise = channel.newPromise();
+        PromiseCombiner combiner = new PromiseCombiner();
         for (Append append : appends) {
             batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
-            channel.write(append, promise);
+            combiner.add(channel.write(append));
         }
         channel.flush();
+        ChannelPromise promise = channel.newPromise();
         promise.addListener(new GenericFutureListener<Future<? super Void>>() {
             @Override
             public void operationComplete(Future<? super Void> future) throws Exception {
@@ -141,6 +142,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                 callback.complete(cause == null ? null : new ConnectionFailedException(cause));
             }
         });
+        combiner.finish(promise);
     }
     
     @Override
