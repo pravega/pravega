@@ -53,32 +53,32 @@ public class SegmentHelperMock {
         return helper;
     }
 
-    public static SegmentHelper getFailingTxnOpsSegmentHelperMock() {
+    public static SegmentHelper getFailingSegmentHelperMock() {
         SegmentHelper helper = spy(new SegmentHelper());
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).sealSegment(
                 anyString(), anyString(), anyInt(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).deleteSegment(
                 anyString(), anyString(), anyInt(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).abortTransaction(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).createTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).commitTransaction(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).commitTransaction(
+                anyString(), anyString(), anyInt(), any(), any(), any());
+
+        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyInt(), any(), any());
-
-        doReturn(FutureHelpers.failedFuture(new IllegalStateException())).when(helper).createTransaction(
-                anyString(), anyString(), anyInt(), any(), any(), any());
 
         return helper;
     }
