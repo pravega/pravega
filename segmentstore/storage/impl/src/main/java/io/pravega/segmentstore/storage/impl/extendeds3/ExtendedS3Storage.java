@@ -426,6 +426,10 @@ public class ExtendedS3Storage implements Storage {
                     || errorCode.equals("MethodNotAllowed")) {
                 retVal = new IllegalArgumentException(segmentName, e);
             }
+            if (errorCode.equals("AccessDenied")) {
+                retVal = new StreamSegmentSealedException(segmentName, e);
+            }
+
         }
 
         if (e instanceof IndexOutOfBoundsException) {
