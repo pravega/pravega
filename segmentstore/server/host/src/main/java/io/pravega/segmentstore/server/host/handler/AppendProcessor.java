@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -275,6 +276,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        } else if (u instanceof ContainerNotFoundException) {
+            connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
