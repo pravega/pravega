@@ -11,15 +11,17 @@ package io.pravega.segmentstore.storage;
 
 import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.OpStatsLogger;
+import lombok.Data;
 import lombok.Getter;
 
+@Data
 public class StorageMetricsBase {
     @Getter
-    protected OpStatsLogger readLatency;
+    protected final OpStatsLogger readLatency;
     @Getter
-    protected OpStatsLogger writeLatency;
+    protected final OpStatsLogger writeLatency;
     @Getter
-    protected Counter readBytes;
+    protected final Counter readBytes;
     @Getter
-    protected Counter writeBytes;
+    protected final Counter writeBytes;
 }

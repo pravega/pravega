@@ -84,7 +84,7 @@ class HDFSStorage implements Storage {
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
     private FileSystemOperation.OperationContext context;
-    private StorageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     //endregion
 

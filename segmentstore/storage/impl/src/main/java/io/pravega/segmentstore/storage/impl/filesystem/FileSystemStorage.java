@@ -82,7 +82,7 @@ public class FileSystemStorage implements Storage {
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
-    private StorageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     //endregion
 

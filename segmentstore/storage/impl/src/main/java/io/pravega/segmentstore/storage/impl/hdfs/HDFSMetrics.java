@@ -21,10 +21,10 @@ public final class HDFSMetrics extends StorageMetricsBase {
     private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("hdfs");
 
     public HDFSMetrics() {
-        readLatency = HDFS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
-        writeLatency = HDFS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
-        readBytes = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
-        writeBytes = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+        super(HDFS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY),
+        HDFS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY),
+        HDFS_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES),
+        HDFS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES));
     }
 
 }

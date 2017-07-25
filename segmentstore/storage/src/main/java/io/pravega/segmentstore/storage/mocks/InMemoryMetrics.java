@@ -18,10 +18,9 @@ public class InMemoryMetrics extends StorageMetricsBase {
     private static final StatsLogger INMEM_LOGGER = MetricsProvider.createStatsLogger("hdfs");
 
     public InMemoryMetrics() {
-        readLatency = INMEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
-        writeLatency = INMEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
-        readBytes = INMEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
-        writeBytes = INMEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+         super(INMEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY),
+                 INMEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY),
+                 INMEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES),
+                 INMEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES));
     }
-
 }

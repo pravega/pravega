@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutorService;
 public class ExtendedS3StorageFactory implements StorageFactory {
     private final ExtendedS3StorageConfig config;
     private final ExecutorService executor;
-    private StorageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the NFSStorageFactory class.

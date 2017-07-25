@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutorService;
 public class FileSystemStorageFactory implements StorageFactory {
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
-    private StorageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the FileSystemStorageFactory class.

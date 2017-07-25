@@ -21,10 +21,10 @@ public final class FileSystemStorageMetrics extends StorageMetricsBase {
     private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("filesystem");
 
     public FileSystemStorageMetrics() {
-        readLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
-        writeLatency = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
-        readBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
-        writeBytes = FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+        super(FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY),
+        FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY),
+        FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES),
+        FILESYSTEM_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES));
     }
 
 }

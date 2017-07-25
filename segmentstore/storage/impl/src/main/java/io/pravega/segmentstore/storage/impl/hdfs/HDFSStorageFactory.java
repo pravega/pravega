@@ -21,7 +21,7 @@ import java.util.concurrent.Executor;
 public class HDFSStorageFactory implements StorageFactory {
     private final HDFSStorageConfig config;
     private final Executor executor;
-    private StorageMetricsBase metrics;
+    private final StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the HDFSStorageFactory class.
