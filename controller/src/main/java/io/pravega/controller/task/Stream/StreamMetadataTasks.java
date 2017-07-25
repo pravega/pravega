@@ -288,7 +288,7 @@ public class StreamMetadataTasks extends TaskBase {
                 throw new ScaleOperationExceptions.ScaleRequestNotEnabledException();
             }
 
-            requestEventWriterRef.compareAndSet(null, clientFactory.createEventWriter(requestStreamName,
+            requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
                     ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
                     EventWriterConfig.builder().build()));
         }
