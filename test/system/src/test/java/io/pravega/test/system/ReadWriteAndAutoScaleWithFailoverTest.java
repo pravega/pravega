@@ -146,8 +146,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {
-        StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).get();
         for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
+            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).get();
             testState.currentNumOfSegments.set(streamSegments.getSegments().size());
             if (testState.currentNumOfSegments.get() == 2) {
                 log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
