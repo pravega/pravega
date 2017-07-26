@@ -17,6 +17,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
@@ -473,6 +474,22 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              return null;
                          });
         }
+    }
+    
+    private void failConnection(Exception e) {
+        state.failConnection(e);
+        if (!state.isClosed()) {
+            Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
+                                             retrySchedule.getMaxDelay(),
+                                             t -> log.warn(writerId + " Failed to connect: ", t))
+                 .runInExecutor(() -> {
+                     if (!state.isClosed()) {
+                         setupConnection();
+                     }
+                 }, connectionFactory.getInternalExecutor());
+
+        }
+
     }
 
     /**
