@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.lang.ProcessHelpers;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -37,6 +36,10 @@ import org.apache.zookeeper.ZooDefs;
 public class BookKeeperServiceRunner implements AutoCloseable {
     //region Members
 
+    public static final String PROPERTY_BASE_PORT = "basePort";
+    public static final String PROPERTY_BOOKIE_COUNT = "bookieCount";
+    public static final String PROPERTY_ZK_PORT = "zkPort";
+    public static final String PROPERTY_LEDGERS_PATH = "ledgersPath";
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final boolean startZk;
     private final int zkPort;
@@ -171,37 +174,24 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
     //endregion
 
-    /**
-     * Starts a BookKeeper Service Cluster out of process.
-     *
-     * @param bkBasePort  The first port where to start the Bookie on.
-     * @param bookieCount The number of Bookies to start. Each will get a port assigned incrementally starting at bkBasePort.
-     * @param zkPort      The port where ZooKeeper is listening at.
-     * @param ledgersPath Path in ZooKeeper where to store BookKeeper ledger metadata.
-     * @return A Process reference.
-     * @throws IOException If an exception occurred.
-     */
-    public static Process startOutOfProcess(int bkBasePort, int bookieCount, int zkPort, String ledgersPath) throws IOException {
-        return ProcessHelpers.execSimple(BookKeeperServiceRunner.class, bkBasePort, bookieCount, zkPort, ledgersPath);
-    }
-
     public static void main(String[] args) throws Exception {
         val b = BookKeeperServiceRunner.builder();
         b.startZk(false);
         try {
-            int argIndex = 0;
-            int bkBasePort = Integer.parseInt(args[argIndex++]);
-            int bkCount = Integer.parseInt(args[argIndex++]);
+            int bkBasePort = Integer.parseInt(System.getProperty(PROPERTY_BASE_PORT));
+            int bkCount = Integer.parseInt(System.getProperty(PROPERTY_BOOKIE_COUNT));
             val bkPorts = new ArrayList<Integer>();
             for (int i = 0; i < bkCount; i++) {
                 bkPorts.add(bkBasePort + i);
             }
 
             b.bookiePorts(bkPorts);
-            b.zkPort(Integer.parseInt(args[argIndex++]));
-            b.ledgersPath(args[argIndex]);
+            b.zkPort(Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT)));
+            b.ledgersPath(System.getProperty(PROPERTY_LEDGERS_PATH));
         } catch (Exception ex) {
-            System.out.println(String.format("Invalid or missing arguments. Expected: [BKPort(int) ZKPort(int) LedgersPath(String)] (%s).", ex.getMessage()));
+            System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int), " +
+                            "%s(int), %s(int), %s(String). (%s).", PROPERTY_BASE_PORT, PROPERTY_BOOKIE_COUNT, PROPERTY_ZK_PORT,
+                    PROPERTY_LEDGERS_PATH, ex.getMessage()));
             System.exit(-1);
             return;
         }

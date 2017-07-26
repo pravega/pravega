@@ -30,11 +30,11 @@ import org.slf4j.LoggerFactory;
  * Main entry point for Self Tester.
  */
 public class SelfTestRunner {
-    private static final String LOG_PATH = "/tmp/pravega/selftest.log";
+    private static final long STARTUP_TIMEOUT_MILLIS = 60 * 1000;
 
     public static void main(String[] args) throws Exception {
-        setupLogging();
         TestConfig testConfig = getTestConfig();
+        setupLogging(testConfig);
         ServiceBuilderConfig builderConfig = getBaseSegmentStoreConfig(testConfig);
 
         // Create a new SelfTest.
@@ -42,7 +42,7 @@ public class SelfTestRunner {
         SelfTest test = new SelfTest(testConfig, builderConfig);
 
         // Start the test.
-        test.startAsync().awaitRunning(testConfig.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        test.startAsync().awaitRunning(STARTUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Wait for the test to finish.
         test.awaitFinished().join();
@@ -87,16 +87,16 @@ public class SelfTestRunner {
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.PRODUCER_COUNT, 10)
-                .with(TestConfig.OPERATION_COUNT, 10000)
+                .with(TestConfig.PRODUCER_COUNT, 100)
+                .with(TestConfig.OPERATION_COUNT, 100000)
                 .with(TestConfig.STREAM_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 1000)
-                .with(TestConfig.MAX_APPEND_SIZE, 1000)
+                .with(TestConfig.MIN_APPEND_SIZE, 10000)
+                .with(TestConfig.MAX_APPEND_SIZE, 10000)
                 .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
-                .with(TestConfig.TRANSACTION_FREQUENCY, 50)
+                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
 
                 // Test setup.
                 .with(TestConfig.THREAD_POOL_SIZE, 80)
@@ -107,10 +107,10 @@ public class SelfTestRunner {
                 .build();
     }
 
-    private static void setupLogging() {
-        val logFile = new java.io.File(LOG_PATH);
+    private static void setupLogging(TestConfig testConfig) {
+        val logFile = new java.io.File(testConfig.getTestLogPath());
         if (logFile.delete()) {
-            TestLogger.log("Main", "Deleted log file %s.", LOG_PATH);
+            TestLogger.log("Main", "Deleted log file %s.", logFile.getAbsolutePath());
         }
 
         // Configure slf4j to not log anything (console or whatever). This interferes with the console interaction.
@@ -120,7 +120,7 @@ public class SelfTestRunner {
         val fa = new FileAppender<ILoggingEvent>();
         fa.setContext(context);
         fa.setName("selftest");
-        fa.setFile(LOG_PATH);
+        fa.setFile(logFile.getAbsolutePath());
 
         val encoder = new PatternLayoutEncoder();
         encoder.setContext(context);

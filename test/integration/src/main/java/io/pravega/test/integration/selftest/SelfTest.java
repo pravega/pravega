@@ -18,8 +18,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.integration.selftest.adapters.InProcessMockClientAdapter;
 import io.pravega.test.integration.selftest.adapters.InProcessListenerWithRealStoreAdapter;
+import io.pravega.test.integration.selftest.adapters.InProcessMockClientAdapter;
 import io.pravega.test.integration.selftest.adapters.OutOfProcessAdapter;
 import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
@@ -129,7 +129,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture = CompletableFuture
+        CompletableFuture
                 .runAsync(this::initializeStore)
                 .thenCompose(v -> this.dataSource.createStreams())
                 .thenRunAsync(() -> {
@@ -163,9 +163,13 @@ class SelfTest extends AbstractService implements AutoCloseable {
                             this.state.resetClock();
                             this.reporter.startAsync();
                         },
-                        this.executor);
-
-        FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
+                        this.executor)
+                .exceptionally(ex -> {
+                    TestLogger.log(LOG_ID, "Startup failure: " + ex);
+                    ex.printStackTrace(System.out);
+                    notifyFailed(ex);
+                    return null;
+                });
     }
 
     @Override

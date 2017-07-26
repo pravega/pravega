@@ -45,6 +45,7 @@ public class TestConfig {
     private static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
     private static final String COMPONENT_CODE = "selftest";
+    private static final String LOG_PATH_FORMAT = "/tmp/pravega/selftest.%s.log";
 
     //endregion
 
@@ -116,6 +117,45 @@ public class TestConfig {
         this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
         checkOverlappingPorts();
+    }
+
+    //endregion
+
+    //region Properties
+
+    /**
+     * Gets the path to a log file which can be used for redirecting Standard Out for a particular component.
+     *
+     * @param componentName The name of the component.
+     * @param id            The Id of the component.
+     * @return The path.
+     */
+    public String getComponentOutLogPath(String componentName, int id) {
+        return getLogPath(String.format("%s_%d.out", componentName, id));
+    }
+
+    /**
+     * Gets the path to a log file which can be used for redirecting Standard Err for a particular component.
+     *
+     * @param componentName The name of the component.
+     * @param id            The Id of the component.
+     * @return The path.
+     */
+    public String getComponentErrLogPath(String componentName, int id) {
+        return getLogPath(String.format("%s_%d.err", componentName, id));
+    }
+
+    /**
+     * Gets the path to the Tester Log file.
+     *
+     * @return The path.
+     */
+    public String getTestLogPath() {
+        return getLogPath("test");
+    }
+
+    private String getLogPath(String componentName) {
+        return String.format(LOG_PATH_FORMAT, componentName);
     }
 
     /**

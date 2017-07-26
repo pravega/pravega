@@ -44,19 +44,19 @@ import lombok.SneakyThrows;
  */
 abstract class ClientAdapterBase implements StoreAdapter {
     //region Members
+    static final String SCOPE = "SelfTest";
     private static final long TXN_TIMEOUT = Long.MAX_VALUE;
     private static final long TXN_MAX_EXEC_TIME = Long.MAX_VALUE;
     private static final long TXN_SCALE_GRACE_PERIOD = Long.MAX_VALUE;
     private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
     private static final String LOG_ID = "ClientAdapter";
-    static final String SCOPE = "scope";
+    final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> streamWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
-    final TestConfig testConfig;
 
     //endregion
 
@@ -201,7 +201,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
                 txn.commit();
             } catch (TxnFailedException ex) {
                 throw new CompletionException(ex);
-            }finally {
+            } finally {
                 this.transactionIds.remove(transactionName);
             }
         }, this.testExecutor);
@@ -214,7 +214,6 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
-        ensureInitializedAndNotClosed();
         return null;
     }
 

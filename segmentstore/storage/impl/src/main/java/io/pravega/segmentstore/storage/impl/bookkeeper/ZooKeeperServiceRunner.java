@@ -28,6 +28,7 @@ import org.apache.zookeeper.server.ZooKeeperServer;
 @RequiredArgsConstructor
 @Slf4j
 public class ZooKeeperServiceRunner implements AutoCloseable {
+    public static final String PROPERTY_ZK_PORT = "zkPort";
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private final AtomicReference<ZooKeeperServer> server = new AtomicReference<>();
     private final int zkPort;
@@ -76,5 +77,21 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     public static boolean waitForServerUp(int zkPort) {
         val address = LOOPBACK_ADDRESS.getHostAddress() + ":" + zkPort;
         return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
+    }
+
+    public static void main(String[] args) throws Exception {
+        int zkPort;
+        try {
+            zkPort = Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT));
+        } catch (Exception ex) {
+            System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int). (%s)",
+                    PROPERTY_ZK_PORT, ex.getMessage()));
+            System.exit(-1);
+            return;
+        }
+
+        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort);
+        runner.start();
+        Thread.sleep(Long.MAX_VALUE);
     }
 }

@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -7,7 +7,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.CancellationToken;
