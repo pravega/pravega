@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
@@ -24,6 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import lombok.Getter;
+import lombok.experimental.Wither;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -101,13 +101,13 @@ public final class Retry {
      * Used to invoke {@link #retryingOn(Class)}. Note this object is reusable so this can be done more than once.
      */
     public static final class RetryWithBackoff {
-        @Getter
+        @Getter @Wither
         private final long initialMillis;
-        @Getter
+        @Getter @Wither
         private final int multiplier;
-        @Getter
+        @Getter @Wither
         private final int attempts;
-        @Getter
+        @Getter @Wither
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
@@ -206,7 +206,39 @@ public final class Retry {
             }
             throw new RetriesExhaustedException(last);
         }
-
+        
+        public CompletableFuture<Void> runInExecutor(final Runnable task,
+                                                     final ScheduledExecutorService executorService) {
+            Preconditions.checkNotNull(task);
+            CompletableFuture<Void> result = new CompletableFuture<>();
+            AtomicInteger attemptNumber = new AtomicInteger(1);
+            AtomicLong delay = new AtomicLong(0);
+            FutureHelpers.loop(
+                    () -> !result.isDone(),
+                    () -> FutureHelpers.delayedFuture(Duration.ofMillis(delay.get()), executorService)
+                            .thenRunAsync(task, executorService)
+                            .thenAccept(result::complete) // We are done.
+                            .exceptionally(ex -> {
+                                if (!canRetry(ex)) {
+                                    // Cannot retry this exception. Fail now.
+                                    result.completeExceptionally(ex);
+                                } else if (attemptNumber.get() + 1 > params.attempts) {
+                                    // We have retried as many times as we were asked, unsuccessfully.
+                                    result.completeExceptionally(new RetriesExhaustedException(ex));
+                                } else {
+                                    // Try again.
+                                    delay.set(attemptNumber.get() == 1 ?
+                                            params.initialMillis :
+                                            Math.min(params.maxDelay, params.multiplier * delay.get()));
+                                    attemptNumber.incrementAndGet();
+                                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                                }
+                                return null;
+                            }),
+                    executorService);
+            return result;
+        }
+        
         public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,
                                                              final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(r);
