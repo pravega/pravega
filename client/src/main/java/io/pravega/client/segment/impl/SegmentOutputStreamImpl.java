@@ -33,6 +33,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import lombok.Getter;
+import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
@@ -102,6 +103,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
         private AtomicBoolean sealEncountered = new AtomicBoolean();
+        private AtomicBoolean reconnecting = new AtomicBoolean();
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
@@ -269,12 +271,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            state.failConnection(new ConnectionFailedException()); 
+            failConnection(new ConnectionFailedException());
         }
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            state.failConnection(new ConnectionFailedException()); // TODO: Probably something else.
+            failConnection(new ConnectionFailedException());
         }
 
         /**
@@ -307,7 +309,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            state.failConnection(new IllegalArgumentException(noSuchSegment.toString()));
+            failConnection(new IllegalArgumentException(noSuchSegment.toString()));
         }
         
         @Override
@@ -365,7 +367,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            state.failConnection(error);
+            failConnection(error);
         }
     }
 
@@ -478,18 +480,20 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     
     private void failConnection(Exception e) {
         state.failConnection(e);
-        if (!state.isClosed()) {
+        if (!state.isClosed() && state.reconnecting.compareAndSet(false, true)) {
             Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runInExecutor(() -> {
                      if (!state.isClosed()) {
-                         setupConnection();
+                         try {
+                             setupConnection();
+                         } catch (ConnectionFailedException exception) {
+                             throw Lombok.sneakyThrow(exception);
+                         }
                      }
                  }, connectionFactory.getInternalExecutor());
-
         }
-
     }
 
     /**
