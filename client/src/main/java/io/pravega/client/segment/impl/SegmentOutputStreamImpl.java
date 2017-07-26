@@ -85,7 +85,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * No calls to external classes occur. No network calls occur via any methods in this object.
      */
     @ToString(of = {"closed", "exception", "eventNumber"})
-    private static final class State {
+    private final class State {
         private final Object lock = new Object();
         @GuardedBy("lock")
         private boolean closed = false;
@@ -169,7 +169,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 oldConnection = connection;
                 connection = null;
                 if (!closed) {
-                    log.warn("Connection failed due to: {}", e.getMessage());
+                    log.warn("Connection for segment {} failed due to: {}", segmentName, e.getMessage());
                 }
                 if (emptyInflightFuture != null) {
                     emptyInflightFuture.completeExceptionally(exception);
