@@ -101,13 +101,17 @@ public final class Retry {
      * Used to invoke {@link #retryingOn(Class)}. Note this object is reusable so this can be done more than once.
      */
     public static final class RetryWithBackoff {
-        @Getter @Wither
+        @Getter
+        @Wither
         private final long initialMillis;
-        @Getter @Wither
+        @Getter
+        @Wither
         private final int multiplier;
-        @Getter @Wither
+        @Getter
+        @Wither
         private final int attempts;
-        @Getter @Wither
+        @Getter
+        @Wither
         private final long maxDelay;
 
         private RetryWithBackoff(long initialMillis, int multiplier, int attempts, long maxDelay) {
