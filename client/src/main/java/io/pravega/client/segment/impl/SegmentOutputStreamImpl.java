@@ -491,6 +491,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          } catch (ConnectionFailedException exception) {
                              throw Lombok.sneakyThrow(exception);
                          }
+                         state.reconnecting.set(false);
                      }
                  }, connectionFactory.getInternalExecutor());
         }

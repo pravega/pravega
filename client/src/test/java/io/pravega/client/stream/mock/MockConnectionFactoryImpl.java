@@ -22,13 +22,15 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import com.google.common.base.Preconditions;
 
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
 public class MockConnectionFactoryImpl implements ConnectionFactory {
     Map<PravegaNodeUri, ClientConnection> connections = new HashMap<>();
     Map<PravegaNodeUri, ReplyProcessor> processors = new HashMap<>();
-    final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testClientInternal-%d").build());
+    @Setter
+    ScheduledExecutorService executor = Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testClientInternal-%d").build());
 
     @Override
     @Synchronized
