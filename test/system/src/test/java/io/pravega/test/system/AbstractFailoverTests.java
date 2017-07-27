@@ -54,8 +54,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 abstract class AbstractFailoverTests {
 
-    static final String STREAM = "testReadWriteAndAutoScaleStream";
-    static final String STREAM_NAME = "testReadWriteAndScaleStream";
+    static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
+    static final String SCALE_STREAM = "testReadWriteAndScaleStream";
     static final int ADD_NUM_WRITERS = 6;
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
@@ -207,10 +207,10 @@ abstract class AbstractFailoverTests {
 
     void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
-        log.info("Sealing stream {}", STREAM_NAME);
+        log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
-        log.info("Deleting stream {}", STREAM_NAME);
+        log.info("Deleting stream {}", stream);
         assertTrue(deleteStreamStatus.get());
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);
