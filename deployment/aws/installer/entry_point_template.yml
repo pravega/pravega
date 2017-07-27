@@ -9,12 +9,14 @@
 - hosts: all 
   roles:
     - { role: install-prereqs }
+  remote_user: root
 
 - hosts: common-services
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   roles:
     - { role: install-zk }
+  remote_user: root
 
 - hosts: common-services
   environment:
@@ -22,6 +24,7 @@
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   roles: 
     - { role: install-bk }
+  remote_user: root
 
 - hosts: pravega-controller
   environment:
@@ -32,6 +35,7 @@
     JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
   roles:
     - { role: install-controller }
+  remote_user: root
 
 - hosts: pravega-hosts
   environment:
@@ -44,3 +48,4 @@
     HADOOP_USER_NAME: hdfs
   roles:
     - { role: install-hosts }
+  remote_user: root

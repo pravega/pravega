@@ -18,6 +18,7 @@ variable "aws_secret_key" {
 
 variable "aws_region" {
   description = "AWS Region to launch configuration in"
+  default = "us-east-1"
 }
 
 variable "aws_key_name" {
@@ -32,7 +33,7 @@ variable "pravega_num" {
 variable "pravega_aws_amis" {
   default = {
     us-east-1 = "ami-7747d01e"
-    us-west-1 = "ami-2afbde4a"
+    us-west-1 = "ami-73f7da13"
   }
 }
 
