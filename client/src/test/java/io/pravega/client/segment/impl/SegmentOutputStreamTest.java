@@ -32,16 +32,19 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -74,6 +77,65 @@ public class SegmentOutputStreamTest {
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1, null);
         verifyNoMoreInteractions(connection);
+    }
+
+    @Test(timeout = 10000)
+    public void testConnectAndConnectionDrop() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+
+        cf.getProcessor(uri).connectionDropped(); // simulate a connection dropped
+        //Ensure setup Append is invoked on the executor.
+        verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+    }
+
+    @Test(timeout = 10000)
+    public void testConnectWithMultipleFailures() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
+        output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+
+        //simulate a processing Failure and ensure SetupAppend is executed.
+        cf.getProcessor(uri).processingFailure(new IOException());
+        verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+
+        cf.getProcessor(uri).connectionDropped();
+        verify(connection).send(new WireCommands.SetupAppend(3, cid, SEGMENT));
+
+        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost"));
+        verify(connection).send(new WireCommands.SetupAppend(4, cid, SEGMENT));
+    }
+
+    protected void implementAsDirectExecutor(ScheduledExecutorService executor) {
+        doAnswer(new Answer<Object>() {
+            public Object answer(InvocationOnMock invocation) throws Exception {
+                ((Runnable) invocation.getArguments()[0]).run();
+                return null;
+            }
+        }).when(executor).execute(any(Runnable.class));
     }
 
     @Test(timeout = 10000)
@@ -132,7 +194,7 @@ public class SegmentOutputStreamTest {
     }
 
     private void answerSuccess(ClientConnection connection) {
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
@@ -229,14 +291,14 @@ public class SegmentOutputStreamTest {
 
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 cf.getProcessor(uri).connectionDropped();
                 throw new ConnectionFailedException();
             }
         }).when(connection).send(append);
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
@@ -280,14 +342,14 @@ public class SegmentOutputStreamTest {
         //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
         CompletableFuture<Boolean> acked = new CompletableFuture<>();
         Append append = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null);
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 cf.getProcessor(uri).connectionDropped();
                 throw new ConnectionFailedException();
             }
         }).doNothing().when(connection).send(new WireCommands.KeepAlive());
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);

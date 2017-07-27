@@ -70,6 +70,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+            log.info("Received segmentSealed {}", segmentIsSealed);
             checkSegment(segmentIsSealed.getSegment());
             CompletableFuture<SegmentRead> future;
             synchronized (lock) {
@@ -161,7 +162,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.trace("Closing connection with exception: {}", exceptionToInflightRequests.toString());
+        log.info("Closing connection with exception: {}", exceptionToInflightRequests);
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
