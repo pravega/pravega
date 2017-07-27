@@ -17,6 +17,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.controller.fault.ControllerClusterListener;
+import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -45,6 +46,8 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -156,14 +159,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
 
-            // Setup and start controller cluster listener.
             if (serviceConfig.isControllerClusterListenerEnabled()) {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
-                controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor,
-                        controllerEventProcessors, taskSweeper, txnSweeper);
-
-                log.info("Starting controller cluster listener");
-                controllerClusterListener.startAsync();
             }
 
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
@@ -182,6 +179,22 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Starting event processors");
                 controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
+            }
+
+            // Setup and start controller cluster listener after all sweepers have been initialized.
+            if (serviceConfig.isControllerClusterListenerEnabled()) {
+                List<FailoverSweeper> failoverSweepers = new ArrayList<>();
+                failoverSweepers.add(taskSweeper);
+                failoverSweepers.add(txnSweeper);
+                if (serviceConfig.getEventProcessorConfig().isPresent()) {
+                    assert controllerEventProcessors != null;
+                    failoverSweepers.add(controllerEventProcessors);
+                }
+
+                controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor, failoverSweepers);
+
+                log.info("Starting controller cluster listener");
+                controllerClusterListener.startAsync();
             }
 
             // Start RPC server.

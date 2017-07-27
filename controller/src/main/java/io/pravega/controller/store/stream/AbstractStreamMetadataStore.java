@@ -605,7 +605,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.whenCompleteAsync((r, e) -> {
             if (e != null) {
-                log.error("AbstractStreamMetadataStore exception: {}", e);
                 result.completeExceptionally(e);
             } else {
                 result.complete(r);

@@ -194,9 +194,7 @@ public class ZkStreamTest {
         try {
             store.getScopeConfiguration(scope2).get();
         } catch (ExecutionException e) {
-            assertTrue("Get non existent scope", e.getCause() instanceof StoreException);
-            assertTrue("Get non existent scope",
-                    ((StoreException) e.getCause()).getType() == StoreException.Type.DATA_NOT_FOUND);
+            assertTrue("Get non existent scope", e.getCause() instanceof StoreException.DataNotFoundException);
         }
     }
 

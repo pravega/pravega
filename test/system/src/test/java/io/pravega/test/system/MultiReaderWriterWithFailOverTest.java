@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -52,6 +53,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -66,11 +68,14 @@ public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
+    private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    private List<EventStreamReader<Long>> readerList = new ArrayList<>();
+    private List<EventStreamWriter<Long>> writerList = new ArrayList<>();
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
-    private AtomicLong eventWriteCount;
     private AtomicLong eventReadCount;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
@@ -205,13 +210,13 @@ public class MultiReaderWriterWithFailOverTest {
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
             log.info("Creating {} writers", NUM_WRITERS);
-            List<EventStreamWriter<Long>> writerList = new ArrayList<>();
             log.info("Writers writing in the scope {}", scope);
             for (int i = 0; i < NUM_WRITERS; i++) {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).maxBackoffMillis(10000).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(writer);
             }
 
@@ -227,7 +232,6 @@ public class MultiReaderWriterWithFailOverTest {
 
             //create readers
             log.info("Creating {} readers", NUM_READERS);
-            List<EventStreamReader<Long>> readerList = new ArrayList<>();
             String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
             log.info("Scope that is seen by readers {}", scope);
             //start reading events
@@ -279,12 +283,8 @@ public class MultiReaderWriterWithFailOverTest {
             assertEquals(eventData.get(), eventsReadFromPravega.size());
             assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
-            //close all the writers
-            log.info("Closing writers");
-            writerList.forEach(writer -> writer.close());
-            //close all readers
-            log.info("Closing readers");
-            readerList.forEach(reader -> reader.close());
+            cleanUp();
+
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -305,12 +305,35 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
+    private void cleanUp() {
+        log.info("Closing writers");
+        writerList.forEach(writer -> {
+            try {
+                writer.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
+        log.info("Closing readers");
+        readerList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
+    }
+
     private void performFailoverTest() throws InterruptedException {
 
         long currentWriteCount1;
         long currentReadCount1;
 
-        log.info("Test with 2 controller, SSS instances running and without a failover scenario");
+        log.info("Test with 3 controller, segmentstore instances running and without a failover scenario");
 
         currentWriteCount1 = eventData.get();
         currentReadCount1 = eventReadCount.get();

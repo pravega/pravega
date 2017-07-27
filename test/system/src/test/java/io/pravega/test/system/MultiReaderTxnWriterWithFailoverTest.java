@@ -66,8 +66,13 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterTxnStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
     private static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    //Duration for which the system test waits for writes/reads to happen post failover.
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
+    private  List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
     private ExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -210,7 +215,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(writer);
             }
 
@@ -252,6 +258,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
             //set the stop write flag to true
             log.info("Stop write flag status {}", stopWriteFlag);
             stopWriteFlag.set(true);
+
+            //wait for txns to get committed
+            FutureHelpers.allOf(txnStatusFutureList).get();
 
             //wait for writers completion
             log.info("Wait for writers execution to complete");
@@ -301,7 +310,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         long currentWriteCount1;
         long currentReadCount1;
 
-        log.info("Test with 2 controller, SSS instances running and without a failover scenario");
+        log.info("Test with 3 controller, segmentstore instances running and without a failover scenario");
 
         currentWriteCount1 = eventWriteCount.get();
         currentReadCount1 = eventReadCount.get();
@@ -323,15 +332,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         log.info("Read count: {}, write count: {} without any failover after sleep before scaling", currentReadCount2, currentWriteCount2);
 
-        //ensure writes are happening
-        assertTrue(currentWriteCount2 > currentWriteCount1);
-        //ensure reads are happening
-        assertTrue(currentReadCount2 > currentReadCount1);
-
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -339,32 +342,19 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         log.info("Read count: {}, write count: {} after SSS failover after sleep", currentReadCount1, currentWriteCount1);
 
-        //ensure writes are happening
-        assertTrue(currentWriteCount1 > currentWriteCount2);
-        //ensure reads are happening
-        assertTrue(currentReadCount1 > currentReadCount2);
-
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventWriteCount.get();
         currentReadCount2 = eventReadCount.get();
 
         log.info("Read count: {}, write count: {} after controller failover after sleep", currentReadCount2, currentWriteCount2);
-
-        //ensure writes are happening
-        assertTrue(currentWriteCount2 > currentWriteCount1);
-        //ensure reads are happening
-        assertTrue(currentReadCount2 > currentReadCount1);
-
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(new Random().nextInt(50000) + ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -389,7 +379,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
-                        Thread.sleep(100);
                         transaction.writeEvent(String.valueOf(value), value);
                         log.debug("Writing event: {} into transaction: {}", value, transaction);
                     }
@@ -397,7 +386,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     transaction.commit();
 
                     //wait for transaction to get committed
-                    checkTxnStatus(transaction, eventWriteCount).get();
+                    txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
                     log.warn("Exception while writing events in the transaction: {}", e);
                     log.debug("Transaction with id: {}  failed", transaction.getTxnId());

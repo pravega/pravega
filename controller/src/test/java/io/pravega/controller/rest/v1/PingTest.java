@@ -9,32 +9,61 @@
  */
 package io.pravega.controller.rest.v1;
 
-import io.pravega.controller.server.rest.resources.PingImpl;
+import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rest.RESTServer;
+import io.pravega.controller.server.rest.RESTServerConfig;
+import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.test.common.TestUtils;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.glassfish.jersey.test.JerseyTest;
-import org.glassfish.jersey.test.TestProperties;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
-import javax.ws.rs.core.Application;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 /**
  * Test for ping API.
  */
-public class PingTest extends JerseyTest {
+public class PingTest {
 
-    @Override
-    protected Application configure() {
-        this.forceSet(TestProperties.CONTAINER_PORT, String.valueOf(TestUtils.getAvailableListenPort()));
-        return new ResourceConfig(PingImpl.class);
+    //Ensure each test completes within 30 seconds.
+    @Rule
+    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+
+    private RESTServerConfig serverConfig;
+    private RESTServer restServer;
+    private Client client;
+
+    @Before
+    public void setup() {
+        ControllerService mockControllerService = mock(ControllerService.class);
+        serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+                .build();
+        restServer = new RESTServer(mockControllerService, serverConfig);
+        restServer.startAsync();
+        restServer.awaitRunning();
+        client = ClientBuilder.newClient();
+    }
+
+    @After
+    public void tearDown() {
+        client.close();
+        restServer.stopAsync();
+        restServer.awaitTerminated();
     }
 
     @Test
     public void test() {
-        final Response hello = target("/ping").request().get(Response.class);
-        assertEquals(200, hello.getStatus());
+        String streamResourceURI = "http://localhost:" + serverConfig.getPort() + "/ping";
+        Response response = client.target(streamResourceURI).request().buildGet().invoke();
+        assertEquals(200, response.getStatus());
     }
 }

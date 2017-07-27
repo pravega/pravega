@@ -41,7 +41,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,15 +54,20 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 abstract class AbstractFailoverTests {
 
-    static final String STREAM = "testReadWriteAndAutoScaleStream";
-    static final String STREAM_NAME = "testReadWriteAndScaleStream";
+    static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
+    static final String SCALE_STREAM = "testReadWriteAndScaleStream";
     static final int ADD_NUM_WRITERS = 6;
-    static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
+    //Duration for which the system test waits for writes/reads to happen post failover.
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
+    static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+
     final String readerName = "reader";
     Service controllerInstance;
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
-    ExecutorService executorService;
+    ScheduledExecutorService executorService;
     Controller controller;
     TestState testState;
 
@@ -105,7 +110,7 @@ abstract class AbstractFailoverTests {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down Segment Store instances from 3 to 2");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -119,7 +124,7 @@ abstract class AbstractFailoverTests {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = testState.eventWriteCount.get();
@@ -134,7 +139,7 @@ abstract class AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -202,10 +207,10 @@ abstract class AbstractFailoverTests {
 
     void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
-        log.info("Sealing stream {}", STREAM_NAME);
+        log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
-        log.info("Deleting stream {}", STREAM_NAME);
+        log.info("Deleting stream {}", stream);
         assertTrue(deleteStreamStatus.get());
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);
@@ -234,7 +239,8 @@ abstract class AbstractFailoverTests {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(tmpWriter);
                 writerFutureList.add(startWriting(tmpWriter));
             }
@@ -281,7 +287,8 @@ abstract class AbstractFailoverTests {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 newlyAddedWriterList.add(tmpWriter);
                 newWritersFutureList.add(startWriting(tmpWriter));
             }
