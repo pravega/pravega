@@ -51,6 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -73,7 +74,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     private  List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
-    private ExecutorService executorService;
+    private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
@@ -168,7 +169,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         //read and write count variables
@@ -397,10 +398,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
     private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
                                                    final AtomicLong eventWriteCount) {
-        return CompletableFuture.runAsync(() -> {
-            Transaction.Status status = retry.retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnNotCompleteException.class)
-                    .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
-            log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
+
+        return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
+            Transaction.Status status = txn.checkStatus();
+            log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
                 eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
                 log.info("Event write count: {}", eventWriteCount.get());
@@ -409,7 +410,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
             } else {
                 throw new TxnNotCompleteException();
             }
-        });
+
+            return CompletableFuture.completedFuture(null);
+        }, executorService);
     }
 
     private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
