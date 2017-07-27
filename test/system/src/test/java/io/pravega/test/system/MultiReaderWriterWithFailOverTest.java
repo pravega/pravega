@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -52,6 +53,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -303,11 +305,27 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
-    private void cleanUp() throws Exception {
+    private void cleanUp() {
         log.info("Closing writers");
-        writerList.forEach(writer -> writer.close());
+        writerList.forEach(writer -> {
+            try {
+                writer.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
         log.info("Closing readers");
-        readerList.forEach(reader -> reader.close());
+        readerList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
     }
 
     private void performFailoverTest() throws InterruptedException {
