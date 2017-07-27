@@ -50,7 +50,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(STREAM).scalingPolicy(scalingPolicy).build();
+            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
 
 
     @Environment
@@ -107,13 +107,13 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
     @Test(timeout = 12 * 60 * 1000)
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
-        createScopeAndStream(scope, STREAM, config, controllerURIDirect);
+        createScopeAndStream(scope, AUTO_SCALE_STREAM, config, controllerURIDirect);
         log.info("Scope passed to client factory {}", scope);
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createWriters(clientFactory, INIT_NUM_WRITERS, scope, STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM, NUM_READERS);
+            createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
 
             //run the failover test before scaling
             performFailoverTest();
@@ -123,7 +123,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             segmentStoreInstance.scaleService(3, true);
             Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
-            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, STREAM);
+            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
             //run the failover test while scaling
             performFailoverTest();
@@ -141,13 +141,13 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             stopReadersAndWriters(readerGroupManager, readerGroupName);
 
         }
-        cleanUp(scope, STREAM);
+        cleanUp(scope, AUTO_SCALE_STREAM);
         log.info("Test {} succeeds ", "ReadWriteAndAutoScaleWithFailover");
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {
-        StreamSegments streamSegments = controller.getCurrentSegments(scope, STREAM_NAME).get();
         for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
+            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).get();
             testState.currentNumOfSegments.set(streamSegments.getSegments().size());
             if (testState.currentNumOfSegments.get() == 2) {
                 log.info("The current number of segments is equal to 2, ScaleOperation did not happen");

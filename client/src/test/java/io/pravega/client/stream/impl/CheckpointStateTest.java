@@ -27,14 +27,14 @@ public class CheckpointStateTest {
     @Test
     public void testCheckpointNoReaders() {
         CheckpointState state = new CheckpointState();
-        state.beginNewCheckpoint("foo", ImmutableSet.of());
+        state.beginNewCheckpoint("foo", ImmutableSet.of(), Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("foo"));
     }
     
     @Test
     public void testCheckpointCompletes() {
         CheckpointState state = new CheckpointState();
-        state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"));
+        state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"), Collections.emptyMap());
         assertFalse(state.isCheckpointComplete("foo"));
         state.readerCheckpointed("foo", "a", ImmutableMap.of(getSegment("S1"), 1L));
         assertFalse(state.isCheckpointComplete("foo"));
@@ -49,7 +49,7 @@ public class CheckpointStateTest {
     @Test
     public void testGetCheckpointForReader() {
         CheckpointState state = new CheckpointState();
-        state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"));
+        state.beginNewCheckpoint("foo", ImmutableSet.of("a", "b"), Collections.emptyMap());
         assertEquals("foo", state.getCheckpointForReader("a"));
         assertEquals("foo", state.getCheckpointForReader("b"));
         assertEquals(null, state.getCheckpointForReader("c"));

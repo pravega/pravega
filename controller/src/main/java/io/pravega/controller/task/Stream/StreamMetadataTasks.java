@@ -260,19 +260,20 @@ public class StreamMetadataTasks extends TaskBase {
         // if we are unable to post, throw a retryable exception.
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                getRequestWriter().writeEvent(event).get();
-                result.complete(null);
-            } catch (Exception e) {
-                log.error("error sending request to requeststream {}", e);
+        getRequestWriter().writeEvent(event).whenComplete((r, e) -> {
+            if (e != null) {
+                log.warn("post scale threw exception {}", e.getMessage());
                 if (e instanceof ScaleOperationExceptions.ScaleRequestNotEnabledException) {
                     result.completeExceptionally(e);
                 } else {
                     result.completeExceptionally(new ScaleOperationExceptions.ScalePostException());
                 }
+            } else {
+                log.debug("scale event posted successfully");
+                result.complete(null);
             }
-        }, executor);
+        });
+
         return result;
     }
 
