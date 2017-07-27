@@ -102,8 +102,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ReusableLatch connectionSetup = new ReusableLatch();
         @GuardedBy("lock")
         private CompletableFuture<Void> emptyInflightFuture = null;
-        private AtomicBoolean sealEncountered = new AtomicBoolean();
-        private AtomicBoolean reconnecting = new AtomicBoolean();
+        private final AtomicBoolean sealEncountered = new AtomicBoolean();
+        private final AtomicBoolean reconnecting = new AtomicBoolean();
 
         /**
          * Returns a future that will complete successfully once all the inflight events are acked
