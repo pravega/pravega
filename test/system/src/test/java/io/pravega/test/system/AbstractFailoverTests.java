@@ -36,7 +36,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -61,7 +60,7 @@ abstract class AbstractFailoverTests {
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
-    static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
 
     final String readerName = "reader";
     Service controllerInstance;
@@ -94,10 +93,9 @@ abstract class AbstractFailoverTests {
         long currentReadCount1 = testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} without any failover", currentReadCount1, currentWriteCount1);
 
-        //check reads and writes after some random time
-        int sleepTime = new Random().nextInt(50000) + 3000;
-        log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
+        //check reads and writes after sleeps
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
         long currentWriteCount2 = testState.eventWriteCount.get();
         long currentReadCount2 = testState.eventReadCount.get();

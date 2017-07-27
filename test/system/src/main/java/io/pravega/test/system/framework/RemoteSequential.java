@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
@@ -70,6 +71,11 @@ public class RemoteSequential implements TestExecutor {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
 
+                    }
+                    try {
+                        TimeUnit.MINUTES.sleep(1);
+                    } catch (InterruptedException e) {
+                        log.error("Interrupted Exception during sleep between tests");
                     }
                 });
     }

@@ -90,7 +90,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private final String readerName = "reader";
-    private Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis());
+    private Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 40, ofSeconds(1).toMillis());
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
