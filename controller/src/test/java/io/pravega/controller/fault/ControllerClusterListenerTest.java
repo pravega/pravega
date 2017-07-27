@@ -265,7 +265,7 @@ public class ControllerClusterListenerTest {
         // verify that all tasks are not swept again.
         verify(taskSweeper, times(1)).sweepFailedProcesses(any(Supplier.class));
         // verify that host specific sweep happens once.
-        verify(taskSweeper, times(1)).handleFailedProcess(anyString());
+        verify(taskSweeper, atLeast(1)).handleFailedProcess(anyString());
         // verify that txns are not yet swept as txnsweeper is not yet ready.
         verify(txnSweeper, times(0)).sweepFailedProcesses(any());
         verify(txnSweeper, times(0)).handleFailedProcess(anyString());
@@ -296,8 +296,8 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(taskHostSweep2, 3000));
         assertTrue(FutureHelpers.await(txnHostSweep2, 3000));
 
-        verify(taskSweeper, times(2)).handleFailedProcess(anyString());
-        verify(txnSweeper, times(1)).handleFailedProcess(anyString());
+        verify(taskSweeper, atLeast(2)).handleFailedProcess(anyString());
+        verify(txnSweeper, atLeast(1)).handleFailedProcess(anyString());
 
         clusterListener.stopAsync();
         clusterListener.awaitTerminated();
