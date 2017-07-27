@@ -210,7 +210,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     //region OperationLog Implementation
 
     @Override
-    public CompletableFuture<Long> add(Operation operation, Duration timeout) {
+    public CompletableFuture<Void> add(Operation operation, Duration timeout) {
         ensureRunning();
         return this.operationProcessor.process(operation);
     }
@@ -288,8 +288,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     @Override
     public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
-        return FutureHelpers
-                .toVoid(add(new ProbeOperation(), timeout))
+        return add(new ProbeOperation(), timeout)
                 .whenComplete((r, ex) -> {
                     // We don't care if this operation completed successfully or not. The Operation Barrier needs to complete
                     // when all operations prior to it completed, regardless of outcome.

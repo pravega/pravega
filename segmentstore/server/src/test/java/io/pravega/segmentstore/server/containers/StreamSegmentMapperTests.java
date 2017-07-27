@@ -398,6 +398,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment, with concurrent requests.
+     * Also tests the ability to execute such callbacks in the order in which they were received.
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithConcurrency() throws Exception {
@@ -405,6 +406,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // is driven by the same code for Transactions as well.
         final String segmentName = "Segment";
         final long segmentId = 12345;
+        final String firstResult = "first";
+        final String secondResult = "second";
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -412,7 +415,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
-        CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
+        CompletableFuture<Void> initialAddFuture = new CompletableFuture<>();
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
             if (!(op instanceof StreamSegmentMapOperation)) {
@@ -427,16 +430,31 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             return initialAddFuture;
         };
 
-        CompletableFuture<Long> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
-        CompletableFuture<Long> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
+        AtomicBoolean firstInvoked = new AtomicBoolean(false);
+
+        CompletableFuture<String> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (first).", segmentId, (long) id);
+                    boolean first = firstInvoked.compareAndSet(false, true);
+                    Assert.assertTrue("firstCall was not invoked first.", first);
+                    return CompletableFuture.completedFuture(firstResult);
+                });
+
+        CompletableFuture<String> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (second).", segmentId, (long) id);
+                    boolean first = firstInvoked.compareAndSet(false, true);
+                    Assert.assertFalse("secondCall was not invoked last.", first);
+                    return CompletableFuture.completedFuture(secondResult);
+                });
         Thread.sleep(20);
         Assert.assertFalse("getOrAssignStreamSegmentId (first call) returned before OperationLog finished.", firstCall.isDone());
         Assert.assertFalse("getOrAssignStreamSegmentId (second call) returned before OperationLog finished.", secondCall.isDone());
-        initialAddFuture.complete(1L);
-        long firstCallResult = firstCall.get(100, TimeUnit.MILLISECONDS);
-        long secondCallResult = secondCall.get(100, TimeUnit.MILLISECONDS);
-
-        Assert.assertEquals("Two concurrent calls to getOrAssignStreamSegmentId for the same StreamSegment returned different ids.", firstCallResult, secondCallResult);
+        initialAddFuture.complete(null);
+        String firstCallResult = firstCall.get(100, TimeUnit.MILLISECONDS);
+        String secondCallResult = secondCall.get(100, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected result from firstCall.", firstResult, firstCallResult);
+        Assert.assertEquals("Unexpected result from secondCall.", secondResult, secondCallResult);
     }
 
     private String getName(long segmentId) {
@@ -509,7 +527,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 segmentMetadata.updateAttributes(mapOp.getAttributes());
             }
 
-            return CompletableFuture.completedFuture(currentSeqNo);
+            return CompletableFuture.completedFuture(null);
         };
     }
 
@@ -568,10 +586,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     //region TestOperationLog
 
     private static class TestOperationLog implements OperationLog {
-        Function<Operation, CompletableFuture<Long>> addHandler;
+        Function<Operation, CompletableFuture<Void>> addHandler;
 
         @Override
-        public CompletableFuture<Long> add(Operation operation, Duration timeout) {
+        public CompletableFuture<Void> add(Operation operation, Duration timeout) {
             return addHandler.apply(operation);
         }
 

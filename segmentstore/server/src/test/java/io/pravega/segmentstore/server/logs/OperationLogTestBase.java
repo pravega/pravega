@@ -443,7 +443,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     @RequiredArgsConstructor
     static class OperationWithCompletion {
         final Operation operation;
-        final CompletableFuture<Long> completion;
+        final CompletableFuture<Void> completion;
 
         @Override
         public String toString() {
@@ -454,7 +454,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         }
 
         static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
-            List<CompletableFuture<Long>> futures = new ArrayList<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
             operations.forEach(oc -> futures.add(oc.completion));
             return FutureHelpers.allOf(futures);
         }
