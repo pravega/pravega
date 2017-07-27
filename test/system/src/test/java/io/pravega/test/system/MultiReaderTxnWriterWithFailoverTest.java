@@ -49,7 +49,6 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -390,7 +389,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
                     log.warn("Exception while writing events in the transaction: {}", e);
-                    log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    if (transaction != null) {
+                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    }
                 }
             }
         }, executorService);
