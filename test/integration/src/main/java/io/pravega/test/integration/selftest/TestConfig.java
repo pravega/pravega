@@ -32,6 +32,7 @@ public class TestConfig {
     static final Property<Integer> TRANSACTION_FREQUENCY = Property.named("transactionFrequency", 100);
     static final Property<Integer> MAX_TRANSACTION_SIZE = Property.named("maxTransactionSize", 10);
     static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
+    static final Property<Integer> PRODUCER_PARALLELISM = Property.named("producerParallelism", 1);
     static final Property<Integer> MIN_APPEND_SIZE = Property.named("minAppendSize", 100);
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
@@ -56,13 +57,15 @@ public class TestConfig {
     @Getter
     private int containerCount;
     @Getter
-    private int segmentCount;
+    private int streamCount;
     @Getter
     private int transactionFrequency;
     @Getter
     private int maxTransactionAppendCount;
     @Getter
     private int producerCount;
+    @Getter
+    private int producerParallelism;
     @Getter
     private int minAppendSize;
     @Getter
@@ -100,10 +103,11 @@ public class TestConfig {
     private TestConfig(TypedProperties properties) throws ConfigurationException {
         this.operationCount = properties.getInt(OPERATION_COUNT);
         this.containerCount = properties.getInt(CONTAINER_COUNT);
-        this.segmentCount = properties.getInt(STREAM_COUNT);
+        this.streamCount = properties.getInt(STREAM_COUNT);
         this.transactionFrequency = properties.getInt(TRANSACTION_FREQUENCY);
         this.maxTransactionAppendCount = properties.getInt(MAX_TRANSACTION_SIZE);
         this.producerCount = properties.getInt(PRODUCER_COUNT);
+        this.producerParallelism = properties.getInt(PRODUCER_PARALLELISM);
         this.minAppendSize = properties.getInt(MIN_APPEND_SIZE);
         this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);

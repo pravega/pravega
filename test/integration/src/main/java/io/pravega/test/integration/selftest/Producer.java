@@ -13,12 +13,14 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.SneakyThrows;
+import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
 
 /**
@@ -83,37 +85,44 @@ class Producer extends Actor {
      * 3. Completes the ProducerOperation with either success or failure based on the outcome step #2.
      */
     private CompletableFuture<Void> runOneIteration() {
-        ProducerOperation op = this.dataSource.nextOperation();
-        if (op == null) {
-            // Nothing more to do.
-            this.canContinue.set(false);
-            return CompletableFuture.completedFuture(null);
-        }
-
         this.iterationCount.incrementAndGet();
-        final Timer timer = new Timer();
-        CompletableFuture<Void> result;
-        try {
-            result = executeOperation(op);
-        } catch (Throwable ex) {
-            // Catch and handle sync errors.
-            op.completed(timer.getElapsed());
-            if (handleOperationError(ex, op)) {
-                // Exception handled; skip this iteration since there's nothing more we can do.
-                return CompletableFuture.completedFuture(null);
-            } else {
-                throw ex;
+
+        val futures = new ArrayList<CompletableFuture<Void>>();
+        for (int i = 0; i < this.config.getProducerParallelism(); i++) {
+            ProducerOperation op = this.dataSource.nextOperation();
+            if (op == null) {
+                // Nothing more to do.
+                this.canContinue.set(false);
+                break;
             }
+
+            final Timer timer = new Timer();
+            CompletableFuture<Void> result;
+            try {
+                result = executeOperation(op);
+            } catch (Throwable ex) {
+                // Catch and handle sync errors.
+                op.completed(timer.getElapsed());
+                if (handleOperationError(ex, op)) {
+                    // Exception handled; skip this iteration since there's nothing more we can do.
+                    break;
+                } else {
+                    result = FutureHelpers.failedFuture(ex);
+                }
+            }
+
+            result = result.whenCompleteAsync((r, ex) -> {
+                op.completed(timer.getElapsed());
+
+                // Catch and handle async errors.
+                if (ex != null && !handleOperationError(ex, op)) {
+                    throw new CompletionException(ex);
+                }
+            }, this.executorService);
+            futures.add(result);
         }
 
-        return result.whenCompleteAsync((r, ex) -> {
-            op.completed(timer.getElapsed());
-
-            // Catch and handle async errors.
-            if (ex != null && !handleOperationError(ex, op)) {
-                throw new CompletionException(ex);
-            }
-        }, this.executorService);
+        return FutureHelpers.allOf(futures);
     }
 
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {

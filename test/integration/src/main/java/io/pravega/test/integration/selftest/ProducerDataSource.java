@@ -201,7 +201,7 @@ class ProducerDataSource {
 
         TestLogger.log(LOG_ID, "Creating Streams.");
         StoreAdapter.Feature.Create.ensureSupported(this.store, "create streams");
-        for (int i = 0; i < this.config.getSegmentCount(); i++) {
+        for (int i = 0; i < this.config.getStreamCount(); i++) {
             final int streamId = i;
             String name = String.format("Stream%s", streamId);
             creationFutures.add(this.store.createStream(name, this.config.getTimeout())

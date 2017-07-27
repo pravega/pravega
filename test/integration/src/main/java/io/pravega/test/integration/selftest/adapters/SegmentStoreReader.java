@@ -394,6 +394,11 @@ class SegmentStoreReader implements StoreReader {
     private static class SegmentStoreReadItem implements ReadItem {
         private final Event event;
         private final Object address;
+
+        @Override
+        public String toString() {
+            return String.format("Event = [%s], Address = [%s]", this.event, this.address);
+        }
     }
 
     @RequiredArgsConstructor

@@ -30,7 +30,9 @@ import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -53,7 +55,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private static final String LOG_ID = "ClientAdapter";
     final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;
-    private final ConcurrentHashMap<String, EventStreamWriter<byte[]>> streamWriters;
+    private final ConcurrentHashMap<String, List<EventStreamWriter<byte[]>>> streamWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
@@ -80,7 +82,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            this.streamWriters.values().forEach(EventStreamWriter::close);
+            this.streamWriters.values().forEach(l -> l.forEach(EventStreamWriter::close));
             this.streamWriters.clear();
 
             TestLogger.log(LOG_ID, "Closed.");
@@ -118,8 +120,13 @@ abstract class ClientAdapterBase implements StoreAdapter {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));
             }
 
-            EventStreamWriter<byte[]> writer = getClientFactory().createEventWriter(streamName, SERIALIZER, WRITER_CONFIG);
-            this.streamWriters.putIfAbsent(streamName, writer);
+            int writerCount = this.testConfig.getProducerCount() / this.testConfig.getStreamCount();
+            List<EventStreamWriter<byte[]>> writers = new ArrayList<>(writerCount);
+            if (this.streamWriters.putIfAbsent(streamName, writers) == null) {
+                for (int i = 0; i < writerCount; i++) {
+                    writers.add(getClientFactory().createEventWriter(streamName, SERIALIZER, WRITER_CONFIG));
+                }
+            }
         }, this.testExecutor);
     }
 
@@ -128,7 +135,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             if (getStreamManager().deleteStream(SCOPE, streamName)) {
-                closeWriter(streamName);
+                closeWriters(streamName);
             } else {
                 throw new CompletionException(new StreamingException(String.format("Unable to delete stream '%s'.", streamName)));
             }
@@ -143,13 +150,13 @@ abstract class ClientAdapterBase implements StoreAdapter {
         String routingKey = Integer.toString(event.getRoutingKey());
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
         if (parentName == null || parentName.length() == streamName.length()) {
-            return getWriter(streamName).writeEvent(routingKey, payload);
+            return getWriter(streamName, event.getRoutingKey()).writeEvent(routingKey, payload);
         } else {
             // Dealing with a Transaction.
             UUID txnId = getTransactionId(streamName);
             return CompletableFuture.runAsync(() -> {
                 try {
-                    getWriter(parentName).getTxn(txnId).writeEvent(routingKey, payload);
+                    getWriter(parentName, event.getRoutingKey()).getTxn(txnId).writeEvent(routingKey, payload);
                 } catch (TxnFailedException ex) {
                     this.transactionIds.remove(streamName);
                     throw new CompletionException(ex);
@@ -163,7 +170,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
         ensureInitializedAndNotClosed();
         return CompletableFuture.runAsync(() -> {
             if (getStreamManager().sealStream(SCOPE, streamName)) {
-                closeWriter(streamName);
+                closeWriters(streamName);
             } else {
                 throw new CompletionException(new StreamingException(String.format("Unable to seal stream '%s'.", streamName)));
             }
@@ -179,7 +186,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureInitializedAndNotClosed();
-        EventStreamWriter<byte[]> writer = getWriter(parentStream);
+        EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
         return CompletableFuture.supplyAsync(() -> {
             UUID txnId = writer.beginTxn(TXN_TIMEOUT, TXN_MAX_EXEC_TIME, TXN_SCALE_GRACE_PERIOD).getTxnId();
             String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, txnId);
@@ -192,7 +199,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureInitializedAndNotClosed();
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-        EventStreamWriter<byte[]> writer = getWriter(parentStream);
+        EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
         UUID txnId = getTransactionId(transactionName);
 
         return CompletableFuture.runAsync(() -> {
@@ -231,10 +238,10 @@ abstract class ClientAdapterBase implements StoreAdapter {
      */
     protected abstract ClientFactory getClientFactory();
 
-    private void closeWriter(String streamName) {
-        EventStreamWriter<byte[]> writer = this.streamWriters.remove(streamName);
-        if (writer != null) {
-            writer.close();
+    private void closeWriters(String streamName) {
+        List<EventStreamWriter<byte[]>> writers = this.streamWriters.remove(streamName);
+        if (writers != null) {
+            writers.forEach(EventStreamWriter::close);
         }
     }
 
@@ -248,14 +255,18 @@ abstract class ClientAdapterBase implements StoreAdapter {
         return txnId;
     }
 
+    private EventStreamWriter<byte[]> getDefaultWriter(String streamName) {
+        return getWriter(streamName, 0);
+    }
+
     @SneakyThrows(StreamSegmentNotExistsException.class)
-    private EventStreamWriter<byte[]> getWriter(String streamName) {
-        EventStreamWriter<byte[]> writer = this.streamWriters.getOrDefault(streamName, null);
-        if (writer == null) {
+    private EventStreamWriter<byte[]> getWriter(String streamName, int routingKey) {
+        List<EventStreamWriter<byte[]>> writers = this.streamWriters.getOrDefault(streamName, null);
+        if (writers == null) {
             throw new StreamSegmentNotExistsException(streamName);
         }
 
-        return writer;
+        return writers.get(routingKey % writers.size());
     }
 
     private void ensureInitializedAndNotClosed() {
