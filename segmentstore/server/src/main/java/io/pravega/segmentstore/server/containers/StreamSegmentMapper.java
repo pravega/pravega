@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
@@ -211,18 +212,30 @@ public class StreamSegmentMapper {
      */
     <T> CompletableFuture<T> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout, Function<Long, CompletableFuture<T>> thenCompose) {
         // Check to see if the metadata already knows about this Segment.
+        Preconditions.checkNotNull(thenCompose, "thenCompose");
         long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(streamSegmentId)) {
             // We already have a value, just return it (but make sure the Segment has not been deleted).
             if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
                 return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
-                return thenCompose.apply(streamSegmentId);
+                // Even though we have the value in the metadata, we need to be very careful not to invoke this callback
+                // before any other existing callbacks are invoked. As such, verify if we have an existing PendingRequest
+                // for this segment - if so, tag onto it so we invoke these callbacks in the correct order.
+                QueuedCallback<T> queuedCallback = null;
+                synchronized (this.assignmentLock) {
+                    PendingRequest pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
+                    if (pendingRequest != null) {
+                        queuedCallback = new QueuedCallback<>(thenCompose);
+                        pendingRequest.callbacks.add(queuedCallback);
+                    }
+                }
+
+                return queuedCallback == null ? thenCompose.apply(streamSegmentId) : queuedCallback.result;
             }
         }
 
         // See if anyone else is currently waiting to get this StreamSegment's id.
-        Preconditions.checkNotNull(thenCompose, "thenCompose");
         QueuedCallback<T> queuedCallback;
         boolean needsAssignment = false;
         synchronized (this.assignmentLock) {
@@ -453,19 +466,8 @@ public class StreamSegmentMapper {
      * Completes the assignment for the given StreamSegmentName by completing the waiting CompletableFuture.
      */
     private long completeAssignment(String streamSegmentName, long streamSegmentId) {
-        assert streamSegmentName != null : "no streamSegmentName given";
         assert streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
-
-        // Get the pending request and complete it.
-        PendingRequest pendingRequest;
-        synchronized (this.assignmentLock) {
-            pendingRequest = this.pendingRequests.remove(streamSegmentName);
-        }
-
-        if (pendingRequest != null) {
-            pendingRequest.complete(streamSegmentId);
-        }
-
+        finishPendingRequests(streamSegmentName, PendingRequest::complete, streamSegmentId);
         return streamSegmentId;
     }
 
@@ -473,16 +475,28 @@ public class StreamSegmentMapper {
      * Fails the assignment for the given StreamSegment Id with the given reason.
      */
     private void failAssignment(String streamSegmentName, Throwable reason) {
+        finishPendingRequests(streamSegmentName, PendingRequest::completeExceptionally, reason);
+    }
+
+    private <T> void finishPendingRequests(String streamSegmentName, BiConsumer<PendingRequest, T> completionMethod, T completionArgument) {
         assert streamSegmentName != null : "no streamSegmentName given";
+        // Get any pending requests and complete all of them, in order. We are running this in a loop (and replacing
+        // the existing PendingRequest with an empty one) because more requests may come in while we are executing the
+        // callbacks. In such cases, we collect the new requests in the new object and check it again, after we are done
+        // with the current executions.
+        while (true) {
+            PendingRequest pendingRequest;
+            synchronized (this.assignmentLock) {
+                pendingRequest = this.pendingRequests.remove(streamSegmentName);
+                if (pendingRequest == null || pendingRequest.callbacks.size() == 0) {
+                    // No more requests. Safe to exit.
+                    break;
+                } else {
+                    this.pendingRequests.put(streamSegmentName, new PendingRequest());
+                }
+            }
 
-        // Get the pending request and complete it.
-        PendingRequest pendingRequest;
-        synchronized (this.assignmentLock) {
-            pendingRequest = this.pendingRequests.remove(streamSegmentName);
-        }
-
-        if (pendingRequest != null) {
-            pendingRequest.completeExceptionally(reason);
+            completionMethod.accept(pendingRequest, completionArgument);
         }
     }
 
