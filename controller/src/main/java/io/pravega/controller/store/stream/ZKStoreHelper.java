@@ -59,7 +59,7 @@ public class ZKStoreHelper {
             client.create().creatingParentsIfNeeded().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -70,7 +70,7 @@ public class ZKStoreHelper {
             client.delete().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -92,7 +92,7 @@ public class ZKStoreHelper {
                                 }
                             }, path), executor).forPath(path);
         } catch (Exception e) {
-            deleteNode.completeExceptionally(new StoreException.UnknownException(path, e));
+            deleteNode.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         deleteNode.whenComplete((res, ex) -> {
@@ -113,7 +113,7 @@ public class ZKStoreHelper {
                                         }
                                     }, path), executor).forPath(container);
                 } catch (Exception e) {
-                    result.completeExceptionally(new StoreException.UnknownException(path, e));
+                    result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
                 }
             } else {
                 result.complete(null);
@@ -131,7 +131,7 @@ public class ZKStoreHelper {
                             executor)
                     .forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -151,7 +151,7 @@ public class ZKStoreHelper {
                                             result::completeExceptionally, path), executor)
                                     .forPath(path);
                         } catch (Exception e) {
-                            result.completeExceptionally(new StoreException.UnknownException(path, e));
+                            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
                         }
                     } else {
                         result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
@@ -175,7 +175,7 @@ public class ZKStoreHelper {
                                 }
                             }, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -194,7 +194,7 @@ public class ZKStoreHelper {
                         .forPath(path, data.getData());
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -221,7 +221,7 @@ public class ZKStoreHelper {
                 createBuilder.inBackground(callback, executor).forPath(path, data);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -250,7 +250,7 @@ public class ZKStoreHelper {
                 createBuilder.inBackground(callback, executor).forPath(path);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -271,7 +271,7 @@ public class ZKStoreHelper {
                             }, path), executor).forPath(path);
 
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -295,7 +295,7 @@ public class ZKStoreHelper {
             } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
                 exception.accept(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, path));
             } else {
-                exception.accept(new StoreException.UnknownException(path,
+                exception.accept(StoreException.create(StoreException.Type.UNKNOWN,
                         KeeperException.create(KeeperException.Code.get(event.getResultCode()), path)));
             }
         };

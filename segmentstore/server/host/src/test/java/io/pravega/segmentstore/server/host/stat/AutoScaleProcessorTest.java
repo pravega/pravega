@@ -112,13 +112,13 @@ public class AutoScaleProcessorTest {
         return new EventStreamWriter<AutoScaleEvent>() {
             @Override
             public CompletableFuture<Void> writeEvent(AutoScaleEvent event) {
-                return null;
+                return CompletableFuture.<Void>completedFuture(null);
             }
 
             @Override
             public CompletableFuture<Void> writeEvent(String routingKey, AutoScaleEvent event) {
                 consumer.accept(event);
-                return null;
+                return CompletableFuture.<Void>completedFuture(null);
             }
 
             @Override

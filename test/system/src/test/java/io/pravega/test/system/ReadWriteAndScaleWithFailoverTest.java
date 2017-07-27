@@ -50,7 +50,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 1);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+            .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -102,16 +102,16 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         testState.eventsReadFromPravega.clear();
     }
 
-    @Test(timeout = 600000)
+    @Test(timeout = 12 * 60 * 1000)
     public void readWriteAndScaleWithFailoverTest() throws Exception {
-        createScopeAndStream(scope, STREAM_NAME, config, controllerURIDirect);
+        createScopeAndStream(scope, SCALE_STREAM, config, controllerURIDirect);
 
         log.info("Scope passed to client factory {}", scope);
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+            createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
 
             //run the failover test before scaling
             performFailoverTest();
@@ -119,17 +119,17 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //bring the instances back to 3 before performing failover during scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //scale manually
-            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, STREAM_NAME)
+            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
             Map<Double, Double> keyRanges = new HashMap<>();
             keyRanges.put(0.0, 0.5);
             keyRanges.put(0.5, 1.0);
 
-            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
+            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
                     Collections.singletonList(0),
                     keyRanges,
                     executorService).getFuture();
@@ -139,20 +139,20 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
             //do a get on scaleStatus
             scaleStatus.get();
-            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, STREAM_NAME)
+            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
             //bring the instances back to 3 before performing failover after scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //run the failover test after scaling
             performFailoverTest();
 
             stopReadersAndWriters(readerGroupManager, readerGroupName);
         }
-        cleanUp(scope, STREAM_NAME);
+        cleanUp(scope, SCALE_STREAM);
         log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
     }
 }

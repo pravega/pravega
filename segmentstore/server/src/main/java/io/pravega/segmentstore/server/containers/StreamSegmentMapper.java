@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
@@ -24,14 +25,15 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.OperationLog;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
-import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.Storage;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,10 +42,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -62,7 +66,7 @@ public class StreamSegmentMapper {
     private final Storage storage;
     private final Executor executor;
     @GuardedBy("assignmentLock")
-    private final HashMap<String, CompletableFuture<Long>> pendingRequests;
+    private final HashMap<String, PendingRequest> pendingRequests;
     private final Object assignmentLock = new Object();
 
     //endregion
@@ -183,45 +187,54 @@ public class StreamSegmentMapper {
     //region Segment Id Assignment
 
     /**
-     * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name.
-     * * If the Segment is already mapped in the Metadata, the existing Id is returned.
+     * Attempts to get an existing StreamSegmentId for the given case-sensitive StreamSegment Name, and then invokes the
+     * given Function with the Id.
+     * * If the Segment is already mapped in the Metadata, the existing Id is used.
      * * Otherwise if the Segment had previously been assigned an id (and saved in the State Store), that Id will be
      * reused.
      * * Otherwise, it atomically assigns a new Id and stores it in the Metadata and DurableLog.
      * <p>
-     * If multiple requests for assignment arrive for the same StreamSegment in parallel, the subsequent ones (after the
-     * first one) will wait for the first one to complete and return the same result (this will not result in double-assignment).
+     * If multiple requests for assignment arrive for the same StreamSegment in parallel (or while an assignment is in progress),
+     * they will be queued up in the order received and will be invoked in the same order after assignment
      * <p>
      * If the given streamSegmentName refers to a Transaction StreamSegment, this will attempt to validate that the Transaction is still
      * valid, by which means it will check the Parent's existence alongside the Transaction's existence.
      *
      * @param streamSegmentName The case-sensitive StreamSegment Name.
      * @param timeout           The timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the StreamSegment Id requested. If the operation
-     * failed, this will contain the exception that caused the failure.
+     * @param thenCompose       A Function that consumes a StreamSegmentId and returns a CompletableFuture that will indicate
+     *                          when the consumption of that StreamSegmentId is complete. This Function will be invoked
+     *                          synchronously if the StreamSegmentId is already mapped, or async, otherwise, after assignment.
+     * @param <T>               Type of the return value.
+     * @return A CompletableFuture that, when completed normally, will contain the result of the given Function (thenCompose)
+     * applied to the assigned/retrieved StreamSegmentId. If failed, this will contain the exception that caused the failure.
      */
-    public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
-        // Check to see if the metadata already knows about this stream.
+    <T> CompletableFuture<T> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout, Function<Long, CompletableFuture<T>> thenCompose) {
+        // Check to see if the metadata already knows about this Segment.
         long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(streamSegmentId)) {
             // We already have a value, just return it (but make sure the Segment has not been deleted).
             if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
                 return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
-                return CompletableFuture.completedFuture(streamSegmentId);
+                return thenCompose.apply(streamSegmentId);
             }
         }
 
         // See if anyone else is currently waiting to get this StreamSegment's id.
-        CompletableFuture<Long> result;
+        Preconditions.checkNotNull(thenCompose, "thenCompose");
+        QueuedCallback<T> queuedCallback;
         boolean needsAssignment = false;
         synchronized (this.assignmentLock) {
-            result = this.pendingRequests.getOrDefault(streamSegmentName, null);
-            if (result == null) {
+            PendingRequest pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
+            if (pendingRequest == null) {
                 needsAssignment = true;
-                result = new CompletableFuture<>();
-                this.pendingRequests.put(streamSegmentName, result);
+                pendingRequest = new PendingRequest();
+                this.pendingRequests.put(streamSegmentName, pendingRequest);
             }
+
+            queuedCallback = new QueuedCallback<>(thenCompose);
+            pendingRequest.callbacks.add(queuedCallback);
         }
 
         // We are the first/only ones requesting this id; go ahead and assign an id.
@@ -236,7 +249,21 @@ public class StreamSegmentMapper {
             }
         }
 
-        return result;
+        return queuedCallback.result;
+    }
+
+    /**
+     * Same as getOrAssignStreamSegmentId(String, Duration, Function) except that this simply returns a CompletableFuture
+     * with the SegmentId.
+     *
+     * @param streamSegmentName The case-sensitive StreamSegment Name.
+     * @param timeout           The timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the result of the given Function (thenCompose)
+     * applied to the assigned/retrieved StreamSegmentId. If failed, this will contain the exception that caused the failure.
+     */
+    @VisibleForTesting
+    public CompletableFuture<Long> getOrAssignStreamSegmentId(String streamSegmentName, Duration timeout) {
+        return getOrAssignStreamSegmentId(streamSegmentName, timeout, CompletableFuture::completedFuture);
     }
 
     /**
@@ -254,8 +281,8 @@ public class StreamSegmentMapper {
 
         // Get info about parent. This also verifies the parent exists.
         return withFailureHandler(
-                getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining())
-                        .thenCompose(id -> {
+                getOrAssignStreamSegmentId(parentSegmentName, timer.getRemaining(),
+                        id -> {
                             // Get info about Transaction itself.
                             parentSegmentId.set(id);
                             return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
@@ -387,7 +414,7 @@ public class StreamSegmentMapper {
             completeAssignment(properties.getName(), existingSegmentId);
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
-            CompletableFuture<Long> logAddResult;
+            CompletableFuture<Void> logAddResult;
             StreamSegmentMapping mapping;
             if (isValidStreamSegmentId(parentStreamSegmentId)) {
                 // Transaction.
@@ -430,7 +457,7 @@ public class StreamSegmentMapper {
         assert streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID : "no valid streamSegmentId given";
 
         // Get the pending request and complete it.
-        CompletableFuture<Long> pendingRequest;
+        PendingRequest pendingRequest;
         synchronized (this.assignmentLock) {
             pendingRequest = this.pendingRequests.remove(streamSegmentName);
         }
@@ -449,7 +476,7 @@ public class StreamSegmentMapper {
         assert streamSegmentName != null : "no streamSegmentName given";
 
         // Get the pending request and complete it.
-        CompletableFuture<Long> pendingRequest;
+        PendingRequest pendingRequest;
         synchronized (this.assignmentLock) {
             pendingRequest = this.pendingRequests.remove(streamSegmentName);
         }
@@ -515,9 +542,61 @@ public class StreamSegmentMapper {
 
     //endregion
 
+    //region Helper Classes
+
     @Data
     private static class SegmentInfo {
         private final long segmentId;
         private final SegmentProperties properties;
     }
+
+    /**
+     * A pending request for a Segment Assignment, which keeps track of all queued callbacks.
+     * Note that this class in itself is not thread safe, so the caller should take precautions to ensure thread safety.
+     */
+    private static class PendingRequest {
+        private final ArrayList<QueuedCallback<?>> callbacks = new ArrayList<>();
+
+        /**
+         * Invokes all queued callbacks, in order, with the given SegmentId as a parameter.
+         */
+        void complete(long segmentId) {
+            for (QueuedCallback<?> callback : this.callbacks) {
+                try {
+                    callback.complete(segmentId);
+                } catch (Throwable ex) {
+                    callback.completeExceptionally(ex);
+                }
+            }
+        }
+
+        /**
+         * Invokes all queued callbacks, in order, with the given Throwable as a failure cause.
+         */
+        void completeExceptionally(Throwable ex) {
+            for (QueuedCallback<?> callback : this.callbacks) {
+                callback.completeExceptionally(ex);
+            }
+        }
+    }
+
+    /**
+     * A single callback that is queued up for a Pending Request. The 'result' is what is returned to the caller, which
+     * is completed indirectly with the result of the invocation to 'callback'.
+     */
+    @RequiredArgsConstructor
+    private static class QueuedCallback<T> {
+        final CompletableFuture<T> result = new CompletableFuture<>();
+        final Function<Long, CompletableFuture<T>> callback;
+
+        void complete(long segmentId) {
+            FutureHelpers.completeAfter(() -> this.callback.apply(segmentId), this.result);
+        }
+
+        void completeExceptionally(Throwable ex) {
+            this.result.completeExceptionally(ex);
+        }
+    }
+
+    //endregion
 }

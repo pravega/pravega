@@ -54,10 +54,12 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 abstract class AbstractFailoverTests {
 
-    static final String STREAM = "testReadWriteAndAutoScaleStream";
-    static final String STREAM_NAME = "testReadWriteAndScaleStream";
+    static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
+    static final String SCALE_STREAM = "testReadWriteAndScaleStream";
     static final int ADD_NUM_WRITERS = 6;
-    static final int ZK_DEFAULT_SESSION_TIMEOUT = 30000;
+    //Duration for which the system test waits for writes/reads to happen post failover.
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
 
@@ -108,7 +110,7 @@ abstract class AbstractFailoverTests {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down Segment Store instances from 3 to 2");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -122,7 +124,7 @@ abstract class AbstractFailoverTests {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = testState.eventWriteCount.get();
@@ -137,7 +139,7 @@ abstract class AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(ZK_DEFAULT_SESSION_TIMEOUT);
+        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -205,10 +207,10 @@ abstract class AbstractFailoverTests {
 
     void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
-        log.info("Sealing stream {}", STREAM_NAME);
+        log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
-        log.info("Deleting stream {}", STREAM_NAME);
+        log.info("Deleting stream {}", stream);
         assertTrue(deleteStreamStatus.get());
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);

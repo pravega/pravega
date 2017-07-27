@@ -81,15 +81,14 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         AssertExtensions.assertThrows("Should throw IllegalStateException",
                 store.getActiveSegments(scope, stream1, null, executor),
-                (Throwable t) -> t instanceof IllegalStateException);
+                (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
 
     @Test(timeout = 5000)
     public void testError() throws Exception {
         String host = "host";
         TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
-        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException &&
-                ((StoreException) ex).getType() == StoreException.Type.UNKNOWN;
+        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.UnknownException;
 
         cli.close();
         testFailure(host, txn, checker);
@@ -99,8 +98,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     public void testConnectionLoss() throws Exception {
         String host = "host";
         TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
-        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException &&
-                ((StoreException) ex).getType() == StoreException.Type.CONNECTION_ERROR;
+        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.StoreConnectionException;
 
         zkServer.close();
         AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);

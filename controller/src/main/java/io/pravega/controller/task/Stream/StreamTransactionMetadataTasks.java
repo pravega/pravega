@@ -332,12 +332,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 log.debug("Txn={}, notified segments stores", txnId));
 
         // Step 5. Start tracking txn in timeout service
-        return notify.thenApplyAsync(y -> {
-            int version = txnFuture.join().getVersion();
-            long executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+        return notify.whenCompleteAsync((result, ex) -> {
+            int version = 0;
+            long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
+            if (!txnFuture.isCompletedExceptionally()) {
+                version = txnFuture.join().getVersion();
+                executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+            }
             timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
             log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
-            return null;
         }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
     }
 

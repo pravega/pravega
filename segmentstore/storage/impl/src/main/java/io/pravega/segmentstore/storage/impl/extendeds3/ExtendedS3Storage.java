@@ -40,7 +40,6 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AccessDeniedException;
 import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -412,25 +411,29 @@ public class ExtendedS3Storage implements Storage {
         Throwable retVal = e;
 
         if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
-            if (((S3Exception) e).getErrorCode().equals("NoSuchKey")) {
+            String errorCode = ((S3Exception) e).getErrorCode();
+
+            if (errorCode.equals("NoSuchKey")) {
                 retVal = new StreamSegmentNotExistsException(segmentName);
             }
 
-            if (((S3Exception) e).getErrorCode().equals("PreconditionFailed")) {
+            if (errorCode.equals("PreconditionFailed")) {
                 retVal = new StreamSegmentExistsException(segmentName);
             }
 
-            if (((S3Exception) e).getErrorCode().equals("InvalidRange")) {
+            if (errorCode.equals("InvalidRange")
+                    || errorCode.equals("InvalidArgument")
+                    || errorCode.equals("MethodNotAllowed")) {
                 retVal = new IllegalArgumentException(segmentName, e);
             }
+            if (errorCode.equals("AccessDenied")) {
+                retVal = new StreamSegmentSealedException(segmentName, e);
+            }
+
         }
 
         if (e instanceof IndexOutOfBoundsException) {
             retVal = new ArrayIndexOutOfBoundsException(e.getMessage());
-        }
-
-        if (e instanceof AccessDeniedException) {
-            retVal = new StreamSegmentSealedException(segmentName, e);
         }
 
         return retVal;

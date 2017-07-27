@@ -163,7 +163,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
                     if (!x) {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND);
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
                     }
                 });
     }
@@ -323,7 +323,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
             if (opt.isPresent()) {
                 return Integer.parseInt(opt.get().getKey());
             } else {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         });
     }
