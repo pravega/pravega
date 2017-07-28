@@ -27,8 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.LoggerHelpers.traceLeave;
-
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.
  */
@@ -154,7 +152,8 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @return Either the result of toInvoke or a CompletableFuture completed exceptionally with a ContainerNotFoundException
      * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
      */
-    private <T> CompletableFuture<T> invoke(String streamSegmentName, ContainerFunction<T> toInvoke, String methodName, Object... logArgs) {
+    private <T> CompletableFuture<T> invoke(String streamSegmentName, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
+                                            String methodName, Object... logArgs) {
         long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
         SegmentContainer container;
         try {
@@ -165,11 +164,11 @@ public class StreamSegmentService implements StreamSegmentStore {
         }
 
         CompletableFuture<T> resultFuture = toInvoke.apply(container);
-        resultFuture.thenAccept(r -> traceLeave(log, methodName, traceId, r));
-        return resultFuture;
-    }
+        if (log.isTraceEnabled()) {
+            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
+        }
 
-    private interface ContainerFunction<T> extends Function<SegmentContainer, CompletableFuture<T>> {
+        return resultFuture;
     }
 
     //endregion
