@@ -22,13 +22,13 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,6 +39,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 
 /**
@@ -47,10 +48,10 @@ import lombok.SneakyThrows;
 abstract class ClientAdapterBase implements StoreAdapter {
     //region Members
     static final String SCOPE = "SelfTest";
+    static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final long TXN_TIMEOUT = Long.MAX_VALUE;
     private static final long TXN_MAX_EXEC_TIME = Long.MAX_VALUE;
     private static final long TXN_SCALE_GRACE_PERIOD = Long.MAX_VALUE;
-    private static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
     private static final String LOG_ID = "ClientAdapter";
     final TestConfig testConfig;
@@ -59,6 +60,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
+    private final AtomicReference<ClientReader> clientReader;
 
     //endregion
 
@@ -74,7 +76,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
         this.transactionIds = new ConcurrentHashMap<>();
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
-
+        this.clientReader = new AtomicReference<>();
     }
 
     //region AutoCloseable Implementation
@@ -82,6 +84,11 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
+            ClientReader reader = this.clientReader.getAndSet(null);
+            if (reader != null) {
+                reader.close();
+            }
+
             this.streamWriters.values().forEach(l -> l.forEach(EventStreamWriter::close));
             this.streamWriters.clear();
 
@@ -95,12 +102,17 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public boolean isFeatureSupported(Feature feature) {
+        // Derived classes will indicate which features they do support.
         return true;
     }
 
     @Override
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.getAndSet(true), "Cannot call initialize() after initialization happened.");
+        if (isFeatureSupported(Feature.Read)) {
+            this.clientReader.set(new ClientReader(new URI(getControllerUrl()), getClientFactory(), this.testExecutor));
+        }
+
         this.initialized.set(true);
     }
 
@@ -178,12 +190,6 @@ abstract class ClientAdapterBase implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
-        throw new UnsupportedOperationException("getInfo is not supported.");
-    }
-
-    @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureInitializedAndNotClosed();
         EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
@@ -216,7 +222,12 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public StoreReader createReader() {
-        throw new UnsupportedOperationException();
+        ClientReader reader = this.clientReader.get();
+        if (reader == null) {
+            throw new UnsupportedOperationException("reading is not supported on this adapter.");
+        }
+
+        return reader;
     }
 
     @Override
@@ -237,6 +248,11 @@ abstract class ClientAdapterBase implements StoreAdapter {
      * Gets a reference to the ClientFactory used to create EventStreamWriters and EventStreamReaders.
      */
     protected abstract ClientFactory getClientFactory();
+
+    /**
+     * Gets a String representing the URL to the Controller.
+     */
+    protected abstract String getControllerUrl();
 
     private void closeWriters(String streamName) {
         List<EventStreamWriter<byte[]>> writers = this.streamWriters.remove(streamName);

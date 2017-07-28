@@ -122,7 +122,8 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     @Override
     public boolean isFeatureSupported(Feature feature) {
         return feature == Feature.Create
-                || feature == Feature.Append;
+                || feature == Feature.Append
+                || feature == Feature.Read;
     }
 
     @Override
@@ -158,6 +159,11 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         return this.clientFactory.get();
     }
 
+    @Override
+    protected String getControllerUrl() {
+        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostName(), this.testConfig.getControllerPort(0));
+    }
+
     //endregion
 
     //region Services Startup/Shutdown
@@ -176,6 +182,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
         // Create Client Factory.
         this.clientFactory.set(ClientFactory.withScope(SCOPE, controllerUri));
+
         TestLogger.log(LOG_ID, "Scope '%s' created.", SCOPE);
     }
 
@@ -322,10 +329,6 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     private String getZkUrl() {
         return String.format("%s:%d", LOOPBACK_ADDRESS.getHostAddress(), this.testConfig.getZkPort());
-    }
-
-    private String getControllerUrl() {
-        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostName(), this.testConfig.getControllerPort(0));
     }
 
     private String configProperty(String componentCode, Property<?> property) {

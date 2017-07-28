@@ -88,12 +88,12 @@ public class SelfTestRunner {
                 .builder()
                 // Test params.
                 .with(TestConfig.PRODUCER_COUNT, 1)
-                .with(TestConfig.PRODUCER_PARALLELISM, 2) // How many concurrent ops per producer
-                .with(TestConfig.OPERATION_COUNT, 100)
+                .with(TestConfig.PRODUCER_PARALLELISM, 1) // How many concurrent ops per producer
+                .with(TestConfig.OPERATION_COUNT, 1000)
                 .with(TestConfig.STREAM_COUNT, 1)
                 .with(TestConfig.MIN_APPEND_SIZE, 1000)
                 .with(TestConfig.MAX_APPEND_SIZE, 1000)
-                .with(TestConfig.TEST_TYPE, TestConfig.TestType.SegmentStoreDirect.toString())
+                .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
 
                 // Transaction setup.
                 .with(TestConfig.MAX_TRANSACTION_SIZE, 20)

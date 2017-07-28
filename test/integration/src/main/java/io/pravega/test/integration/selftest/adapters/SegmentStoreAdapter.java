@@ -180,12 +180,6 @@ public class SegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
-        return this.streamSegmentStore.getStreamSegmentInfo(streamName, false, timeout);
-    }
-
-    @Override
     public StoreReader createReader() {
         return new SegmentStoreReader(this.streamSegmentStore, this.storage.get(), this.testExecutor);
     }
@@ -243,7 +237,8 @@ public class SegmentStoreAdapter implements StoreAdapter {
         if (isPossibleEndOfSegment(ex)) {
             // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
             try {
-                SegmentProperties sp = getInfo(segmentName, timeout).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                SegmentProperties sp = this.streamSegmentStore.getStreamSegmentInfo(segmentName, false, timeout)
+                                                              .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 reconciled = sp.isSealed() || sp.isDeleted();
             } catch (Throwable ex2) {
                 reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));

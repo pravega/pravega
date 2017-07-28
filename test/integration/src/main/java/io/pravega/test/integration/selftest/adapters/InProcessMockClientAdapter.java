@@ -105,6 +105,11 @@ public class InProcessMockClientAdapter extends ClientAdapterBase {
     }
 
     @Override
+    protected String getControllerUrl() {
+        throw new UnsupportedOperationException("getControllerUrl is not supported for Mock implementations.");
+    }
+
+    @Override
     public boolean isFeatureSupported(Feature feature) {
         // This uses MockStreamManager, which only supports Create and Append.
         // Also the MockStreamSegmentStore does not support any other features as well.

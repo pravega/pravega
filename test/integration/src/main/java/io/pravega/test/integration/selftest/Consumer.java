@@ -104,8 +104,7 @@ public class Consumer extends Actor {
     //endregion
 
     static boolean canUseStoreAdapter(StoreAdapter storeAdapter) {
-        return storeAdapter.isFeatureSupported(StoreAdapter.Feature.GetInfo)
-                && storeAdapter.isFeatureSupported(StoreAdapter.Feature.Read);
+        return storeAdapter.isFeatureSupported(StoreAdapter.Feature.Read);
     }
 
     private boolean canRun() {

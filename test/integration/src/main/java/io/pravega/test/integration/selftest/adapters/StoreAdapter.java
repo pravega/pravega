@@ -10,7 +10,6 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.test.integration.selftest.Event;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -36,15 +35,6 @@ public interface StoreAdapter extends AutoCloseable {
      * @return A CompletableFuture that will be completed when the Event is appended.
      */
     CompletableFuture<Void> append(String streamName, Event event, Duration timeout);
-
-    /**
-     * Gets Information about a Stream, if applicable.
-     *
-     * @param streamName The name of the Stream.
-     * @param timeout    Timeout for the operation.
-     * @return A CompletableFuture that will be completed with the result, when it is available.
-     */
-    CompletableFuture<SegmentProperties> getInfo(String streamName, Duration timeout);
 
     /**
      * Creates a new StoreReader that can read from this Store.
@@ -120,11 +110,6 @@ public interface StoreAdapter extends AutoCloseable {
          * Appending Events.
          */
         Append,
-
-        /**
-         * Getting Information about Streams.
-         */
-        GetInfo,
 
         /**
          * Sealing Streams.
