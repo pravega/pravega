@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -37,6 +38,7 @@ import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -72,7 +74,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
-    private  List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
+    private final List<EventStreamReader<Long>> readerList = new ArrayList<>();
+    private final List<EventStreamWriter<Long>> writerList = new ArrayList<>();
+    private final List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
     private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -209,7 +213,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
             log.info("Creating {} writers", NUM_WRITERS);
-            List<EventStreamWriter<Long>> writerList = new ArrayList<>(NUM_WRITERS);
             log.info("Writers writing in the scope {}", scope);
             for (int i = 0; i < NUM_WRITERS; i++) {
                 log.info("Starting writer{}", i);
@@ -231,7 +234,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
             //create readers
             log.info("Creating {} readers", NUM_READERS);
-            List<EventStreamReader<Long>> readerList = new ArrayList<>(NUM_READERS);
             log.info("Scope that is seen by readers {}", scope);
             //start reading events
             for (int i = 0; i < NUM_READERS; i++) {
@@ -279,12 +281,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
             assertEquals(eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
-            //close all the writers
-            log.info("Closing writers");
-            writerList.forEach(writer -> writer.close());
-            //close all readers
-            log.info("Closing readers");
-            readerList.forEach(reader -> reader.close());
+            closeReadersAndWriters();
+
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -303,6 +301,29 @@ public class MultiReaderTxnWriterWithFailoverTest {
         log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
         log.info("Test {} succeeds ", "MultiReaderWriterTxnWithFailOver");
+    }
+
+    private void closeReadersAndWriters() {
+        log.info("Closing writers");
+        writerList.forEach(writer -> {
+            try {
+                writer.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
+        log.info("Closing readers");
+        readerList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (RetriesExhaustedException e) {
+                log.warn("Unable to close the client: ", e);
+            } catch (Throwable e) {
+                Assert.fail("Unable to close the client. Test Failure");
+            }
+        });
     }
 
     private void performFailoverTest() throws InterruptedException {
