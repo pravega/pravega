@@ -25,6 +25,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
@@ -161,7 +162,7 @@ abstract class AbstractFailoverTests {
                 } catch (InterruptedException e) {
                     log.error("Error in sleep: ", e);
                     testState.getWriteException.set(e);
-                } catch (ConnectionClosedException e) {
+                } catch (ConnectionClosedException | RetriesExhaustedException e) {
                     log.warn("Test exception in writing events: ", e);
                     continue;
                 } catch (Throwable e) {
@@ -191,10 +192,10 @@ abstract class AbstractFailoverTests {
                     } else {
                         log.debug("Read timeout");
                     }
-                } catch (ConnectionClosedException e) {
+                } catch (ConnectionClosedException | RetriesExhaustedException e) {
                     log.warn("Test exception in reading events: ", e);
                     continue;
-                } catch (ReinitializationRequiredException e) {
+                } catch (Throwable e) {
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
                 }
