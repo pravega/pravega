@@ -19,7 +19,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
