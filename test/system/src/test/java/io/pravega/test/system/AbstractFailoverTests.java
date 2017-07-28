@@ -199,6 +199,7 @@ abstract class AbstractFailoverTests {
                     testState.getReadException.set(e);
                 }
             }
+            log.info("Completed reading");
             reader.close();
         }, executorService);
     }
