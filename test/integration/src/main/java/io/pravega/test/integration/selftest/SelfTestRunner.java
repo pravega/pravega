@@ -87,12 +87,12 @@ public class SelfTestRunner {
         return TestConfig
                 .builder()
                 // Test params.
-                .with(TestConfig.PRODUCER_COUNT, 1)
-                .with(TestConfig.PRODUCER_PARALLELISM, 1) // How many concurrent ops per producer
-                .with(TestConfig.OPERATION_COUNT, 1000)
+                .with(TestConfig.PRODUCER_COUNT, 100)
+                .with(TestConfig.PRODUCER_PARALLELISM, 1000) // How many concurrent ops per producer
+                .with(TestConfig.OPERATION_COUNT, 1000000)
                 .with(TestConfig.STREAM_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 1000)
-                .with(TestConfig.MAX_APPEND_SIZE, 1000)
+                .with(TestConfig.MIN_APPEND_SIZE, 100)
+                .with(TestConfig.MAX_APPEND_SIZE, 100)
                 .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
 
                 // Transaction setup.

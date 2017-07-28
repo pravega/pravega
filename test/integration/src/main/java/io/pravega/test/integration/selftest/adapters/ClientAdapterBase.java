@@ -109,8 +109,8 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.getAndSet(true), "Cannot call initialize() after initialization happened.");
-        if (isFeatureSupported(Feature.Read)) {
-            this.clientReader.set(new ClientReader(new URI(getControllerUrl()), getClientFactory(), this.testExecutor));
+        if (isFeatureSupported(Feature.TailRead)) {
+            this.clientReader.set(new ClientReader(new URI(getControllerUrl()), this.testConfig, getClientFactory(), this.testExecutor));
         }
 
         this.initialized.set(true);

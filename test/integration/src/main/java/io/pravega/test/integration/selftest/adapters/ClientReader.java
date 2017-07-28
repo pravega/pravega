@@ -26,6 +26,7 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,19 +39,21 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
+import lombok.SneakyThrows;
 
 /**
  * StoreReader that reads from a Pravega Client.
  */
 class ClientReader implements StoreReader, AutoCloseable {
+    //region Members
     private static final ReaderConfig READER_CONFIG = ReaderConfig.builder().build();
     private static final ReaderGroupConfig READER_GROUP_CONFIG = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
-    private static final long READ_TIMEOUT_MILLIS = 10 * 1000;
     private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
-            .withExpBackoff(1, 10, 3)
+            .withExpBackoff(1, 10, 4)
             .retryingOn(ReinitializationRequiredException.class)
             .throwingOn(Exception.class);
     private final URI controllerUri;
+    private final TestConfig testConfig;
     private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
     @GuardedBy("readers")
@@ -58,12 +61,28 @@ class ClientReader implements StoreReader, AutoCloseable {
     @GuardedBy("readers")
     private boolean closed;
 
-    ClientReader(URI controllerUri, ClientFactory clientFactory, ScheduledExecutorService executor) {
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the ClientReader class.
+     *
+     * @param controllerUri The Controller's URI.
+     * @param clientFactory A ClientFactory to use.
+     * @param executor      An executor to use for background async operations.
+     */
+    ClientReader(URI controllerUri, TestConfig testConfig, ClientFactory clientFactory, ScheduledExecutorService executor) {
         this.controllerUri = Preconditions.checkNotNull(controllerUri, "controllerUri");
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.clientFactory = Preconditions.checkNotNull(clientFactory, "clientFactory");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.readers = new HashMap<>();
     }
+
+    //endregion
+
+    //region AutoCloseable Implementation
 
     @Override
     public void close() {
@@ -80,6 +99,10 @@ class ClientReader implements StoreReader, AutoCloseable {
             toClose.forEach(StreamReader::close);
         }
     }
+
+    //endregion
+
+    //region StoreReader Implementation
 
     @Override
     public CompletableFuture<Void> readAll(String streamName, Consumer<ReadItem> eventHandler, CancellationToken cancellationToken) {
@@ -111,6 +134,10 @@ class ClientReader implements StoreReader, AutoCloseable {
             return reader;
         }
     }
+
+    //endregion
+
+    //region StreamReader
 
     private class StreamReader implements AutoCloseable {
         private final String readerGroup;
@@ -148,15 +175,7 @@ class ClientReader implements StoreReader, AutoCloseable {
         CompletableFuture<Void> resumeReading(Consumer<ReadItem> eventHandler, CancellationToken cancellationToken) {
             return FutureHelpers.loop(
                     () -> canRead(cancellationToken),
-                    () -> CompletableFuture.runAsync(() -> {
-                        try {
-                            EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(READ_TIMEOUT_MILLIS));
-                            StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
-                            eventHandler.accept(readItem);
-                        } catch (Exception ex) {
-                            throw new CompletionException(ex);
-                        }
-                    }, ClientReader.this.executor),
+                    () -> CompletableFuture.runAsync(() -> readNextItem(eventHandler), ClientReader.this.executor),
                     ClientReader.this.executor);
         }
 
@@ -167,6 +186,19 @@ class ClientReader implements StoreReader, AutoCloseable {
             } catch (NoSuchEventException e) {
                 throw new CompletionException(e);
             }
+        }
+
+        @SneakyThrows
+        private void readNextItem(Consumer<ReadItem> eventHandler) {
+            EventRead<byte[]> readResult = READ_RETRY.run(() -> getReader().readNextEvent(ClientReader.this.testConfig.getTimeout().toMillis()));
+            if (readResult.getEvent() == null) {
+                // We are done.
+                close();
+                return;
+            }
+
+            StreamReadItem readItem = toReadItem(readResult.getEvent(), readResult.getEventPointer());
+            eventHandler.accept(readItem);
         }
 
         private StreamReadItem toReadItem(byte[] data, EventPointer address) {
@@ -185,12 +217,16 @@ class ClientReader implements StoreReader, AutoCloseable {
         private synchronized EventStreamReader<byte[]> getReader() {
             Exceptions.checkNotClosed(this.closed, this);
             if (this.reader == null) {
-                this.reader = ClientReader.this.clientFactory.createReader(this.readerId, this.readerGroup, ClientAdapterBase.SERIALIZER, null);
+                this.reader = ClientReader.this.clientFactory.createReader(this.readerId, this.readerGroup, ClientAdapterBase.SERIALIZER, READER_CONFIG);
             }
 
             return this.reader;
         }
     }
+
+    //endregion
+
+    //region StreamReadItem
 
     @Data
     private static class StreamReadItem implements ReadItem {
@@ -202,4 +238,6 @@ class ClientReader implements StoreReader, AutoCloseable {
             return String.format("Event = [%s], Address = [%s]", this.event, this.address);
         }
     }
+
+    //endregion
 }

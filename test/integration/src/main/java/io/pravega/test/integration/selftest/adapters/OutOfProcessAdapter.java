@@ -12,6 +12,7 @@ package io.pravega.test.integration.selftest.adapters;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FileHelpers;
@@ -51,7 +52,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
     private static final String LOG_ID = "OutOfProcessAdapter";
-    private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10000;
+    private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000;
     private final ServiceBuilderConfig builderConfig;
     private final AtomicReference<Process> zooKeeperProcess;
     private final AtomicReference<Process> bookieProcess;
@@ -121,9 +122,12 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     @Override
     public boolean isFeatureSupported(Feature feature) {
+        // Even though it does support it, Feature.RandomRead is not enabled because it currently has very poor performance.
         return feature == Feature.Create
                 || feature == Feature.Append
-                || feature == Feature.Read;
+                || feature == Feature.TailRead
+                || feature == Feature.Seal
+                || feature == Feature.Delete;
     }
 
     @Override
@@ -133,9 +137,8 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
-            Thread.sleep(1000); // TODO: figure out how to remove.
             startAllSegmentStores();
-            Thread.sleep(1000); // TODO: figure out how to remove.
+            Thread.sleep(5000); // TODO: figure out how to remove.
             initializeClient();
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
@@ -183,7 +186,13 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         // Create Client Factory.
         this.clientFactory.set(ClientFactory.withScope(SCOPE, controllerUri));
 
-        TestLogger.log(LOG_ID, "Scope '%s' created.", SCOPE);
+        // Create, Seal and Delete a dummy segment - this verifies that the client is properly setup and that all the
+        // components are running properly.
+        String testStreamName = "Ping" + Long.toHexString(System.currentTimeMillis());
+        this.streamManager.get().createStream(SCOPE, testStreamName, StreamConfiguration.builder().build());
+        this.streamManager.get().sealStream(SCOPE, testStreamName);
+        this.streamManager.get().deleteStream(SCOPE, testStreamName);
+        TestLogger.log(LOG_ID, "Client initialized; using scope '%s'.", SCOPE);
     }
 
     private void startZooKeeper() throws Exception {

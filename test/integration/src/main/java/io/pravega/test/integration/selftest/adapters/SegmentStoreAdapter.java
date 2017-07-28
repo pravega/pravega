@@ -181,7 +181,7 @@ public class SegmentStoreAdapter implements StoreAdapter {
 
     @Override
     public StoreReader createReader() {
-        return new SegmentStoreReader(this.streamSegmentStore, this.storage.get(), this.testExecutor);
+        return new SegmentStoreReader(this.config, this.streamSegmentStore, this.storage.get(), this.testExecutor);
     }
 
     @Override

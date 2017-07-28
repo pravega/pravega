@@ -29,13 +29,13 @@ import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.TruncateableStorage;
 import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -53,7 +53,7 @@ import lombok.val;
 class SegmentStoreReader implements StoreReader {
     //region Members
 
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+    private final TestConfig testConfig;
     private final StreamSegmentStore store;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
@@ -62,7 +62,16 @@ class SegmentStoreReader implements StoreReader {
 
     //region Constructor
 
-    SegmentStoreReader(StreamSegmentStore store, ReadOnlyStorage storage, ScheduledExecutorService executor) {
+    /**
+     * Creates a new instance oif the SegmentStoreReader class.
+     *
+     * @param testConfig The Test Configuration to use.
+     * @param store      A reference to the StreamSegmentStore to use.
+     * @param storage    A reference to the Storage to use for StorageDirect reads.
+     * @param executor   An Executor to use for async operations.
+     */
+    SegmentStoreReader(TestConfig testConfig, StreamSegmentStore store, ReadOnlyStorage storage, ScheduledExecutorService executor) {
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.store = Preconditions.checkNotNull(store, "store");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -80,7 +89,7 @@ class SegmentStoreReader implements StoreReader {
             cancellationToken = CancellationToken.NONE;
         }
 
-        return new SegmentReader(segmentName, eventHandler, cancellationToken, this.store, this.executor).run();
+        return new SegmentReader(segmentName, eventHandler, cancellationToken).run();
     }
 
     @Override
@@ -89,7 +98,7 @@ class SegmentStoreReader implements StoreReader {
         Preconditions.checkArgument(address instanceof Address, "Unexpected address type.");
         Address a = (Address) address;
         return this.store
-                .read(segmentName, a.offset, a.length, READ_TIMEOUT)
+                .read(segmentName, a.offset, a.length, this.testConfig.getTimeout())
                 .thenApplyAsync(readResult -> {
                     byte[] data = new byte[a.length];
                     quickRead(readResult, data);
@@ -105,7 +114,7 @@ class SegmentStoreReader implements StoreReader {
             cancellationToken = CancellationToken.NONE;
         }
 
-        return new StorageReader(segmentName, eventHandler, cancellationToken, this.storage, this.executor).run();
+        return new StorageReader(segmentName, eventHandler, cancellationToken).run();
     }
 
     //endregion
@@ -124,7 +133,7 @@ class SegmentStoreReader implements StoreReader {
                 // Reached the end.
                 break;
             } else if (!entry.getContent().isDone()) {
-                entry.requestContent(READ_TIMEOUT);
+                entry.requestContent(this.testConfig.getTimeout());
             }
 
             ReadResultEntryContents contents = entry.getContent().join();
@@ -143,13 +152,11 @@ class SegmentStoreReader implements StoreReader {
      * Reads all data from Storage for a given Segment.
      */
     @RequiredArgsConstructor
-    private static class StorageReader {
-        private static final Duration WAIT_DURATION = Duration.ofMillis(500);
+    private class StorageReader {
+        private final Duration waitDuration = Duration.ofMillis(500);
         private final String segmentName;
         private final Consumer<Event> eventHandler;
         private final CancellationToken cancellationToken;
-        private final ReadOnlyStorage storage;
-        private final ScheduledExecutorService executor;
         @GuardedBy("readBuffer")
         private final TruncateableArray readBuffer = new TruncateableArray();
         @GuardedBy("readBuffer")
@@ -163,10 +170,10 @@ class SegmentStoreReader implements StoreReader {
         CompletableFuture<Void> run() {
             return FutureHelpers.loop(
                     () -> !this.cancellationToken.isCancellationRequested(),
-                    () -> this.storage
-                            .getStreamSegmentInfo(segmentName, READ_TIMEOUT)
-                            .thenComposeAsync(this::performRead, this.executor),
-                    this.executor);
+                    () -> SegmentStoreReader.this.storage
+                            .getStreamSegmentInfo(segmentName, SegmentStoreReader.this.testConfig.getTimeout())
+                            .thenComposeAsync(this::performRead, SegmentStoreReader.this.executor),
+                    SegmentStoreReader.this.executor);
         }
 
         /**
@@ -186,17 +193,18 @@ class SegmentStoreReader implements StoreReader {
                     return FutureHelpers.failedFuture(new StreamSegmentSealedException(this.segmentName));
                 } else {
                     // No change in the segment.
-                    return FutureHelpers.delayedFuture(WAIT_DURATION, this.executor);
+                    return FutureHelpers.delayedFuture(waitDuration, SegmentStoreReader.this.executor);
                 }
             } else {
                 byte[] buffer = new byte[(int) Math.min(Integer.MAX_VALUE, diff)];
-                return this.storage
+                return SegmentStoreReader.this.storage
                         .openRead(segmentName)
-                        .thenCompose(handle -> this.storage.read(handle, lastReadOffset, buffer, 0, buffer.length, READ_TIMEOUT))
+                        .thenCompose(handle -> SegmentStoreReader.this.storage.read(
+                                handle, lastReadOffset, buffer, 0, buffer.length, SegmentStoreReader.this.testConfig.getTimeout()))
                         .thenComposeAsync(bytesRead -> {
                             processRead(buffer, bytesRead);
                             return truncateIfPossible(segmentInfo.getLength());
-                        }, this.executor);
+                        }, SegmentStoreReader.this.executor);
             }
         }
 
@@ -222,8 +230,9 @@ class SegmentStoreReader implements StoreReader {
         }
 
         private CompletableFuture<Void> truncateIfPossible(long offset) {
-            if (this.storage instanceof TruncateableStorage) {
-                return ((TruncateableStorage) this.storage).truncate(this.segmentName, offset, READ_TIMEOUT);
+            if (SegmentStoreReader.this.storage instanceof TruncateableStorage) {
+                return ((TruncateableStorage) SegmentStoreReader.this.storage)
+                        .truncate(this.segmentName, offset, SegmentStoreReader.this.testConfig.getTimeout());
             } else {
                 return CompletableFuture.completedFuture(null);
             }
@@ -238,12 +247,10 @@ class SegmentStoreReader implements StoreReader {
      * Reads the entire Segment from the SegmentStore.
      */
     @RequiredArgsConstructor
-    private static class SegmentReader {
+    private class SegmentReader {
         private final String segmentName;
         private final Consumer<ReadItem> eventHandler;
         private final CancellationToken cancellationToken;
-        private final StreamSegmentStore store;
-        private final Executor executor;
         @GuardedBy("readBuffer")
         private final TruncateableArray readBuffer = new TruncateableArray();
         @GuardedBy("readBuffer")
@@ -258,12 +265,13 @@ class SegmentStoreReader implements StoreReader {
         CompletableFuture<Void> run() {
             return FutureHelpers.loop(
                     this::canRun,
-                    () -> this.store
-                            .read(segmentName, getReadOffset(), Integer.MAX_VALUE, READ_TIMEOUT)
-                            .thenComposeAsync(this::processReadResult, this.executor)
-                            .thenCompose(v -> this.store.getStreamSegmentInfo(segmentName, false, READ_TIMEOUT))
+                    () -> SegmentStoreReader.this.store
+                            .read(segmentName, getReadOffset(), Integer.MAX_VALUE, SegmentStoreReader.this.testConfig.getTimeout())
+                            .thenComposeAsync(this::processReadResult, SegmentStoreReader.this.executor)
+                            .thenCompose(v -> SegmentStoreReader.this.store
+                                    .getStreamSegmentInfo(segmentName, false, SegmentStoreReader.this.testConfig.getTimeout()))
                             .handle(this::readCompleteCallback),
-                    this.executor);
+                    SegmentStoreReader.this.executor);
         }
 
         private boolean canRun() {
@@ -274,7 +282,9 @@ class SegmentStoreReader implements StoreReader {
 
         private CompletableFuture<Void> processReadResult(ReadResult readResult) {
             CompletableFuture<Void> result = new CompletableFuture<>();
-            AsyncReadResultProcessor.process(readResult, new ReadResultHandler(this::processRead, this.cancellationToken, result), this.executor);
+            AsyncReadResultProcessor.process(readResult,
+                    new ReadResultHandler(this::processRead, this.cancellationToken, result),
+                    SegmentStoreReader.this.executor);
             return result;
         }
 
@@ -356,7 +366,7 @@ class SegmentStoreReader implements StoreReader {
         public boolean processEntry(ReadResultEntry entry) {
             if (!entry.getContent().isDone()) {
                 // Make sure we only request content if it's not already available.
-                entry.requestContent(READ_TIMEOUT);
+                entry.requestContent(getRequestContentTimeout());
             }
 
             val contents = entry.getContent().join();
@@ -382,7 +392,7 @@ class SegmentStoreReader implements StoreReader {
 
         @Override
         public Duration getRequestContentTimeout() {
-            return READ_TIMEOUT;
+            return Duration.ofSeconds(10);
         }
     }
 

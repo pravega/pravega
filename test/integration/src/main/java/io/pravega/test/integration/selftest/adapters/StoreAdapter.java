@@ -117,9 +117,14 @@ public interface StoreAdapter extends AutoCloseable {
         Seal,
 
         /**
-         * Reading from Streams.
+         * Tail-Reading from Streams.
          */
-        Read,
+        TailRead,
+
+        /**
+         * Reading at random positions from Streams.
+         */
+        RandomRead,
 
         /**
          * Transactions

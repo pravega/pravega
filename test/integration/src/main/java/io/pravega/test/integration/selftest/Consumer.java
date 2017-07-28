@@ -54,6 +54,8 @@ public class Consumer extends Actor {
     private final ArrayDeque<StoreReader.ReadItem> storageQueue;
     @GuardedBy("storageQueue")
     private final ArrayDeque<Event> storageReadQueue;
+    private final boolean catchupReadsSupported;
+    private final boolean storageReadsSupported;
 
     //endregion
 
@@ -77,6 +79,8 @@ public class Consumer extends Actor {
         this.streamName = Preconditions.checkNotNull(streamName, "streamName");
         this.testState = Preconditions.checkNotNull(testState, "testState");
         this.reader = store.createReader();
+        this.catchupReadsSupported = store.isFeatureSupported(StoreAdapter.Feature.RandomRead);
+        this.storageReadsSupported = store.isFeatureSupported(StoreAdapter.Feature.StorageDirect);
         this.cancellationToken = new CancellationToken();
         this.lastSequenceNumbers = new ConcurrentHashMap<>();
         this.catchupQueue = new BlockingDrainingQueue<>();
@@ -104,7 +108,7 @@ public class Consumer extends Actor {
     //endregion
 
     static boolean canUseStoreAdapter(StoreAdapter storeAdapter) {
-        return storeAdapter.isFeatureSupported(StoreAdapter.Feature.Read);
+        return storeAdapter.isFeatureSupported(StoreAdapter.Feature.TailRead);
     }
 
     private boolean canRun() {
@@ -129,7 +133,7 @@ public class Consumer extends Actor {
      * Reads the entire data from Storage for the given Target and validates it, piece by piece.
      */
     private CompletableFuture<Void> processStorageReads() {
-        if (!this.store.isFeatureSupported(StoreAdapter.Feature.StorageDirect)) {
+        if (!this.storageReadsSupported) {
             return CompletableFuture.completedFuture(null);
         }
 
@@ -205,9 +209,14 @@ public class Consumer extends Actor {
         }
 
         if (validationResult.isSuccess()) {
-            this.catchupQueue.add(readItem);
-            synchronized (this.storageQueue) {
-                this.storageQueue.addLast(readItem);
+            if (this.catchupReadsSupported) {
+                this.catchupQueue.add(readItem);
+            }
+
+            if (this.storageReadsSupported) {
+                synchronized (this.storageQueue) {
+                    this.storageQueue.addLast(readItem);
+                }
             }
 
             this.testState.recordTailRead(validationResult.getLength());
@@ -221,6 +230,10 @@ public class Consumer extends Actor {
     }
 
     private CompletableFuture<Void> processCatchupReads() {
+        if (!this.catchupReadsSupported) {
+            return CompletableFuture.completedFuture(null);
+        }
+
         return FutureHelpers.loop(
                 this::canRun,
                 () -> this.catchupQueue.take(CATCHUP_READ_COUNT)
