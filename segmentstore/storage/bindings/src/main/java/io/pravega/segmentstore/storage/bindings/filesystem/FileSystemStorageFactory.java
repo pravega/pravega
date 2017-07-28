@@ -7,10 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.extendeds3;
+package io.pravega.segmentstore.storage.bindings.filesystem;
 
-import com.emc.object.s3.S3Config;
-import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -18,19 +16,19 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for ExtendedS3 Storage adapters.
+ * Factory for file system Storage adapters.
  */
-public class ExtendedS3StorageFactory implements StorageFactory {
-    private final ExtendedS3StorageConfig config;
+public class FileSystemStorageFactory implements StorageFactory {
+    private final FileSystemStorageConfig config;
     private final ExecutorService executor;
 
     /**
-     * Creates a new instance of the NFSStorageFactory class.
+     * Creates a new instance of the FileSystemStorageFactory class.
      *
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
+    public FileSystemStorageFactory(FileSystemStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -39,11 +37,6 @@ public class ExtendedS3StorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        S3Config s3Config = new S3Config(config.getUrl())
-                .withIdentity(config.getAccessKey())
-                .withSecretKey(config.getSecretKey());
-
-        S3JerseyClient client = new S3JerseyClient(s3Config);
-        return new ExtendedS3Storage(client, this.config, this.executor);
+        return new FileSystemStorage(this.config, this.executor);
     }
 }

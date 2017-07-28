@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.filesystem;
+package io.pravega.segmentstore.storage.bindings.filesystem;
 
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;

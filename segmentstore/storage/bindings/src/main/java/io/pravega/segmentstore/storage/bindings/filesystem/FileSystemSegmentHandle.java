@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.filesystem;
+package io.pravega.segmentstore.storage.bindings.filesystem;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.SegmentHandle;

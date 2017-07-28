@@ -182,6 +182,30 @@ project('segmentstore:storage:impl') {
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         //For Extended S3
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+}
+
+
+project('segmentstore:storage:bindings') {
+    dependencies {
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLog4j
+
+        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
+
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion, withoutLog4j
+
+        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLog4j
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
+        //For Extended S3
         compile "com.emc.ecs:object-client:3.0.0"
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
@@ -191,6 +215,7 @@ project('segmentstore:storage:impl') {
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
     }
 }
 

@@ -7,8 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.filesystem;
+package io.pravega.segmentstore.storage.bindings.extendeds3;
 
+import com.emc.object.s3.S3Config;
+import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -16,19 +18,19 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Factory for file system Storage adapters.
+ * Factory for ExtendedS3 Storage adapters.
  */
-public class FileSystemStorageFactory implements StorageFactory {
-    private final FileSystemStorageConfig config;
+public class ExtendedS3StorageFactory implements StorageFactory {
+    private final ExtendedS3StorageConfig config;
     private final ExecutorService executor;
 
     /**
-     * Creates a new instance of the FileSystemStorageFactory class.
+     * Creates a new instance of the NFSStorageFactory class.
      *
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public FileSystemStorageFactory(FileSystemStorageConfig config, ExecutorService executor) {
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -37,6 +39,11 @@ public class FileSystemStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new FileSystemStorage(this.config, this.executor);
+        S3Config s3Config = new S3Config(config.getUrl())
+                .withIdentity(config.getAccessKey())
+                .withSecretKey(config.getSecretKey());
+
+        S3JerseyClient client = new S3JerseyClient(s3Config);
+        return new ExtendedS3Storage(client, this.config, this.executor);
     }
 }
