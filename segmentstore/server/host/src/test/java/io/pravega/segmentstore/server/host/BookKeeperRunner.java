@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.test.common.TestUtils;

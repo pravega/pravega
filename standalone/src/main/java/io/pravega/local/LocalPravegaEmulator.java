@@ -10,7 +10,7 @@
 package io.pravega.local;
 
 
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceBuilderConfig;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 

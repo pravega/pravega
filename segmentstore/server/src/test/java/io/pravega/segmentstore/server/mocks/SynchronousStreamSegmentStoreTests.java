@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.mocks;
 
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.segmentstore.server.store.StreamSegmentServiceTests;
 

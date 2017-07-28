@@ -17,8 +17,8 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceConfig;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
@@ -168,8 +168,9 @@ public final class ServiceStarter {
             throws IllegalAccessException, InvocationTargetException, InstantiationException, ClassNotFoundException {
         Class<? extends StorageFactory> cls = (Class<? extends StorageFactory>) Class.forName(storageChoice);
         for (Constructor cstr: cls.getConstructors()) {
-            if (cstr.getParameterTypes().length == 1) {
-                return (StorageFactory) cstr.newInstance(setup);
+            if (cstr.getParameterTypes().length == 2 &&
+                    cstr.getParameterTypes()[0].isAssignableFrom(ServiceBuilderConfig.class)) {
+                return (StorageFactory) cstr.newInstance(setup.getBuilder().getServiceBuilderConfig(), setup.getExecutor());
             }
         }
         return null;

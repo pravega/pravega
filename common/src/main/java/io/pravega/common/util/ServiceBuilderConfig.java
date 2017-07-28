@@ -7,9 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.store;
+package io.pravega.common.util;
 
-import io.pravega.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
 import java.io.FileReader;
 import java.io.IOException;

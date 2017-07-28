@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -29,6 +30,9 @@ import lombok.RequiredArgsConstructor;
 public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     private final InMemoryStorage baseStorage;
 
+    public InMemoryStorageFactory(ServiceBuilderConfig config, ScheduledExecutorService executorService) {
+        this(executorService);
+    }
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.baseStorage = new InMemoryStorage(executor);
         this.baseStorage.initialize(1); // InMemoryStorage does not use epochs.

@@ -31,8 +31,8 @@ import io.pravega.segmentstore.server.host.ServiceStarter;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -240,8 +240,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                                           .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
-                                          .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                                 ServiceConfig.StorageTypes.INMEMORY.toString() :
+                                          .with(ServiceConfig.STORAGE_FACTORY_IMPLEMENTATION_CLASS, isInMemStorage ?
+                                                  "io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory" :
                                                  ServiceConfig.StorageTypes.FILESYSTEM.toString()))
                     .include(DurableLogConfig.builder()
                                           .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)

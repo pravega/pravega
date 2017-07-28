@@ -7,13 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.store;
+package io.pravega.common.util;
 
 import com.google.common.base.Strings;
-import io.pravega.common.util.ConfigBuilder;
-import io.pravega.common.util.ConfigurationException;
-import io.pravega.common.util.Property;
-import io.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import lombok.Getter;
@@ -36,8 +32,8 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
-    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation",
-                                                        "INMEMORY");
+    public static final Property<String> STORAGE_FACTORY_IMPLEMENTATION_CLASS = Property.named("storageImplementation",
+                                                        "io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory");
 
     private static final String COMPONENT_CODE = "pravegaservice";
 
@@ -175,7 +171,7 @@ public class ServiceConfig {
         this.zkRetryCount = properties.getInt(ZK_RETRY_COUNT);
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
-        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
+        this.storageImplementation = properties.get(STORAGE_FACTORY_IMPLEMENTATION_CLASS);
     }
 
     /**
