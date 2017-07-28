@@ -13,26 +13,22 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
@@ -161,31 +157,22 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                ServiceConfig.StorageTypes storageChoice = ServiceConfig.StorageTypes.valueOf(this.serviceConfig
-                        .getStorageImplementation());
-                switch (storageChoice) {
-                    case HDFS:
-                        HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
-
-                    case FILESYSTEM:
-                        FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
-
-                    case EXTENDEDS3:
-                        ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
-
-                    case INMEMORY:
-                        return new InMemoryStorageFactory(setup.getExecutor());
-
-                    default:
-                        throw new IllegalStateException("Undefined storage implementation");
-                }
+                return createStorageFactoryFromClassName(setup, this.serviceConfig.getStorageImplementation());
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
         });
+    }
+
+    private StorageFactory createStorageFactoryFromClassName(ServiceBuilder.ComponentSetup setup, String storageChoice)
+            throws IllegalAccessException, InvocationTargetException, InstantiationException, ClassNotFoundException {
+        Class<? extends StorageFactory> cls = (Class<? extends StorageFactory>) Class.forName(storageChoice);
+        for (Constructor cstr: cls.getConstructors()) {
+            if (cstr.getParameterTypes().length == 1) {
+                return (StorageFactory) cstr.newInstance(setup);
+            }
+        }
+        return null;
     }
 
     private void attachZKSegmentManager(ServiceBuilder builder) {

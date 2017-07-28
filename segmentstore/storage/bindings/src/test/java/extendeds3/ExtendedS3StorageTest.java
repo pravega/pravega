@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.extendeds3;
 
 import com.emc.object.s3.S3Config;
+import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
@@ -17,7 +18,6 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
 import io.pravega.test.common.TestUtils;
-import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.UUID;
@@ -37,7 +37,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private S3JerseyClient client = null;
     private S3ImplBase s3Proxy;
     private final int port = TestUtils.getAvailableListenPort();
-    private final String endpoint = "http://127.0.0.1:" + port;
+    private final String endpoint = "http://lglop114.lss.emc.com:9020";
     private S3Config s3Config;
 
     @Before
@@ -45,18 +45,20 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         String bucketName = BUCKET_NAME_PREFIX + UUID.randomUUID().toString();
         this.adapterConfig = ExtendedS3StorageConfig.builder()
                                                     .with(ExtendedS3StorageConfig.BUCKET, bucketName)
-                                                    .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "x")
-                                                    .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
+                                                    .with(ExtendedS3StorageConfig.ACCESS_KEY_ID, "object_user1")
+                                                    .with(ExtendedS3StorageConfig.SECRET_KEY, "ChangeMeChangeMeChangeMeChangeMeChangeMe")
                                                     .with(ExtendedS3StorageConfig.ROOT, "test")
                                                     .with(ExtendedS3StorageConfig.URI, endpoint)
                                                     .build();
-        URI uri = URI.create(endpoint);
-        s3Config = new S3Config(uri);
-        s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
-        s3Proxy = new S3ProxyImpl(endpoint, s3Config);
-        s3Proxy.start();
         createStorage();
-        client.createBucket(bucketName);
+
+        try {
+            client.createBucket(bucketName);
+        } catch (S3Exception e) {
+            if (!e.getErrorCode().equals("BucketAlreadyOwnedByYou")) {
+                throw e;
+            }
+        }
         List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map((object) -> {
             return new ObjectKey(object.getKey());
         }).collect(Collectors.toList());
