@@ -311,6 +311,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
             } catch (RetriesExhaustedException e) {
                 log.warn("Unable to close the client: ", e);
             } catch (Throwable e) {
+                log.error("Error closing writer", e);
                 Assert.fail("Unable to close the client. Test Failure");
             }
         });
@@ -321,6 +322,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
             } catch (RetriesExhaustedException e) {
                 log.warn("Unable to close the client: ", e);
             } catch (Throwable e) {
+                log.error("Error closing reader", e);
                 Assert.fail("Unable to close the client. Test Failure");
             }
         });
