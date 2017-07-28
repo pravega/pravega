@@ -128,10 +128,14 @@ public class StreamSegmentMapper {
         }
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.storage
+        CompletableFuture<Void> result = this.storage
                 .create(streamSegmentName, timer.getRemaining())
-                .thenComposeAsync(si -> this.stateStore.put(streamSegmentName, getState(si, attributes), timer.getRemaining()), this.executor)
-                .thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName));
+                .thenComposeAsync(si -> this.stateStore.put(streamSegmentName, getState(si, attributes), timer.getRemaining()), this.executor);
+        if (log.isTraceEnabled()) {
+            result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName));
+        }
+
+        return result;
     }
 
     /**
