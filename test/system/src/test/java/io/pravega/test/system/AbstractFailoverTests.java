@@ -181,7 +181,7 @@ abstract class AbstractFailoverTests {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
                     log.debug("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
@@ -304,6 +304,7 @@ abstract class AbstractFailoverTests {
         testState.writersComplete.get();
         testState.newWritersComplete.get();
         if (testState.getWriteException.get() != null) {
+            log.info("Unable to write events: {}", testState.getWriteException.get());
             Assert.fail("Unable to write events. Test failure");
         }
 
@@ -313,6 +314,7 @@ abstract class AbstractFailoverTests {
         log.info("Wait for readers execution to complete");
         testState.readersComplete.get();
         if (testState.getReadException.get() != null) {
+            log.info("Unable to read events: {}", testState.getReadException.get());
             Assert.fail("Unable to read events. Test failure");
         }
 
