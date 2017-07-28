@@ -463,9 +463,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
     }
 
 
-    private class TxnCreationFailedException extends RuntimeException {
+    private static class TxnCreationFailedException extends RuntimeException {
     }
 
-    private class TxnNotCompleteException extends RuntimeException {
+    private static class TxnNotCompleteException extends RuntimeException {
     }
 }
