@@ -48,7 +48,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private static final int NUM_READERS = 5;
     private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 1);
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
 
@@ -122,7 +122,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
 
             //scale manually
-            log.debug("Scale down stream starting segments:" + controller.getCurrentSegments(scope, SCALE_STREAM)
+            log.debug("Number of Segments before manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
             Map<Double, Double> keyRanges = new HashMap<>();
@@ -139,7 +139,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
             //do a get on scaleStatus
             scaleStatus.get();
-            log.debug("Scale down stream final segments:" + controller.getCurrentSegments(scope, SCALE_STREAM)
+            log.debug("Number of Segments post manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
             //bring the instances back to 3 before performing failover after scaling
