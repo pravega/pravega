@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.extendeds3;
+package io.pravega.segmentstore.host.bindings;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Exception;
@@ -26,6 +26,8 @@ import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.s3.request.SetObjectAclRequest;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.segmentstore.storage.bindings.extendeds3.AclSize;
+import io.pravega.segmentstore.storage.bindings.extendeds3.S3ImplBase;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;

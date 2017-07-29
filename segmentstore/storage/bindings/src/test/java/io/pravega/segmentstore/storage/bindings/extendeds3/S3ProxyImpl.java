@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.extendeds3;
+package io.pravega.segmentstore.storage.bindings.extendeds3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3Config;
@@ -58,7 +58,7 @@ public class S3ProxyImpl extends S3ImplBase {
         properties.setProperty("s3proxy.authorization", "none");
         properties.setProperty("s3proxy.endpoint", endpoint);
         properties.setProperty("jclouds.provider", "filesystem");
-        properties.setProperty("jclouds.io.pravega.segmentstore.storage.bindings.filesystem.filesystem.basedir", "/tmp/s3proxy");
+        properties.setProperty("jclouds.filesystem.basedir", "/tmp/s3proxy");
 
         ContextBuilder builder = ContextBuilder
                 .newBuilder("filesystem")

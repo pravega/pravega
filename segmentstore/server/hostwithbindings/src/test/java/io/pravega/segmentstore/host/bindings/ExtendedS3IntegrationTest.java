@@ -7,22 +7,22 @@
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.host;
+package io.pravega.segmentstore.host.bindings;
 
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.host.BookKeeperRunner;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.bindings.extendeds3.ExtendedS3Storage;
+import io.pravega.segmentstore.storage.bindings.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3Storage;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.segmentstore.storage.impl.extendeds3.S3FileSystemImpl;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.test.common.TestUtils;

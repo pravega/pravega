@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.extendeds3;
+package io.pravega.segmentstore.storage.bindings.extendeds3;
 
 import com.emc.object.Range;
 import com.emc.object.s3.S3ObjectMetadata;
