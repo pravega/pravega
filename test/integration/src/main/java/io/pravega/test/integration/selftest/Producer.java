@@ -19,6 +19,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -96,34 +97,40 @@ class Producer extends Actor {
                 break;
             }
 
-            final Timer timer = new Timer();
             CompletableFuture<Void> result;
             try {
-                result = executeOperation(op);
+                CompletableFuture<Void> waitOn = op.getWaitOn();
+                if (waitOn != null) {
+                    result = waitOn
+                            .exceptionally(ex -> null)
+                            .thenComposeAsync(v -> executeOperation(op), this.executorService);
+                } else {
+                    result = executeOperation(op);
+                }
             } catch (Throwable ex) {
                 // Catch and handle sync errors.
-                op.completed(timer.getElapsed());
+                op.completed(-1);
                 if (handleOperationError(ex, op)) {
                     // Exception handled; skip this iteration since there's nothing more we can do.
-                    break;
+                    continue;
                 } else {
                     result = FutureHelpers.failedFuture(ex);
                 }
             }
 
-            result = result.whenCompleteAsync((r, ex) -> {
-                op.completed(timer.getElapsed());
-
+            futures.add(result.exceptionally(ex -> {
                 // Catch and handle async errors.
-                if (ex != null && !handleOperationError(ex, op)) {
-                    throw new CompletionException(ex);
+                if (handleOperationError(ex, op)) {
+                    return null;
                 }
-            }, this.executorService);
-            futures.add(result);
+
+                throw new CompletionException(ex);
+            }));
         }
 
         return FutureHelpers.allOf(futures);
     }
+
 
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
         // Log & throw every exception.
@@ -155,29 +162,37 @@ class Producer extends Actor {
      * Executes the given operation.
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
+        CompletableFuture<Void> result;
+        AtomicReference<Timer> timer = new AtomicReference<>();
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            return this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
-                             .thenAccept(operation::setResult);
+            timer.set(new Timer());
+            result = this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
+                               .thenAccept(operation::setResult);
         } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
             // Merge the Transaction.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "merge transaction");
-            return this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
+            timer.set(new Timer());
+            result = this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
             Event event = this.dataSource.nextEvent(operation.getTarget(), this.id);
             operation.setLength(event.getSerialization().getLength());
-            return this.store.append(operation.getTarget(), event, this.config.getTimeout())
-                    .exceptionally(ex -> attemptReconcile(ex, operation));
+            timer.set(new Timer());
+            result = this.store.append(operation.getTarget(), event, this.config.getTimeout())
+                               .exceptionally(ex -> attemptReconcile(ex, operation));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the target.
             StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal");
-            return this.store.seal(operation.getTarget(), this.config.getTimeout());
+            timer.set(new Timer());
+            result = this.store.seal(operation.getTarget(), this.config.getTimeout());
         } else {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }
+
+        return result.thenRun(() -> operation.completed(timer.get().getElapsedMillis()));
     }
 
     @SneakyThrows

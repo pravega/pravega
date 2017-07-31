@@ -62,6 +62,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     private final AtomicReference<File> storageRoot;
     private final AtomicReference<StreamManager> streamManager;
     private final AtomicReference<ClientFactory> clientFactory;
+    private final Thread destroyChildProcesses;
 
     //endregion
 
@@ -86,6 +87,10 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         this.storageRoot = new AtomicReference<>();
         this.streamManager = new AtomicReference<>();
         this.clientFactory = new AtomicReference<>();
+
+        // Make sure the child processes and any created files get killed/deleted if the process is terminated.
+        this.destroyChildProcesses = new Thread(this::destroyExternalComponents);
+        Runtime.getRuntime().addShutdownHook(this.destroyChildProcesses);
     }
 
     //endregion
@@ -101,6 +106,13 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         stopComponent(this.streamManager);
 
         // Stop all services.
+        destroyExternalComponents();
+        Runtime.getRuntime().removeShutdownHook(this.destroyChildProcesses);
+        TestLogger.log(LOG_ID, "Closed.");
+    }
+
+    private void destroyExternalComponents() {
+        // Stop all services.
         int controllerCount = stopProcesses(this.controllerProcesses);
         TestLogger.log(LOG_ID, "Controller(s) (%d count) shut down.", controllerCount);
         int segmentStoreCount = stopProcesses(this.segmentStoreProcesses);
@@ -113,7 +125,6 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         // Delete temporary files and directories.
         delete(this.segmentStoreConfigFile);
         delete(this.storageRoot);
-        TestLogger.log(LOG_ID, "Closed.");
     }
 
     //endregion
@@ -137,8 +148,9 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
+            Thread.sleep(3000); // TODO: figure out how to remove.
             startAllSegmentStores();
-            Thread.sleep(5000); // TODO: figure out how to remove.
+            Thread.sleep(3000); // TODO: figure out how to remove.
             initializeClient();
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
@@ -289,6 +301,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             f = File.createTempFile("selftest.segmentstore", "");
             f.deleteOnExit();
             this.segmentStoreConfigFile.set(f);
+            TestLogger.log(LOG_ID, "Using SegmentStore config file %s.", f.getAbsolutePath());
         }
 
         // Tier2 Storage FileSystem root.
@@ -297,6 +310,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
             d = IOUtils.createTempDir("selftest.segmentstore", "storage");
             d.deleteOnExit();
             this.storageRoot.set(d);
+            TestLogger.log(LOG_ID, "Using Storage FileSystem path %s.", d.getAbsolutePath());
         }
 
         this.builderConfig.store(f);
@@ -332,7 +346,9 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     private void delete(AtomicReference<File> fileRef) {
         File f = fileRef.getAndSet(null);
         if (f != null && f.exists()) {
-            FileHelpers.deleteFileOrDirectory(f);
+            if (FileHelpers.deleteFileOrDirectory(f)) {
+                TestLogger.log(LOG_ID, "Deleted %s.", f.getAbsolutePath());
+            }
         }
     }
 

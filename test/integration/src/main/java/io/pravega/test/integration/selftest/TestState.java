@@ -10,11 +10,11 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,7 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Represents the current State of the SelfTest.
@@ -45,9 +45,9 @@ class TestState {
     private final AtomicLong verifiedTailLength;
     private final AtomicLong verifiedCatchupLength;
     private final AtomicLong verifiedStorageLength;
-    private final ConcurrentHashMap<String, SegmentInfo> allSegments;
-    @GuardedBy("allSegmentNames")
-    private final ArrayList<String> allSegmentNames;
+    private final ConcurrentHashMap<String, StreamInfo> allStreams;
+    @GuardedBy("allStreamNames")
+    private final ArrayList<String> allStreamNames;
     @GuardedBy("durations")
     private final HashMap<OperationType, List<Integer>> durations;
     private final AtomicLong startTimeNanos;
@@ -63,8 +63,8 @@ class TestState {
     TestState() {
         this.generatedOperationCount = new AtomicInteger();
         this.successfulOperationCount = new AtomicInteger();
-        this.allSegments = new ConcurrentHashMap<>();
-        this.allSegmentNames = new ArrayList<>();
+        this.allStreams = new ConcurrentHashMap<>();
+        this.allStreamNames = new ArrayList<>();
         this.producedLength = new AtomicLong();
         this.verifiedTailLength = new AtomicLong();
         this.verifiedCatchupLength = new AtomicLong();
@@ -94,7 +94,7 @@ class TestState {
     }
 
     /**
-     * Gets a value indicating the total number of operations that were successfully completed..
+     * Gets a value indicating the total number of operations that were successfully completed.
      */
     int getSuccessfulOperationCount() {
         return this.successfulOperationCount.get();
@@ -131,17 +131,17 @@ class TestState {
     /**
      * Gets an immutable collection containing information about all Segments and Transactions.
      */
-    Collection<SegmentInfo> getAllSegments() {
-        return this.allSegments.values();
+    Collection<StreamInfo> getAllStreams() {
+        return this.allStreams.values();
     }
 
     /**
-     * Gets an immutable collection containing the names of all the Segments and Transactions.
+     * Gets an immutable collection containing the names of all the Streams and Transactions.
      * The resulting object is a copy of the internal state, and will not reflect future modifications to this object.
      */
-    Collection<String> getAllSegmentNames() {
-        synchronized (this.allSegmentNames) {
-            return new ArrayList<>(this.allSegmentNames);
+    Collection<String> getAllStreamNames() {
+        synchronized (this.allStreamNames) {
+            return new ArrayList<>(this.allStreamNames);
         }
     }
 
@@ -150,29 +150,29 @@ class TestState {
      * The resulting object is a copy of the internal state, and will not reflect future modifications to this object.
      */
     Collection<String> getTransactionNames() {
-        return this.allSegments.values().stream()
-                               .filter(SegmentInfo::isTransaction)
-                               .map(s -> s.name)
-                               .collect(Collectors.toList());
+        return this.allStreams.values().stream()
+                              .filter(StreamInfo::isTransaction)
+                              .map(s -> s.name)
+                              .collect(Collectors.toList());
     }
 
     /**
-     * Gets information about a particular Segment.
+     * Gets information about a particular Stream.
      *
      * @param name The name of the Segment to inquire about.
      */
-    SegmentInfo getSegment(String name) {
-        return this.allSegments.get(name);
+    StreamInfo getStream(String name) {
+        return this.allStreams.get(name);
     }
 
     /**
-     * Gets a SegmentInfo that matches the given filter.
+     * Gets a StreamInfo that matches the given filter.
      *
      * @param filter The filter to use.
-     * @return A SegmentInfo (in no particular order) that matches the given filter, or null if none match.
+     * @return A StreamInfo (in no particular order) that matches the given filter, or null if none match.
      */
-    SegmentInfo getSegment(Function<SegmentInfo, Boolean> filter) {
-        for (SegmentInfo si : this.allSegments.values()) {
+    StreamInfo getStream(Function<StreamInfo, Boolean> filter) {
+        for (StreamInfo si : this.allStreams.values()) {
             if (filter.apply(si)) {
                 return si;
             }
@@ -182,29 +182,29 @@ class TestState {
     }
 
     /**
-     * Gets the name of an arbitrary Segment/Transaction that is registered. Note that calling this method with the same
+     * Gets a StreamInfo of an arbitrary Stream/Transaction that is registered. Note that calling this method with the same
      * value for the argument may not necessarily produce the same result if done repeatedly.
      *
-     * @param hint A hint to use to get the Segment name.
+     * @param hint A hint to use to get the Stream name.
      */
-    String getSegmentOrTransactionName(int hint) {
-        synchronized (this.allSegmentNames) {
-            return this.allSegmentNames.get(hint % this.allSegmentNames.size());
+    StreamInfo getStreamOrTransaction(int hint) {
+        synchronized (this.allStreamNames) {
+            return this.allStreams.get(this.allStreamNames.get(hint % this.allStreamNames.size()));
         }
     }
 
     /**
-     * Gets the name of an arbitrary Segment (non-transaction) that is registered. Note that calling this method with the
+     * Gets the name of an arbitrary Stream (non-transaction) that is registered. Note that calling this method with the
      * same value for the argument may not necessarily produce the same result if done repeatedly.
      *
-     * @param hint A hint to use to get the Segment name.
+     * @param hint A hint to use to get the Stream name.
      */
-    String getNonTransactionSegmentName(int hint) {
-        synchronized (this.allSegmentNames) {
+    String getNonTransactionStreamName(int hint) {
+        synchronized (this.allStreamNames) {
             int retry = 0;
-            while (retry < this.allSegmentNames.size()) {
-                String currentName = this.allSegmentNames.get((hint + retry) % this.allSegmentNames.size());
-                SegmentInfo currentSegment = getSegment(currentName);
+            while (retry < this.allStreamNames.size()) {
+                String currentName = this.allStreamNames.get((hint + retry) % this.allStreamNames.size());
+                StreamInfo currentSegment = getStream(currentName);
                 if (currentSegment != null && !currentSegment.isTransaction()) {
                     return currentName;
                 }
@@ -212,7 +212,7 @@ class TestState {
                 retry++;
             }
 
-            throw new IllegalStateException("Unable to find at least one Non-Transaction Segment out of " + this.allSegmentNames.size() + " total segments.");
+            throw new IllegalStateException("Unable to find at least one Non-Transaction Stream out of " + this.allStreamNames.size() + " total Streams.");
         }
     }
 
@@ -256,13 +256,13 @@ class TestState {
     }
 
     /**
-     * Records the fact that an operation completed for the given Segment.
+     * Records the fact that an operation completed for the given Stream.
      *
-     * @param segmentName The name of the Segment for which the operation completed.
+     * @param segmentName The name of the Stream for which the operation completed.
      * @return The number of total successful operations so far.
      */
     int operationCompleted(String segmentName) {
-        SegmentInfo si = this.getSegment(segmentName);
+        StreamInfo si = this.getStream(segmentName);
         if (si != null) {
             si.operationCompleted();
         }
@@ -271,11 +271,16 @@ class TestState {
     }
 
     /**
-     * Records the fact that an operation failed for the given Segment.
+     * Records the fact that an operation failed for the given Stream.
      *
-     * @param segmentName The name of the Segment for which the operation failed.
+     * @param segmentName The name of the Stream for which the operation failed.
      */
     void operationFailed(String segmentName) {
+        StreamInfo si = this.getStream(segmentName);
+        if (si != null) {
+            si.operationCompleted();
+        }
+
         this.generatedOperationCount.decrementAndGet();
     }
 
@@ -283,13 +288,17 @@ class TestState {
      * Records the duration of a single operation of the given type.
      *
      * @param operationType The type of the operation.
-     * @param duration The duration to record.
+     * @param elapsedMillis The elapsed time of the operation, in millis.
      */
-    void recordDuration(OperationType operationType, Duration duration) {
+    void recordDuration(OperationType operationType, long elapsedMillis) {
+        if (elapsedMillis < 0) {
+            return;
+        }
+
         synchronized (this.durations) {
             List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
             if (operationTypeDurations != null) {
-                operationTypeDurations.add((int) duration.toMillis());
+                operationTypeDurations.add((int) elapsedMillis);
             }
         }
     }
@@ -317,17 +326,17 @@ class TestState {
     }
 
     /**
-     * Records the fact that a new Segment (not a Transaction) was created.
+     * Records the fact that a new Stream (not a Transaction) was created.
      *
      * @param name The name of the Segment.
      */
-    void recordNewSegmentName(String name) {
-        synchronized (this.allSegmentNames) {
-            Preconditions.checkArgument(!this.allSegments.containsKey(name), "Given segment already exists");
-            this.allSegmentNames.add(name);
+    void recordNewStreamName(String name) {
+        synchronized (this.allStreamNames) {
+            Preconditions.checkArgument(!this.allStreams.containsKey(name), "Given Stream already exists");
+            this.allStreamNames.add(name);
         }
 
-        this.allSegments.put(name, new SegmentInfo(name, false));
+        this.allStreams.put(name, new StreamInfo(name, false));
     }
 
     /**
@@ -336,68 +345,115 @@ class TestState {
      * @param name The name of the Transaction.
      */
     void recordNewTransaction(String name) {
-        synchronized (this.allSegmentNames) {
-            Preconditions.checkArgument(!this.allSegments.containsKey(name), "Given segment already exists");
-            this.allSegmentNames.add(name);
+        synchronized (this.allStreamNames) {
+            Preconditions.checkArgument(!this.allStreams.containsKey(name), "Given Stream already exists");
+            this.allStreamNames.add(name);
         }
 
-        this.allSegments.put(name, new SegmentInfo(name, true));
+        this.allStreams.put(name, new StreamInfo(name, true));
     }
 
     /**
-     * Records the fact that a Segment or a Transaction was deleted.
+     * Records the fact that a Stream or a Transaction was deleted.
      *
      * @param name The name of the Segment/Transaction.
      */
-    void recordDeletedSegment(String name) {
-        this.allSegments.remove(name);
-        synchronized (this.allSegmentNames) {
-            this.allSegmentNames.remove(name);
+    void recordDeletedStream(String name) {
+        this.allStreams.remove(name);
+        synchronized (this.allStreamNames) {
+            this.allStreamNames.remove(name);
         }
     }
 
     //endregion
 
-    //region SegmentInfo
+    //region StreamInfo
 
     /**
      * Represents information about a particular Segment.
      */
-    static class SegmentInfo {
+    @RequiredArgsConstructor
+    static class StreamInfo {
         @Getter
         private final String name;
         @Getter
         private final boolean transaction;
-        @Getter
-        @Setter
+        @GuardedBy("this")
         private boolean closed;
-        private final AtomicInteger operationCount;
+        @GuardedBy("this")
+        private int startedOperationCount;
+        @GuardedBy("this")
+        private int completedOperationCount;
+        @GuardedBy("this")
+        private CompletableFuture<Void> closeCallback;
 
-        private SegmentInfo(String name, boolean isTransaction) {
-            this.name = name;
-            this.transaction = isTransaction;
-            this.operationCount = new AtomicInteger();
+        /**
+         * Indicates that a new operation regarding this Stream has Started.
+         */
+        synchronized void operationStarted() {
+            this.startedOperationCount++;
         }
 
         /**
          * Indicates that an operation completed successfully for this Segment.
-         *
-         * @return The number of completed operations so far.
          */
-        int operationCompleted() {
-            return this.operationCount.incrementAndGet();
+        void operationCompleted() {
+            CompletableFuture<Void> f = null;
+            synchronized (this) {
+                this.completedOperationCount++;
+                if (this.completedOperationCount >= this.startedOperationCount) {
+                    f = this.closeCallback;
+                }
+            }
+
+            if (f != null) {
+                f.complete(null);
+            }
         }
 
         /**
          * Gets the number of completed operations so far.
          */
-        int getOperationCount() {
-            return this.operationCount.get();
+        synchronized int getCompletedOperationCount() {
+            return this.completedOperationCount;
+        }
+
+        /**
+         * Gets a value indicating whether this Stream is closed or not.
+         */
+        synchronized boolean isClosed() {
+            return this.closed;
+        }
+
+        /**
+         * Marks this Stream as closed (Sealed).
+         *
+         * @return A CompletableFuture that will be completed when the number of completed operations is at least the
+         * number of Started operations.
+         */
+        CompletableFuture<Void> close() {
+            CompletableFuture<Void> f;
+            boolean isSatisfied;
+            synchronized (this) {
+                if (!this.closed) {
+                    this.closeCallback = new CompletableFuture<>();
+                    this.closed = true;
+                }
+
+                f = this.closeCallback;
+                isSatisfied = this.completedOperationCount >= this.startedOperationCount;
+            }
+
+            if (isSatisfied) {
+                f.complete(null);
+            }
+
+            return f;
         }
 
         @Override
         public String toString() {
-            return String.format("%s, OpCount = %s, Transaction = %s", this.name, this.operationCompleted(), this.transaction);
+            return String.format("%s, OpCount = %s, Transaction = %s", this.name, getCompletedOperationCount(), this.transaction);
         }
     }
 

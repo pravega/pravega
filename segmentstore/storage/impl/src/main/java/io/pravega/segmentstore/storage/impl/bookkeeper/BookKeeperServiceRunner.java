@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.conf.ServerConfiguration;
@@ -48,6 +49,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
     private final List<File> tempDirs = new ArrayList<>();
+    private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
     //endregion
 
@@ -66,6 +68,16 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         } finally {
             cleanupDirectories();
         }
+
+        Thread c = this.cleanup.getAndSet(null);
+        if (c != null) {
+            Runtime.getRuntime().removeShutdownHook(this.cleanup.get());
+        }
+    }
+
+    @SneakyThrows
+    private void cleanupOnShutdown(){
+        close();
     }
 
     //endregion
@@ -102,6 +114,10 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception occurred.
      */
     public void startAll() throws Exception {
+        // Make sure the child processes and any created files get killed/deleted if the process is terminated.
+        this.cleanup.set(new Thread(this::cleanupOnShutdown));
+        Runtime.getRuntime().addShutdownHook(this.cleanup.get());
+
         if (this.startZk) {
             val zk = new ZooKeeperServiceRunner(this.zkPort);
             zk.start();

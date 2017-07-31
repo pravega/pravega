@@ -222,7 +222,7 @@ public class Consumer extends Actor {
             this.testState.recordTailRead(validationResult.getLength());
             Duration elapsed = validationResult.getElapsed();
             if (elapsed != null) {
-                this.testState.recordDuration(ConsumerOperationType.END_TO_END, elapsed);
+                this.testState.recordDuration(ConsumerOperationType.END_TO_END, elapsed.toMillis());
             }
         } else {
             validationFailed(ValidationSource.TailRead, validationResult);
@@ -272,7 +272,7 @@ public class Consumer extends Actor {
                         if (ex == null) {
                             validationResult = compareReads(toValidate, actualRead.getEvent());
                             Event e = toValidate.getEvent();
-                            this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed());
+                            this.testState.recordDuration(ConsumerOperationType.CATCHUP_READ, timer.getElapsed().toMillis());
                             this.testState.recordCatchupRead(e.getTotalLength());
                         } else {
                             validationResult = ValidationResult.failed(ex.getMessage());

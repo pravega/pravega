@@ -77,11 +77,11 @@ class ProducerDataSource {
         synchronized (this.lock) {
             if (operationIndex > this.config.getOperationCount()) {
                 // We have reached the end of the test. We need to seal all segments before we stop.
-                val si = this.state.getSegment(s -> !s.isClosed());
+                val si = this.state.getStream(s -> !s.isClosed());
                 if (si != null && this.sealSupported) {
                     // Seal the next segment that is on the list.
                     result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
-                    si.setClosed(true);
+                    result.setWaitOn(si.close());
                 } else {
                     // We have reached the end of the test and no more segments are left for sealing.
                     return null;
@@ -89,14 +89,14 @@ class ProducerDataSource {
             } else if (this.transactionsSupported) {
                 if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                     // We have exceeded the number of operations since we last created a transaction.
-                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionSegmentName(operationIndex));
+                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionStreamName(operationIndex));
                     this.lastCreatedTransaction = operationIndex;
                 } else {
                     // If any transaction has already exceeded the max number of appends, then merge it.
-                    val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
+                    val si = this.state.getStream(s -> s.isTransaction() && !s.isClosed() && s.getCompletedOperationCount() >= this.config.getMaxTransactionAppendCount());
                     if (si != null) {
                         result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
-                        si.setClosed(true);
+                        result.setWaitOn(si.close());
                     }
                 }
             }
@@ -107,7 +107,9 @@ class ProducerDataSource {
                     return null;
                 }
 
-                result = new ProducerOperation(ProducerOperationType.APPEND, this.state.getSegmentOrTransactionName(operationIndex));
+                val si = this.state.getStreamOrTransaction(operationIndex);
+                si.operationStarted();
+                result = new ProducerOperation(ProducerOperationType.APPEND, si.getName());
             }
         }
 
@@ -143,7 +145,7 @@ class ProducerDataSource {
      */
     boolean isClosed(String segmentName) {
         synchronized (this.lock) {
-            val si = this.state.getSegment(segmentName);
+            val si = this.state.getStream(segmentName);
             return si == null || si.isClosed();
         }
     }
@@ -151,7 +153,7 @@ class ProducerDataSource {
     private void operationCompletionCallback(ProducerOperation op) {
         // Record the operation as completed in the State.
         this.state.operationCompleted(op.getTarget());
-        this.state.recordDuration(op.getType(), op.getDuration());
+        this.state.recordDuration(op.getType(), op.getElapsedMillis());
 
         // OperationType-specific updates.
         if (op.getType() == ProducerOperationType.MERGE_TRANSACTION) {
@@ -175,15 +177,6 @@ class ProducerDataSource {
     private void operationFailureCallback(ProducerOperation op, Throwable ex) {
         // Record the operation as failed in the State.
         this.state.operationFailed(op.getTarget());
-
-        // OperationType-specific cleanup.
-        if (op.getType() == ProducerOperationType.MERGE_TRANSACTION || op.getType() == ProducerOperationType.SEAL) {
-            // Make sure we clear the 'Closed' flag if the Seal/Merge operation failed.
-            TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
-            if (si != null) {
-                si.setClosed(false);
-            }
-        }
     }
 
     //endregion
@@ -196,7 +189,7 @@ class ProducerDataSource {
      * @return A CompletableFuture that will be completed when all Streams/Segments are created.
      */
     CompletableFuture<Void> createStreams() {
-        Preconditions.checkArgument(this.state.getAllSegments().size() == 0, "Cannot call createStreams more than once.");
+        Preconditions.checkArgument(this.state.getAllStreams().size() == 0, "Cannot call createStreams more than once.");
         ArrayList<CompletableFuture<Void>> creationFutures = new ArrayList<>();
 
         TestLogger.log(LOG_ID, "Creating Streams.");
@@ -206,7 +199,7 @@ class ProducerDataSource {
             String name = String.format("Stream%s", streamId);
             creationFutures.add(this.store.createStream(name, this.config.getTimeout())
                     .thenRun(() -> {
-                        this.state.recordNewSegmentName(name);
+                        this.state.recordNewStreamName(name);
                         this.eventGenerators.put(name, new EventGenerator(streamId, true));
                     }));
         }
@@ -225,7 +218,7 @@ class ProducerDataSource {
 
         TestLogger.log(LOG_ID, "Deleting Streams.");
         return deleteSegments(this.state.getTransactionNames())
-                .thenCompose(v -> deleteSegments(this.state.getAllSegmentNames()));
+                .thenCompose(v -> deleteSegments(this.state.getAllStreamNames()));
     }
 
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames) {
@@ -252,7 +245,7 @@ class ProducerDataSource {
 
     private void postStreamDeletion(String name) {
         this.eventGenerators.remove(name);
-        this.state.recordDeletedSegment(name);
+        this.state.recordDeletedStream(name);
     }
 
     //endregion
