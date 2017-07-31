@@ -11,9 +11,10 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +40,7 @@ class TestState {
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ};
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
+    private static final int MAX_LATENCY_MILLIS = 30000;
 
     private final AtomicInteger generatedOperationCount;
     private final AtomicInteger successfulOperationCount;
@@ -48,8 +51,7 @@ class TestState {
     private final ConcurrentHashMap<String, StreamInfo> allStreams;
     @GuardedBy("allStreamNames")
     private final ArrayList<String> allStreamNames;
-    @GuardedBy("durations")
-    private final HashMap<OperationType, List<Integer>> durations;
+    private final Map<OperationType, LatencyCollection> durations;
     private final AtomicLong startTimeNanos;
     private final AtomicLong lastAppendTime;
 
@@ -69,16 +71,12 @@ class TestState {
         this.verifiedTailLength = new AtomicLong();
         this.verifiedCatchupLength = new AtomicLong();
         this.verifiedStorageLength = new AtomicLong();
-        this.durations = new HashMap<>();
         this.startTimeNanos = new AtomicLong();
         this.lastAppendTime = new AtomicLong();
+        this.durations = Collections.unmodifiableMap(
+                Arrays.stream(SUMMARY_OPERATION_TYPES)
+                      .collect(Collectors.toMap(ot -> ot, ot -> new LatencyCollection(MAX_LATENCY_MILLIS))));
         resetClock();
-
-        synchronized (this.durations) {
-            for (OperationType ot : SUMMARY_OPERATION_TYPES) {
-                this.durations.put(ot, new ArrayList<>());
-            }
-        }
     }
 
     //endregion
@@ -217,21 +215,13 @@ class TestState {
     }
 
     /**
-     * Sorts and returns a pointer to the list of durations for the given operation type.
-     * For performance considerations, this method should only be called after the test is over.
+     * Gets a LatencyCollection for the given OperationType.
      *
      * @param operationType The OperationType to get Durations for.
      * @return A pointer to the list of durations.
      */
-    List<Integer> getSortedDurations(OperationType operationType) {
-        synchronized (this.durations) {
-            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
-            if (operationTypeDurations != null) {
-                operationTypeDurations.sort(Integer::compare);
-            }
-
-            return operationTypeDurations;
-        }
+    LatencyCollection getDurations(OperationType operationType) {
+        return this.durations.get(operationType);
     }
 
     //endregion
@@ -295,11 +285,9 @@ class TestState {
             return;
         }
 
-        synchronized (this.durations) {
-            List<Integer> operationTypeDurations = this.durations.getOrDefault(operationType, null);
-            if (operationTypeDurations != null) {
-                operationTypeDurations.add((int) elapsedMillis);
-            }
+        LatencyCollection l = this.durations.getOrDefault(operationType, null);
+        if (l != null) {
+            l.record((int) elapsedMillis);
         }
     }
 
@@ -458,4 +446,82 @@ class TestState {
     }
 
     //endregion
+
+    /**
+     * Collects latencies and calculates statistics on them.
+     */
+    @ThreadSafe
+    static class LatencyCollection {
+        @GuardedBy("this")
+        private final int[] latencyCounts;
+        @GuardedBy("this")
+        private int size;
+
+        private LatencyCollection(int maxLatencyMillis) {
+            this.latencyCounts = new int[maxLatencyMillis + 1];
+        }
+
+        /**
+         * Records a new latency.
+         *
+         * @param durationMillis The latency (millis) to record, capped at the value of maxLatencyMillis.
+         */
+        synchronized void record(int durationMillis) {
+            durationMillis = Math.min(durationMillis, this.latencyCounts.length - 1);
+            this.latencyCounts[durationMillis]++;
+            this.size++;
+        }
+
+        /**
+         * Gets a value indicating the number of latencies recorded.
+         */
+        synchronized int count() {
+            return this.size;
+        }
+
+        /**
+         * Gets a value indicating the average latency.
+         */
+        synchronized double average() {
+            long sum = 0;
+            for (int i = 0; i < this.latencyCounts.length; i++) {
+                sum += (long) this.latencyCounts[i] * i;
+            }
+
+            return (double) sum / this.size;
+        }
+
+        /**
+         * Calculates the given percentiles.
+         *
+         * @param percentiles An array of sorted doubles indicating the desired percentiles.
+         * @return An array of int[] with the same size as percentiles containing the desired results, in the same order
+         * as percentiles.
+         */
+        synchronized int[] percentiles(double... percentiles) {
+            int[] result = new int[percentiles.length];
+            int percentileIndex = 0; // Index in percentiles.
+            int soughtLatencyOrder = 0; // Index for sought latency across all latencies.
+            int currentLatency = 0; // Index within latencyCounts where soughtLatencyOrder resides.
+            long sumSoFar = 0; // Sum of all latencyCounts up to (excluding) currentLatency.
+            while (percentileIndex < percentiles.length) {
+                // Find the index for sought latency.
+                int newElementIndex = (int) (percentiles[percentileIndex] * this.size);
+                Preconditions.checkArgument(newElementIndex >= soughtLatencyOrder, "percentiles not sorted at index %s", percentileIndex);
+                soughtLatencyOrder = newElementIndex;
+
+                // Find the latency we're looking for, starting from where we left off.
+                while (sumSoFar + this.latencyCounts[currentLatency] < soughtLatencyOrder) {
+                    sumSoFar += this.latencyCounts[currentLatency];
+                    currentLatency++;
+                }
+
+                // Found it.
+                result[percentileIndex] = currentLatency;
+                percentileIndex++;
+            }
+
+            return result;
+        }
+    }
 }

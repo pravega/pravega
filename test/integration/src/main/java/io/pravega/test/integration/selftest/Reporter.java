@@ -9,16 +9,15 @@
  */
 package io.pravega.test.integration.selftest;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import lombok.val;
-
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import lombok.val;
 
 /**
  * Reports Test State on a periodic basis.
@@ -116,18 +115,13 @@ class Reporter extends AbstractScheduledService {
         TestLogger.log(LOG_ID, "Operation Summary");
         outputRow("Operation Type", "Count", "LAvg", "L50", "L90", "L99", "L999");
         for (OperationType ot : TestState.SUMMARY_OPERATION_TYPES) {
-            List<Integer> durations = this.testState.getSortedDurations(ot);
-            if (durations == null || durations.size() == 0) {
+            val durations = this.testState.getDurations(ot);
+            if (durations == null || durations.count() == 0) {
                 continue;
             }
 
-            outputRow(ot,
-                    durations.size(),
-                    (int) durations.stream().mapToDouble(a -> a).average().orElse(0.0),
-                    getPercentile(durations, 0.5),
-                    getPercentile(durations, 0.9),
-                    getPercentile(durations, 0.99),
-                    getPercentile(durations, 0.999));
+            int[] percentiles = durations.percentiles(0.5, 0.9, 0.99, 0.999);
+            outputRow(ot, durations.count(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3]);
         }
     }
 
