@@ -297,7 +297,7 @@ public class ExtendedS3Storage implements Storage {
          * This issue is fixed in some versions of extended S3 implementation. The following code sets the IfNoneMatch
          * flag based on configuration.
          */
-        if (config.isIfNoneMatchWorks()) {
+        if (config.isUseNoneMatch()) {
             request.setIfNoneMatch("*");
         }
         client.putObject(request);
