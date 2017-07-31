@@ -89,7 +89,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
                                                .with(ExtendedS3StorageConfig.SECRET_KEY, "x")
                                                .with(ExtendedS3StorageConfig.ROOT, "test")
                                                .with(ExtendedS3StorageConfig.URI, endpoint)
-                                               .with(ExtendedS3StorageConfig.IFNONEMATCHWORKS, true)
+                                               .with(ExtendedS3StorageConfig.USENONEMATCH, true)
                                                .build();
         String segmentName = "foo_open";
         try (Storage s = createStorage()) {
