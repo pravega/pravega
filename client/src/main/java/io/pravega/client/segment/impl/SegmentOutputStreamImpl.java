@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,12 +49,10 @@ import lombok.Getter;
 import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkState;
-import static io.pravega.common.ExceptionHelpers.getRealException;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
@@ -78,7 +75,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
-
+    private final Object connectionEstablishmentLock = new Object();
+    private final Object writeOrderLock = new Object();
+    
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -276,17 +275,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void segmentIsSealed(SegmentIsSealed segmentIsSealed) {
             log.info("Received SegmentSealed {}", segmentIsSealed);
             if (state.sealEncountered.compareAndSet(false, true)) {
-                CompletableFuture.<Void>supplyAsync(() -> {
-                    log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
-                    callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                    return null;
-                }, connectionFactory.getInternalExecutor()).whenComplete((o, ex) -> {
-                    if (ex != null) {
-                        log.error("Unexpected Error while execution SealedSegment CallBack", ex);
-                        state.sealEncountered.set(false);
-                        state.failConnection(new CompletionException(getRealException(ex)));
-                    }
-                });
+                Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
+                                                 retrySchedule.getMaxDelay(),
+                                                 t -> log.error(writerId + " to invoke sealed callback: ", t))
+                     .runAsync(() -> {
+                         log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
+                         callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
+                         return null;
+                     }, connectionFactory.getInternalExecutor());
             }
         }
 
@@ -359,34 +355,34 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      *
      */
     @Override
-    @Synchronized
     @SneakyThrows(SegmentSealedException.class) // We should never encounter SegmentSealedException during a write
     public void write(PendingEvent event) {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
-        ClientConnection connection;
-        try {
-            // if connection is null getConnection() establishes a connection and retransmits all events in inflight
-            // list.
-            connection = getConnection();
-        } catch (SegmentSealedException e) {
-            // Add the event to inflight and indicate to the caller that the segment is sealed.
-            state.addToInflight(event);
-            throw e;
-        }
-        long eventNumber = state.addToInflight(event);
-        try {
-            connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
-                                       event.getExpectedOffset()));
-        } catch (ConnectionFailedException e) {
-            log.warn("Connection " + writerId + " failed due to: ", e);
-            getConnection(); // As the messages is inflight, this will perform the retransmition.
+        synchronized (writeOrderLock) {
+            ClientConnection connection;
+            try {
+                // if connection is null getConnection() establishes a connection and retransmits all events in inflight
+                // list.
+                connection = getConnection();
+            } catch (SegmentSealedException e) {
+                // Add the event to inflight and indicate to the caller that the segment is sealed.
+                state.addToInflight(event);
+                throw e;
+            }
+            long eventNumber = state.addToInflight(event);
+            try {
+                connection.send(new Append(segmentName, writerId, eventNumber, Unpooled.wrappedBuffer(event.getData()),
+                                           event.getExpectedOffset()));
+            } catch (ConnectionFailedException e) {
+                log.warn("Connection " + writerId + " failed due to: ", e);
+                getConnection(); // As the messages is inflight, this will perform the retransmition.
+            }
         }
     }
     
     /**
      * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
      */
-    @Synchronized
     ClientConnection getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
         if (state.isAlreadySealed()) {
@@ -398,24 +394,27 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         });
     }
 
-    @Synchronized
     @VisibleForTesting
     void setupConnection() throws ConnectionFailedException {
         if (state.getConnection() == null) {
-            log.info("Fetching endpoint for segment {}", segmentName);
-            CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
-                .thenCompose((PravegaNodeUri uri) -> {
-                    log.info("Establishing connection to {} for {}", uri, segmentName);
-                    return connectionFactory.establishConnection(uri, responseProcessor);
-                });
-            ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
-            state.newConnection(connection);
-            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
-            try {
-                connection.send(cmd);
-            } catch (Exception e) {
-                state.failConnection(e);
-                throw e;
+            synchronized (connectionEstablishmentLock) {
+                if (state.getConnection() == null && !state.isAlreadySealed()) {
+                    log.info("Fetching endpoint for segment {}", segmentName);
+                    CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
+                            .thenCompose((PravegaNodeUri uri) -> {
+                                log.info("Establishing connection to {} for {}", uri, segmentName);
+                                return connectionFactory.establishConnection(uri, responseProcessor);
+                            });
+                    ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
+                    state.newConnection(connection);
+                    SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+                    try {
+                        connection.send(cmd);
+                    } catch (Exception e) {
+                        state.failConnection(e);
+                        throw e;
+                    }
+                }
             }
         }
     }
@@ -424,7 +423,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * @see SegmentOutputStream#close()
      */
     @Override
-    @Synchronized
     public void close() throws SegmentSealedException {
         if (state.isClosed()) {
             return;
@@ -442,7 +440,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * @see SegmentOutputStream#flush()
      */
     @Override
-    @Synchronized
     public void flush() throws SegmentSealedException {
         if (!state.isInflightEmpty()) {
             try {
@@ -488,7 +485,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public List<PendingEvent> getUnackedEventsOnSeal() {
         // close connection and update the exception to SegmentSealed, this ensures future writes receive a
         // SegmentSealedException.
-        state.failConnection(new SegmentSealedException(this.segmentName));
-        return Collections.unmodifiableList(state.getAllInflightEvents());
+        synchronized (writeOrderLock) {            
+            state.failConnection(new SegmentSealedException(this.segmentName));
+            return Collections.unmodifiableList(state.getAllInflightEvents());
+        }
     }
 }
