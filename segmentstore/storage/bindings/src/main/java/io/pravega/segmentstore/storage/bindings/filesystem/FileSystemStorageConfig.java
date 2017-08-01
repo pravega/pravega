@@ -31,7 +31,7 @@ public class FileSystemStorageConfig {
     //region Members
 
     /**
-     * Root of the Pravega owned io.pravega.segmentstore.storage.bindings.filesystem.filesystem path. All the directories/files under this path will be exclusively
+     * Root of the Pravega owned filesystem path. All the directories/files under this path will be exclusively
      * owned by Pravega.
      */
     @Getter

@@ -31,9 +31,9 @@ public class StorageFactoryLoadTest {
                 () -> StorageFactoryCreator.createStorageFactoryFromClassName(config, "tp", null),
                 (e) -> e instanceof ClassNotFoundException);
 
-        /* Test whether a generic Storage Factory can be Created*/
+        /* Test whether a generic Storage Factory can be Created */
         StorageFactory factory = StorageFactoryCreator.createStorageFactoryFromClassName(config,
-                "io.pravega.segmentstore.server.host.ServiceStarterTest$DummyFactory", executor);
+                "io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory", executor);
 
         Assert.assertNotEquals("Storage factory creator should return a valid factory object", factory, null );
 
@@ -42,17 +42,5 @@ public class StorageFactoryLoadTest {
                 "io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory", executor);
 
         Assert.assertNotEquals("Storage factory creator should return a valid factory object", factory, null );
-    }
-
-    static final class DummyFactory implements StorageFactory {
-
-       public DummyFactory(ServiceBuilderConfig config, ScheduledExecutorService executor) {
-
-        }
-
-        @Override
-        public Storage createStorageAdapter() {
-            return null;
-        }
     }
 }
