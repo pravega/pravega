@@ -166,8 +166,19 @@ abstract class AbstractFailoverTests {
                     testState.getWriteException.set(e);
                 }
             }
-            writer.close();
+            closeWriter(writer);
         }, executorService);
+    }
+
+    private void closeWriter(EventStreamWriter<Long> writer) {
+        try {
+            writer.close();
+        } catch (RetriesExhaustedException e) {
+            log.warn("Unable to close the client: ", e);
+        } catch (Throwable e) {
+            log.error("Error while Closing writer", e);
+            Assert.fail("Unable to close the client. Test Failure");
+        }
     }
 
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
@@ -201,8 +212,19 @@ abstract class AbstractFailoverTests {
                 }
             }
             log.info("Completed reading");
-            reader.close();
+            closeReader(reader);
         }, executorService);
+    }
+
+    private void closeReader(EventStreamReader<Long> reader) {
+        try {
+            reader.close();
+        } catch (RetriesExhaustedException e) {
+            log.warn("Unable to close the client: ", e);
+        } catch (Throwable e) {
+            log.error("Error while closing reader", e);
+            Assert.fail("Unable to close the client. Test Failure");
+        }
     }
 
     void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
