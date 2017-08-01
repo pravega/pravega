@@ -411,7 +411,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     try {
                         connection.send(cmd);
                     } catch (Exception e) {
-                        failConnection(e);
+                        state.failConnection(e);
                         throw e;
                     }
                 }
