@@ -10,9 +10,12 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.Event;
+import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Abstraction layer for Pravega operations that are valid from the Self Tester.
@@ -69,6 +72,15 @@ public interface StoreAdapter extends AutoCloseable {
     CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
 
     /**
+     * Aborts a Transaction.
+     *
+     * @param transactionName The Transaction to abort.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the operation is complete.
+     */
+    CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout);
+
+    /**
      * Seals a Stream.
      *
      * @param streamName The Stream to seal.
@@ -92,6 +104,30 @@ public interface StoreAdapter extends AutoCloseable {
 
     @Override
     void close();
+
+    /**
+     * Creates a new instance of the StoreAdapter using the given configurations.
+     *
+     * @param testConfig    The TestConfig to use. The TestType from this config will be used to determine what kind of
+     *                      instance to create.
+     * @param builderConfig A ServiceBuilderConfig to use for the SegmentStore.
+     * @param executor      An Executor to use for test-related async operations.
+     * @return The created StoreAdapter Instance.
+     */
+    static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor) {
+        switch (testConfig.getTestType()) {
+            case SegmentStoreDirect:
+                return new SegmentStoreAdapter(testConfig, builderConfig, executor);
+            case InProcessMockListener:
+                return new InProcessMockClientAdapter(testConfig, executor);
+            case InProcessStoreListener:
+                return new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
+            case OutOfProcessClient:
+                return new OutOfProcessAdapter(testConfig, builderConfig, executor);
+            default:
+                throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + testConfig.getTestType());
+        }
+    }
 
     /**
      * Defines various Features that can be supported by an implementation of this interface.

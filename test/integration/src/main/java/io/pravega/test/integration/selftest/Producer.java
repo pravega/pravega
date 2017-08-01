@@ -147,7 +147,7 @@ class Producer extends Actor {
             return true;
         }
 
-        TestLogger.log(getLogId(), "Iteration %s FAILED with %s.", this.iterationCount, ex);
+        TestLogger.log(getLogId(), "Iteration %s FAILED for Op '%s' with %s.", this.iterationCount, op, ex);
         this.canContinue.set(false);
         op.failed(ex);
         return false;
@@ -177,14 +177,18 @@ class Producer extends Actor {
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "merge transaction");
             startTime.set(TIME_PROVIDER.get());
             result = this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
+        } else if (operation.getType() == ProducerOperationType.ABORT_TRANSACTION) {
+            // Abort the Transaction.
+            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "abort transaction");
+            startTime.set(TIME_PROVIDER.get());
+            result = this.store.abortTransaction(operation.getTarget(), this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
             Event event = this.dataSource.nextEvent(operation.getTarget(), this.id);
             operation.setLength(event.getSerialization().getLength());
             startTime.set(TIME_PROVIDER.get());
-            result = this.store.append(operation.getTarget(), event, this.config.getTimeout())
-                               .exceptionally(ex -> attemptReconcile(ex, operation));
+            result = this.store.append(operation.getTarget(), event, this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the target.
             StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal");
@@ -194,7 +198,9 @@ class Producer extends Actor {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }
 
-        return result.thenRun(() -> operation.completed((TIME_PROVIDER.get() - startTime.get()) / AbstractTimer.NANOS_TO_MILLIS));
+        return result
+                .exceptionally(ex -> attemptReconcile(ex, operation))
+                .thenRun(() -> operation.completed((TIME_PROVIDER.get() - startTime.get()) / AbstractTimer.NANOS_TO_MILLIS));
     }
 
     @SneakyThrows

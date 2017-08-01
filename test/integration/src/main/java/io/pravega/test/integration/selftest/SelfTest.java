@@ -18,10 +18,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.integration.selftest.adapters.InProcessListenerWithRealStoreAdapter;
-import io.pravega.test.integration.selftest.adapters.InProcessMockClientAdapter;
-import io.pravega.test.integration.selftest.adapters.OutOfProcessAdapter;
-import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -61,36 +57,20 @@ class SelfTest extends AbstractService implements AutoCloseable {
      * @param builderConfig The configuration to use for building the StreamSegmentStore Service.
      */
     SelfTest(TestConfig testConfig, ServiceBuilderConfig builderConfig) {
-        Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
 
-        this.testConfig = testConfig;
-        this.state = new TestState();
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
+        this.testCompletion = new AtomicReference<>();
+        this.state = new TestState();
         this.executor = Executors.newScheduledThreadPool(
                 testConfig.getThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
-        this.store = createStoreAdapter(builderConfig);
+        this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
-        this.testCompletion = new AtomicReference<>();
         ServiceHelpers.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
-    }
-
-    private StoreAdapter createStoreAdapter(ServiceBuilderConfig builderConfig) {
-        switch (this.testConfig.getTestType()) {
-            case SegmentStoreDirect:
-                return new SegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
-            case InProcessMockListener:
-                return new InProcessMockClientAdapter(this.testConfig, this.executor);
-            case InProcessStoreListener:
-                return new InProcessListenerWithRealStoreAdapter(this.testConfig, builderConfig, this.executor);
-            case OutOfProcessClient:
-                return new OutOfProcessAdapter(this.testConfig, builderConfig, this.executor);
-            default:
-                throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + this.testConfig.getTestType());
-        }
     }
 
     //endregion
@@ -100,17 +80,21 @@ class SelfTest extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
-            this.dataSource.deleteAllStreams()
-                           .exceptionally(ex -> {
-                               TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
-                               return null;
-                           }).join();
+            try {
+                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+                this.dataSource.deleteAllStreams()
+                        .exceptionally(ex -> {
+                            TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);
+                            return null;
+                        }).join();
 
-            this.store.close();
-            this.executor.shutdown();
-            this.closed.set(true);
-            TestLogger.log(LOG_ID, "Closed.");
+                this.store.close();
+            } finally {
+                this.executor.shutdown();
+                this.closed.set(true);
+                TestLogger.log(LOG_ID, "Closed.");
+
+            }
         }
     }
 

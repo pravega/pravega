@@ -20,6 +20,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -49,9 +50,9 @@ abstract class ClientAdapterBase implements StoreAdapter {
     //region Members
     static final String SCOPE = "SelfTest";
     static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
-    private static final long TXN_TIMEOUT = Long.MAX_VALUE;
-    private static final long TXN_MAX_EXEC_TIME = Long.MAX_VALUE;
-    private static final long TXN_SCALE_GRACE_PERIOD = Long.MAX_VALUE;
+    private static final long TXN_TIMEOUT = 30 * 1000;
+    private static final long TXN_MAX_EXEC_TIME = TXN_TIMEOUT;
+    private static final long TXN_SCALE_GRACE_PERIOD = TXN_TIMEOUT;
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
     private static final String LOG_ID = "ClientAdapter";
     final TestConfig testConfig;
@@ -67,10 +68,11 @@ abstract class ClientAdapterBase implements StoreAdapter {
     /**
      * Creates a new instance of the ClientAdapterBase class.
      *
-     * @param testConfig    The TestConfig to use.
+     * @param testConfig   The TestConfig to use.
+     * @param testExecutor An Executor to use for async client-side operations.
      */
     ClientAdapterBase(TestConfig testConfig, ScheduledExecutorService testExecutor) {
-        this.testConfig = testConfig;
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.streamWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();
@@ -124,6 +126,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
                 throw new CompletionException(new StreamSegmentExistsException(streamName));
             }
 
+            //TODO: add a configurable scaling policy. Default is fixed to one Segment.
             StreamConfiguration config = StreamConfiguration.builder()
                                                             .streamName(streamName)
                                                             .scope(SCOPE)
@@ -145,13 +148,19 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public CompletableFuture<Void> delete(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
-        return CompletableFuture.runAsync(() -> {
-            if (getStreamManager().deleteStream(SCOPE, streamName)) {
-                closeWriters(streamName);
-            } else {
-                throw new CompletionException(new StreamingException(String.format("Unable to delete stream '%s'.", streamName)));
-            }
-        }, this.testExecutor);
+        String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
+        if (isTransaction(streamName, parentName)) {
+            // We have a transaction to abort.
+            return abortTransaction(streamName, timeout);
+        } else {
+            return CompletableFuture.runAsync(() -> {
+                if (getStreamManager().deleteStream(SCOPE, streamName)) {
+                    closeWriters(streamName);
+                } else {
+                    throw new CompletionException(new StreamingException(String.format("Unable to delete stream '%s'.", streamName)));
+                }
+            }, this.testExecutor);
+        }
     }
 
     @Override
@@ -161,19 +170,23 @@ abstract class ClientAdapterBase implements StoreAdapter {
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
         String routingKey = Integer.toString(event.getRoutingKey());
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
-        if (parentName == null || parentName.length() == streamName.length()) {
-            return getWriter(streamName, event.getRoutingKey()).writeEvent(routingKey, payload);
-        } else {
+        if (isTransaction(streamName, parentName)) {
             // Dealing with a Transaction.
-            UUID txnId = getTransactionId(streamName);
             return CompletableFuture.runAsync(() -> {
                 try {
+                    UUID txnId = getTransactionId(streamName);
                     getWriter(parentName, event.getRoutingKey()).getTxn(txnId).writeEvent(routingKey, payload);
-                } catch (TxnFailedException ex) {
+                } catch (Exception ex) {
                     this.transactionIds.remove(streamName);
                     throw new CompletionException(ex);
                 }
             }, this.testExecutor);
+        } else {
+            try {
+                return getWriter(streamName, event.getRoutingKey()).writeEvent(routingKey, payload);
+            } catch (Exception ex) {
+                return FutureHelpers.failedFuture(ex);
+            }
         }
     }
 
@@ -192,8 +205,8 @@ abstract class ClientAdapterBase implements StoreAdapter {
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureInitializedAndNotClosed();
-        EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
         return CompletableFuture.supplyAsync(() -> {
+            EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
             UUID txnId = writer.beginTxn(TXN_TIMEOUT, TXN_MAX_EXEC_TIME, TXN_SCALE_GRACE_PERIOD).getTxnId();
             String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, txnId);
             this.transactionIds.put(txnName, txnId);
@@ -205,15 +218,30 @@ abstract class ClientAdapterBase implements StoreAdapter {
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureInitializedAndNotClosed();
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
-        EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
-        UUID txnId = getTransactionId(transactionName);
-
         return CompletableFuture.runAsync(() -> {
-            Transaction<byte[]> txn = writer.getTxn(txnId);
             try {
+                EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
+                UUID txnId = getTransactionId(transactionName);
+                Transaction<byte[]> txn = writer.getTxn(txnId);
                 txn.commit();
             } catch (TxnFailedException ex) {
                 throw new CompletionException(ex);
+            } finally {
+                this.transactionIds.remove(transactionName);
+            }
+        }, this.testExecutor);
+    }
+
+    @Override
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
+        ensureInitializedAndNotClosed();
+        String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+        return CompletableFuture.runAsync(() -> {
+            try {
+                EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
+                UUID txnId = getTransactionId(transactionName);
+                Transaction<byte[]> txn = writer.getTxn(txnId);
+                txn.abort();
             } finally {
                 this.transactionIds.remove(transactionName);
             }
@@ -288,6 +316,10 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
+    }
+
+    private boolean isTransaction(String streamName, String parentName) {
+        return parentName != null && parentName.length() < streamName.length();
     }
 
     //endregion

@@ -29,13 +29,14 @@ import lombok.RequiredArgsConstructor;
 /**
  * Represents the current State of the SelfTest.
  */
-class TestState {
+public class TestState {
     //region Members
 
     static final OperationType[] SUMMARY_OPERATION_TYPES = {
             ProducerOperationType.APPEND,
             ProducerOperationType.CREATE_TRANSACTION,
             ProducerOperationType.MERGE_TRANSACTION,
+            ProducerOperationType.ABORT_TRANSACTION,
             ProducerOperationType.SEAL,
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ};

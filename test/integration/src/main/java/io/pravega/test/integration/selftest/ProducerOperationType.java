@@ -33,6 +33,11 @@ final class ProducerOperationType extends OperationType {
      */
     static final ProducerOperationType MERGE_TRANSACTION = new ProducerOperationType("Merge Transaction");
 
+    /**
+     * A Transaction Abort Operation triggered by a Producer.
+     */
+    static final ProducerOperationType ABORT_TRANSACTION = new ProducerOperationType("Abort Transaction");
+
     private ProducerOperationType(String name) {
         super(name);
     }

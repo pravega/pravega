@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,7 +48,7 @@ import org.apache.bookkeeper.util.IOUtils;
 /**
  * Store adapter wrapping a real Pravega Client targeting a local cluster out-of-process.
  */
-public class OutOfProcessAdapter extends ClientAdapterBase {
+class OutOfProcessAdapter extends ClientAdapterBase {
     //region Members
 
     private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
@@ -58,8 +59,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     private final AtomicReference<Process> bookieProcess;
     private final List<Process> segmentStoreProcesses;
     private final List<Process> controllerProcesses;
-    private final AtomicReference<File> segmentStoreConfigFile;
-    private final AtomicReference<File> storageRoot;
+    private final AtomicReference<File> segmentStoreRoot;
     private final AtomicReference<StreamManager> streamManager;
     private final AtomicReference<ClientFactory> clientFactory;
     private final Thread destroyChildProcesses;
@@ -75,7 +75,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
      * @param builderConfig SegmentStore Builder Configuration.
      * @param testExecutor  An ExecutorService used by the Test Application.
      */
-    public OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+    OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "OutOfProcessAdapter requires at least one Bookie.");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
@@ -83,8 +83,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         this.bookieProcess = new AtomicReference<>();
         this.segmentStoreProcesses = Collections.synchronizedList(new ArrayList<>());
         this.controllerProcesses = Collections.synchronizedList(new ArrayList<>());
-        this.segmentStoreConfigFile = new AtomicReference<>();
-        this.storageRoot = new AtomicReference<>();
+        this.segmentStoreRoot = new AtomicReference<>();
         this.streamManager = new AtomicReference<>();
         this.clientFactory = new AtomicReference<>();
 
@@ -123,8 +122,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         TestLogger.log(LOG_ID, "ZooKeeper shut down.");
 
         // Delete temporary files and directories.
-        delete(this.segmentStoreConfigFile);
-        delete(this.storageRoot);
+        delete(this.segmentStoreRoot);
     }
 
     //endregion
@@ -137,6 +135,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         return feature == Feature.Create
                 || feature == Feature.Append
                 || feature == Feature.TailRead
+                || feature == Feature.Transaction
                 || feature == Feature.Seal
                 || feature == Feature.Delete;
     }
@@ -144,7 +143,6 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     @Override
     public void initialize() throws Exception {
         try {
-            createSegmentStoreFileSystem();
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
@@ -231,7 +229,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.testConfig.getBkPort())
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.testConfig.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, SegmentStoreAdapter.BK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("bk", 0))))
                 .start());
@@ -279,12 +277,12 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         int port = this.testConfig.getSegmentStorePort(segmentStoreId);
         Process p = ProcessStarter
                 .forClass(ServiceStarter.class)
-                .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, this.segmentStoreConfigFile.get().getAbsolutePath())
+                .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
                 .sysProp(configProperty(BookKeeperConfig.COMPONENT_CODE, BookKeeperConfig.ZK_ADDRESS), getZkUrl())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.LISTENING_PORT), port)
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.STORAGE_IMPLEMENTATION), ServiceConfig.StorageTypes.FILESYSTEM)
-                .sysProp(configProperty(FileSystemStorageConfig.COMPONENT_CODE, FileSystemStorageConfig.ROOT), this.storageRoot.get().getAbsolutePath())
+                .sysProp(configProperty(FileSystemStorageConfig.COMPONENT_CODE, FileSystemStorageConfig.ROOT), getSegmentStoreStoragePath())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerUrl())
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("segmentStore", segmentStoreId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))))
@@ -295,25 +293,25 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
     }
 
     private void createSegmentStoreFileSystem() throws IOException {
+        File rootDir = this.segmentStoreRoot.get();
+        if (rootDir == null || !rootDir.exists()) {
+            rootDir = IOUtils.createTempDir("selftest.segmentstore.", "");
+            rootDir.deleteOnExit();
+            this.segmentStoreRoot.set(rootDir);
+        }
+
         // Config file.
-        File f = this.segmentStoreConfigFile.get();
-        if (f == null || !f.exists()) {
-            f = File.createTempFile("selftest.segmentstore", "");
-            f.deleteOnExit();
-            this.segmentStoreConfigFile.set(f);
-            TestLogger.log(LOG_ID, "Using SegmentStore config file %s.", f.getAbsolutePath());
-        }
+        File configFile = new File(getSegmentStoreConfigFilePath());
+        configFile.delete();
+        configFile.createNewFile();
+        TestLogger.log(LOG_ID, "SegmentStore Config: '%s'.", configFile.getAbsolutePath());
 
-        // Tier2 Storage FileSystem root.
-        File d = this.storageRoot.get();
-        if (d == null || !d.exists()) {
-            d = IOUtils.createTempDir("selftest.segmentstore", "storage");
-            d.deleteOnExit();
-            this.storageRoot.set(d);
-            TestLogger.log(LOG_ID, "Using Storage FileSystem path %s.", d.getAbsolutePath());
-        }
-
-        this.builderConfig.store(f);
+        // Storage.
+        File storageDir = new File(getSegmentStoreStoragePath());
+        storageDir.delete();
+        storageDir.mkdir();
+        TestLogger.log(LOG_ID, "SegmentStore Storage: '%s/'.", storageDir.getAbsolutePath());
+        this.builderConfig.store(configFile);
     }
 
     @SneakyThrows(Exception.class)
@@ -334,7 +332,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     private int stopProcesses(Collection<Process> processList) {
         processList.stream().filter(Objects::nonNull).forEach(p -> {
-            p.destroy();
+            p.destroyForcibly();
             Exceptions.handleInterrupted(() -> p.waitFor(PROCESS_SHUTDOWN_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
         });
 
@@ -347,7 +345,7 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
         File f = fileRef.getAndSet(null);
         if (f != null && f.exists()) {
             if (FileHelpers.deleteFileOrDirectory(f)) {
-                TestLogger.log(LOG_ID, "Deleted %s.", f.getAbsolutePath());
+                TestLogger.log(LOG_ID, "Deleted '%s'.", f.getAbsolutePath());
             }
         }
     }
@@ -358,6 +356,14 @@ public class OutOfProcessAdapter extends ClientAdapterBase {
 
     private String configProperty(String componentCode, Property<?> property) {
         return String.format("%s.%s", componentCode, property.getName());
+    }
+
+    private String getSegmentStoreConfigFilePath() {
+        return Paths.get(this.segmentStoreRoot.get().getAbsolutePath(), "config.props").toString();
+    }
+
+    private String getSegmentStoreStoragePath() {
+        return Paths.get(this.segmentStoreRoot.get().getAbsolutePath(), "storage").toString();
     }
 
     //endregion

@@ -76,14 +76,22 @@ class ProducerDataSource {
         ProducerOperation result = null;
         synchronized (this.lock) {
             if (operationIndex > this.config.getOperationCount()) {
-                // We have reached the end of the test. We need to seal all segments before we stop.
+                // We have reached the end of the test. We need to seal all Streams before we stop.
                 val si = this.state.getStream(s -> !s.isClosed());
-                if (si != null && this.sealSupported) {
-                    // Seal the next segment that is on the list.
-                    result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
-                    result.setWaitOn(si.close());
-                } else {
-                    // We have reached the end of the test and no more segments are left for sealing.
+                if (si != null) {
+                    if (si.isTransaction()) {
+                        // Transactions can't be Sealed - abort them instead.
+                        result = new ProducerOperation(ProducerOperationType.ABORT_TRANSACTION, si.getName());
+                        result.setWaitOn(si.close());
+                    } else if (this.sealSupported) {
+                        // Seal the Stream.
+                        result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
+                        result.setWaitOn(si.close());
+                    }
+                }
+
+                if (result == null) {
+                    // If we have nothing else to do, this will return null, which signals the end of the test.
                     return null;
                 }
             } else if (this.transactionsSupported) {
@@ -144,10 +152,8 @@ class ProducerDataSource {
      * Determines if the Segment with given name is closed for appends or not.
      */
     boolean isClosed(String segmentName) {
-        synchronized (this.lock) {
-            val si = this.state.getStream(segmentName);
-            return si == null || si.isClosed();
-        }
+        val si = this.state.getStream(segmentName);
+        return si == null || si.isClosed();
     }
 
     private void operationCompletionCallback(ProducerOperation op) {
@@ -224,7 +230,13 @@ class ProducerDataSource {
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames) {
         ArrayList<CompletableFuture<Void>> deletionFutures = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            deletionFutures.add(deleteStream(segmentName));
+            try {
+                deletionFutures.add(deleteStream(segmentName));
+            } catch (Throwable ex) {
+                if (ExceptionHelpers.mustRethrow(ex) || !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                    throw ex;
+                }
+            }
         }
 
         return FutureHelpers.allOf(deletionFutures);

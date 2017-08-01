@@ -20,7 +20,6 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
-import io.pravega.test.integration.selftest.adapters.SegmentStoreAdapter;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.val;
@@ -76,7 +75,7 @@ public class SelfTestRunner {
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
-                                         .with(BookKeeperConfig.BK_LEDGER_PATH, SegmentStoreAdapter.BK_LEDGER_PATH)
+                                         .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH)
                                          .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
                                          .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
                                          .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum))
@@ -89,8 +88,9 @@ public class SelfTestRunner {
                 // Test params.
                 .with(TestConfig.PRODUCER_COUNT, 100)
                 .with(TestConfig.PRODUCER_PARALLELISM, 100) // How many concurrent ops per producer
-                .with(TestConfig.OPERATION_COUNT, 1000000)
+                .with(TestConfig.OPERATION_COUNT, 2000000)
                 .with(TestConfig.STREAM_COUNT, 1)
+                .with(TestConfig.CONTAINER_COUNT, 1)
                 .with(TestConfig.MIN_APPEND_SIZE, 1000)
                 .with(TestConfig.MAX_APPEND_SIZE, 1000)
                 .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())

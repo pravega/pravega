@@ -49,14 +49,10 @@ class Reporter extends AbstractScheduledService {
      * @param executorService           The executor service to use.
      */
     Reporter(TestState testState, TestConfig testConfig, Supplier<ExecutorServiceHelpers.Snapshot> storePoolSnapshotProvider, ScheduledExecutorService executorService) {
-        Preconditions.checkNotNull(testState, "testState");
-        Preconditions.checkNotNull(testConfig, "testConfig");
-        Preconditions.checkNotNull(storePoolSnapshotProvider, "storePoolSnapshotProvider");
-        Preconditions.checkNotNull(executorService, "executorService");
-        this.testState = testState;
-        this.testConfig = testConfig;
-        this.storePoolSnapshotProvider = storePoolSnapshotProvider;
-        this.executorService = executorService;
+        this.testState = Preconditions.checkNotNull(testState, "testState");
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
+        this.storePoolSnapshotProvider = Preconditions.checkNotNull(storePoolSnapshotProvider, "storePoolSnapshotProvider");
+        this.executorService = Preconditions.checkNotNull(executorService, "executorService");
     }
 
     //endregion

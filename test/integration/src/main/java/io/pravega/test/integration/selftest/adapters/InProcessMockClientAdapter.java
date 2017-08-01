@@ -37,7 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Client-based adapter that targets an in-process Client with a Mock Controller and Mock StreamSegmentStore.
  */
-public class InProcessMockClientAdapter extends ClientAdapterBase {
+class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
     private static final String LOG_ID = "InProcessAdapter";
     private static final String LISTENING_ADDRESS = "localhost";
@@ -54,7 +54,7 @@ public class InProcessMockClientAdapter extends ClientAdapterBase {
      * @param testConfig    The TestConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    public InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor) {
+    InProcessMockClientAdapter(TestConfig testConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
     }
 

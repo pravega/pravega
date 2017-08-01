@@ -26,6 +26,7 @@ import lombok.val;
 public class TestConfig {
     //region Config Names
 
+    public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
     static final Property<Integer> STREAM_COUNT = Property.named("streamCount", 100);
@@ -252,7 +253,7 @@ public class TestConfig {
 
     //endregion
 
-    enum TestType {
+    public enum TestType {
         SegmentStoreDirect,
         InProcessMockListener,
         InProcessStoreListener,

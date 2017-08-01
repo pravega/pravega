@@ -55,10 +55,9 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
  * ignored.
  */
-public class SegmentStoreAdapter implements StoreAdapter {
+class SegmentStoreAdapter implements StoreAdapter {
     //region Members
 
-    public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     private static final String LOG_ID = "SegmentStoreAdapter";
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
@@ -82,14 +81,14 @@ public class SegmentStoreAdapter implements StoreAdapter {
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    public SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+    SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
-        this.testExecutor = Preconditions.checkNotNull(testExecutor, "testCallbackExecutor");
+        this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
@@ -206,6 +205,13 @@ public class SegmentStoreAdapter implements StoreAdapter {
     }
 
     @Override
+    public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
+        // At the SegmentStore level, aborting transactions means deleting their segments.
+        ensureInitializedAndNotClosed();
+        return this.delete(transactionName, timeout);
+    }
+
+    @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
         ensureInitializedAndNotClosed();
         return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
@@ -278,7 +284,7 @@ public class SegmentStoreAdapter implements StoreAdapter {
                                             .bookiePorts(ports)
                                             .zkPort(this.config.getZkPort())
                                             .startZk(true)
-                                            .ledgersPath(BK_LEDGER_PATH)
+                                            .ledgersPath(TestConfig.BK_LEDGER_PATH)
                                             .build();
         runner.startAll();
         return runner;

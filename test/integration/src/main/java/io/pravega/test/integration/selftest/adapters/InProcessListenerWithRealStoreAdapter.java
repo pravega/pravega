@@ -18,7 +18,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Client-based adapter that targets an in-process Client with a Mock Controller and a real StreamSegmentStore.
  */
-public class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
+class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
     private final SegmentStoreAdapter segmentStoreAdapter;
 
     //region Constructor
@@ -30,7 +30,7 @@ public class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAd
      * @param builderConfig The ServiceBuilderConfig to use.
      * @param testExecutor  An Executor to use for test-related async operations.
      */
-    public InProcessListenerWithRealStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
+    InProcessListenerWithRealStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
         this.segmentStoreAdapter = new SegmentStoreAdapter(testConfig, builderConfig, testExecutor);
     }
