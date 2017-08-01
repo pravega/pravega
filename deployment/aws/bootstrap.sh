@@ -8,7 +8,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 
 # Prepare installer
-cp ../../config/config.properties installer/data/
+cp ../../config/config.properties installer/data/config.properties_temp
 cp ../../docker/bookkeeper/entrypoint.sh install-bk-temp.sh
 
 # Modify bookkeeper launch script to run in background
@@ -30,6 +30,7 @@ do
    sed "s/N$i/${public_ip_array[$i]}/g" installer/hosts > installer/hosts-temp 
    mv installer/hosts-temp installer/hosts
 done
+sed "s/localhost:9000/$2:8020/g;s/localhost:2181/${public_ip_array[0]}:2181/g" installer/data/config.properties_temp > installer/data/config.properties
 region=$3
 if [ "$region" == "us-east-1" ]; then
    sed "s/HIGH_PERFORMANCE_BUTTON/false/g" installer/data/variable_template.yml > installer/data/variable.yml
