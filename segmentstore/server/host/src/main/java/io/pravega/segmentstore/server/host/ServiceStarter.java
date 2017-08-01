@@ -11,15 +11,14 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.common.util.ServiceConfig;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.common.util.ServiceBuilderConfig;
-import io.pravega.common.util.ServiceConfig;
-import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -27,8 +26,6 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
@@ -157,24 +154,15 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
-                return createStorageFactoryFromClassName(setup, this.serviceConfig.getStorageImplementation());
+                return StorageFactoryCreator.createStorageFactoryFromClassName(setup.getBuilder().getServiceBuilderConfig(),
+                        serviceConfig.getStorageImplementation(), setup.getExecutor());
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }
         });
     }
 
-    private StorageFactory createStorageFactoryFromClassName(ServiceBuilder.ComponentSetup setup, String storageChoice)
-            throws IllegalAccessException, InvocationTargetException, InstantiationException, ClassNotFoundException {
-        Class<? extends StorageFactory> cls = (Class<? extends StorageFactory>) Class.forName(storageChoice);
-        for (Constructor cstr: cls.getConstructors()) {
-            if (cstr.getParameterTypes().length == 2 &&
-                    cstr.getParameterTypes()[0].isAssignableFrom(ServiceBuilderConfig.class)) {
-                return (StorageFactory) cstr.newInstance(setup.getBuilder().getServiceBuilderConfig(), setup.getExecutor());
-            }
-        }
-        return null;
-    }
+
 
     private void attachZKSegmentManager(ServiceBuilder builder) {
         builder.withContainerManager(setup ->

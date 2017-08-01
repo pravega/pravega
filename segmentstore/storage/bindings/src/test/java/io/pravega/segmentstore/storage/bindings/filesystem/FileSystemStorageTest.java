@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.bindings.filesystem;
 
 import io.pravega.common.io.FileHelpers;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -34,7 +35,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  */
 public class FileSystemStorageTest extends IdempotentStorageTestBase {
     private File baseDir = null;
-    private FileSystemStorageConfig adapterConfig;
+    private ServiceBuilderConfig adapterConfig;
     private FileSystemStorageFactory storageFactory;
 
     @Before
@@ -42,9 +43,9 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
-        this.adapterConfig = FileSystemStorageConfig
+        this.adapterConfig = ServiceBuilderConfig
                 .builder()
-                .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                .include(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath()))
                 .build();
         this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService());
     }

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.bindings.filesystem;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 
@@ -28,10 +29,10 @@ public class FileSystemStorageFactory implements StorageFactory {
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public FileSystemStorageFactory(FileSystemStorageConfig config, ExecutorService executor) {
+    public FileSystemStorageFactory(ServiceBuilderConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
+        this.config = config.getConfig(FileSystemStorageConfig::builder);
         this.executor = executor;
     }
 

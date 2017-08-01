@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.bindings.extendeds3;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
+import io.pravega.common.util.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 
@@ -30,10 +31,10 @@ public class ExtendedS3StorageFactory implements StorageFactory {
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
+    public ExtendedS3StorageFactory(ServiceBuilderConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
+        this.config = config.getConfig(ExtendedS3StorageConfig::builder);
         this.executor = executor;
     }
 
