@@ -93,7 +93,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().build());
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build());
         testState = new TestState();
     }
 
