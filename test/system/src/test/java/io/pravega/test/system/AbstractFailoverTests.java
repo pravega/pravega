@@ -159,7 +159,7 @@ abstract class AbstractFailoverTests {
                     writer.flush();
                     testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
-                } catch (ConnectionClosedException | RetriesExhaustedException e) {
+                } catch (RetriesExhaustedException e) {
                     log.warn("Test exception in writing events: ", e);
                     continue;
                 } catch (Throwable e) {
