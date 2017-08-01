@@ -217,6 +217,28 @@ project('segmentstore:storage:bindings') {
     }
 }
 
+
+project('segmentstore:storage:bindings:extendeds3') {
+    dependencies {
+        //For Extended S3
+        compile "com.emc.ecs:object-client:3.0.0"
+        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
+        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+
+        compile project(':segmentstore:storage:bindings')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
+    }
+}
+
+project('segmentstore:storage:bindings:filesystem') {
+    dependencies {
+        compile project(':segmentstore:storage:bindings')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
+    }
+}
+
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
@@ -308,7 +330,8 @@ project('segmentstore:server:hostwithbindings') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
-        testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings:extendeds3', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings:filesystem', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
