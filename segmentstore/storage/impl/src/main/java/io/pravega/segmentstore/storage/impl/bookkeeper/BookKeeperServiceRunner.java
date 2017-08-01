@@ -71,7 +71,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         Thread c = this.cleanup.getAndSet(null);
         if (c != null) {
-            Runtime.getRuntime().removeShutdownHook(this.cleanup.get());
+            Runtime.getRuntime().removeShutdownHook(c);
         }
     }
 

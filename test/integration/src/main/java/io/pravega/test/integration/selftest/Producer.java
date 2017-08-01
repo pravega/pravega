@@ -9,8 +9,8 @@
  */
 package io.pravega.test.integration.selftest;
 
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -19,7 +19,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -30,6 +31,7 @@ import org.apache.commons.lang.NotImplementedException;
 class Producer extends Actor {
     //region Members
 
+    private static final Supplier<Long> TIME_PROVIDER = System::nanoTime;
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
@@ -163,36 +165,36 @@ class Producer extends Actor {
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
         CompletableFuture<Void> result;
-        AtomicReference<Timer> timer = new AtomicReference<>();
+        final AtomicLong startTime = new AtomicLong(TIME_PROVIDER.get());
         if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             // Create the Transaction, then record it's name in the operation's result.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            timer.set(new Timer());
+            startTime.set(TIME_PROVIDER.get());
             result = this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
                                .thenAccept(operation::setResult);
         } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
             // Merge the Transaction.
             StoreAdapter.Feature.Transaction.ensureSupported(this.store, "merge transaction");
-            timer.set(new Timer());
+            startTime.set(TIME_PROVIDER.get());
             result = this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.APPEND) {
             // Generate some random data, then append it.
             StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
             Event event = this.dataSource.nextEvent(operation.getTarget(), this.id);
             operation.setLength(event.getSerialization().getLength());
-            timer.set(new Timer());
+            startTime.set(TIME_PROVIDER.get());
             result = this.store.append(operation.getTarget(), event, this.config.getTimeout())
                                .exceptionally(ex -> attemptReconcile(ex, operation));
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the target.
             StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal");
-            timer.set(new Timer());
+            startTime.set(TIME_PROVIDER.get());
             result = this.store.seal(operation.getTarget(), this.config.getTimeout());
         } else {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }
 
-        return result.thenRun(() -> operation.completed(timer.get().getElapsedMillis()));
+        return result.thenRun(() -> operation.completed((TIME_PROVIDER.get() - startTime.get()) / AbstractTimer.NANOS_TO_MILLIS));
     }
 
     @SneakyThrows
