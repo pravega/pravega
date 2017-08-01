@@ -140,7 +140,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 connectionSetup.reset();
                 exception = null;
-                reconnecting.set(false);
                 connection = newConnection;
             }
         }
@@ -463,13 +462,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runInExecutor(() -> {
-                     if (!state.isClosed()) {
+                     if (!state.isClosed() && !state.isAlreadySealed()) {
                          try {
                              setupConnection();
+                             state.waitForConnection();
                          } catch (ConnectionFailedException exception) {
                              throw Lombok.sneakyThrow(exception);
+                         } catch (SegmentSealedException e1) {
+                             log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
                          }
                      }
+                     state.reconnecting.set(false);
                  }, connectionFactory.getInternalExecutor());
         }
     }
