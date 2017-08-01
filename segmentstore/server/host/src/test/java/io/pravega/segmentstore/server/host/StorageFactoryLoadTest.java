@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.util.ServiceBuilderConfig;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
