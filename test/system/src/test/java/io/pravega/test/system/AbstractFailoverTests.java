@@ -20,7 +20,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
@@ -189,10 +188,14 @@ abstract class AbstractFailoverTests {
                     } else {
                         log.debug("Read timeout");
                     }
-                } catch (ConnectionClosedException | RetriesExhaustedException e) {
+                } catch (RetriesExhaustedException e) {
                     log.warn("Test exception in reading events: ", e);
                     continue;
                 } catch (Throwable e) {
+                    if (e.getCause() instanceof RetriesExhaustedException) {
+                        log.warn("Test exception in reading events: ", e);
+                        continue;
+                    }
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
                 }
