@@ -140,6 +140,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 connectionSetup.reset();
                 exception = null;
+                reconnecting.set(false);
                 connection = newConnection;
             }
         }
@@ -322,7 +323,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     if (e == null) {
                         state.connectionSetupComplete();
                     } else {
-                        state.failConnection(e);
+                        failConnection(e);
                     }
                 });
             }
@@ -410,7 +411,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     try {
                         connection.send(cmd);
                     } catch (Exception e) {
-                        state.failConnection(e);
+                        failConnection(e);
                         throw e;
                     }
                 }
@@ -468,7 +469,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          } catch (ConnectionFailedException exception) {
                              throw Lombok.sneakyThrow(exception);
                          }
-                         state.reconnecting.set(false);
                      }
                  }, connectionFactory.getInternalExecutor());
         }
