@@ -60,7 +60,8 @@ public interface ClientFactory extends AutoCloseable {
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
         val connectionFactory = new ConnectionFactoryImpl(false);
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri), connectionFactory);
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, connectionFactory.getInternalExecutor()),
+                connectionFactory);
     }
 
     /**

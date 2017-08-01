@@ -85,6 +85,8 @@ public class ControllerImpl implements Controller {
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
+    
+    private final ScheduledExecutorService executor;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -94,13 +96,14 @@ public class ControllerImpl implements Controller {
      *                          This is used if the controller endpoints are static and can be directly accessed.
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
+     * @param executor A threadpool to use for retries. (This class does not take responsibility for shutting down the threadpool)
      */
-    public ControllerImpl(final URI controllerURI) {
+    public ControllerImpl(final URI controllerURI,  ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true));
+                .usePlaintext(true), executor);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -108,9 +111,11 @@ public class ControllerImpl implements Controller {
      * Creates a new instance of the Controller client class.
      *
      * @param channelBuilder The channel builder to connect to the service instance.
+     * @param executor A threadpool to use for retries. (This class does not take responsibility for shutting down the threadpool)
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, ScheduledExecutorService executor) {
+        this.executor = executor;
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
 
         // Create Async RPC client.

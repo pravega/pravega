@@ -22,6 +22,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
@@ -962,7 +963,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelCreateStream() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelCreateStream");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
@@ -996,7 +997,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelGetCurrentSegments");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {

@@ -14,7 +14,10 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.function.RunnableWithException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
@@ -26,6 +29,22 @@ import lombok.val;
  * Helper methods for ExecutorService.
  */
 public final class ExecutorServiceHelpers {
+    
+    /**
+     * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names names the threads.
+     * @return A new executor service.
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
+        ThreadGroup group = new ThreadGroup(poolName);
+        group.setDaemon(true);
+        return Executors.newScheduledThreadPool(size, new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(group, r);
+            }
+        });
+    }
+    
     /**
      * Gets a snapshot of the given ExecutorService.
      *

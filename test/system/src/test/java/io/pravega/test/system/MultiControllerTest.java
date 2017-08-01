@@ -181,7 +181,7 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI);
+        final ControllerImpl controllerClient = new ControllerImpl(controllerURI, EXECUTOR_SERVICE);
         return controllerClient.createScope(scopeName);
     }
 }
