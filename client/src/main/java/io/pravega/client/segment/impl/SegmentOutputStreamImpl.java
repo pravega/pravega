@@ -278,10 +278,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                                  retrySchedule.getMaxDelay(),
                                                  t -> log.error(writerId + " to invoke sealed callback: ", t))
-                     .runAsync(() -> {
+                     .runInExecutor(() -> {
                          log.debug("Invoking SealedSegment call back for {}", segmentIsSealed);
                          callBackForSealed.accept(Segment.fromScopedName(getSegmentName()));
-                         return null;
                      }, connectionFactory.getInternalExecutor());
             }
         }
