@@ -14,6 +14,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
@@ -26,7 +27,7 @@ public class StreamManagerImpl implements StreamManager {
     private final Controller controller;
 
     public StreamManagerImpl(URI controllerUri) {
-        this.controller = new ControllerImpl(controllerUri);
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build());
     }
 
     @VisibleForTesting
@@ -81,10 +82,8 @@ public class StreamManagerImpl implements StreamManager {
                 RuntimeException::new);
     }
 
-
     @Override
     public void close() {
-        //Nothing to close
+        this.controller.close();
     }
-
 }

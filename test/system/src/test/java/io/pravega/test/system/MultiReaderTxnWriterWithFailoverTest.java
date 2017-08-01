@@ -24,6 +24,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -174,7 +175,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build());
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -186,6 +187,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
     @After
     public void tearDown() {
+        controller.close();
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();

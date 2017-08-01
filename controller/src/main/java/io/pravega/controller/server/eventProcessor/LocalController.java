@@ -332,4 +332,8 @@ public class LocalController implements Controller {
         return controller.isSegmentValid(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
     }
 
+    @Override
+    public void close() {
+        // Nothing to close.
+    }
 }

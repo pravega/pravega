@@ -10,6 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
@@ -25,6 +26,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -181,7 +184,9 @@ public class MultiControllerTest {
     }
 
     private CompletableFuture<Boolean> createScope(String scopeName, URI controllerURI) {
-        final ControllerImpl controllerClient = new ControllerImpl(controllerURI);
+        @Cleanup
+        final ControllerImpl controllerClient = new ControllerImpl(controllerURI,
+                ControllerImplConfig.builder().retryAttempts(1).build());
         return controllerClient.createScope(scopeName);
     }
 }

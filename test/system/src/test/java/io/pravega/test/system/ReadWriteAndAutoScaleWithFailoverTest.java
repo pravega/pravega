@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
@@ -92,12 +93,13 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().build());
         testState = new TestState();
     }
 
     @After
     public void tearDown() {
+        controller.close();
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
