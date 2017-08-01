@@ -199,9 +199,6 @@ abstract class AbstractFailoverTests {
                     } else {
                         log.debug("Read timeout");
                     }
-                } catch (RetriesExhaustedException e) {
-                    log.warn("Test exception in reading events: ", e);
-                    continue;
                 } catch (Throwable e) {
                     if (e.getCause() instanceof RetriesExhaustedException) {
                         log.warn("Test exception in reading events: ", e);
