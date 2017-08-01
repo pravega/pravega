@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.PravegaControllerService;
@@ -119,7 +120,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //bring the instances back to 3 before performing failover during scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //scale manually
             log.debug("Number of Segments before manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
@@ -145,7 +146,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //bring the instances back to 3 before performing failover after scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
             performFailoverTest();

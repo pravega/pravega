@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
@@ -72,11 +73,8 @@ public class RemoteSequential implements TestExecutor {
                                 methodName);
 
                     }
-                    try {
-                        TimeUnit.MINUTES.sleep(1);
-                    } catch (InterruptedException e) {
-                        log.error("Interrupted Exception during sleep between tests");
-                    }
+                    //Wait for a minute between tests runs.
+                    Exceptions.handleInterrupted(() -> TimeUnit.MINUTES.sleep(1));
                 });
     }
 

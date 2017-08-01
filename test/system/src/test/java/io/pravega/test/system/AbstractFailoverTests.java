@@ -23,6 +23,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -86,7 +87,7 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
     }
 
-    void performFailoverTest() throws InterruptedException {
+    void performFailoverTest() {
 
         log.info("Test with 3 controller, SSS instances running and without a failover scenario");
         long currentWriteCount1 = testState.eventWriteCount.get();
@@ -95,7 +96,7 @@ abstract class AbstractFailoverTests {
 
         //check reads and writes after sleeps
         log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         long currentWriteCount2 = testState.eventWriteCount.get();
         long currentReadCount2 = testState.eventReadCount.get();
@@ -108,7 +109,7 @@ abstract class AbstractFailoverTests {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -122,7 +123,7 @@ abstract class AbstractFailoverTests {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = testState.eventWriteCount.get();
@@ -137,7 +138,7 @@ abstract class AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -151,16 +152,13 @@ abstract class AbstractFailoverTests {
             while (!testState.stopWriteFlag.get()) {
                 try {
                     long value = testState.eventData.incrementAndGet();
-                    Thread.sleep(100);
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
                     writer.flush();
                     testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
-                } catch (InterruptedException e) {
-                    log.error("Error in sleep: ", e);
-                    testState.getWriteException.set(e);
                 } catch (ConnectionClosedException | RetriesExhaustedException e) {
                     log.warn("Test exception in writing events: ", e);
                     continue;

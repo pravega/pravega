@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.Environment;
@@ -87,7 +88,7 @@ public class MultiReaderWriterWithFailOverTest {
     private final int sleepTimeAfterFailover = 60000;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws MarathonException, URISyntaxException {
 
         //1. Start 1 instance of zookeeper
         Service zkService = new ZookeeperService("zookeeper");
@@ -328,7 +329,7 @@ public class MultiReaderWriterWithFailOverTest {
         });
     }
 
-    private void performFailoverTest() throws InterruptedException {
+    private void performFailoverTest() {
 
         long currentWriteCount1;
         long currentReadCount1;
@@ -346,7 +347,7 @@ public class MultiReaderWriterWithFailOverTest {
         //check reads and writes after some random time
         sleepTime = new Random().nextInt(50000) + 3000;
         log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTime));
 
         long currentWriteCount2;
         long currentReadCount2;
@@ -364,7 +365,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(sleepTimeAfterFailover);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventData.get();
@@ -380,7 +381,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        Thread.sleep(sleepTimeAfterFailover);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventData.get();
@@ -397,7 +398,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        Thread.sleep(sleepTimeAfterFailover);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventData.get();
@@ -417,7 +418,7 @@ public class MultiReaderWriterWithFailOverTest {
             while (!stopWriteFlag.get()) {
                 try {
                     long value = data.incrementAndGet();
-                    Thread.sleep(100);
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
