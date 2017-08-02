@@ -189,18 +189,6 @@ project('segmentstore:storage:impl') {
     }
 }
 
-
-project('segmentstore:storage:bindings') {
-    dependencies {
-            compile project(':common')
-            compile project(':segmentstore:storage')
-            compile project(':shared:metrics')
-            testCompile project(':test:testcommon')
-            testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
-    }
-}
-
-
 project('segmentstore:storage:bindings:extendeds3') {
     dependencies {
         //For Extended S3
@@ -208,8 +196,12 @@ project('segmentstore:storage:bindings:extendeds3') {
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
 
-        compile project(':segmentstore:storage:bindings')
-        testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+
     }
 }
 
@@ -217,6 +209,12 @@ project('segmentstore:storage:bindings:filesystem') {
     dependencies {
         compile project(':segmentstore:storage:bindings')
         testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
+
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
 }
 
