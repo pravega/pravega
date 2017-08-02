@@ -48,7 +48,6 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
@@ -161,8 +160,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 if (!closed) {
                     log.warn("Connection for segment {} failed due to: {}", segmentName, e.getMessage());
                 }
+                connectionSetup.release();
             }
-            connectionSetupComplete();
             if (oldConnection != null) {
                 oldConnection.close();
             }
@@ -354,7 +353,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      *
      */
     @Override
-    @SneakyThrows(SegmentSealedException.class) // We should never encounter SegmentSealedException during a write
     public void write(PendingEvent event) {
         checkState(!state.isAlreadySealed(), "Segment: {} is already sealed", segmentName);
         synchronized (writeOrderLock) {
@@ -366,7 +364,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (SegmentSealedException e) {
                 // Add the event to inflight and indicate to the caller that the segment is sealed.
                 state.addToInflight(event);
-                throw e;
+                return;
             }
             long eventNumber = state.addToInflight(event);
             try {
@@ -374,7 +372,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                            event.getExpectedOffset()));
             } catch (ConnectionFailedException e) {
                 log.warn("Connection " + writerId + " failed due to: ", e);
-                getConnection(); // As the messages is inflight, this will perform the retransmition.
+                try {
+                    getConnection(); // As the messages is inflight, this will perform the retransmition.
+                } catch (SegmentSealedException e2) {
+                    return;
+                }
             }
         }
     }

@@ -491,7 +491,70 @@ public class SegmentOutputStreamTest {
         assertEquals(true, ack.isDone());
     }
 
-    
+    @Test(timeout = 10000)
+    public void testFailureWhileRetransmittingInflight() throws ConnectionFailedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        InOrder inOrder = inOrder(connection);
+        cf.provideConnection(uri, connection);
+        @SuppressWarnings("resource")
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
+        
+        output.setupConnection();
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        output.write(new PendingEvent(null, getBuffer("test1"), new CompletableFuture<>()));
+        output.write(new PendingEvent(null, getBuffer("test2"), new CompletableFuture<>()));
+        doAnswer(new Answer<Void>() {
+            boolean failed = false;
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                CompletedCallback callback = (CompletedCallback) invocation.getArgument(1);
+                if (failed) {
+                    callback.complete(null);
+                } else {
+                    failed = true;
+                    callback.complete(new ConnectionFailedException("Injected"));
+                }
+                return null;
+            }
+        }).when(connection).sendAsync(Mockito.any(), Mockito.any());
+        
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(2, SEGMENT, cid, 0));
+                return null;
+            }
+        }).when(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+        
+        cf.getProcessor(uri).connectionDropped();
+        Async.testBlocking(() -> output.write(new PendingEvent(null, getBuffer("test3"), new CompletableFuture<>())),
+                           () -> {
+                               cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+                           });
+        output.write(new PendingEvent(null, getBuffer("test4"), new CompletableFuture<>()));
+        
+        Append append1 = new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
+        Append append2 = new Append(SEGMENT, cid, 2, Unpooled.wrappedBuffer(getBuffer("test2")), null);
+        Append append3 = new Append(SEGMENT, cid, 3, Unpooled.wrappedBuffer(getBuffer("test3")), null);
+        Append append4 = new Append(SEGMENT, cid, 4, Unpooled.wrappedBuffer(getBuffer("test4")), null);
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        inOrder.verify(connection).send(append1);
+        inOrder.verify(connection).send(append2);
+        inOrder.verify(connection).close();
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
+        inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
+        inOrder.verify(connection).close();
+        inOrder.verify(connection).send(new WireCommands.SetupAppend(3, cid, SEGMENT));
+        inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
+        inOrder.verify(connection).send(append3);
+        inOrder.verify(connection).send(append4);
+        
+        verifyNoMoreInteractions(connection);
+    }
 
     @Test(timeout = 10000)
     public void testExceptionSealedCallback() throws ConnectionFailedException {
