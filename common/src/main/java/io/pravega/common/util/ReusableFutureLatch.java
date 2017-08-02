@@ -28,6 +28,8 @@ public class ReusableFutureLatch<T> {
     private Exception e;
     @GuardedBy("lock")
     private boolean released;
+    @GuardedBy("lock")
+    private Long runningThreadId;
 
     public ReusableFutureLatch() {
         released = false;
@@ -55,6 +57,60 @@ public class ReusableFutureLatch<T> {
             toNotify.complete(result);
         } else {
             toNotify.completeExceptionally(e);
+        }
+    }
+    
+    /**
+     * If the latch is released, completes the provided future without invoking the provided
+     * runnable. If the latch is not released it will add the provided future to the list to be
+     * notified and runs the provided runnable if there is not already one running.
+     * 
+     * If there are multiple calls to this method, only the runnable of one will be invoked. If the
+     * runnable throws the exception will be thrown to the caller of this method, and future callers
+     * may have their runnable method invoked (Presuming that the latch is not released)
+     * 
+     * @param willCallRelease A runnable that should result in {@link #release(Object)} being called.
+     * @param toNotify The future to notify once release is called.
+     */
+    public void runReleaserAndAwait(Runnable willCallRelease, CompletableFuture<T> toNotify) {
+        boolean run = false;
+        boolean complete = false;
+        T result = null;
+        Exception e = null;
+        synchronized (lock) {
+            if (released) {
+                complete = true;
+                result = this.result;
+                e = this.e;
+            } else {
+                waitingFutures.add(toNotify);
+                if (runningThreadId == null) {
+                    run = true;
+                    runningThreadId = Thread.currentThread().getId();
+                }
+            }
+        }
+        if (run) {
+            boolean success = false;
+            try {
+                willCallRelease.run();
+                success = true;
+            } finally {
+                if (!success) {
+                    synchronized (lock) {
+                        if (runningThreadId != null && runningThreadId == Thread.currentThread().getId()) {
+                            runningThreadId = null;
+                        }
+                    }
+                }
+            }
+        }
+        if (complete) {
+            if (e == null) {
+                toNotify.complete(result);
+            } else {
+                toNotify.completeExceptionally(e);
+            }
         }
     }
 
@@ -117,6 +173,7 @@ public class ReusableFutureLatch<T> {
             released = false;
             e = null;
             result = null;
+            runningThreadId = null;
         }
     }
 }
