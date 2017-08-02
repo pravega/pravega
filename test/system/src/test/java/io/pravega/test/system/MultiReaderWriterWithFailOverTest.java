@@ -310,7 +310,7 @@ public class MultiReaderWriterWithFailOverTest {
             try {
                 writer.close();
             } catch (Throwable e) {
-                log.error("Error closing the reader", e);
+                log.error("Error closing reader", e);
             }
         });
         log.info("Closing readers");
@@ -318,7 +318,7 @@ public class MultiReaderWriterWithFailOverTest {
             try {
                 reader.close();
             } catch (Throwable e) {
-                log.error("Error closing the reader", e);
+                log.error("Error closing reader", e);
             }
         });
     }

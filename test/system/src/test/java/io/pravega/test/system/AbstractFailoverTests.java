@@ -198,6 +198,7 @@ abstract class AbstractFailoverTests {
                         log.debug("Read timeout");
                     }
                 } catch (Throwable e) {
+                    //TODO: remove it once issue https://github.com/pravega/pravega/issues/1687 is fixed.
                     if (e.getCause() instanceof RetriesExhaustedException) {
                         log.warn("Test exception in reading events: ", e);
                         continue;
@@ -236,7 +237,6 @@ abstract class AbstractFailoverTests {
     }
 
     void createScopeAndStream(String scope, String stream, StreamConfiguration config, URI uri) {
-
         try (StreamManager streamManager = new StreamManagerImpl(uri)) {
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Creating scope with scope name {}", scope);
@@ -342,7 +342,7 @@ abstract class AbstractFailoverTests {
         // check for exceptions during writes
         if (testState.getWriteException.get() != null) {
             log.info("Unable to write events:", testState.getWriteException.get());
-            //Assert.fail("Unable to write events. Test failure"); //TODO: shrids to be enabled.
+            Assert.fail("Unable to write events. Test failure");
         }
 
         //Stop Readers
@@ -356,7 +356,7 @@ abstract class AbstractFailoverTests {
         //check for exceptions during read
         if (testState.getReadException.get() != null) {
             log.info("Unable to read events:", testState.getReadException.get());
-            //Assert.fail("Unable to read events. Test failure"); //TODO: shrids to be enabled.
+            Assert.fail("Unable to read events. Test failure");
         }
 
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
