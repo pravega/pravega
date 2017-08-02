@@ -207,7 +207,6 @@ project('segmentstore:storage:bindings:extendeds3') {
 
 project('segmentstore:storage:bindings:filesystem') {
     dependencies {
-        compile project(':segmentstore:storage:bindings')
         testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
 
         compile project(':common')
@@ -301,7 +300,6 @@ project('segmentstore:server:hostwithbindings') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
-        compile project(':segmentstore:storage:bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
