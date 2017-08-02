@@ -158,9 +158,6 @@ abstract class AbstractFailoverTests {
                     writer.flush();
                     testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
-                } catch (RetriesExhaustedException e) {
-                    log.warn("Test exception in writing events: ", e);
-                    continue;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
@@ -324,7 +321,7 @@ abstract class AbstractFailoverTests {
         testState.writersComplete.get();
         testState.newWritersComplete.get();
         if (testState.getWriteException.get() != null) {
-            log.info("Unable to write events: {}", testState.getWriteException.get());
+            log.info("Unable to write events:", testState.getWriteException.get());
             Assert.fail("Unable to write events. Test failure");
         }
 
@@ -334,7 +331,7 @@ abstract class AbstractFailoverTests {
         log.info("Wait for readers execution to complete");
         testState.readersComplete.get();
         if (testState.getReadException.get() != null) {
-            log.info("Unable to read events: {}", testState.getReadException.get());
+            log.info("Unable to read events:", testState.getReadException.get());
             Assert.fail("Unable to read events. Test failure");
         }
 
