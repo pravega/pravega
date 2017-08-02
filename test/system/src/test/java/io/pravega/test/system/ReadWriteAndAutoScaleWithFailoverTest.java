@@ -142,7 +142,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         }
         cleanUp(scope, AUTO_SCALE_STREAM);
-        log.info("Test {} succeeds ", "ReadWriteAndAutoScaleWithFailover");
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {

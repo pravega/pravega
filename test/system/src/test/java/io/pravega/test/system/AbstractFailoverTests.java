@@ -169,6 +169,7 @@ abstract class AbstractFailoverTests {
 
     private void closeWriter(EventStreamWriter<Long> writer) {
         try {
+            log.info("Closing writer");
             writer.close();
         } catch (RetriesExhaustedException e) {
             log.warn("Unable to close the client: ", e);
@@ -212,6 +213,7 @@ abstract class AbstractFailoverTests {
 
     private void closeReader(EventStreamReader<Long> reader) {
         try {
+            log.info("Closing reader");
             reader.close();
         } catch (RetriesExhaustedException e) {
             log.warn("Unable to close the client: ", e);
@@ -258,7 +260,9 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(tmpWriter);
-                writerFutureList.add(startWriting(tmpWriter));
+                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                writerFutureList.add(writerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersComplete);
@@ -286,7 +290,9 @@ abstract class AbstractFailoverTests {
                         new JavaSerializer<Long>(),
                         ReaderConfig.builder().build());
                 readerList.add(reader);
-                readerFutureList.add(startReading(reader));
+                final CompletableFuture<Void> readerFuture = startReading(reader);
+                FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
+                readerFutureList.add(readerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
@@ -306,7 +312,9 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 newlyAddedWriterList.add(tmpWriter);
-                newWritersFutureList.add(startWriting(tmpWriter));
+                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events :", t));
+                newWritersFutureList.add(writerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.newWritersComplete);
