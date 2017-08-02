@@ -15,7 +15,7 @@ import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.bindings.IdempotentStorageTestBase;
+import io.pravega.segmentstore.storage.IdempotentStorageTestBase;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.nio.channels.FileChannel;
