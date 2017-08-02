@@ -76,7 +76,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     }
 
     @SneakyThrows
-    private void cleanupOnShutdown(){
+    private void cleanupOnShutdown() {
         close();
     }
 
