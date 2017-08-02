@@ -25,20 +25,20 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.Async;
-import lombok.Cleanup;
-import org.junit.Test;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import lombok.Cleanup;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -156,7 +156,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 20000)
-    public void testNewEventsGoAfterInflight() throws ConnectionFailedException, SegmentSealedException {
+    public void testNewEventsGoAfterInflight() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -325,7 +325,7 @@ public class SegmentOutputStreamTest {
      * connection is reestablished and the data is retransmitted before close returns.
      */
     @Test
-    public void testFailOnClose() throws ConnectionFailedException, SegmentSealedException {
+    public void testFailOnClose() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -370,7 +370,6 @@ public class SegmentOutputStreamTest {
         inOrder.verify(connection).send(new WireCommands.KeepAlive());
         inOrder.verify(connection).send(new WireCommands.SetupAppend(2, cid, SEGMENT));
         inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
-        inOrder.verify(connection).send(new WireCommands.KeepAlive());
         inOrder.verify(connection).close();
         assertEquals(true, acked.isDone());
         inOrder.verifyNoMoreInteractions();
@@ -403,7 +402,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testSealedBeforeFlush() throws ConnectionFailedException, SegmentSealedException {
+    public void testSealedBeforeFlush() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -427,7 +426,7 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testSealedAfterFlush() throws ConnectionFailedException, SegmentSealedException {
+    public void testSealedAfterFlush() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -453,31 +452,86 @@ public class SegmentOutputStreamTest {
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
-
+    
     @Test(timeout = 10000)
-    public void testExceptionSealedCallback() throws ConnectionFailedException, SegmentSealedException {
+    public void testFailDurringFlush() throws ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid,
+                segmentSealedCallback, RETRY_SCHEDULE);
+        output.setupConnection();
+        order.verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
+        cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Boolean> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertEquals(false, ack.isDone());
+        
+        Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new WireCommands.KeepAlive());
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(3, SEGMENT, cid, 1));
+                return null;
+            }
+        }).when(connection).send(new WireCommands.SetupAppend(3, cid, SEGMENT));
+        Async.testBlocking(() -> {
+            output.flush();
+        }, () -> {
+            cf.getProcessor(uri).connectionDropped();
+        });
+        order.verify(connection).send(new WireCommands.SetupAppend(3, cid, SEGMENT));
+        assertEquals(true, ack.isDone());
+    }
+
+    
+
+    @Test(timeout = 10000)
+    public void testExceptionSealedCallback() throws ConnectionFailedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        AtomicBoolean shouldThrow = new AtomicBoolean(true);
         // call back which throws an exception.
         Consumer<Segment> exceptionCallback = s -> {
-            throw new IllegalStateException();
+            if (shouldThrow.getAndSet(false)) {
+                throw new IllegalStateException();
+            }
         };
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, exceptionCallback, RETRY_SCHEDULE);
         output.setupConnection();
+        verify(connection).send(new WireCommands.SetupAppend(1, cid, SEGMENT));
         cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         output.write(new PendingEvent(null, data, ack));
         assertEquals(false, ack.isDone());
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                cf.getProcessor(uri).appendSetup(new WireCommands.AppendSetup(3, SEGMENT, cid, 0));
+                return null;
+            }
+        }).when(connection).send(new WireCommands.SetupAppend(3, cid, SEGMENT));
         Async.testBlocking(() -> {
-            AssertExtensions.assertThrows(IllegalStateException.class, () -> output.flush());
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            output.getUnackedEventsOnSeal();
         });
+        verify(connection).send(new WireCommands.KeepAlive());
+        verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertEquals(false, ack.isDone());
     }
 }
