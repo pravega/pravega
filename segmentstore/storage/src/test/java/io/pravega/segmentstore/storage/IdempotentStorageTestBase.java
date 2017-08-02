@@ -11,16 +11,12 @@ package io.pravega.segmentstore.storage;
 
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
+import java.util.concurrent.CompletableFuture;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
-import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
