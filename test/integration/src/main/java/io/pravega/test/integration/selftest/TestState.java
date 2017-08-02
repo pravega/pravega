@@ -501,25 +501,25 @@ public class TestState {
          */
         synchronized int[] percentiles(double... percentiles) {
             int[] result = new int[percentiles.length];
-            int percentileIndex = 0; // Index in percentiles.
-            int soughtLatencyOrder = 0; // Index for sought latency across all latencies.
-            int currentLatency = 0; // Index within latencyCounts where soughtLatencyOrder resides.
+            int itemIndex = 0; // Index for sought latency across all latencies.
+            int currentLatency = 0; // Index within latencyCounts where itemIndex resides.
             long sumSoFar = 0; // Sum of all latencyCounts up to (excluding) currentLatency.
-            while (percentileIndex < percentiles.length) {
+            for (int i = 0; i < percentiles.length; i++) {
                 // Find the index for sought latency.
-                int newElementIndex = (int) (percentiles[percentileIndex] * this.size);
-                Preconditions.checkArgument(newElementIndex >= soughtLatencyOrder, "percentiles not sorted at index %s", percentileIndex);
-                soughtLatencyOrder = newElementIndex;
+                double percentile = percentiles[i];
+                Preconditions.checkState(percentile >= 0 && percentile <= 1, "Invalid percentile. Must be in interval [0,1].");
+                int newItemIndex = (int) (percentiles[i] * (this.size-1));
+                Preconditions.checkArgument(newItemIndex >= itemIndex, "percentiles not sorted at index %s", i);
+                itemIndex = newItemIndex;
 
                 // Find the latency we're looking for, starting from where we left off.
-                while (sumSoFar + this.latencyCounts[currentLatency] < soughtLatencyOrder) {
+                while (sumSoFar + this.latencyCounts[currentLatency] <= itemIndex) {
                     sumSoFar += this.latencyCounts[currentLatency];
                     currentLatency++;
                 }
 
                 // Found it.
-                result[percentileIndex] = currentLatency;
-                percentileIndex++;
+                result[i] = currentLatency;
             }
 
             return result;
