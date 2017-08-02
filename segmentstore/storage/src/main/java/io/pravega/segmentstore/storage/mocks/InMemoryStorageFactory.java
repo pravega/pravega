@@ -9,19 +9,18 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.TruncateableStorage;
-import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.RequiredArgsConstructor;
 
 /**

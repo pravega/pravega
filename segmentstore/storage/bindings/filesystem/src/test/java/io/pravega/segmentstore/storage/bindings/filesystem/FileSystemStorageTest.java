@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.bindings.filesystem;
 
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;

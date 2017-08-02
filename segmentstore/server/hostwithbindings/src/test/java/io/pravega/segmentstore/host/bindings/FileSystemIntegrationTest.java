@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.host.bindings;
 
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.host.BookKeeperRunner;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;

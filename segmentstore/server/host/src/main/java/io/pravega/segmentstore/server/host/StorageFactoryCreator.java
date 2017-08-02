@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import io.pravega.common.util.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

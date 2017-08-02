@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.common.util.ServiceConfig;
+import io.pravega.segmentstore.config.ServiceConfig;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;

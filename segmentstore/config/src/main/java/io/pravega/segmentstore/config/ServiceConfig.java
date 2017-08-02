@@ -7,9 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.util;
+package io.pravega.segmentstore.config;
 
 import com.google.common.base.Strings;
+import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.ConfigurationException;
+import io.pravega.common.util.Property;
+import io.pravega.common.util.TypedProperties;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import lombok.Getter;

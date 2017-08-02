@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.util.ServiceBuilderConfig;
-import io.pravega.common.util.ServiceConfig;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceConfig;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;

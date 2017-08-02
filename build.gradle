@@ -158,9 +158,18 @@ project('segmentstore:contracts') {
     }
 }
 
+project('segmentstore:config') {
+    dependencies {
+        compile project(':common')
+        compile project(':segmentstore:contracts')
+    }
+}
+
+
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
+        compile project(':segmentstore:config')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
@@ -218,6 +227,7 @@ project('segmentstore:storage:bindings:filesystem') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':segmentstore:config')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
