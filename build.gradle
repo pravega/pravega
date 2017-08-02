@@ -207,8 +207,6 @@ project('segmentstore:storage:bindings:extendeds3') {
 
 project('segmentstore:storage:bindings:filesystem') {
     dependencies {
-        testCompile project(path:':segmentstore:storage:bindings', configuration:'testRuntime')
-
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
