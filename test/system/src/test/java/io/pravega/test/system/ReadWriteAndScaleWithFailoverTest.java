@@ -17,6 +17,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.PravegaControllerService;
@@ -26,6 +27,7 @@ import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -134,12 +136,22 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                     Collections.singletonList(0),
                     keyRanges,
                     executorService).getFuture();
+            FutureHelpers.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
 
             //run the failover test while scaling
             performFailoverTest();
 
             //do a get on scaleStatus
-            scaleStatus.get();
+            if (FutureHelpers.await(scaleStatus)) {
+                log.info("Scale operation has completed: {}", scaleStatus.get());
+                if (!scaleStatus.get()) {
+                    log.error("Scale operation did not complete", scaleStatus.get());
+                    Assert.fail("Scale operation did not complete successfully");
+                }
+            } else {
+                Assert.fail("Scale operation threw an exception");
+            }
+
             log.debug("Number of Segments post manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
                     .get().getSegments().size());
 
