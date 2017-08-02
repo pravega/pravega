@@ -281,7 +281,7 @@ public class ExtendedS3Storage implements Storage {
         });
         request.setAcl(acl);
 
-        /* TODO: Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
+        /* Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
          * Here is one of the scenarios in which data loss is observed:
          * 1. Host A owns the container and gets a create operation. It has not executed the putObject operation yet.
          * 2. Ownership changes and host B becomes the owner of the container. It picks up putObject from the queue, executes it.
