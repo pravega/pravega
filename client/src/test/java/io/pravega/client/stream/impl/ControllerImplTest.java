@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -608,8 +607,8 @@ public class ControllerImplTest {
                 .scope("scope1")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        AssertExtensions.assertThrows("Should throw Exception", createStreamStatus,
-                throwable -> ExceptionHelpers.getRealException(throwable.getCause()) instanceof StatusRuntimeException);
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+                throwable -> throwable instanceof RetriesExhaustedException);
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();

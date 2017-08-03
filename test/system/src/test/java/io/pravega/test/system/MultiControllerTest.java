@@ -11,6 +11,7 @@ package io.pravega.test.system;
 
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
@@ -166,11 +167,14 @@ public class MultiControllerTest {
         // All APIs should throw exception and fail.
         controllerServiceInstance3.stop();
         log.info("Test tcp:// with no controller instances running");
-        AssertExtensions.assertThrows(ExecutionException.class,
-                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
+                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect),
+                throwable -> throwable instanceof RetriesExhaustedException);
+
         log.info("Test pravega:// with no controller instances running");
-        AssertExtensions.assertThrows(ExecutionException.class,
-                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
+                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover),
+                throwable -> throwable instanceof RetriesExhaustedException);
 
         log.info("multiControllerTest execution completed");
     }
