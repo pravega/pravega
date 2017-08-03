@@ -25,7 +25,7 @@ public class ReusableFutureLatch<T> {
     @GuardedBy("lock")
     private T result;
     @GuardedBy("lock")
-    private Exception e;
+    private Throwable e;
     @GuardedBy("lock")
     private boolean released;
     @GuardedBy("lock")
@@ -43,7 +43,7 @@ public class ReusableFutureLatch<T> {
      */
     public void await(CompletableFuture<T> toNotify) {
         T result;
-        Exception e;
+        Throwable e;
         synchronized (lock) {
             if (released) {
                 result = this.result;
@@ -76,7 +76,7 @@ public class ReusableFutureLatch<T> {
         boolean run = false;
         boolean complete = false;
         T result = null;
-        Exception e = null;
+        Throwable e = null;
         synchronized (lock) {
             if (released) {
                 complete = true;
@@ -125,8 +125,8 @@ public class ReusableFutureLatch<T> {
         ArrayList<CompletableFuture<T>> toComplete = null;
         synchronized (lock) {
             if (!waitingFutures.isEmpty()) {
-                toComplete = new ArrayList<>(toComplete);
-                toComplete.clear();
+                toComplete = new ArrayList<>(waitingFutures);
+                waitingFutures.clear();
             }
             e = null;
             this.result = result;
@@ -146,12 +146,12 @@ public class ReusableFutureLatch<T> {
      * 
      * @param e The exception to pass to waiting futures.
      */
-    public void releaseExceptionally(Exception e) {
+    public void releaseExceptionally(Throwable e) {
         ArrayList<CompletableFuture<T>> toComplete = null;
         synchronized (lock) {
             if (!waitingFutures.isEmpty()) {
-                toComplete = new ArrayList<>(toComplete);
-                toComplete.clear();
+                toComplete = new ArrayList<>(waitingFutures);
+                waitingFutures.clear();
             }
             this.e = e;
             this.result = null;
@@ -174,6 +174,37 @@ public class ReusableFutureLatch<T> {
             e = null;
             result = null;
             runningThreadId = null;
+        }
+    }
+    
+    /**
+     * Identical to calling {@code #releaseExceptionally(Exception); #reset()} except it is atomic.
+     * @param e The exception to fail all waiting futures with.
+     */
+    public void releaseExceptionallyAndReset(Throwable e) {
+        ArrayList<CompletableFuture<T>> toComplete = null;
+        synchronized (lock) {
+            if (!waitingFutures.isEmpty()) {
+                toComplete = new ArrayList<>(waitingFutures);
+                waitingFutures.clear();
+            }
+            released = false;
+            this.e = null;
+            result = null;
+            runningThreadId = null;
+        }
+        if (toComplete != null) {
+            for (CompletableFuture<T> f : toComplete) {
+                f.completeExceptionally(e);
+            }
+        }
+    }
+    
+    @Override
+    public String toString() {
+        synchronized (lock) {
+            return "Released: " + released + " waiting: " + waitingFutures.size() + " running: "
+                    + (runningThreadId != null);
         }
     }
 }

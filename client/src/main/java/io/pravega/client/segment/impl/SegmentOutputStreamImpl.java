@@ -10,14 +10,18 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
+import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -52,7 +56,6 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkState;
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 /**
  * Tracks inflight events, and manages reconnects automatically.
@@ -90,12 +93,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private ClientConnection connection;
         @GuardedBy("lock")
-        private Exception exception = null;
+        private Throwable exception = null;
         @GuardedBy("lock")
         private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
         private long eventNumber = 0;
-        private final ReusableLatch connectionSetup = new ReusableLatch();
+        private final ReusableFutureLatch<ClientConnection> connectionSetup = new ReusableFutureLatch<>();
         private final ReusableLatch waitingInflight = new ReusableLatch(true);
         private final AtomicBoolean sealEncountered = new AtomicBoolean();
         private final AtomicBoolean reconnecting = new AtomicBoolean();
@@ -120,7 +123,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void connectionSetupComplete() {
-            connectionSetup.release();
+            connectionSetup.release(connection);
         }
 
         /**
@@ -137,52 +140,36 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private void newConnection(ClientConnection newConnection) {
             synchronized (lock) {
-                connectionSetup.reset();
-                exception = null;
                 connection = newConnection;
+                exception = null;
             }
         }
 
         /**
-         * @param e Error that has occurred that needs to be handled by tearing down the connection.
+         * @param throwable Error that has occurred that needs to be handled by tearing down the connection.
          */
-        private void failConnection(Exception e) {
+        private void failConnection(Throwable throwable) {
             ClientConnection oldConnection;
             synchronized (lock) {
                 if (exception == null) {
-                    exception = e;
+                    exception = throwable;
                 }
                 oldConnection = connection;
                 connection = null;
-                if (closed || e instanceof SegmentSealedException) {
+                if (closed || throwable instanceof SegmentSealedException) {
                     waitingInflight.release();
                 } 
                 if (!closed) {
-                    log.warn("Connection for segment {} failed due to: {}", segmentName, e.getMessage());
+                    log.warn("Connection for segment {} failed due to: {}", segmentName, throwable.getMessage());
                 }
-                connectionSetup.release();
+            }
+            if (throwable instanceof SegmentSealedException) {
+                connectionSetup.releaseExceptionally(throwable);
+            } else {
+                connectionSetup.releaseExceptionallyAndReset(throwable);                
             }
             if (oldConnection != null) {
                 oldConnection.close();
-            }
-        }
-
-        /**
-         * Block until a connection has been established and AppendSetup has come back from the server.
-         */
-        private ClientConnection waitForConnection() throws ConnectionFailedException, SegmentSealedException {
-            try {
-                Exceptions.handleInterrupted(() -> connectionSetup.await());
-                synchronized (lock) {
-                    if (exception != null) {
-                        throw exception;
-                    }
-                    return connection;
-                }
-            } catch (ConnectionFailedException | IllegalArgumentException | SegmentSealedException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }
 
@@ -360,7 +347,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
-                connection = getConnection();
+                connection = FutureHelpers.getThrowingException(getConnection());
             } catch (SegmentSealedException e) {
                 // Add the event to inflight and indicate to the caller that the segment is sealed.
                 state.addToInflight(event);
@@ -382,42 +369,45 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     /**
-     * Blocking call to establish a connection and wait for it to be setup. (Retries built in)
+     * Establish a connection and wait for it to be setup. (Retries built in)
      */
-    ClientConnection getConnection() throws SegmentSealedException {
+    CompletableFuture<ClientConnection> getConnection() throws SegmentSealedException {
         checkState(!state.isClosed(), "LogOutputStream was already closed");
         if (state.isAlreadySealed()) {
             throw new SegmentSealedException(this.segmentName);
         }
-        return retrySchedule.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).run(() -> {
-            setupConnection();
-            return state.waitForConnection();
-        });
+        return retrySchedule.retryingOn(ConnectionFailedException.class).throwingOn(SegmentSealedException.class).runAsync(() -> {
+            return initiateConnectionSetup();
+        }, connectionFactory.getInternalExecutor());
     }
 
+    
     @VisibleForTesting
-    void setupConnection() throws ConnectionFailedException {
-        if (state.getConnection() == null) {
-            synchronized (connectionEstablishmentLock) {
-                if (state.getConnection() == null && !state.isAlreadySealed()) {
-                    log.info("Fetching endpoint for segment {}", segmentName);
-                    CompletableFuture<ClientConnection> newConnection = controller.getEndpointForSegment(segmentName)
-                            .thenCompose((PravegaNodeUri uri) -> {
-                                log.info("Establishing connection to {} for {}", uri, segmentName);
-                                return connectionFactory.establishConnection(uri, responseProcessor);
-                            });
-                    ClientConnection connection = getAndHandleExceptions(newConnection, ConnectionFailedException::new);
-                    state.newConnection(connection);
-                    SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
-                    try {
-                        connection.send(cmd);
-                    } catch (Exception e) {
-                        state.failConnection(e);
-                        throw e;
-                    }
-                }
+    CompletableFuture<ClientConnection> initiateConnectionSetup() {
+        CompletableFuture<ClientConnection> future =  new CompletableFuture<>();
+        state.connectionSetup.runReleaserAndAwait(this::setupConnection, future);
+        return future;
+    }
+
+    private void setupConnection() {
+        Preconditions.checkState(state.getConnection() == null);
+        Preconditions.checkState(!state.isAlreadySealed());
+        log.info("Fetching endpoint for segment {}", segmentName);
+        controller.getEndpointForSegment(segmentName).thenCompose((PravegaNodeUri uri) -> {
+            log.info("Establishing connection to {} for {}", uri, segmentName);
+            return connectionFactory.establishConnection(uri, responseProcessor);
+        }).thenAccept(connection -> {
+            state.newConnection(connection);
+            SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+            try {
+                connection.send(cmd);
+            } catch (ConnectionFailedException e1) {
+                throw Lombok.sneakyThrow(e1);
             }
-        }
+        }).exceptionally(e -> {
+            failConnection(e);
+            return null;
+        });
     }
 
     /**
@@ -444,7 +434,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     public void flush() throws SegmentSealedException {
         if (!state.isInflightEmpty()) {
             try {
-                ClientConnection connection = getConnection();
+                ClientConnection connection = FutureHelpers.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
             } catch (Exception e) {
                 failConnection(e);
@@ -457,24 +447,28 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
     
-    private void failConnection(Exception e) {
-        state.failConnection(e);
+    private void failConnection(Throwable e) {
+        state.failConnection(ExceptionHelpers.getRealException(e));
         if (!state.isClosed() && state.reconnecting.compareAndSet(false, true)) {
             Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
-                 .runInExecutor(() -> {
-                     if (!state.isClosed() && !state.isAlreadySealed()) {
-                         try {
-                             setupConnection();
-                             state.waitForConnection();
-                         } catch (ConnectionFailedException exception) {
-                             throw Lombok.sneakyThrow(exception);
-                         } catch (SegmentSealedException e1) {
-                             log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
-                         }
+                 .runAsync(() -> {                     
+                     if (state.isClosed() || state.isAlreadySealed()) {
+                         return CompletableFuture.completedFuture(null);
                      }
-                     state.reconnecting.set(false);
+                     return initiateConnectionSetup().handle( (u, t) -> {    
+                         state.reconnecting.set(false);
+                         if (t != null) {
+                             if (ExceptionHelpers.getRealException(t) instanceof SegmentSealedException) {
+                                 log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
+                                 return null;
+                             } else {
+                                 throw Lombok.sneakyThrow(t);
+                             }
+                         }
+                         return null;
+                     });
                  }, connectionFactory.getInternalExecutor());
         }
     }
