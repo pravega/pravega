@@ -11,6 +11,7 @@ package io.pravega.common.util;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -34,6 +35,31 @@ public class ReusableFutureLatchTests {
         assertTrue(str2.isDone());
         assertEquals("Done", str1.get());
         assertEquals("Done", str2.get());
+    }
+    
+    @Test(timeout = 5000)
+    public void testRunReleaser() throws InterruptedException, ExecutionException {
+        AtomicBoolean ran1 = new AtomicBoolean(false);
+        AtomicBoolean ran2 = new AtomicBoolean(false);
+        ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
+        CompletableFuture<String> str1 = new CompletableFuture<>();
+        CompletableFuture<String> str2 = new CompletableFuture<>();
+        latch.runReleaserAndAwait(() -> {
+            ran1.set(true);
+        }, str1);
+        latch.runReleaserAndAwait(() -> {
+            ran2.set(true);
+        }, str2);
+        assertFalse(str1.isDone());
+        assertFalse(str2.isDone());
+        
+        latch.release("Done");
+        assertTrue(str1.isDone());
+        assertTrue(str2.isDone());
+        assertEquals("Done", str1.get());
+        assertEquals("Done", str2.get());
+        assertTrue(ran1.get());
+        assertFalse(ran2.get());
     }
     
     @Test(timeout = 5000)
