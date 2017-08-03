@@ -57,6 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkState;
 
+
 /**
  * Tracks inflight events, and manages reconnects automatically.
  * 
@@ -380,7 +381,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             return initiateConnectionSetup();
         }, connectionFactory.getInternalExecutor());
     }
-
     
     @VisibleForTesting
     CompletableFuture<ClientConnection> initiateConnectionSetup() {

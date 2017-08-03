@@ -18,7 +18,6 @@ variable "aws_secret_key" {
 
 variable "aws_region" {
   description = "AWS Region to launch configuration in"
-  default = "us-east-1"
 }
 
 variable "aws_key_name" {
