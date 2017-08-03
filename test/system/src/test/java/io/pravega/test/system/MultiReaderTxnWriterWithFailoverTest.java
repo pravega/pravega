@@ -27,7 +27,6 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -57,6 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import static java.time.Duration.ofSeconds;
+import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -74,9 +74,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
-    private final List<EventStreamReader<Long>> readerList = new ArrayList<>();
-    private final List<EventStreamWriter<Long>> writerList = new ArrayList<>();
-    private final List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
+    private final List<EventStreamReader<Long>> readerList = synchronizedList(new ArrayList<>());
+    private final List<EventStreamWriter<Long>> writerList = synchronizedList(new ArrayList<>());
+    private final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
     private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
@@ -94,7 +94,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private final String readerName = "reader";
-    private Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 40, ofSeconds(1).toMillis());
+    private final Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 40, ofSeconds(1).toMillis());
 
     @Environment
     public static void initialize() throws MarathonException, URISyntaxException {
@@ -308,8 +308,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
         writerList.forEach(writer -> {
             try {
                 writer.close();
-            } catch (RetriesExhaustedException e) {
-                log.warn("Unable to close the client: ", e);
             } catch (Throwable e) {
                 log.error("Error closing writer", e);
             }
@@ -318,8 +316,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
         readerList.forEach(reader -> {
             try {
                 reader.close();
-            } catch (RetriesExhaustedException e) {
-                log.warn("Unable to close the client: ", e);
             } catch (Throwable e) {
                 log.error("Error closing reader", e);
             }

@@ -171,11 +171,8 @@ abstract class AbstractFailoverTests {
         try {
             log.info("Closing writer");
             writer.close();
-        } catch (RetriesExhaustedException e) {
-            log.warn("Unable to close the client: ", e);
         } catch (Throwable e) {
-            log.error("Error while Closing writer", e);
-            Assert.fail("Unable to close the client. Test Failure");
+            log.error("Error while closing writer", e);
         }
     }
 
@@ -216,11 +213,8 @@ abstract class AbstractFailoverTests {
         try {
             log.info("Closing reader");
             reader.close();
-        } catch (RetriesExhaustedException e) {
-            log.warn("Unable to close the client: ", e);
         } catch (Throwable e) {
             log.error("Error while closing reader", e);
-            Assert.fail("Unable to close the client. Test Failure");
         }
     }
 
