@@ -111,4 +111,9 @@ public class ReusableLatch {
             }
         }
     }
+    
+    @Override
+    public String toString() {
+        return "LatchReleased: " + released.get();
+    }
 }
