@@ -25,6 +25,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -49,12 +50,13 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import static java.time.Duration.ofSeconds;
+import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -72,8 +74,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     private static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
-    private  List<CompletableFuture<Void>> txnStatusFutureList = new ArrayList<>();
-    private ExecutorService executorService;
+    private final List<EventStreamReader<Long>> readerList = synchronizedList(new ArrayList<>());
+    private final List<EventStreamWriter<Long>> writerList = synchronizedList(new ArrayList<>());
+    private final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
+    private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
@@ -90,10 +94,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private final String readerName = "reader";
-    private Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 20, ofSeconds(1).toMillis());
+    private final Retry.RetryWithBackoff retry = Retry.withExpBackoff(10, 10, 40, ofSeconds(1).toMillis());
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws MarathonException, URISyntaxException {
 
         //1. Start 1 instance of zookeeper
         Service zkService = new ZookeeperService("zookeeper");
@@ -168,7 +172,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         //read and write count variables
@@ -209,7 +213,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
             log.info("Creating {} writers", NUM_WRITERS);
-            List<EventStreamWriter<Long>> writerList = new ArrayList<>(NUM_WRITERS);
             log.info("Writers writing in the scope {}", scope);
             for (int i = 0; i < NUM_WRITERS; i++) {
                 log.info("Starting writer{}", i);
@@ -231,7 +234,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
             //create readers
             log.info("Creating {} readers", NUM_READERS);
-            List<EventStreamReader<Long>> readerList = new ArrayList<>(NUM_READERS);
             log.info("Scope that is seen by readers {}", scope);
             //start reading events
             for (int i = 0; i < NUM_READERS; i++) {
@@ -279,12 +281,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
             assertEquals(eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
-            //close all the writers
-            log.info("Closing writers");
-            writerList.forEach(writer -> writer.close());
-            //close all readers
-            log.info("Closing readers");
-            readerList.forEach(reader -> reader.close());
+            closeReadersAndWriters();
+
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -305,7 +303,26 @@ public class MultiReaderTxnWriterWithFailoverTest {
         log.info("Test {} succeeds ", "MultiReaderWriterTxnWithFailOver");
     }
 
-    private void performFailoverTest() throws InterruptedException {
+    private void closeReadersAndWriters() {
+        log.info("Closing writers");
+        writerList.forEach(writer -> {
+            try {
+                writer.close();
+            } catch (Throwable e) {
+                log.error("Error closing writer", e);
+            }
+        });
+        log.info("Closing readers");
+        readerList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (Throwable e) {
+                log.error("Error closing reader", e);
+            }
+        });
+    }
+
+    private void performFailoverTest() {
 
         long currentWriteCount1;
         long currentReadCount1;
@@ -322,7 +339,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //check reads and writes after some random time
         sleepTime = new Random().nextInt(50000) + 3000;
         log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTime));
 
         long currentWriteCount2;
         long currentReadCount2;
@@ -334,7 +351,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -344,7 +361,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventWriteCount.get();
@@ -354,7 +371,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventWriteCount.get();
@@ -389,7 +406,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
                     log.warn("Exception while writing events in the transaction: {}", e);
-                    log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    if (transaction != null) {
+                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    }
                 }
             }
         }, executorService);
@@ -397,10 +416,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
     private CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
                                                    final AtomicLong eventWriteCount) {
-        return CompletableFuture.runAsync(() -> {
-            Transaction.Status status = retry.retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnNotCompleteException.class)
-                    .throwingOn(RuntimeException.class).run(() -> txn.checkStatus());
-            log.debug("Transaction: {} status: {}", txn, txn.checkStatus());
+
+        return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
+            Transaction.Status status = txn.checkStatus();
+            log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
                 eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
                 log.info("Event write count: {}", eventWriteCount.get());
@@ -409,7 +428,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
             } else {
                 throw new TxnNotCompleteException();
             }
-        });
+
+            return CompletableFuture.completedFuture(null);
+        }, executorService);
     }
 
     private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
@@ -459,9 +480,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
     }
 
 
-    private class TxnCreationFailedException extends RuntimeException {
+    private static class TxnCreationFailedException extends RuntimeException {
     }
 
-    private class TxnNotCompleteException extends RuntimeException {
+    private static class TxnNotCompleteException extends RuntimeException {
     }
 }
