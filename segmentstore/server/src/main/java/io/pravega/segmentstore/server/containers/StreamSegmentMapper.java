@@ -46,6 +46,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -572,6 +573,7 @@ public class StreamSegmentMapper {
      * A pending request for a Segment Assignment, which keeps track of all queued callbacks.
      * Note that this class in itself is not thread safe, so the caller should take precautions to ensure thread safety.
      */
+    @NotThreadSafe
     private static class PendingRequest {
         private final ArrayList<QueuedCallback<?>> callbacks = new ArrayList<>();
 
