@@ -44,7 +44,7 @@
     HDFS_URL: NAMENODE:8020
     ZK_URL: ZKNODE:2181
     CONTROLLER_URL: tcp://CONTROLLERNODE:9090
-    JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dbookkeeper.zkAddress=ZKNODE:2181 -Dpravegaservice.publishedIPAddress=CONTROLLERNODE -Xmx900m
+    JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dbookkeeper.zkAddress=ZKNODE:2181 -Xmx900m
     HADOOP_USER_NAME: hdfs
   roles:
     - { role: install-hosts }
