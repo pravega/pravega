@@ -14,14 +14,26 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.FileAppender;
+import io.pravega.common.util.ConfigBuilder;
+import io.pravega.common.util.Property;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
@@ -32,9 +44,16 @@ public class SelfTestRunner {
     private static final long STARTUP_TIMEOUT_MILLIS = 60 * 1000;
 
     public static void main(String[] args) throws Exception {
-        TestConfig testConfig = getTestConfig();
+        Properties shortcuts = Shortcuts.extract(System.getProperties());
+        if (shortcuts.size() == 0 && !System.getProperties().containsKey(TestConfig.CONFIG_FILE_PROPERTY_NAME)) {
+            printUsage();
+            return;
+        }
+
+        // Load config & setup logging.
+        ServiceBuilderConfig builderConfig = getConfig(shortcuts);
+        TestConfig testConfig = builderConfig.getConfig(TestConfig::builder);
         setupLogging(testConfig);
-        ServiceBuilderConfig builderConfig = getBaseSegmentStoreConfig(testConfig);
 
         // Create a new SelfTest.
         @Cleanup
@@ -50,12 +69,75 @@ public class SelfTestRunner {
         test.stopAsync().awaitTerminated();
     }
 
-    private static ServiceBuilderConfig getBaseSegmentStoreConfig(TestConfig testConfig) {
+    /**
+     * Gets a ServiceBuilderConfig containing test-related and SegmentStore-related configuration, using the following
+     * priority order (low to high):
+     * 1. Hardcoded defaults.
+     * 2. Config file.
+     * 3. System Properties.
+     * 4. Explicit overrides (as passed in via an argument).
+     *
+     * @param overrides Explicit overrides.
+     */
+    private static ServiceBuilderConfig getConfig(Properties overrides) throws IOException {
+        // 1. Hardcoded defaults.
+        ServiceBuilderConfig.Builder b = getDefaultServiceBuilderConfig();
+
+        // 2. File-based config (overriding defaults).
+        File configFile = new File(System.getProperty(TestConfig.CONFIG_FILE_PROPERTY_NAME, TestConfig.DEFAULT_CONFIG_FILE_NAME));
+        if (configFile.exists()) {
+            b.include(System.getProperty(TestConfig.CONFIG_FILE_PROPERTY_NAME, TestConfig.DEFAULT_CONFIG_FILE_NAME));
+        }
+
+        // 3. System Property-based config (overriding defaults and File-based config).
+        b.include(System.getProperties());
+
+        // 4. Apply explicit overrides.
+        b.include(overrides);
+
+        // 5. Cross-apply common configuration that must be the same on all fronts.
+        val testConfig = b.build().getConfig(TestConfig::builder);
         int bkWriteQuorum = Math.min(3, testConfig.getBookieCount());
+        b.include(ServiceConfig.builder()
+                               .with(ServiceConfig.CONTAINER_COUNT, testConfig.getContainerCount()));
+        b.include(BookKeeperConfig.builder()
+                                  .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + testConfig.getZkPort())
+                                  .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
+                                  .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
+                                  .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum));
+
+        return b.build();
+    }
+
+    /**
+     * Generates a new ServiceBuilderConfig.Builder with hardcoded defaults, in case these are not supplied via other means,
+     * such as a config file or System Properties.
+     */
+    private static ServiceBuilderConfig.Builder getDefaultServiceBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
+                .include(TestConfig.builder()
+                                   // Test params.
+                                   .with(TestConfig.PRODUCER_COUNT, 100)
+                                   .with(TestConfig.PRODUCER_PARALLELISM, 10) // How many concurrent ops per producer
+                                   .with(TestConfig.OPERATION_COUNT, 1000000)
+                                   .with(TestConfig.STREAM_COUNT, 2)
+                                   .with(TestConfig.CONTAINER_COUNT, 2)
+                                   .with(TestConfig.MIN_APPEND_SIZE, 30)
+                                   .with(TestConfig.MAX_APPEND_SIZE, 1000)
+                                   .with(TestConfig.TEST_TYPE, TestConfig.TestType.SegmentStoreDirect.toString())
+
+                                   // Transaction setup.
+                                   .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
+                                   .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
+
+                                   // Test setup.
+                                   .with(TestConfig.THREAD_POOL_SIZE, 80)
+                                   .with(TestConfig.TIMEOUT_MILLIS, 3000)
+
+                                   // Tier1
+                                   .with(TestConfig.BOOKIE_COUNT, 1))
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.CONTAINER_COUNT, testConfig.getContainerCount())
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 30))
                 .include(DurableLogConfig.builder()
                                          .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
@@ -63,7 +145,7 @@ public class SelfTestRunner {
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
                                         .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 600 * 1000)
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 1024 * 1024 * 1024L)
+                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,
@@ -73,39 +155,8 @@ public class SelfTestRunner {
                 .include(BookKeeperConfig.builder()
                                          .with(BookKeeperConfig.MAX_CONCURRENT_WRITES, 4)
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
-                                         .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + getTestConfig().getZkPort())
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
-                                         .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH)
-                                         .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
-                                         .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
-                                         .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum))
-                .build();
-    }
-
-    private static TestConfig getTestConfig() {
-        return TestConfig
-                .builder()
-                // Test params.
-                .with(TestConfig.PRODUCER_COUNT, 100)
-                .with(TestConfig.PRODUCER_PARALLELISM, 100) // How many concurrent ops per producer
-                .with(TestConfig.OPERATION_COUNT, 2000000)
-                .with(TestConfig.STREAM_COUNT, 1)
-                .with(TestConfig.CONTAINER_COUNT, 1)
-                .with(TestConfig.MIN_APPEND_SIZE, 1000)
-                .with(TestConfig.MAX_APPEND_SIZE, 1000)
-                .with(TestConfig.TEST_TYPE, TestConfig.TestType.OutOfProcessClient.toString())
-
-                // Transaction setup.
-                .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
-                .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
-
-                // Test setup.
-                .with(TestConfig.THREAD_POOL_SIZE, 80)
-                .with(TestConfig.TIMEOUT_MILLIS, 3000)
-
-                // Tier1
-                .with(TestConfig.BOOKIE_COUNT, 1)
-                .build();
+                                         .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH));
     }
 
     private static void setupLogging(TestConfig testConfig) {
@@ -134,4 +185,68 @@ public class SelfTestRunner {
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
     }
+
+    private static void printUsage() {
+        System.out.println("SelfTest arguments (set via System Properties):");
+        System.out.println("- Any property defined in TestConfig or other *Config classes in SegmentStore.");
+        System.out.println(String.format("- %s: Load up configuration from this file.", TestConfig.CONFIG_FILE_PROPERTY_NAME));
+        System.out.println("- Shortcuts:");
+        Shortcuts.forEach(s -> System.out.println(String.format("\t-%s: %s", s.key, s.property.getName())));
+        System.out.println("At least one shortcut or a reference to a config file is required for the test.");
+    }
+
+    //region Shortcuts
+
+    private static class Shortcuts {
+        private static final Map<Supplier<ConfigBuilder<?>>, List<Shortcut>> SHORTCUTS;
+
+        static {
+            val s = new HashMap<Supplier<ConfigBuilder<?>>, List<Shortcut>>();
+            s.put(TestConfig::builder, Arrays.asList(
+                    new Shortcut("c", TestConfig.CONTAINER_COUNT),
+                    new Shortcut("s", TestConfig.STREAM_COUNT),
+                    new Shortcut("o", TestConfig.OPERATION_COUNT),
+                    new Shortcut("p", TestConfig.PRODUCER_COUNT),
+                    new Shortcut("pp", TestConfig.PRODUCER_PARALLELISM),
+                    new Shortcut("ws", TestConfig.MIN_APPEND_SIZE),
+                    new Shortcut("ws", TestConfig.MAX_APPEND_SIZE),
+                    new Shortcut("target", TestConfig.TEST_TYPE),
+                    new Shortcut("cc", TestConfig.CONTROLLER_COUNT),
+                    new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
+                    new Shortcut("bkc", TestConfig.BOOKIE_COUNT)));
+            SHORTCUTS = Collections.unmodifiableMap(s);
+        }
+
+        static Properties extract(Properties source) {
+            Properties result = new Properties();
+            for (val e : SHORTCUTS.entrySet()) {
+                val builder = e.getKey().get();
+                boolean any = false;
+                for (val s : e.getValue()) {
+                    val value = source.getProperty(s.key, null);
+                    if (value != null) {
+                        builder.withUnsafe(s.property, value);
+                        any = true;
+                    }
+                }
+                if (any) {
+                    builder.copyTo(result);
+                }
+            }
+
+            return result;
+        }
+
+        static void forEach(java.util.function.Consumer<Shortcut> consumer) {
+            SHORTCUTS.values().forEach(l -> l.forEach(consumer));
+        }
+
+        @RequiredArgsConstructor
+        private static class Shortcut {
+            final String key;
+            final Property<?> property;
+        }
+    }
+
+    //endregion
 }

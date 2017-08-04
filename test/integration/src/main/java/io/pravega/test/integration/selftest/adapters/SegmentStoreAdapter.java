@@ -155,6 +155,7 @@ class SegmentStoreAdapter implements StoreAdapter {
         val bk = this.bookKeeperService;
         if (bk != null) {
             bk.destroyForcibly();
+            TestLogger.log(LOG_ID, "Bookies shut down.");
             this.bookKeeperService = null;
         }
     }
@@ -285,7 +286,7 @@ class SegmentStoreAdapter implements StoreAdapter {
         int bookieCount = this.config.getBookieCount();
         Process p = ProcessStarter
                 .forClass(BookKeeperServiceRunner.class)
-                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.config.getBkPort())
+                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.config.getBkPort(0))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.config.getZkPort())
                 .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
@@ -294,6 +295,8 @@ class SegmentStoreAdapter implements StoreAdapter {
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.config.getComponentErrLogPath("bk", 0))))
                 .start();
         ZooKeeperServiceRunner.waitForServerUp(this.config.getZkPort());
+        TestLogger.log(LOG_ID, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
+                this.config.getZkPort(), this.config.getBkPort(0), this.config.getBkPort(bookieCount - 1));
         return p;
     }
 

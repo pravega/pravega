@@ -283,12 +283,6 @@ project('test:integration') {
         standardInput = System.in
     }
 
-    task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.InteractiveStreamSegmentStoreTester"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
     task startBenchmark(type: JavaExec) {
         main = "io.pravega.segmentstore.server.host.ServiceBenchmark"
         classpath = sourceSets.main.runtimeClasspath
@@ -335,6 +329,13 @@ project('test:integration') {
         main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
+    }
+
+    task selftest(type: JavaExec) {
+        main = "io.pravega.test.integration.selftest.SelfTestRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        systemProperties System.getProperties()
+        jvmArgs "-Xms4g", "-Xmx16g"
     }
 }
 

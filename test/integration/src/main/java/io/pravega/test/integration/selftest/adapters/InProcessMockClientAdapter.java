@@ -84,10 +84,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     @Override
     public void initialize() throws Exception {
-        this.listener = new PravegaConnectionListener(false, this.testConfig.getSegmentStoreBasePort(), getStreamSegmentStore());
+        int segmentStorePort = this.testConfig.getSegmentStorePort(0);
+        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore());
         this.listener.startListening();
 
-        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, this.testConfig.getSegmentStoreBasePort());
+        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
         this.streamManager.createScope(SCOPE);
 
         TestLogger.log(LOG_ID, "Initialized.");
