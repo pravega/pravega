@@ -64,7 +64,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
-            log.trace("Received stream segment info {}", streamInfo);
+            log.debug("Received stream segment info {}", streamInfo);
             CompletableFuture<StreamSegmentInfo> future;
             synchronized (lock) {
                 future = infoRequests.remove(streamInfo.getRequestId());
@@ -76,7 +76,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
         @Override
         public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            log.trace("Received stream segment attribute {}", segmentAttribute);
+            log.debug("Received stream segment attribute {}", segmentAttribute);
             CompletableFuture<WireCommands.SegmentAttribute> future;
             synchronized (lock) {
                 future = getAttributeRequests.remove(segmentAttribute.getRequestId());
@@ -88,7 +88,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         
         @Override
         public void segmentAttributeUpdated(SegmentAttributeUpdated segmentAttributeUpdated) {
-            log.trace("Received stream segment attribute update result {}", segmentAttributeUpdated);
+            log.debug("Received stream segment attribute update result {}", segmentAttributeUpdated);
             CompletableFuture<SegmentAttributeUpdated> future;
             synchronized (lock) {
                 future = setAttributeRequests.remove(segmentAttributeUpdated.getRequestId());

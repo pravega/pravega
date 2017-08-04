@@ -25,15 +25,15 @@
 - name: Copy pravega to remote node
   copy:
       src: data/pravega-0.1.0-SNAPSHOT.tgz
-      dest: /home/ubuntu
+      dest: /
 
 - name: Untar controller
-  command: tar -xvf pravega-0.1.0-SNAPSHOT.tgz
+  command: tar -xvf /pravega-0.1.0-SNAPSHOT.tgz
 
 - name: Create pravega workdir
   shell: mkdir -p /opt/pravega
   sudo: yes
 
 - name: Move pravega dist
-  shell: mv pravega-*/* /opt/pravega/
+  shell: mv /root/pravega-*/* /opt/pravega/
   sudo: yes
