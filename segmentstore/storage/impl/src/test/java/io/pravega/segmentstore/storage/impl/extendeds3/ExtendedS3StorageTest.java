@@ -79,7 +79,10 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     //region If-none-match test
     /**
-     * Tests the create() method with if-none-match set.
+     * Tests the create() method with if-none-match set. Note that we currently
+     * do not run a real storage tier, so we cannot verify the behavior of the
+     * option against a real storage. Here instead, we are simply making sure
+     * that the new execution path does not break anything.
      */
     @Test
     public void testCreateIfNoneMatch() {
