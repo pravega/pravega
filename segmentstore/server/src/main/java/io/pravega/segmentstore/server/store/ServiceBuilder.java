@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.common.util.ConfigBuilder;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceConfig;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
@@ -41,6 +43,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -52,6 +55,7 @@ public final class ServiceBuilder implements AutoCloseable {
     //region Members
 
     private final SegmentToContainerMapper segmentToContainerMapper;
+    @Getter
     private final ServiceBuilderConfig serviceBuilderConfig;
     private final ScheduledExecutorService executorService;
     private final AtomicReference<OperationLogFactory> operationLogFactory;
@@ -358,6 +362,7 @@ public final class ServiceBuilder implements AutoCloseable {
      * Setup helper for a ServiceBuilder component.
      */
     public static class ComponentSetup {
+        @Getter
         private final ServiceBuilder builder;
 
         private ComponentSetup(ServiceBuilder builder) {

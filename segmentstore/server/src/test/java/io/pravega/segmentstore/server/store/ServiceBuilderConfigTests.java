@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.store;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.Property;
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
+import io.pravega.segmentstore.config.ServiceConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;

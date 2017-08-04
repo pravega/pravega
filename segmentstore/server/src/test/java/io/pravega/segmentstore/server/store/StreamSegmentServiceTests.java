@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;

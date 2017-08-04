@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.config.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -27,10 +28,10 @@ public class HDFSStorageFactory implements StorageFactory {
      * @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
      */
-    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
+    public HDFSStorageFactory(ServiceBuilderConfig config, Executor executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = config;
+        this.config = config.getConfig(HDFSStorageConfig::builder);
         this.executor = executor;
     }
 

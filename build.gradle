@@ -158,9 +158,18 @@ project('segmentstore:contracts') {
     }
 }
 
+project('segmentstore:config') {
+    dependencies {
+        compile project(':common')
+        compile project(':segmentstore:contracts')
+    }
+}
+
+
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
+        compile project(':segmentstore:config')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
@@ -181,11 +190,32 @@ project('segmentstore:storage:impl') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+}
+
+project('segmentstore:storage:bindings:extendeds3') {
+    dependencies {
         //For Extended S3
         compile "com.emc.ecs:object-client:3.0.0"
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
 
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+
+    }
+}
+
+project('segmentstore:storage:bindings:filesystem') {
+    dependencies {
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -197,6 +227,7 @@ project('segmentstore:storage:impl') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':segmentstore:config')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -233,6 +264,62 @@ project('segmentstore:server:host') {
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+    }
+
+    task createAppWithGCLogging(type: CreateStartScripts) {
+        applicationName = "pravega-segmentstore-withGCLogging"
+        mainClassName = "io.pravega.controller.server.Main"
+        defaultJvmOpts = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                          "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
+                          "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
+                          "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
+                          "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                          "-Dlog.name=segmentstore",
+                          "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
+                          "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml"]
+        classpath = startScripts.classpath
+        outputDir = startScripts.outputDir
+    }
+
+    applicationDistribution.into("bin") {
+        from(createAppWithGCLogging)
+    }
+}
+
+
+project('segmentstore:server:hostwithbindings') {
+    apply plugin: 'application'
+    applicationName = "pravega-segmentstore"
+    mainClassName = "io.pravega.segmentstore.server.host.ServiceStarter"
+
+    applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=segmentstore",
+                                 "-Dpravega.configurationFile=PRAVEGA_APP_HOME/conf/config.properties",
+                                 "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml"]
+
+    applicationDistribution.from('src/config') {
+        into "conf"
+    }
+
+    dependencies {
+        compile project(':common')
+        compile project(':segmentstore:contracts')
+        compile project(':client')
+        compile project(':segmentstore:storage')
+        compile project(':segmentstore:storage:impl')
+        compile project(':segmentstore:server')
+        compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile project(':test:testcommon')
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
+        testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings:extendeds3', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:storage:bindings:filesystem', configuration:'testRuntime')
+        testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {

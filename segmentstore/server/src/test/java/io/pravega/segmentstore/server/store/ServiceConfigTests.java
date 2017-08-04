@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.segmentstore.config.ServiceConfig;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,10 +25,10 @@ public class ServiceConfigTests {
     public void testListeningAndPublicIPAndPort() {
         // When the published IP and port are not specified, it should default to listening IP and port
         ServiceConfig cfg1 = ServiceConfig.builder()
-                .with(ServiceConfig.CONTAINER_COUNT, 1)
-                .with(ServiceConfig.LISTENING_IP_ADDRESS, "myhost")
-                .with(ServiceConfig.LISTENING_PORT, 4000)
-                .build();
+                                          .with(ServiceConfig.CONTAINER_COUNT, 1)
+                                          .with(ServiceConfig.LISTENING_IP_ADDRESS, "myhost")
+                                          .with(ServiceConfig.LISTENING_PORT, 4000)
+                                          .build();
         Assert.assertTrue("Published IP and port should default to listening IP and port",
                 cfg1.getListeningIPAddress().equals(cfg1.getPublishedIPAddress())
                         && cfg1.getListeningPort() == cfg1.getPublishedPort());
