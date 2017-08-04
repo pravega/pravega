@@ -268,14 +268,11 @@ class BookKeeperLog implements DurableDataLog {
     private void processWritesSync() {
         if (getWriteLedger().ledger.isClosed()) {
             // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
-            // the write processor upon finish, so
+            // the write processor upon finish, so the writes can be reattempted.
             this.rolloverProcessor.runAsync();
-        } else if (!processPendingWrites()) {
+        } else if (!processPendingWrites() && !this.closed.get()) {
             // We were not able to complete execution of all writes. Try again.
             this.writeProcessor.runAsync();
-        } else {
-            // After every run, check if we need to trigger a rollover.
-            this.rolloverProcessor.runAsync();
         }
     }
 
@@ -293,6 +290,7 @@ class BookKeeperLog implements DurableDataLog {
             close();
             return false;
         } else if (cs.contains(WriteQueue.CleanupStatus.QueueEmpty)) {
+            // Queue is empty - nothing else to do.
             return true;
         }
 
@@ -337,6 +335,8 @@ class BookKeeperLog implements DurableDataLog {
             }
         }
 
+        // After every run where we did write, check if need to trigger a rollover.
+        this.rolloverProcessor.runAsync();
         return true;
     }
 
