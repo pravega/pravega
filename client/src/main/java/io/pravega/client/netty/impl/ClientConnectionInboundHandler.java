@@ -17,6 +17,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.protocol.netty.Append;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -59,8 +59,9 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
+        log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION), c.voidPromise());
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(ctx), 20, 10, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -68,10 +69,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
 
     /**
      * Disconnected.
-     * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
+     * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(io.netty.channel.ChannelHandlerContext)
      */
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -128,12 +129,13 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
         Channel channel = getChannel();
-        ChannelPromise promise = channel.newPromise();
+        PromiseCombiner combiner = new PromiseCombiner();
         for (Append append : appends) {
             batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
-            channel.write(append, promise);
+            combiner.add(channel.write(append));
         }
         channel.flush();
+        ChannelPromise promise = channel.newPromise();
         promise.addListener(new GenericFutureListener<Future<? super Void>>() {
             @Override
             public void operationComplete(Future<? super Void> future) throws Exception {
@@ -141,6 +143,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                 callback.complete(cause == null ? null : new ConnectionFailedException(cause));
             }
         });
+        combiner.finish(promise);
     }
     
     @Override
@@ -157,10 +160,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         return ch;
     }
     
-    @RequiredArgsConstructor
     private final class KeepAliveTask implements Runnable {
-        private final ChannelHandlerContext ctx;
-
         @Override
         public void run() {
             try {
@@ -168,8 +168,8 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
                     send(new WireCommands.KeepAlive());
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection " + connectionName);
-                ctx.close();
+                log.warn("Keep alive failed, killing connection {} due to {} ", connectionName, e.getMessage());
+                close();
             }
         }
     }

@@ -19,12 +19,12 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
@@ -36,7 +36,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -61,7 +60,7 @@ abstract class AbstractFailoverTests {
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
-    static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
 
     final String readerName = "reader";
     Service controllerInstance;
@@ -87,17 +86,16 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
     }
 
-    void performFailoverTest() throws InterruptedException {
+    void performFailoverTest() {
 
         log.info("Test with 3 controller, SSS instances running and without a failover scenario");
         long currentWriteCount1 = testState.eventWriteCount.get();
         long currentReadCount1 = testState.eventReadCount.get();
         log.info("Read count: {}, write count: {} without any failover", currentReadCount1, currentWriteCount1);
 
-        //check reads and writes after some random time
-        int sleepTime = new Random().nextInt(50000) + 3000;
-        log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
+        //check reads and writes after sleeps
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         long currentWriteCount2 = testState.eventWriteCount.get();
         long currentReadCount2 = testState.eventReadCount.get();
@@ -110,7 +108,7 @@ abstract class AbstractFailoverTests {
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -124,7 +122,7 @@ abstract class AbstractFailoverTests {
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = testState.eventWriteCount.get();
@@ -139,7 +137,7 @@ abstract class AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
         //zookeeper will take about 30 seconds to detect that the node has gone down
-        Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
 
         currentWriteCount1 = testState.eventWriteCount.get();
@@ -153,26 +151,29 @@ abstract class AbstractFailoverTests {
             while (!testState.stopWriteFlag.get()) {
                 try {
                     long value = testState.eventData.incrementAndGet();
-                    Thread.sleep(100);
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
                     writer.flush();
                     testState.eventWriteCount.getAndIncrement();
                     log.debug("Writing event {}", value);
-                } catch (InterruptedException e) {
-                    log.error("Error in sleep: ", e);
-                    testState.getWriteException.set(e);
-                } catch (ConnectionClosedException e) {
-                    log.warn("Test exception in writing events: ", e);
-                    continue;
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
                 }
             }
-            writer.close();
+            closeWriter(writer);
         }, executorService);
+    }
+
+    private void closeWriter(EventStreamWriter<Long> writer) {
+        try {
+            log.info("Closing writer");
+            writer.close();
+        } catch (Throwable e) {
+            log.error("Error while closing writer", e);
+        }
     }
 
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
@@ -183,7 +184,7 @@ abstract class AbstractFailoverTests {
                 log.info("Entering read loop");
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
+                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(5)).getEvent();
                     log.debug("Reading event {}", longEvent);
                     if (longEvent != null) {
                         //update if event read is not null.
@@ -193,16 +194,28 @@ abstract class AbstractFailoverTests {
                     } else {
                         log.debug("Read timeout");
                     }
-                } catch (ConnectionClosedException e) {
-                    log.warn("Test exception in reading events: ", e);
-                    continue;
-                } catch (ReinitializationRequiredException e) {
+                } catch (Throwable e) {
+                    //TODO: remove it once issue https://github.com/pravega/pravega/issues/1687 is fixed.
+                    if (e.getCause() instanceof RetriesExhaustedException) {
+                        log.warn("Test exception in reading events: ", e);
+                        continue;
+                    }
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
                 }
             }
-            reader.close();
+            log.info("Completed reading");
+            closeReader(reader);
         }, executorService);
+    }
+
+    private void closeReader(EventStreamReader<Long> reader) {
+        try {
+            log.info("Closing reader");
+            reader.close();
+        } catch (Throwable e) {
+            log.error("Error while closing reader", e);
+        }
     }
 
     void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
@@ -218,7 +231,6 @@ abstract class AbstractFailoverTests {
     }
 
     void createScopeAndStream(String scope, String stream, StreamConfiguration config, URI uri) {
-
         try (StreamManager streamManager = new StreamManagerImpl(uri)) {
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Creating scope with scope name {}", scope);
@@ -242,10 +254,15 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(tmpWriter);
-                writerFutureList.add(startWriting(tmpWriter));
+                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                writerFutureList.add(writerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersComplete);
+        FutureHelpers.exceptionListener(testState.writersComplete,
+                                        t -> log.error("Exception while waiting for writers to complete", t));
+
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
@@ -270,10 +287,14 @@ abstract class AbstractFailoverTests {
                         new JavaSerializer<Long>(),
                         ReaderConfig.builder().build());
                 readerList.add(reader);
-                readerFutureList.add(startReading(reader));
+                final CompletableFuture<Void> readerFuture = startReading(reader);
+                FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
+                readerFutureList.add(readerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
+        FutureHelpers.exceptionListener(testState.readersComplete,
+                                        t -> log.error("Exception while waiting for all readers to complete", t));
     }
 
     void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
@@ -290,34 +311,49 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 newlyAddedWriterList.add(tmpWriter);
-                newWritersFutureList.add(startWriting(tmpWriter));
+                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events :", t));
+                newWritersFutureList.add(writerFuture);
             }
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.newWritersComplete);
+        FutureHelpers.exceptionListener(testState.writersComplete,
+                                        t -> log.error("Exception while waiting for writers to complete", t));
     }
 
-    void stopReadersAndWriters(ReaderGroupManager readerGroupManager, String readerGroupName) throws InterruptedException, ExecutionException {
-
+    void stopReadersAndWriters(ReaderGroupManager readerGroupManager, String readerGroupName) {
+        //Stop Writers
         log.info("Stop write flag status {}", testState.stopWriteFlag);
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        testState.writersComplete.get();
-        testState.newWritersComplete.get();
+        if (!FutureHelpers.await(testState.writersComplete)) {
+            log.error("Writers stopped with exceptions");
+        }
+        if (!FutureHelpers.await(testState.newWritersComplete)) {
+            log.error("Writers stopped with exceptions");
+        }
+        // check for exceptions during writes
         if (testState.getWriteException.get() != null) {
+            log.info("Unable to write events:", testState.getWriteException.get());
             Assert.fail("Unable to write events. Test failure");
         }
 
+        //Stop Readers
         log.info("Stop read flag status {}", testState.stopReadFlag);
         testState.stopReadFlag.set(true);
 
         log.info("Wait for readers execution to complete");
-        testState.readersComplete.get();
+        if (!FutureHelpers.await(testState.readersComplete)) {
+            log.error("Readers stopped with exceptions");
+        }
+        //check for exceptions during read
         if (testState.getReadException.get() != null) {
+            log.info("Unable to read events:", testState.getReadException.get());
             Assert.fail("Unable to read events. Test failure");
         }
 
-        log.info("All writers have stopped. Setting stopReadFlag. Event Written Count:{}, Event Read " +
+        log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
