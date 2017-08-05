@@ -50,6 +50,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -240,12 +241,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                });
     }
 
     @Override
@@ -254,12 +254,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
-        return FutureHelpers.toVoid(this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                });
     }
 
     @Override
@@ -268,12 +267,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("updateAttributes", streamSegmentName, attributeUpdates);
-        return FutureHelpers.toVoid(this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
                     return this.durableLog.add(operation, timer.getRemaining());
-                }));
+                });
     }
 
     @Override
@@ -283,8 +281,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("read", streamSegmentName, offset, maxLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenApply(streamSegmentId -> this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining()));
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                        streamSegmentId -> CompletableFuture.completedFuture(this.readIndex.read(streamSegmentId, offset, maxLength, timer.getRemaining())));
     }
 
     @Override
@@ -294,18 +292,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("getStreamSegmentInfo", streamSegmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
-        CompletableFuture<Long> segmentIdRetriever;
+        Function<Long, CompletableFuture<SegmentProperties>> metadataRetriever =
+                streamSegmentId -> CompletableFuture.completedFuture(this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
+
         if (waitForPendingOps) {
             // We have been instructed to wait for all pending operations to complete. Use an op barrier and wait for it
             // before proceeding.
-            segmentIdRetriever = this.durableLog
+            return this.durableLog
                     .operationProcessingBarrier(timer.getRemaining())
-                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining()), this.executor);
+                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever), this.executor);
         } else {
-            segmentIdRetriever = this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining());
+            return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever);
         }
-
-        return segmentIdRetriever.thenApply(streamSegmentId -> this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
     }
 
     @Override
@@ -366,8 +364,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("mergeTransaction", transactionName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
-                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining())
-                .thenCompose(transactionId -> {
+                .getOrAssignStreamSegmentId(transactionName, timer.getRemaining(),
+                        transactionId -> {
                     SegmentMetadata transactionMetadata = this.metadata.getStreamSegmentMetadata(transactionId);
                     if (transactionMetadata == null) {
                         throw new CompletionException(new StreamSegmentNotExistsException(transactionName));
@@ -387,8 +385,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
         return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining())
-                .thenCompose(streamSegmentId -> {
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                        streamSegmentId -> {
                     operation.set(new StreamSegmentSealOperation(streamSegmentId));
                     return this.durableLog.add(operation.get(), timer.getRemaining());
                 })
