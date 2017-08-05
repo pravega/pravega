@@ -146,9 +146,11 @@ class OutOfProcessAdapter extends ClientAdapterBase {
             startZooKeeper();
             startBookKeeper();
             startAllControllers();
-            Thread.sleep(3000); // TODO: figure out how to remove.
+            // TODO: There is no way to figure out when the Controller or SegmentStore services are up. Until we have that,
+            // we will need to wait some arbitrary time between these calls.
+            Thread.sleep(3000);
             startAllSegmentStores();
-            Thread.sleep(3000); // TODO: figure out how to remove.
+            Thread.sleep(3000);
             initializeClient();
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
@@ -226,7 +228,7 @@ class OutOfProcessAdapter extends ClientAdapterBase {
         int bookieCount = this.testConfig.getBookieCount();
         this.bookieProcess.set(ProcessStarter
                 .forClass(BookKeeperServiceRunner.class)
-                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.testConfig.getBkPort())
+                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.testConfig.getBkPort(0))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.testConfig.getZkPort())
                 .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)

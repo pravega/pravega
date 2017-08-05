@@ -193,7 +193,7 @@ class SegmentStoreReader implements StoreReader {
                     return FutureHelpers.failedFuture(new StreamSegmentSealedException(this.segmentName));
                 } else {
                     // No change in the segment.
-                    return FutureHelpers.delayedFuture(waitDuration, SegmentStoreReader.this.executor);
+                    return FutureHelpers.delayedFuture(this.waitDuration, SegmentStoreReader.this.executor);
                 }
             } else {
                 byte[] buffer = new byte[(int) Math.min(Integer.MAX_VALUE, diff)];

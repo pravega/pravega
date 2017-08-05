@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -28,6 +29,7 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -35,12 +37,11 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
+import java.io.File;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,8 +66,9 @@ class SegmentStoreAdapter implements StoreAdapter {
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<Storage> storage;
-    private final AtomicReference<ExecutorService> storeExecutor;
-    private BookKeeperServiceRunner bookKeeperService;
+    private final AtomicReference<ScheduledExecutorService> storeExecutor;
+    private final Thread stopBookKeeperProcess;
+    private Process bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
     private CuratorFramework zkClient;
 
@@ -101,6 +103,8 @@ class SegmentStoreAdapter implements StoreAdapter {
                     this.storeExecutor.set(setup.getExecutor());
                     return factory;
                 }));
+        this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
+        Runtime.getRuntime().addShutdownHook(this.stopBookKeeperProcess);
     }
 
     private ServiceBuilder attachDataLogFactory(ServiceBuilder builder) {
@@ -130,15 +134,10 @@ class SegmentStoreAdapter implements StoreAdapter {
     //region AutoCloseable Implementation
 
     @Override
-    @SneakyThrows
     public void close() {
         if (!this.closed.get()) {
             this.serviceBuilder.close();
-            val bk = this.bookKeeperService;
-            if (bk != null) {
-                bk.close();
-                this.bookKeeperService = null;
-            }
+            stopBookKeeper();
 
             val zk = this.zkClient;
             if (zk != null) {
@@ -147,7 +146,17 @@ class SegmentStoreAdapter implements StoreAdapter {
             }
 
             this.closed.set(true);
+            Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
             TestLogger.log(LOG_ID, "Closed.");
+        }
+    }
+
+    private void stopBookKeeper() {
+        val bk = this.bookKeeperService;
+        if (bk != null) {
+            bk.destroyForcibly();
+            TestLogger.log(LOG_ID, "Bookies shut down.");
+            this.bookKeeperService = null;
         }
     }
 
@@ -273,21 +282,22 @@ class SegmentStoreAdapter implements StoreAdapter {
         return this.streamSegmentStore;
     }
 
-    private BookKeeperServiceRunner startBookKeeper() throws Exception {
+    private Process startBookKeeper() throws Exception {
         int bookieCount = this.config.getBookieCount();
-        val ports = new ArrayList<Integer>(bookieCount);
-        for (int i = 0; i < bookieCount; i++) {
-            ports.add(this.config.getBkPort() + i);
-        }
-
-        val runner = BookKeeperServiceRunner.builder()
-                                            .bookiePorts(ports)
-                                            .zkPort(this.config.getZkPort())
-                                            .startZk(true)
-                                            .ledgersPath(TestConfig.BK_LEDGER_PATH)
-                                            .build();
-        runner.startAll();
-        return runner;
+        Process p = ProcessStarter
+                .forClass(BookKeeperServiceRunner.class)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.config.getBkPort(0))
+                .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.config.getZkPort())
+                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_START_ZK, true)
+                .stdOut(ProcessBuilder.Redirect.to(new File(this.config.getComponentOutLogPath("bk", 0))))
+                .stdErr(ProcessBuilder.Redirect.to(new File(this.config.getComponentErrLogPath("bk", 0))))
+                .start();
+        ZooKeeperServiceRunner.waitForServerUp(this.config.getZkPort());
+        TestLogger.log(LOG_ID, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
+                this.config.getZkPort(), this.config.getBkPort(0), this.config.getBkPort(bookieCount - 1));
+        return p;
     }
 
     //endregion

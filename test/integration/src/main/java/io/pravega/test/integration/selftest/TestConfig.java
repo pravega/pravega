@@ -26,6 +26,7 @@ import lombok.val;
 public class TestConfig {
     //region Config Names
 
+    public static final String DEFAULT_CONFIG_FILE_NAME = "selftest.config.properties";
     public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
@@ -43,11 +44,12 @@ public class TestConfig {
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
-    private static final Property<Integer> BK_PORT = Property.named("bkPort", 9100);
+    private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
-    private static final String COMPONENT_CODE = "selftest";
     private static final String LOG_PATH_FORMAT = "/tmp/pravega/selftest.%s.log";
+    private static final String COMPONENT_CODE = "selftest";
+    public static final String CONFIG_FILE_PROPERTY_NAME = COMPONENT_CODE + ".configFile";
 
     //endregion
 
@@ -81,13 +83,10 @@ public class TestConfig {
     private int controllerCount;
     @Getter
     private int segmentStoreCount;
-    @Getter
-    private int bkPort;
+    private int bkBasePort;
     @Getter
     private int zkPort;
-    @Getter
     private int controllerBasePort;
-    @Getter
     private int segmentStoreBasePort;
     @Getter
     private TestType testType;
@@ -111,12 +110,20 @@ public class TestConfig {
         this.producerParallelism = properties.getInt(PRODUCER_PARALLELISM);
         this.minAppendSize = properties.getInt(MIN_APPEND_SIZE);
         this.maxAppendSize = properties.getInt(MAX_APPEND_SIZE);
+        if (this.minAppendSize < Event.HEADER_LENGTH) {
+            throw new ConfigurationException(String.format("Property '%s' (%s) must be at least %s.",
+                    MIN_APPEND_SIZE, this.minAppendSize, Event.HEADER_LENGTH));
+        }
+        if (this.minAppendSize > this.maxAppendSize) {
+            throw new ConfigurationException(String.format("Property '%s' (%s) must be smaller than '%s' (%s).",
+                    MIN_APPEND_SIZE, this.minAppendSize, MAX_APPEND_SIZE, this.maxAppendSize));
+        }
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.bookieCount = properties.getInt(BOOKIE_COUNT);
         this.controllerCount = properties.getInt(CONTROLLER_COUNT);
         this.segmentStoreCount = properties.getInt(SEGMENT_STORE_COUNT);
-        this.bkPort = properties.getInt(BK_PORT);
+        this.bkBasePort = properties.getInt(BK_BASE_PORT);
         this.zkPort = properties.getInt(ZK_PORT);
         this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
         this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
@@ -171,7 +178,7 @@ public class TestConfig {
      */
     public int getBkPort(int bookieId) {
         Preconditions.checkElementIndex(bookieId, this.bookieCount, "bookieId must be less than bookieCount.");
-        return this.bkPort + bookieId;
+        return this.bkBasePort + bookieId;
     }
 
     /**
