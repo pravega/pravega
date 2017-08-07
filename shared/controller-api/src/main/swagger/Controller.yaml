@@ -34,6 +34,8 @@ tags:
   externalDocs:
     description: "Find out more about pravega"
     url: "http://pravega.io"
+- name: "RUOK"
+    description: "Health related APIs"
 schemes:
   - http
 paths:
@@ -381,6 +383,71 @@ paths:
           description: Scope or reader group with given name not found
         500:
           description: Internal server error while fetching reader group details
+
+  /RUOK:
+    get:
+       tags:
+       - "RUOK"
+       operationId: getStatus
+       description: Gets the current state of controller in short
+       produces:
+         - application/json
+       responses:
+         200:
+           description: Current Status of the controller instance.
+           schema:
+             $ref: "#/definitions/ControllerStatus"
+         500:
+           description: Controller is not working properly.
+
+  /RUOK/segmentstores:
+     get:
+       tags:
+       - "RUOK"
+       operationId: getSegmentStoreServers
+       description: Retrieve list of segment store servers
+       produces:
+         - application/json
+       responses:
+          200:
+            description: Successfully retrieved the list of segment store servers
+            schema:
+              $ref: "#/definitions/SegmentStoresList"
+          500:
+            description: Internal server error while fetching segment store servers.
+
+  /RUOK/controllers:
+     get:
+       tags:
+         - "RUOK"
+         operationId: getControllers
+         description: Retrieve list of controllers
+         produces:
+           - application/json
+         responses:
+           200:
+             description: Successfully retrieved the list of controllers
+             schema:
+               $ref: "#/definitions/ControllersList"
+           500:
+             description: Internal server error while fetching controllers.
+
+   /RUOK/containers:
+       get:
+         tags:
+           - "RUOK"
+           operationId: getContainers
+           description: Retrieve list of containers
+           produces:
+             - application/json
+           responses:
+             200:
+               description: Successfully retrieved the list of containers
+               schema:
+                 $ref: "#/definitions/ContainerList"
+             500:
+               description: Internal server error while fetching containers.
+
 definitions:
   ScalingEventList:
     type: object
