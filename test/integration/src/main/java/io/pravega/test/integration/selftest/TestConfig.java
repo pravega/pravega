@@ -33,6 +33,7 @@ public class TestConfig {
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
     static final Property<Integer> STREAM_COUNT = Property.named("streamCount", 100);
+    static final Property<Integer> SEGMENTS_PER_STREAM = Property.named("segmentsPerStream", 1);
     static final Property<Integer> TRANSACTION_FREQUENCY = Property.named("transactionFrequency", 100);
     static final Property<Integer> MAX_TRANSACTION_SIZE = Property.named("maxTransactionSize", 10);
     static final Property<Integer> PRODUCER_COUNT = Property.named("producerCount", 1);
@@ -45,10 +46,10 @@ public class TestConfig {
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
+    static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
+    static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
-    private static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
-    private static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
     private static final String LOG_PATH_FORMAT = "/tmp/pravega/selftest.%s.log";
     private static final String COMPONENT_CODE = "selftest";
@@ -59,42 +60,46 @@ public class TestConfig {
     //region Members
 
     @Getter
-    private int operationCount;
+    private final int operationCount;
     @Getter
-    private int containerCount;
+    private final int containerCount;
     @Getter
-    private int streamCount;
+    private final int streamCount;
     @Getter
-    private int transactionFrequency;
+    private final int segmentsPerStream;
     @Getter
-    private int maxTransactionAppendCount;
+    private final int transactionFrequency;
     @Getter
-    private int producerCount;
+    private final int maxTransactionAppendCount;
     @Getter
-    private int producerParallelism;
+    private final int producerCount;
     @Getter
-    private int minAppendSize;
+    private final int producerParallelism;
     @Getter
-    private int maxAppendSize;
+    private final int minAppendSize;
     @Getter
-    private int threadPoolSize;
+    private final int maxAppendSize;
     @Getter
-    private Duration timeout;
+    private final int threadPoolSize;
     @Getter
-    private int bookieCount;
+    private final Duration timeout;
     @Getter
-    private int controllerCount;
+    private final int bookieCount;
     @Getter
-    private int segmentStoreCount;
-    private int bkBasePort;
+    private final int controllerCount;
     @Getter
-    private int zkPort;
+    private final int segmentStoreCount;
+    private final int bkBasePort;
     @Getter
-    private String controllerHost;
-    private int controllerBasePort;
-    private int segmentStoreBasePort;
+    private final int zkPort;
     @Getter
-    private TestType testType;
+    private final String controllerHost;
+    private final int controllerBasePort;
+    private final int segmentStoreBasePort;
+    @Getter
+    private final TestType testType;
+    @Getter
+    private final String testId = Long.toHexString(System.currentTimeMillis());
 
     //endregion
 
@@ -109,6 +114,7 @@ public class TestConfig {
         this.operationCount = properties.getInt(OPERATION_COUNT);
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.streamCount = properties.getInt(STREAM_COUNT);
+        this.segmentsPerStream = properties.getInt(SEGMENTS_PER_STREAM);
         this.transactionFrequency = properties.getInt(TRANSACTION_FREQUENCY);
         this.maxTransactionAppendCount = properties.getInt(MAX_TRANSACTION_SIZE);
         this.producerCount = properties.getInt(PRODUCER_COUNT);

@@ -201,8 +201,9 @@ class ProducerDataSource {
         TestLogger.log(LOG_ID, "Creating Streams.");
         StoreAdapter.Feature.Create.ensureSupported(this.store, "create streams");
         for (int i = 0; i < this.config.getStreamCount(); i++) {
+            // Streams names are of the form: Stream<TestId><StreamId> - to avoid clashes between different tests.
             final int streamId = i;
-            String name = String.format("Stream%s", streamId);
+            String name = String.format("Stream%s%s", this.config.getTestId(), streamId);
             creationFutures.add(this.store.createStream(name, this.config.getTimeout())
                     .thenRun(() -> {
                         this.state.recordNewStreamName(name);

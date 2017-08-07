@@ -14,6 +14,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
@@ -130,11 +131,12 @@ abstract class ClientAdapterBase implements StoreAdapter {
                 throw new CompletionException(new StreamSegmentExistsException(streamName));
             }
 
-            //TODO: add a configurable scaling policy. Default is fixed to one Segment.
-            StreamConfiguration config = StreamConfiguration.builder()
-                                                            .streamName(streamName)
-                                                            .scope(SCOPE)
-                                                            .build();
+            StreamConfiguration config = StreamConfiguration
+                    .builder()
+                    .streamName(streamName)
+                    .scalingPolicy(ScalingPolicy.fixed(this.testConfig.getSegmentsPerStream()))
+                    .scope(SCOPE)
+                    .build();
             if (!getStreamManager().createStream(SCOPE, streamName, config)) {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));
             }

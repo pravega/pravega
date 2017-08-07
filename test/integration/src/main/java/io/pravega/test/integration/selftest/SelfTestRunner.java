@@ -205,6 +205,7 @@ public class SelfTestRunner {
             s.put(TestConfig::builder, Arrays.asList(
                     new Shortcut("c", TestConfig.CONTAINER_COUNT),
                     new Shortcut("s", TestConfig.STREAM_COUNT),
+                    new Shortcut("sc", TestConfig.SEGMENTS_PER_STREAM),
                     new Shortcut("o", TestConfig.OPERATION_COUNT),
                     new Shortcut("p", TestConfig.PRODUCER_COUNT),
                     new Shortcut("pp", TestConfig.PRODUCER_PARALLELISM),
@@ -213,7 +214,10 @@ public class SelfTestRunner {
                     new Shortcut("target", TestConfig.TEST_TYPE),
                     new Shortcut("cc", TestConfig.CONTROLLER_COUNT),
                     new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
-                    new Shortcut("bkc", TestConfig.BOOKIE_COUNT)));
+                    new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
+                    new Shortcut("controller", TestConfig.CONTROLLER_HOST),
+                    new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT)));
+
             SHORTCUTS = Collections.unmodifiableMap(s);
         }
 
