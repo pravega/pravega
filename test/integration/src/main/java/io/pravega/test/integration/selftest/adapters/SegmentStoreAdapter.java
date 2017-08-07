@@ -59,7 +59,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 class SegmentStoreAdapter implements StoreAdapter {
     //region Members
 
-    private static final String LOG_ID = "SegmentStoreAdapter";
+    private static final String LOG_ID = SegmentStoreAdapter.class.getSimpleName();
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final AtomicBoolean closed;

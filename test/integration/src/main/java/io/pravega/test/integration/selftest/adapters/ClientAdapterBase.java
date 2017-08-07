@@ -65,6 +65,8 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     //endregion
 
+    //region Constructor
+
     /**
      * Creates a new instance of the ClientAdapterBase class.
      *
@@ -80,6 +82,8 @@ abstract class ClientAdapterBase implements StoreAdapter {
         this.initialized = new AtomicBoolean();
         this.clientReader = new AtomicReference<>();
     }
+
+    //endregion
 
     //region AutoCloseable Implementation
 

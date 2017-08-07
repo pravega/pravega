@@ -101,7 +101,7 @@ public class SelfTestRunner {
         b.include(ServiceConfig.builder()
                                .with(ServiceConfig.CONTAINER_COUNT, testConfig.getContainerCount()));
         b.include(BookKeeperConfig.builder()
-                                  .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + testConfig.getZkPort())
+                                  .with(BookKeeperConfig.ZK_ADDRESS, TestConfig.LOCALHOST + ":" + testConfig.getZkPort())
                                   .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum));
@@ -125,7 +125,7 @@ public class SelfTestRunner {
                                    .with(TestConfig.CONTAINER_COUNT, 2)
                                    .with(TestConfig.MIN_APPEND_SIZE, 30)
                                    .with(TestConfig.MAX_APPEND_SIZE, 1000)
-                                   .with(TestConfig.TEST_TYPE, TestConfig.TestType.SegmentStoreDirect.toString())
+                                   .with(TestConfig.TEST_TYPE, TestConfig.TestType.SegmentStore.toString())
 
                                    // Transaction setup.
                                    .with(TestConfig.MAX_TRANSACTION_SIZE, 20)

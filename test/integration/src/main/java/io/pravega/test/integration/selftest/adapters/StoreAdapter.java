@@ -115,18 +115,27 @@ public interface StoreAdapter extends AutoCloseable {
      * @return The created StoreAdapter Instance.
      */
     static StoreAdapter create(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService executor) {
+        StoreAdapter result;
         switch (testConfig.getTestType()) {
-            case SegmentStoreDirect:
-                return new SegmentStoreAdapter(testConfig, builderConfig, executor);
-            case InProcessMockListener:
-                return new InProcessMockClientAdapter(testConfig, executor);
-            case InProcessStoreListener:
-                return new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
-            case OutOfProcessClient:
-                return new OutOfProcessAdapter(testConfig, builderConfig, executor);
+            case SegmentStore:
+                result = new SegmentStoreAdapter(testConfig, builderConfig, executor);
+                break;
+            case InProcessMock:
+                result = new InProcessMockClientAdapter(testConfig, executor);
+                break;
+            case InProcessStore:
+                result = new InProcessListenerWithRealStoreAdapter(testConfig, builderConfig, executor);
+                break;
+            case OutOfProcess:
+                result = new OutOfProcessAdapter(testConfig, builderConfig, executor);
+                break;
+            case External:
+                result = new ExternalAdapter(testConfig, executor);
+                break;
             default:
                 throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + testConfig.getTestType());
         }
+        return result;
     }
 
     /**

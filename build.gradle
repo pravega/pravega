@@ -256,6 +256,18 @@ project('segmentstore:server:host') {
 }
 
 project('test:integration') {
+    apply plugin: 'application'
+    applicationName = "pravega-selftest"
+    mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
+
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+
+    applicationDistribution.from('src/config') {
+        into "conf"
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')

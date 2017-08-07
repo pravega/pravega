@@ -10,15 +10,11 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
-import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.Property;
-import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.server.host.ServiceStarter;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -31,8 +27,6 @@ import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.URI;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,17 +36,16 @@ import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.SneakyThrows;
 import org.apache.bookkeeper.util.IOUtils;
 
 /**
- * Store adapter wrapping a real Pravega Client targeting a local cluster out-of-process.
+ * Store adapter wrapping a real Pravega Client targeting a local cluster out-of-process. This class creates a new Pravega
+ * Cluster made up of a SegmentStore, Controller, ZooKeeper and BookKeeper, and using local FileSystem as Tier2 Storage.
  */
-class OutOfProcessAdapter extends ClientAdapterBase {
+class OutOfProcessAdapter extends ExternalAdapter {
     //region Members
 
-    private static final InetAddress LOOPBACK_ADDRESS = InetAddress.getLoopbackAddress();
-    private static final String LOG_ID = "OutOfProcessAdapter";
+    private static final String LOG_ID = OutOfProcessAdapter.class.getSimpleName();
     private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000;
     private final ServiceBuilderConfig builderConfig;
     private final AtomicReference<Process> zooKeeperProcess;
@@ -60,8 +53,6 @@ class OutOfProcessAdapter extends ClientAdapterBase {
     private final List<Process> segmentStoreProcesses;
     private final List<Process> controllerProcesses;
     private final AtomicReference<File> segmentStoreRoot;
-    private final AtomicReference<StreamManager> streamManager;
-    private final AtomicReference<ClientFactory> clientFactory;
     private final Thread destroyChildProcesses;
 
     //endregion
@@ -78,14 +69,14 @@ class OutOfProcessAdapter extends ClientAdapterBase {
     OutOfProcessAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         super(testConfig, testExecutor);
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "OutOfProcessAdapter requires at least one Bookie.");
+        Preconditions.checkArgument(testConfig.getControllerHost().equals(TestConfig.LOCALHOST),
+                "OutOfProcessAdapter cannot work with non-local Controller.");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.zooKeeperProcess = new AtomicReference<>();
         this.bookieProcess = new AtomicReference<>();
         this.segmentStoreProcesses = Collections.synchronizedList(new ArrayList<>());
         this.controllerProcesses = Collections.synchronizedList(new ArrayList<>());
         this.segmentStoreRoot = new AtomicReference<>();
-        this.streamManager = new AtomicReference<>();
-        this.clientFactory = new AtomicReference<>();
 
         // Make sure the child processes and any created files get killed/deleted if the process is terminated.
         this.destroyChildProcesses = new Thread(this::destroyExternalComponents);
@@ -99,10 +90,6 @@ class OutOfProcessAdapter extends ClientAdapterBase {
     @Override
     public void close() {
         super.close();
-
-        // Stop clients.
-        stopComponent(this.clientFactory);
-        stopComponent(this.streamManager);
 
         // Stop all services.
         destroyExternalComponents();
@@ -129,16 +116,6 @@ class OutOfProcessAdapter extends ClientAdapterBase {
 
     //region ClientAdapterBase and StorageAdapter Implementation
 
-    @Override
-    public boolean isFeatureSupported(Feature feature) {
-        // Even though it does support it, Feature.RandomRead is not enabled because it currently has very poor performance.
-        return feature == Feature.Create
-                || feature == Feature.Append
-                || feature == Feature.TailRead
-                || feature == Feature.Transaction
-                || feature == Feature.Seal
-                || feature == Feature.Delete;
-    }
 
     @Override
     public void initialize() throws Exception {
@@ -151,7 +128,6 @@ class OutOfProcessAdapter extends ClientAdapterBase {
             Thread.sleep(3000);
             startAllSegmentStores();
             Thread.sleep(3000);
-            initializeClient();
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
                 close();
@@ -164,48 +140,9 @@ class OutOfProcessAdapter extends ClientAdapterBase {
         super.initialize();
     }
 
-    @Override
-    protected StreamManager getStreamManager() {
-        return this.streamManager.get();
-    }
-
-    @Override
-    protected ClientFactory getClientFactory() {
-        return this.clientFactory.get();
-    }
-
-    @Override
-    protected String getControllerUrl() {
-        return String.format("tcp://%s:%d", LOOPBACK_ADDRESS.getHostName(), this.testConfig.getControllerPort(0));
-    }
-
     //endregion
 
     //region Services Startup/Shutdown
-
-    @SneakyThrows(Exception.class)
-    private void initializeClient() {
-        Preconditions.checkState(this.streamManager.get() == null && this.clientFactory.get() == null, "Client is already initialized.");
-        URI controllerUri = new URI(getControllerUrl());
-
-        // Create Stream Manager, Scope and Client Factory.
-        this.streamManager.set(StreamManager.create(controllerUri));
-        Retry.withExpBackoff(500, 2, 10)
-             .retryWhen(ex -> true)
-             .throwingOn(Exception.class)
-             .run(() -> this.streamManager.get().createScope(SCOPE));
-
-        // Create Client Factory.
-        this.clientFactory.set(ClientFactory.withScope(SCOPE, controllerUri));
-
-        // Create, Seal and Delete a dummy segment - this verifies that the client is properly setup and that all the
-        // components are running properly.
-        String testStreamName = "Ping" + Long.toHexString(System.currentTimeMillis());
-        this.streamManager.get().createStream(SCOPE, testStreamName, StreamConfiguration.builder().build());
-        this.streamManager.get().sealStream(SCOPE, testStreamName);
-        this.streamManager.get().deleteStream(SCOPE, testStreamName);
-        TestLogger.log(LOG_ID, "Client initialized; using scope '%s'.", SCOPE);
-    }
 
     private void startZooKeeper() throws Exception {
         Preconditions.checkState(this.zooKeeperProcess.get() == null, "ZooKeeper is already started.");
@@ -255,9 +192,9 @@ class OutOfProcessAdapter extends ClientAdapterBase {
                 .sysProp("CONTAINER_COUNT", this.testConfig.getContainerCount())
                 .sysProp("ZK_URL", getZkUrl())
                 .sysProp("CONTROLLER_SERVER_PORT", port)
-                .sysProp("REST_SERVER_IP", LOOPBACK_ADDRESS.getHostName())
+                .sysProp("REST_SERVER_IP", TestConfig.LOCALHOST)
                 .sysProp("REST_SERVER_PORT", restPort)
-                .sysProp("CONTROLLER_RPC_PUBLISHED_HOST", LOOPBACK_ADDRESS.getHostName())
+                .sysProp("CONTROLLER_RPC_PUBLISHED_HOST", TestConfig.LOCALHOST)
                 .sysProp("CONTROLLER_RPC_PUBLISHED_PORT", rpcPort)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("controller", controllerId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("controller", controllerId))))
@@ -316,14 +253,6 @@ class OutOfProcessAdapter extends ClientAdapterBase {
         this.builderConfig.store(configFile);
     }
 
-    @SneakyThrows(Exception.class)
-    private void stopComponent(AtomicReference<? extends AutoCloseable> componentReference) {
-        AutoCloseable p = componentReference.getAndSet(null);
-        if (p != null) {
-            p.close();
-        }
-    }
-
     private void stopProcess(AtomicReference<Process> processReference) {
         Process p = processReference.getAndSet(null);
         if (p != null) {
@@ -353,7 +282,7 @@ class OutOfProcessAdapter extends ClientAdapterBase {
     }
 
     private String getZkUrl() {
-        return String.format("%s:%d", LOOPBACK_ADDRESS.getHostAddress(), this.testConfig.getZkPort());
+        return String.format("%s:%d", TestConfig.LOCALHOST, this.testConfig.getZkPort());
     }
 
     private String configProperty(String componentCode, Property<?> property) {

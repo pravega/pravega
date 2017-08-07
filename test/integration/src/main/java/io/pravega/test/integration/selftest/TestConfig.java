@@ -14,6 +14,7 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -28,6 +29,7 @@ public class TestConfig {
 
     public static final String DEFAULT_CONFIG_FILE_NAME = "selftest.config.properties";
     public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
+    public static final String LOCALHOST = InetAddress.getLoopbackAddress().getHostName();
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
     static final Property<Integer> STREAM_COUNT = Property.named("streamCount", 100);
@@ -39,12 +41,13 @@ public class TestConfig {
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
-    static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStoreDirect.toString());
+    static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
+    private static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
     private static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
     private static final String LOG_PATH_FORMAT = "/tmp/pravega/selftest.%s.log";
@@ -86,6 +89,8 @@ public class TestConfig {
     private int bkBasePort;
     @Getter
     private int zkPort;
+    @Getter
+    private String controllerHost;
     private int controllerBasePort;
     private int segmentStoreBasePort;
     @Getter
@@ -125,6 +130,7 @@ public class TestConfig {
         this.segmentStoreCount = properties.getInt(SEGMENT_STORE_COUNT);
         this.bkBasePort = properties.getInt(BK_BASE_PORT);
         this.zkPort = properties.getInt(ZK_PORT);
+        this.controllerHost = properties.get(CONTROLLER_HOST);
         this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
         this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
@@ -261,9 +267,10 @@ public class TestConfig {
     //endregion
 
     public enum TestType {
-        SegmentStoreDirect,
-        InProcessMockListener,
-        InProcessStoreListener,
-        OutOfProcessClient
+        SegmentStore,
+        InProcessMock,
+        InProcessStore,
+        OutOfProcess,
+        External
     }
 }
