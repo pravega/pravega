@@ -30,6 +30,7 @@ public class ExtendedS3StorageConfig {
     public static final Property<String> URI = Property.named("url", "");
     public static final Property<String> BUCKET = Property.named("bucket", "");
     public static final Property<String> NAMESPACE = Property.named("namespace", ""); // use default namespace
+    public static final Property<Boolean> USENONEMATCH = Property.named("useNoneMatch", false);
 
     private static final String COMPONENT_CODE = "extendeds3";
 
@@ -74,6 +75,12 @@ public class ExtendedS3StorageConfig {
     @Getter
     private final String namespace;
 
+    /**
+     *
+     */
+    @Getter
+    private final boolean useNoneMatch;
+
     //endregion
 
     //region Constructor
@@ -90,6 +97,7 @@ public class ExtendedS3StorageConfig {
         this.url = java.net.URI.create(properties.get(URI));
         this.bucket = properties.get(BUCKET);
         this.namespace = properties.get(NAMESPACE);
+        this.useNoneMatch = properties.getBoolean(USENONEMATCH);
     }
 
     /**

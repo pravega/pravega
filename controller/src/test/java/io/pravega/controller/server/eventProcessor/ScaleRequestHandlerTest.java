@@ -141,7 +141,8 @@ public class ScaleRequestHandlerTest {
         AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
         ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
         RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler);
-        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 2, false);
+        // Send number of splits = 1
+        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
         CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
         CompletableFuture<ScaleOpEvent> request2 = new CompletableFuture<>();
         EventStreamWriter<ControllerEvent> writer = createWriter(x -> {
@@ -172,6 +173,7 @@ public class ScaleRequestHandlerTest {
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
+        // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);

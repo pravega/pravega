@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
@@ -20,17 +20,12 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.common.LoggerHelpers.traceLeave;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.
@@ -38,6 +33,7 @@ import static io.pravega.common.LoggerHelpers.traceLeave;
 @Slf4j
 public class StreamSegmentService implements StreamSegmentStore {
     //region Members
+
     private final SegmentContainerRegistry segmentContainerRegistry;
     private final SegmentToContainerMapper segmentToContainerMapper;
 
@@ -50,15 +46,10 @@ public class StreamSegmentService implements StreamSegmentStore {
      *
      * @param segmentContainerRegistry The SegmentContainerRegistry to route requests to.
      * @param segmentToContainerMapper The SegmentToContainerMapper to use to map StreamSegments to Containers.
-     * @throws NullPointerException If segmentContainerRegistry is null.
-     * @throws NullPointerException If segmentToContainerMapper is null.
      */
     public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
-        Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
-
-        this.segmentContainerRegistry = segmentContainerRegistry;
-        this.segmentToContainerMapper = segmentToContainerMapper;
+        this.segmentContainerRegistry = Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
+        this.segmentToContainerMapper = Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
     }
 
     //endregion
@@ -67,109 +58,117 @@ public class StreamSegmentService implements StreamSegmentStore {
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "append", streamSegmentName, data.length, attributeUpdates, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, data, attributeUpdates, timeout)),
-                r -> traceLeave(log, "append", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.append(streamSegmentName, data, attributeUpdates, timeout),
+                "append", streamSegmentName, data.length, attributeUpdates);
     }
 
     @Override
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "appendWithOffset", streamSegmentName, offset, data.length, attributeUpdates, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName).thenCompose(container -> container.append(streamSegmentName, offset, data, attributeUpdates, timeout)),
-                r -> traceLeave(log, "appendWithOffset", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.append(streamSegmentName, offset, data, attributeUpdates, timeout),
+                "appendWithOffset", streamSegmentName, offset, data.length, attributeUpdates);
     }
 
     @Override
     public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "updateAttributes", streamSegmentName, attributeUpdates, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName).thenCompose(container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout)),
-                r -> traceLeave(log, "updateAttributes", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.updateAttributes(streamSegmentName, attributeUpdates, timeout),
+                "updateAttributes", streamSegmentName, attributeUpdates);
     }
 
     @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "read", streamSegmentName, offset, maxLength, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.read(streamSegmentName, offset, maxLength, timeout)),
-                r -> traceLeave(log, "read", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.read(streamSegmentName, offset, maxLength, timeout),
+                "read", streamSegmentName, offset, maxLength);
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.getStreamSegmentInfo(streamSegmentName, waitForPendingOps, timeout)),
-                r -> traceLeave(log, "getStreamSegmentInfo", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.getStreamSegmentInfo(streamSegmentName, waitForPendingOps, timeout),
+                "getStreamSegmentInfo", streamSegmentName, waitForPendingOps);
     }
 
     @Override
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "createStreamSegment", streamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.createStreamSegment(streamSegmentName, attributes, timeout)),
-                r -> traceLeave(log, "createStreamSegment", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.createStreamSegment(streamSegmentName, attributes, timeout),
+                "createStreamSegment", streamSegmentName, attributes);
     }
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId,
                                                        Collection<AttributeUpdate> attributes, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", parentStreamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(parentStreamSegmentName)
-                        .thenCompose(container -> container.createTransaction(parentStreamSegmentName, transactionId, attributes, timeout)),
-                r -> traceLeave(log, "createTransaction", traceId, r));
+        return invoke(
+                parentStreamSegmentName,
+                container -> container.createTransaction(parentStreamSegmentName, transactionId, attributes, timeout),
+                "createTransaction", parentStreamSegmentName, transactionId, attributes);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "mergeTransaction", transactionName, timeout);
-        return withCompletion(
-                () -> getContainer(transactionName)
-                        .thenCompose(container -> container.mergeTransaction(transactionName, timeout)),
-                r -> traceLeave(log, "mergeTransaction", traceId, r));
+        return invoke(
+                transactionName,
+                container -> container.mergeTransaction(transactionName, timeout),
+                "mergeTransaction", transactionName);
     }
 
     @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "sealStreamSegment", streamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.sealStreamSegment(streamSegmentName, timeout)),
-                r -> traceLeave(log, "sealStreamSegment", traceId, r));
+        return invoke(
+                streamSegmentName,
+                container -> container.sealStreamSegment(streamSegmentName, timeout),
+                "sealStreamSegment", streamSegmentName);
     }
 
     @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-        long traceId = LoggerHelpers.traceEnter(log, "deleteStreamSegment", streamSegmentName, timeout);
-        return withCompletion(
-                () -> getContainer(streamSegmentName)
-                        .thenCompose(container -> container.deleteStreamSegment(streamSegmentName, timeout)),
-                r -> traceLeave(log, "deleteStreamSegment", traceId, r));
-    }
-
-    private <T> CompletableFuture<T> withCompletion(Supplier<CompletableFuture<T>> supplier, Consumer<T> leaveCallback) {
-        CompletableFuture<T> resultFuture = supplier.get();
-        resultFuture.thenAccept(r -> CallbackHelpers.invokeSafely(leaveCallback, r, null));
-        return resultFuture;
+        return invoke(
+                streamSegmentName,
+                container -> container.deleteStreamSegment(streamSegmentName, timeout),
+                "deleteStreamSegment", streamSegmentName);
     }
 
     //endregion
 
     //region Helpers
 
-    private CompletableFuture<SegmentContainer> getContainer(String streamSegmentName) {
-        int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
+    /**
+     * Executes the given Function on the SegmentContainer that the given Segment maps to.
+     *
+     * @param streamSegmentName The name of the StreamSegment to fetch the Container for.
+     * @param toInvoke          A Function that will be invoked on the Container.
+     * @param methodName        The name of the calling method (for logging purposes).
+     * @param logArgs           (Optional) A vararg array of items to be logged.
+     * @param <T>               Resulting type.
+     * @return Either the result of toInvoke or a CompletableFuture completed exceptionally with a ContainerNotFoundException
+     * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
+     */
+    private <T> CompletableFuture<T> invoke(String streamSegmentName, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
+                                            String methodName, Object... logArgs) {
+        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
+        SegmentContainer container;
         try {
-            return CompletableFuture.completedFuture(this.segmentContainerRegistry.getContainer(containerId));
+            int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
+            container = this.segmentContainerRegistry.getContainer(containerId);
         } catch (ContainerNotFoundException ex) {
             return FutureHelpers.failedFuture(ex);
         }
+
+        CompletableFuture<T> resultFuture = toInvoke.apply(container);
+        if (log.isTraceEnabled()) {
+            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
+        }
+
+        return resultFuture;
     }
 
     //endregion
