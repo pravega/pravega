@@ -233,14 +233,11 @@ class EventProcessorCell<T extends ControllerEvent> {
                        final int index,
                        final CheckpointStore checkpointStore) {
         Preconditions.checkNotNull(eventProcessorConfig);
-        Preconditions.checkNotNull(reader);
-        Preconditions.checkNotNull(selfWriter);
-        Preconditions.checkNotNull(checkpointStore);
         Preconditions.checkArgument(!Strings.isNullOrEmpty(process));
         Preconditions.checkArgument(!Strings.isNullOrEmpty(readerId));
-        this.reader = reader;
-        this.selfWriter = selfWriter;
-        this.checkpointStore = checkpointStore;
+        this.reader = Preconditions.checkNotNull(reader);
+        this.selfWriter = Preconditions.checkNotNull(selfWriter);
+        this.checkpointStore = Preconditions.checkNotNull(checkpointStore);
         this.process = process;
         this.readerGroupName = eventProcessorConfig.getConfig().getReaderGroupName();
         this.readerId = readerId;
