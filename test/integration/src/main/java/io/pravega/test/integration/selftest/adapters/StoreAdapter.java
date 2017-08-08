@@ -11,6 +11,7 @@ package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -131,6 +132,9 @@ public interface StoreAdapter extends AutoCloseable {
                 break;
             case External:
                 result = new ExternalAdapter(testConfig, executor);
+                break;
+            case BookKeeper:
+                result = new BookKeeperAdapter(testConfig, builderConfig.getConfig(BookKeeperConfig::builder), executor);
                 break;
             default:
                 throw new UnsupportedOperationException("Cannot create a StoreAdapter for TestType " + testConfig.getTestType());

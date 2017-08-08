@@ -15,7 +15,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -28,8 +27,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
-import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -37,7 +34,6 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
-import java.io.File;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
@@ -169,7 +165,7 @@ class SegmentStoreAdapter implements StoreAdapter {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
         if (this.config.getBookieCount() > 0) {
-            this.bookKeeperService = startBookKeeper();
+            this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.config, LOG_ID);
         }
 
         this.serviceBuilder.initialize();
@@ -280,24 +276,6 @@ class SegmentStoreAdapter implements StoreAdapter {
 
     StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
-    }
-
-    private Process startBookKeeper() throws Exception {
-        int bookieCount = this.config.getBookieCount();
-        Process p = ProcessStarter
-                .forClass(BookKeeperServiceRunner.class)
-                .sysProp(BookKeeperServiceRunner.PROPERTY_BASE_PORT, this.config.getBkPort(0))
-                .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
-                .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.config.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
-                .sysProp(BookKeeperServiceRunner.PROPERTY_START_ZK, true)
-                .stdOut(ProcessBuilder.Redirect.to(new File(this.config.getComponentOutLogPath("bk", 0))))
-                .stdErr(ProcessBuilder.Redirect.to(new File(this.config.getComponentErrLogPath("bk", 0))))
-                .start();
-        ZooKeeperServiceRunner.waitForServerUp(this.config.getZkPort());
-        TestLogger.log(LOG_ID, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
-                this.config.getZkPort(), this.config.getBkPort(0), this.config.getBkPort(bookieCount - 1));
-        return p;
     }
 
     //endregion

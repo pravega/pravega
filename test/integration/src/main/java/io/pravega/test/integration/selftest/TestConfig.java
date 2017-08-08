@@ -277,6 +277,7 @@ public class TestConfig {
         InProcessMock,
         InProcessStore,
         OutOfProcess,
-        External
+        External,
+        BookKeeper
     }
 }
