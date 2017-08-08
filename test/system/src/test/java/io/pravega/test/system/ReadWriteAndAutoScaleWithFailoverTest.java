@@ -54,7 +54,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws MarathonException, URISyntaxException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = startPravegaControllerInstances(zkUri);
@@ -121,7 +121,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //bring the instances back to 3 before performing failover during scaling
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
@@ -133,7 +133,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //bring the instances back to 3 before performing failover
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
-            Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
             performFailoverTest();
@@ -142,7 +142,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         }
         cleanUp(scope, AUTO_SCALE_STREAM);
-        log.info("Test {} succeeds ", "ReadWriteAndAutoScaleWithFailover");
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {

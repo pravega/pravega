@@ -11,6 +11,10 @@
       src: data/config.properties
       dest: /opt/pravega/conf/config.properties
 
+- name: Set publish IP address
+  shell: echo pravegaservice.publishedIPAddress=$(ifconfig | awk '/inet addr/{print substr($2,6)}' | sed -n 1p) >> /opt/pravega/conf/config.properties
+  sudo: yes
+
 - name: Run hosts
   shell: nohup /opt/pravega/bin/pravega-segmentstore 2>&1 &> /tmp/host.log &
   sudo: yes
