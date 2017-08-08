@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -41,6 +42,7 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
@@ -296,7 +298,9 @@ public class ControllerRestApiTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
-        Controller controller = new ControllerImpl(controllerUri);
+        @Cleanup
+        final Controller controller = new ControllerImpl(controllerUri,
+                ControllerImplConfig.builder().retryAttempts(1).build());
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),

@@ -16,6 +16,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
+
 import java.net.URI;
 
 /**
@@ -25,13 +26,18 @@ public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
 
+    // Flag to indicate whether we need to cleanup the controller instance on close().
+    private final boolean cleanupController;
+
     public StreamManagerImpl(URI controllerUri) {
         this.controller = new ControllerImpl(controllerUri);
+        this.cleanupController = true;
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller) {
         this.controller = controller;
+        this.cleanupController = false;
     }
 
     @Override
@@ -81,10 +87,10 @@ public class StreamManagerImpl implements StreamManager {
                 RuntimeException::new);
     }
 
-
     @Override
     public void close() {
-        //Nothing to close
+        if (this.cleanupController) {
+            this.controller.close();
+        }
     }
-
 }

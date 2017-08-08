@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Controller APIs.
  */
-public interface Controller {
+public interface Controller extends AutoCloseable {
 
     // Controller Apis for administrative action for streams
 
@@ -254,4 +254,10 @@ public interface Controller {
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 
+    /**
+     * Closes the controller client.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 }
