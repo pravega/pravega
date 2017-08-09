@@ -129,8 +129,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             synchronized (lock) {
                 toComplete = connectionSetupCompleted;
             }
-            toComplete.complete(null);
-            setupConnection.release(connection);
+            if (toComplete != null) {
+                toComplete.complete(null);
+                setupConnection.release(connection);
+            }
         }
 
         /**
