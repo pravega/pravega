@@ -14,8 +14,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.val;
-import net.jcip.annotations.NotThreadSafe;
 
 /**
  * Helps start a Class out of Process.
