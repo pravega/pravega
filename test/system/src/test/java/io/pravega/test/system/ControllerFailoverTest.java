@@ -34,8 +34,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
@@ -136,9 +134,8 @@ public class ControllerFailoverTest {
 
         // Connect with first controller instance.
         URI controllerUri = getTestControllerServiceURI();
-        @Cleanup
         final Controller controller1 = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build());
+                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -166,9 +163,8 @@ public class ControllerFailoverTest {
 
         // Connect to another controller instance.
         controllerUri = getControllerURI();
-        @Cleanup
         final Controller controller2 = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build());
+                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

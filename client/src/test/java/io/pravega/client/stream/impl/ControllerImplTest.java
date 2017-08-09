@@ -21,10 +21,9 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -36,6 +35,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
@@ -52,6 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -70,9 +72,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import io.pravega.test.common.TestUtils;
-import lombok.Cleanup;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -597,7 +596,6 @@ public class ControllerImplTest {
     public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
 
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
-        @Cleanup
         final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
                 ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
@@ -616,7 +614,6 @@ public class ControllerImplTest {
                 .permitKeepAliveTime(5, TimeUnit.SECONDS)
                 .build()
                 .start();
-        @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
                 ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
@@ -633,7 +630,6 @@ public class ControllerImplTest {
     public void testRetries() throws IOException, ExecutionException, InterruptedException {
 
         // Verify retries exhausted error after multiple attempts.
-        @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
                 ControllerImplConfig.builder().retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
@@ -656,7 +652,6 @@ public class ControllerImplTest {
 
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
-        @Cleanup
         final ControllerImpl controller2 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
                 ControllerImplConfig.builder().retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()
@@ -1021,7 +1016,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelCreateStream() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelCreateStream");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
@@ -1055,7 +1050,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelGetCurrentSegments");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {

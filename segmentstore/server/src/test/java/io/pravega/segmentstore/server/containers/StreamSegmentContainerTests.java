@@ -78,7 +78,6 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +97,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -267,7 +268,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicLong expectedLength = new AtomicLong();
 
         @Cleanup("shutdown")
-        ExecutorService testExecutor = Executors.newFixedThreadPool(Math.min(20, APPENDS_PER_SEGMENT));
+        ExecutorService testExecutor = newScheduledThreadPool(Math.min(20, APPENDS_PER_SEGMENT), "testConcurrentSegmentActivation");
         val submitFutures = new ArrayList<Future<?>>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             final byte fillValue = (byte) i;

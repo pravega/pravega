@@ -39,6 +39,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
@@ -50,8 +52,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.net.URI;
@@ -67,11 +67,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -93,41 +91,11 @@ public class ControllerImpl implements Controller {
 
     // The executor supplied by the appication to handle internal retries.
     private final ScheduledExecutorService executor;
-
-    // The executor used when external executor is not supplied.
-    private final AtomicReference<ScheduledExecutorService> internalExecutor = new AtomicReference<>(null);
-
     // Flag to indicate if the client is closed.
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
-
-    /**
-     * Creates a new instance of the Controller client class.
-     * @param controllerURI The controller rpc URI. This can be of 2 types
-     *                      1. tcp://ip1:port1,ip2:port2,...
-     *                          This is used if the controller endpoints are static and can be directly accessed.
-     *                      2. pravega://ip1:port1,ip2:port2,...
-     *                          This is used to autodiscovery the controller endpoints from an initial controller list.
-     */
-    public ControllerImpl(final URI controllerURI) {
-        this(controllerURI, ControllerImplConfig.builder().build());
-    }
-
-    /**
-     * Creates a new instance of the Controller client class.
-     * @param controllerURI The controller rpc URI. This can be of 2 types
-     *                      1. tcp://ip1:port1,ip2:port2,...
-     *                          This is used if the controller endpoints are static and can be directly accessed.
-     *                      2. pravega://ip1:port1,ip2:port2,...
-     *                          This is used to autodiscovery the controller endpoints from an initial controller list.
-     * @param config        The configuration for this client implementation.
-     */
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config) {
-        this(controllerURI, config, Executors.newSingleThreadScheduledExecutor());
-        this.internalExecutor.set(this.executor);
-    }
 
     /**
      * Creates a new instance of the Controller client class.
@@ -161,7 +129,6 @@ public class ControllerImpl implements Controller {
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
-
         this.executor = executor;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
@@ -832,16 +799,6 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
-    }
-
-    @Override
-    public void close() {
-        if (closed.compareAndSet(false, true)) {
-            final ScheduledExecutorService executorService = this.internalExecutor.getAndSet(null);
-            if (executorService != null) {
-                executorService.shutdownNow();
-            }
-        }
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

@@ -14,10 +14,12 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
-
 import java.net.URI;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -26,18 +28,17 @@ public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
 
-    // Flag to indicate whether we need to cleanup the controller instance on close().
-    private final boolean cleanupController;
-
+    private final ScheduledExecutorService executor; 
+    
     public StreamManagerImpl(URI controllerUri) {
-        this.controller = new ControllerImpl(controllerUri);
-        this.cleanupController = true;
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller) {
+        this.executor = null;
         this.controller = controller;
-        this.cleanupController = false;
     }
 
     @Override
@@ -89,8 +90,8 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public void close() {
-        if (this.cleanupController) {
-            this.controller.close();
+        if (this.executor != null) {
+            this.executor.shutdown();
         }
     }
 }

@@ -129,7 +129,6 @@ public class PravegaTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        @Cleanup
         ControllerImpl controller = new ControllerImpl(controllerUri,
                 ControllerImplConfig.builder().retryAttempts(1).build(), connectionFactory.getInternalExecutor());
 

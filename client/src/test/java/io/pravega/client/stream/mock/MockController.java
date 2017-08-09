@@ -430,9 +430,5 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(true);
     }
 
-    @Override
-    public void close() {
-        // Nothing to close.
-    }
 }
 

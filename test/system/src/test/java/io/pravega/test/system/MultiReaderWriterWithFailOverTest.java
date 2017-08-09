@@ -184,7 +184,6 @@ public class MultiReaderWriterWithFailOverTest {
         URI controllerUri = controllerURIDirect;
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        @Cleanup
         Controller controller = new ControllerImpl(controllerUri,
                 ControllerImplConfig.builder().retryAttempts(1).build(), connectionFactory.getInternalExecutor());
 
