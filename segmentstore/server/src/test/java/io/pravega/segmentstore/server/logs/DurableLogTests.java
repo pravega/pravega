@@ -840,7 +840,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(readItem.getLength());
+                            DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
                             ArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
