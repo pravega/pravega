@@ -31,7 +31,7 @@ import lombok.val;
 public final class ExecutorServiceHelpers {
     
     /**
-     * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names names the threads.
+     * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names the threads.
      * @param size The number of threads in the threadpool
      * @param poolName The name of the pool (this will be printed in logs)
      * @return A new executor service.
