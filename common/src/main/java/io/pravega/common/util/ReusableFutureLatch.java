@@ -37,11 +37,11 @@ public class ReusableFutureLatch<T> {
 
     /**
      * Supply a future to be notified when {@link #release(Object)} is called. If release has already been
-     * called, it will be compltedImmediatly.
+     * called, it will be completed immediately.
      * 
      * @param toNotify The future that should be completed.
      */
-    public void await(CompletableFuture<T> toNotify) {
+    public void register(CompletableFuture<T> toNotify) {
         T result;
         Throwable e;
         synchronized (lock) {
@@ -72,7 +72,7 @@ public class ReusableFutureLatch<T> {
      * @param willCallRelease A runnable that should result in {@link #release(Object)} being called.
      * @param toNotify The future to notify once release is called.
      */
-    public void runReleaserAndAwait(Runnable willCallRelease, CompletableFuture<T> toNotify) {
+    public void registerAndRunReleaser(Runnable willCallRelease, CompletableFuture<T> toNotify) {
         boolean run = false;
         boolean complete = false;
         T result = null;
@@ -115,9 +115,9 @@ public class ReusableFutureLatch<T> {
     }
 
     /**
-     * Complete all waiting futures, and all future calls to await to run immediately. If release is
+     * Complete all waiting futures, and all future calls to register be notified immediately. If release is
      * called twice consecutively the second value will be the one passed to future callers of
-     * {@link #await(CompletableFuture)}
+     * {@link #register(CompletableFuture)}
      * 
      * @param result The result to pass to waiting futures.
      */
@@ -140,9 +140,9 @@ public class ReusableFutureLatch<T> {
     }
     
     /**
-     * Complete all waiting futures, and all future calls to await to run immediately. If release is
+     * Complete all waiting futures, and all future calls to register be notified immediately. If release is
      * called twice consecutively the second value will be the one passed to future callers of
-     * {@link #await(CompletableFuture)}
+     * {@link #register(CompletableFuture)}
      * 
      * @param e The exception to pass to waiting futures.
      */

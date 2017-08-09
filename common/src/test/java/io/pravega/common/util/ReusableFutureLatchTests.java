@@ -26,8 +26,8 @@ public class ReusableFutureLatchTests {
         ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
-        latch.await(str1);
-        latch.await(str2);
+        latch.register(str1);
+        latch.register(str2);
         assertFalse(str1.isDone());
         assertFalse(str2.isDone());
         latch.release("Done");
@@ -44,10 +44,10 @@ public class ReusableFutureLatchTests {
         ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
-        latch.runReleaserAndAwait(() -> {
+        latch.registerAndRunReleaser(() -> {
             ran1.set(true);
         }, str1);
-        latch.runReleaserAndAwait(() -> {
+        latch.registerAndRunReleaser(() -> {
             ran2.set(true);
         }, str2);
         assertFalse(str1.isDone());
@@ -67,8 +67,8 @@ public class ReusableFutureLatchTests {
         ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
-        latch.await(str1);
-        latch.await(str2);
+        latch.register(str1);
+        latch.register(str2);
         assertFalse(str1.isDone());
         assertFalse(str2.isDone());
         latch.releaseExceptionally(new RuntimeException("Foo"));
@@ -86,8 +86,8 @@ public class ReusableFutureLatchTests {
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
         latch.release("Done");
-        latch.await(str1);
-        latch.await(str2);
+        latch.register(str1);
+        latch.register(str2);
         assertTrue(str1.isDone());
         assertTrue(str2.isDone());
         assertEquals("Done", str1.get());
@@ -99,10 +99,10 @@ public class ReusableFutureLatchTests {
         ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
-        latch.await(str1);
+        latch.register(str1);
         latch.release("1");
         latch.reset();
-        latch.await(str2);
+        latch.register(str2);
         assertTrue(str1.isDone());
         assertEquals("1", str1.get());
         assertFalse(str2.isDone());
@@ -116,13 +116,13 @@ public class ReusableFutureLatchTests {
         ReusableFutureLatch<String> latch = new ReusableFutureLatch<>();
         CompletableFuture<String> str1 = new CompletableFuture<>();
         CompletableFuture<String> str2 = new CompletableFuture<>();
-        latch.await(str1);
+        latch.register(str1);
         assertFalse(str1.isDone());
         latch.releaseExceptionallyAndReset(new RuntimeException("Foo"));
         assertTrue(str1.isCompletedExceptionally());        
         assertThrows("Wrong exception", () -> str1.get(),
                      e -> e instanceof RuntimeException && e.getMessage().equals("Foo"));    
-        latch.await(str2);
+        latch.register(str2);
         assertFalse(str2.isDone());
         latch.releaseExceptionallyAndReset(new RuntimeException("Bar"));
         assertTrue(str2.isCompletedExceptionally());

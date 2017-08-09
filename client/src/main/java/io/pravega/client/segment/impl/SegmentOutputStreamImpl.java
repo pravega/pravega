@@ -402,7 +402,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             reconnect();
         }
         CompletableFuture<ClientConnection> future =  new CompletableFuture<>();
-        state.setupConnection.await(future);
+        state.setupConnection.register(future);
         return future;
     }
     
@@ -450,7 +450,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     
     @VisibleForTesting
     void reconnect() {
-        state.setupConnection.runReleaserAndAwait(() -> {
+        state.setupConnection.registerAndRunReleaser(() -> {
             Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
@@ -460,10 +460,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      }
                      Preconditions.checkState(state.getConnection() == null);
                      log.info("Fetching endpoint for segment {}", segmentName);
-                     return controller.getEndpointForSegment(segmentName).thenCompose((PravegaNodeUri uri) -> {
+                     return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}", uri, segmentName);
                          return connectionFactory.establishConnection(uri, responseProcessor);
-                     }).thenCompose(connection -> {
+                     }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
                          SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
                          try {
@@ -478,7 +478,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              }
                              throw Lombok.sneakyThrow(t);
                          });
-                     });
+                     }, connectionFactory.getInternalExecutor());
                  }, connectionFactory.getInternalExecutor());
         }, new CompletableFuture<ClientConnection>());
     }
