@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import lombok.val;
+import net.jcip.annotations.NotThreadSafe;
 
 /**
  * Helps start a Class out of Process.
  */
+@NotThreadSafe
 public class ProcessStarter {
     //region Members
 

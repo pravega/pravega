@@ -191,6 +191,13 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
     //endregion
 
+    /**
+     * Main method that can be used to start BookKeeper out-of-process using BookKeeperServiceRunner.
+     * This is used when invoking this class via ProcessStarter.
+     *
+     * @param args Args.
+     * @throws Exception If an error occurred.
+     */
     public static void main(String[] args) throws Exception {
         val b = BookKeeperServiceRunner.builder();
         b.startZk(false);

@@ -79,6 +79,14 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
     }
 
+
+    /**
+     * Main method that can be used to start ZooKeeper out-of-process using BookKeeperServiceRunner.
+     * This is used when invoking this class via ProcessStarter.
+     *
+     * @param args Args.
+     * @throws Exception If an error occurred.
+     */
     public static void main(String[] args) throws Exception {
         int zkPort;
         try {
