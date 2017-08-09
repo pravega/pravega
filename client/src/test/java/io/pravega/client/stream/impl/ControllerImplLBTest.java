@@ -13,7 +13,6 @@ import io.grpc.Server;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
@@ -30,7 +29,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
@@ -122,7 +120,7 @@ public class ControllerImplLBTest {
 
         // Use 2 servers to discover all the servers.
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
@@ -140,7 +138,7 @@ public class ControllerImplLBTest {
         // Use 2 servers to discover all the servers.
         String localIP = InetAddress.getLoopbackAddress().getHostAddress();
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
@@ -160,7 +158,7 @@ public class ControllerImplLBTest {
         testRPCServer1.awaitTermination();
         Assert.assertTrue(testRPCServer1.isTerminated());
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
@@ -202,7 +200,7 @@ public class ControllerImplLBTest {
 
         // Directly use all 3 servers and verify.
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
                 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
@@ -219,7 +217,7 @@ public class ControllerImplLBTest {
         // Directly use all 3 servers and verify.
         String localIP = InetAddress.getLoopbackAddress().getHostAddress();
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://" + localIP + ":" + serverPort1
                 + "," + localIP + ":" + serverPort2 + "," + localIP + ":" + serverPort3),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
@@ -239,7 +237,7 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer1.isTerminated());
 
         @Cleanup("shutdown")
-        InlineExecutor executor = ExecutorServiceHelpers.newInlineExecutor();
+        InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
                 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);

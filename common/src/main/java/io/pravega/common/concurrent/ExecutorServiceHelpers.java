@@ -12,7 +12,6 @@ package io.pravega.common.concurrent;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.function.RunnableWithException;
-import io.pravega.test.common.InlineExecutor;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,14 +43,6 @@ public final class ExecutorServiceHelpers {
                 return new Thread(group, r);
             }
         });
-    }
-    
-    /**
-     * Creates a new Inline Executor. (Which executes the tasks in the calling thread.)
-     * @return A new Executor
-     */
-    public static InlineExecutor newInlineExecutor() {
-        return new InlineExecutor();
     }
     
     /**
