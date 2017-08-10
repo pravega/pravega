@@ -209,10 +209,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         int maxGeneration = 0;
         long totalSize = 0;
         Collection<Client> clients = getCurrentClients();
-        if (clients.size() == 0) {
-            return null;
-        }
-
         for (Client c : clients) {
             CacheStatus clientStatus;
             try {
@@ -236,6 +232,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
             maxGeneration = Math.max(maxGeneration, clientStatus.newestGeneration);
+        }
+
+        if (minGeneration > maxGeneration) {
+            // Either no clients or clients are empty.
+            return null;
         }
 
         return new CacheStatus(totalSize, minGeneration, maxGeneration);
