@@ -470,6 +470,8 @@ project('test:system') {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
+        // https://mvnrepository.com/artifact/com.spotify/docker-client
+        compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
         compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
@@ -493,8 +495,18 @@ project('test:system') {
         from sourceSets.test.output
     }
 
+    task setup(type: JavaExec) {
+        main = "io.pravega.test.system.framework.docker.DockerSwarm"
+        classpath = sourceSets.main.runtimeClasspath
+    }
+
+    task tearDown(type: JavaExec) {
+        main = "io.pravega.test.system.framework.docker.DockerTearDown"
+        classpath = sourceSets.main.runtimeClasspath
+    }
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'jar','testSetup'
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
