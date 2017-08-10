@@ -195,6 +195,7 @@ public class StreamMetadataTasks extends TaskBase {
                             if (e != null) {
                                 Throwable cause = ExceptionHelpers.getRealException(e);
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
+
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
