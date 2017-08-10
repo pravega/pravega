@@ -95,7 +95,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
     void flush() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.outputStream.flush();
-        this.outputStream.releaseBuffers();
+        this.outputStream.releaseBuffer();
     }
 
     /**

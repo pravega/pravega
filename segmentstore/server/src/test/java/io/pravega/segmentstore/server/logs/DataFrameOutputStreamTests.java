@@ -101,7 +101,7 @@ public class DataFrameOutputStreamTests {
         DataFrameOutputStream s = new DataFrameOutputStream(maxFrameSize, writtenFrame::set);
         for (int i = 0; i < count; i++) {
             if (i % resetEvery == 0) {
-                s.releaseBuffers();
+                s.releaseBuffer();
                 expectedStartIndex = 0;
             }
 

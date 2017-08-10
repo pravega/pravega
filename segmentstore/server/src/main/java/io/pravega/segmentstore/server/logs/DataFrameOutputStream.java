@@ -207,9 +207,9 @@ class DataFrameOutputStream extends OutputStream {
     /**
      * Releases any buffers that may be lingering around and are no longer needed.
      */
-    void releaseBuffers() {
+    void releaseBuffer() {
         Exceptions.checkNotClosed(this.closed, this);
-        this.bufferFactory.releaseBuffers();
+        this.bufferFactory.reset();
     }
 
     private void createNewFrame() {
@@ -268,16 +268,17 @@ class DataFrameOutputStream extends OutputStream {
             int minLength = (int) this.lastBuffers.getAverage(DEFAULT_MIN_LENGTH);
 
             if (this.current != null && (this.current.length - this.currentUsed < minLength)) {
-                releaseBuffers();
+                this.current = null;
             }
         }
 
         /**
-         * Releases the current buffer (if any). After this method is called, the first call to next() will allocate a new
-         * buffer.
+         * Releases the current buffer (if any) and resets the stats. After this method is called, the first call to next()
+         * will allocate a new buffer.
          */
-        void releaseBuffers() {
+        void reset() {
             this.current = null;
+            this.lastBuffers.reset();
         }
     }
 
