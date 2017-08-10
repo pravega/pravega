@@ -26,8 +26,12 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
     //DurableLog stats
-    public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency"; // Timer
-    public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";     // Counter
+    public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency";      // Timer
+    public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";          // Counter
+    public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";            // Timer
+    public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";      // Dynamic Counter
+    public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill"; // Dynamic Counter
+    public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";              // Dynamic Counter
 
     // Metrics in Controller
     // Stream request counts (Static)
@@ -58,6 +62,11 @@ public final class MetricsNames {
 
     public static String nameFromSegment(String metric, String segmentName) {
         String name = metric + "." + segmentName;
+        return escapeSpecialChar(name);
+    }
+
+    public static String nameFromContainer(String metric, int containerId) {
+        String name = metric + "." + containerId;
         return escapeSpecialChar(name);
     }
 }

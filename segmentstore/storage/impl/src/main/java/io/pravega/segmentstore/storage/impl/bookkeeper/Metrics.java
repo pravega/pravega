@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.Counter;
+import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
@@ -20,6 +21,8 @@ import io.pravega.shared.metrics.StatsLogger;
  */
 final class Metrics {
     static final StatsLogger DURABLE_DATALOG_LOGGER = MetricsProvider.createStatsLogger("durablelog");
+    static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     static final OpStatsLogger WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames.TIER1_WRITE_LATENCY);
     static final Counter WRITE_BYTES = DURABLE_DATALOG_LOGGER.createCounter(MetricsNames.TIER1_WRITE_BYTES);
+    static final OpStatsLogger BK_WRITE_LATENCY = DURABLE_DATALOG_LOGGER.createStats(MetricsNames.BK_WRITE_LATENCY);
 }

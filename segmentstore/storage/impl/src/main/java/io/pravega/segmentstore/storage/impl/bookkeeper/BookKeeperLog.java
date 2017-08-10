@@ -29,6 +29,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteTooLongException;
+import io.pravega.shared.MetricsNames;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +37,8 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -76,6 +79,8 @@ import org.apache.zookeeper.data.Stat;
 class BookKeeperLog implements DurableDataLog {
     //region Members
 
+    private static final long REPORT_INTERVAL = 1000;
+    private final int containerId;
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -91,6 +96,7 @@ class BookKeeperLog implements DurableDataLog {
     private final WriteQueue writes;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
+    private final ScheduledFuture<?> metricReporter;
 
     //endregion
 
@@ -99,25 +105,26 @@ class BookKeeperLog implements DurableDataLog {
     /**
      * Creates a new instance of the BookKeeper log class.
      *
-     * @param logId           The BookKeeper Log Id to open.
+     * @param containerId     The Id of the Container whose BookKeeperLog to open.
      * @param zkClient        A reference to the CuratorFramework client to use.
      * @param bookKeeper      A reference to the BookKeeper client to use.
      * @param config          Configuration to use.
      * @param executorService An Executor to use for async operations.
      */
-    BookKeeperLog(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
-        Preconditions.checkArgument(logId >= 0, "logId must be a non-negative integer.");
-
+    BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
+        Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
+        this.containerId = containerId;
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
-        this.logNodePath = HierarchyUtils.getPath(logId, this.config.getZkHierarchyDepth());
-        this.traceObjectId = String.format("Log[%d]", logId);
+        this.logNodePath = HierarchyUtils.getPath(this.containerId, this.config.getZkHierarchyDepth());
+        this.traceObjectId = String.format("Log[%d]", this.containerId);
         this.writes = new WriteQueue(this.config.getMaxConcurrentWrites());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
+        this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
     //endregion
@@ -127,6 +134,7 @@ class BookKeeperLog implements DurableDataLog {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
+            this.metricReporter.cancel(true);
             this.rolloverProcessor.close();
             this.writeProcessor.close();
 
@@ -427,7 +435,11 @@ class BookKeeperLog implements DurableDataLog {
                 // Successful write. If we get this, then by virtue of how the Writes are executed (always wait for writes
                 // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
-                write.complete();
+                Timer t = write.complete();
+                if (t != null) {
+                    Metrics.BK_WRITE_LATENCY.reportSuccessValue(t.getElapsedMillis());
+                }
+
                 return;
             }
 
@@ -724,6 +736,17 @@ class BookKeeperLog implements DurableDataLog {
     //endregion
 
     //region Helpers
+
+    private void reportMetrics() {
+        QueueStats qs = this.writes.getStatistics();
+        int fillRate = (int)(qs.getAverageItemFillRate()*100);
+        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
+                MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, this.containerId), getLogMetadata().getLedgers().size());
+        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
+                MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, this.containerId), qs.getSize());
+        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
+                MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, this.containerId), fillRate);
+    }
 
     private LogMetadata getLogMetadata() {
         synchronized (this.lock) {
