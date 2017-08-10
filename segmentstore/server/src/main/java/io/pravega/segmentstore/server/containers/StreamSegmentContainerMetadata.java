@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.EvictableMetadata;
+import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -61,6 +62,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @GuardedBy("truncationMarkers")
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
+    private final Metrics.Metadata metrics;
 
     //endregion
 
@@ -85,6 +87,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
         this.epoch = new AtomicLong(NO_EPOCH);
+        this.metrics = new Metrics.Metadata(this.streamSegmentContainerId);
+        this.metrics.segmentCount(0);
     }
 
     //endregion
@@ -152,21 +156,25 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
+        int count;
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
+            count = this.metadataById.size();
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapStreamSegment Id = {}, Name = '{}', Active = {}", this.traceObjectId, streamSegmentId, streamSegmentName, count);
+        this.metrics.segmentCount(count);
         return segmentMetadata;
     }
 
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
+        int count;
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
@@ -176,10 +184,13 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
+            count = this.metadataById.size();
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}', Active = {}", this.traceObjectId,
+                parentStreamSegmentId, streamSegmentId, streamSegmentName, count);
+        this.metrics.segmentCount(count);
         return segmentMetadata;
     }
 
@@ -290,6 +301,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, long sequenceNumberCutoff) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
+        int count;
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
             Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
@@ -304,9 +316,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                         this.metadataByName.remove(m.getName());
                         evictedSegments.add(m);
                     });
+            count = this.metadataById.size();
         }
 
-        log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
+        log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
+        this.metrics.segmentCount(count);
         return evictedSegments;
     }
 

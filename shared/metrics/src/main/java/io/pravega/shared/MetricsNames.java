@@ -25,13 +25,24 @@ public final class MetricsNames {
     public static final String STORAGE_READ_BYTES = "tier2_read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
-    //DurableLog stats
+    //DurableDataLog (Tier1) stats
     public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency";      // Timer
     public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";          // Counter
     public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";            // Timer
     public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";      // Dynamic Counter
     public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill"; // Dynamic Counter
     public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";              // Dynamic Counter
+
+    // General metrics
+    public static final String CACHE_TOTAL_SIZE_BYTES = "cache_size_bytes";
+    public static final String CACHE_GENERATION_SPREAD = "cache_gen";
+    public static final String OPERATION_QUEUE_SIZE = "operation_queue_size";
+    public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
+    public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
+    public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "operation_processor_delay_ms";
+    public static final String ACTIVE_SEGMENT_COUNT = "active_segments";
+    public static final String THREAD_POOL_QUEUE_SIZE = "thread_pool_queue_size";
+    public static final String THREAD_POOL_USED_THREADS = "thread_pool_used_threads";
 
     // Metrics in Controller
     // Stream request counts (Static)

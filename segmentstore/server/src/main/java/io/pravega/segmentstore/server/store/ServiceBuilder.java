@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -51,6 +52,7 @@ import lombok.val;
 public final class ServiceBuilder implements AutoCloseable {
     //region Members
 
+    private final Metrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
     private final ScheduledExecutorService executorService;
@@ -74,22 +76,17 @@ public final class ServiceBuilder implements AutoCloseable {
 
     //region Constructor
 
-    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig) {
-        this(serviceBuilderConfig, createExecutorService(serviceBuilderConfig.getConfig(ServiceConfig::builder)));
-    }
-
     /**
      * Creates a new instance of the ServiceBuilder class.
      *
      * @param serviceBuilderConfig The ServiceBuilderConfig to use.
      * @param executorService      The executor to use for background tasks.
      */
-    public ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
-        Preconditions.checkNotNull(serviceBuilderConfig, "config");
-        this.serviceBuilderConfig = serviceBuilderConfig;
+    private ServiceBuilder(ServiceBuilderConfig serviceBuilderConfig, ScheduledExecutorService executorService) {
+        this.serviceBuilderConfig = Preconditions.checkNotNull(serviceBuilderConfig, "serviceBuilderConfig");
+        this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         ServiceConfig serviceConfig = this.serviceBuilderConfig.getConfig(ServiceConfig::builder);
         this.segmentToContainerMapper = new SegmentToContainerMapper(serviceConfig.getContainerCount());
-        this.executorService = executorService;
         this.operationLogFactory = new AtomicReference<>();
         this.readIndexFactory = new AtomicReference<>();
         this.dataLogFactory = new AtomicReference<>();
@@ -107,6 +104,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
+        this.threadPoolMetrics = new Metrics.ThreadPool(this.executorService);
     }
 
     private static ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {
@@ -138,7 +136,7 @@ public final class ServiceBuilder implements AutoCloseable {
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
         closeComponent(this.cacheFactory);
-
+        this.threadPoolMetrics.close();
         this.executorService.shutdown();
     }
 
@@ -324,7 +322,8 @@ public final class ServiceBuilder implements AutoCloseable {
      * @param config The ServiceBuilderConfig to use.
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig config) {
-        return attachDefaultComponents(new ServiceBuilder(config));
+        ScheduledExecutorService executor = createExecutorService(config.getConfig(ServiceConfig::builder));
+        return attachDefaultComponents(new ServiceBuilder(config, executor));
     }
 
     /**

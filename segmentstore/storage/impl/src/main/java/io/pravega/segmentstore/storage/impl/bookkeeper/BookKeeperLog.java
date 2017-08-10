@@ -29,7 +29,6 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteTooLongException;
-import io.pravega.shared.MetricsNames;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -96,6 +95,7 @@ class BookKeeperLog implements DurableDataLog {
     private final WriteQueue writes;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
+    private final Metrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
 
     //endregion
@@ -124,6 +124,7 @@ class BookKeeperLog implements DurableDataLog {
         this.writes = new WriteQueue(this.config.getMaxConcurrentWrites());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
+        this.metrics = new Metrics.BookKeeperLog(this.containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
@@ -229,8 +230,7 @@ class BookKeeperLog implements DurableDataLog {
                 handleWriteException(ex);
             } else {
                 // Update metrics and take care of other logging tasks.
-                Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-                Metrics.WRITE_BYTES.add(data.getLength());
+                Metrics.writeCompleted(data.getLength(), timer.getElapsed());
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
             }
         }, this.executorService);
@@ -437,7 +437,7 @@ class BookKeeperLog implements DurableDataLog {
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
                 Timer t = write.complete();
                 if (t != null) {
-                    Metrics.BK_WRITE_LATENCY.reportSuccessValue(t.getElapsedMillis());
+                    Metrics.bookKeeperWriteCompleted(t.getElapsed());
                 }
 
                 return;
@@ -738,14 +738,8 @@ class BookKeeperLog implements DurableDataLog {
     //region Helpers
 
     private void reportMetrics() {
-        QueueStats qs = this.writes.getStatistics();
-        int fillRate = (int)(qs.getAverageItemFillRate()*100);
-        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
-                MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, this.containerId), getLogMetadata().getLedgers().size());
-        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
-                MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, this.containerId), qs.getSize());
-        Metrics.DYNAMIC_LOGGER.reportGaugeValue(
-                MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, this.containerId), fillRate);
+        this.metrics.ledgerCount(getLogMetadata().getLedgers().size());
+        this.metrics.queueStats(this.writes.getStatistics());
     }
 
     private LogMetadata getLogMetadata() {

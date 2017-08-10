@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
@@ -21,6 +22,7 @@ import io.pravega.common.util.SortedDeque;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
+import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -66,6 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final QueueProcessingState state;
     @GuardedBy("stateLock")
     private final DataFrameBuilder<Operation> dataFrameBuilder;
+    private final Metrics.OperationProcessor metrics;
 
     //endregion
 
@@ -90,6 +93,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+        this.metrics = new Metrics.OperationProcessor(this.metadata.getContainerId());
     }
 
     //endregion
@@ -209,6 +213,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
         int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
         delayMillis = Math.min(delayMillis, 1000);
+        this.metrics.delay(delayMillis);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
@@ -230,11 +235,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
         // arrived while we were busy handling the current items.
+        long firstOperationWaitNanos = -1;
         while (!operations.isEmpty()) {
             try {
                 // Process the current set of operations.
                 while (!operations.isEmpty()) {
                     CompletableOperation o = operations.poll();
+                    if (firstOperationWaitNanos < 0) {
+                        firstOperationWaitNanos = o.getTimer().getElapsedNanos();
+                    }
+
                     try {
                         processOperation(o);
                         this.state.addPending(o);
@@ -277,6 +287,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     throw Lombok.sneakyThrow(ex);
                 }
             }
+
+            this.metrics.report(this.operationQueue.size(), this.state.getPendingCount(), firstOperationWaitNanos / AbstractTimer.NANOS_TO_MILLIS);
         }
     }
 
@@ -400,6 +412,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             }
 
             autoCompleteIfNeeded();
+        }
+
+        /**
+         * Gets a value indicating the number of pending operations
+         *
+         * @return The count.
+         */
+        int getPendingCount() {
+            synchronized (stateLock) {
+                return this.pendingOperations.size();
+            }
         }
 
         /**
