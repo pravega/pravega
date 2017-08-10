@@ -141,7 +141,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));
             }
 
-            int writerCount = this.testConfig.getProducerCount() / this.testConfig.getStreamCount();
+            int writerCount = Math.max(1, this.testConfig.getProducerCount() / this.testConfig.getStreamCount());
             List<EventStreamWriter<byte[]>> writers = new ArrayList<>(writerCount);
             if (this.streamWriters.putIfAbsent(streamName, writers) == null) {
                 for (int i = 0; i < writerCount; i++) {

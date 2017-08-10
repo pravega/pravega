@@ -20,6 +20,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 
 /**
@@ -37,6 +38,7 @@ class ProducerDataSource {
     private final boolean sealSupported;
     private final boolean transactionsSupported;
     private final boolean appendSupported;
+    @GuardedBy("lock")
     private int lastCreatedTransaction;
     private final Object lock = new Object();
 
@@ -121,6 +123,14 @@ class ProducerDataSource {
             }
         }
 
+        // Check to see if we need to end the warm-up period.
+        if (this.state.isWarmup() && operationIndex == this.config.getWarmupCount()) {
+            this.state.setWarmup(false);
+            synchronized (this.lock) {
+                this.lastCreatedTransaction = 0;
+            }
+        }
+
         // Attach operation completion callbacks (both for success and for failure).
         result.setCompletionCallback(this::operationCompletionCallback);
         result.setFailureCallback(this::operationFailureCallback);
@@ -173,7 +183,10 @@ class ProducerDataSource {
 
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
-            int id = -this.lastCreatedTransaction;
+            int id;
+            synchronized (this.lock) {
+                id = -this.lastCreatedTransaction;
+            }
             this.eventGenerators.put(transactionName, new EventGenerator(id, false));
         } else if (op.getType() == ProducerOperationType.APPEND) {
             this.state.recordAppend(op.getLength());

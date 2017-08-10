@@ -91,11 +91,14 @@ class Reporter extends AbstractScheduledService {
         this.lastReportTime.set(time);
         this.lastReportLength.set(producedLength);
 
+        String ops = this.testState.isWarmup()
+                ? "(warmup)"
+                : String.format("%s/%s", this.testState.getSuccessfulOperationCount(), this.testConfig.getOperationCount());
+
         TestLogger.log(
                 LOG_ID,
-                "Ops = %s/%s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
-                this.testState.getSuccessfulOperationCount(),
-                this.testConfig.getOperationCount(),
+                "Ops = %s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                ops,
                 toMB(producedLength),
                 toMB(this.testState.getVerifiedTailLength()),
                 toMB(this.testState.getVerifiedCatchupLength()),
@@ -120,20 +123,20 @@ class Reporter extends AbstractScheduledService {
      */
     void outputSummary() {
         TestLogger.log(LOG_ID, "Operation Summary");
-        outputRow("Operation Type", "Count", "LAvg", "L50", "L90", "L99", "L999");
+        outputRow("Operation Type", "Count", "LAvg", "L50", "L75", "L90", "L99", "L999");
         for (OperationType ot : TestState.SUMMARY_OPERATION_TYPES) {
             val durations = this.testState.getDurations(ot);
             if (durations == null || durations.count() == 0) {
                 continue;
             }
 
-            int[] percentiles = durations.percentiles(0.5, 0.9, 0.99, 0.999);
-            outputRow(ot, durations.count(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3]);
+            int[] percentiles = durations.percentiles(0.5, 0.75, 0.9, 0.99, 0.999);
+            outputRow(ot, durations.count(), (int) durations.average(), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4]);
         }
     }
 
-    private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l90, Object l99, Object l999) {
-        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l90, l99, l999);
+    private void outputRow(Object opType, Object count, Object lAvg, Object l50, Object l75, Object l90, Object l99, Object l999) {
+        TestLogger.log(LOG_ID, "%18s | %7s | %5s | %5s | %5s | %5s | %5s | %5s", opType, count, lAvg, l50, l75, l90, l99, l999);
     }
 
     private double toMB(double bytes) {

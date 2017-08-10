@@ -43,6 +43,7 @@ public class TestConfig {
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 100);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
+    static final Property<Integer> WARMUP_PERCENTAGE = Property.named("warmupPercentage", 10);
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
@@ -61,6 +62,8 @@ public class TestConfig {
 
     @Getter
     private final int operationCount;
+    @Getter
+    private final int warmupCount;
     @Getter
     private final int containerCount;
     @Getter
@@ -112,6 +115,7 @@ public class TestConfig {
      */
     private TestConfig(TypedProperties properties) throws ConfigurationException {
         this.operationCount = properties.getInt(OPERATION_COUNT);
+        this.warmupCount = (int) (this.operationCount * (properties.getInt(WARMUP_PERCENTAGE) / 100.0));
         this.containerCount = properties.getInt(CONTAINER_COUNT);
         this.streamCount = properties.getInt(STREAM_COUNT);
         this.segmentsPerStream = properties.getInt(SEGMENTS_PER_STREAM);

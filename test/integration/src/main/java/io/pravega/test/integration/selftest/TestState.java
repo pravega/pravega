@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -43,6 +44,7 @@ public class TestState {
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
     private static final int MAX_LATENCY_MILLIS = 30000;
 
+    private final AtomicBoolean warmup;
     private final AtomicInteger generatedOperationCount;
     private final AtomicInteger successfulOperationCount;
     private final AtomicLong producedLength;
@@ -64,6 +66,7 @@ public class TestState {
      * Creates a new instance of the TestState class.
      */
     TestState() {
+        this.warmup = new AtomicBoolean(false);
         this.generatedOperationCount = new AtomicInteger();
         this.successfulOperationCount = new AtomicInteger();
         this.allStreams = new ConcurrentHashMap<>();
@@ -77,7 +80,7 @@ public class TestState {
         this.durations = Collections.unmodifiableMap(
                 Arrays.stream(SUMMARY_OPERATION_TYPES)
                       .collect(Collectors.toMap(ot -> ot, ot -> new LatencyCollection(MAX_LATENCY_MILLIS))));
-        resetClock();
+        reset();
     }
 
     //endregion
@@ -85,7 +88,7 @@ public class TestState {
     //region Properties
 
     /**
-     * Gets the throughput since the last time resetClock() was called in Bytes/Second.
+     * Gets the throughput since the last time reset() was called in Bytes/Second.
      */
     double getThroughput() {
         double durationSeconds = (this.lastAppendTime.get() - this.startTimeNanos.get()) / NANOS_PER_SECOND;
@@ -230,11 +233,39 @@ public class TestState {
     //region Operations
 
     /**
-     * Resets the clock used for estimating Producing Throughput.
+     * Resets all statistics.
      */
-    void resetClock() {
+    private void reset() {
         this.startTimeNanos.set(System.nanoTime());
         this.lastAppendTime.set(this.startTimeNanos.get());
+        this.generatedOperationCount.set(0);
+        this.successfulOperationCount.set(0);
+        this.producedLength.set(0);
+        this.verifiedTailLength.set(0);
+        this.verifiedCatchupLength.set(0);
+        this.verifiedStorageLength.set(0);
+        this.durations.values().forEach(LatencyCollection::reset);
+    }
+
+    /**
+     * Sets whether the test is in a warm-up or not. If the new value is different from the current one, all TestState
+     * will be reset.
+     *
+     * @param value True if warm-up, false otherwise.
+     */
+    void setWarmup(boolean value) {
+        if (this.warmup.compareAndSet(!value, value)) {
+            reset();
+        }
+    }
+
+    /**
+     * Gets a value indicating whether the test is in a warp-up period.
+     *
+     * @return True if warmup, false otherwise.
+     */
+    boolean isWarmup() {
+        return this.warmup.get();
     }
 
     /**
@@ -460,6 +491,14 @@ public class TestState {
 
         private LatencyCollection(int maxLatencyMillis) {
             this.latencyCounts = new int[maxLatencyMillis + 1];
+        }
+
+        /**
+         * Resets this object to the initial state.
+         */
+        synchronized void reset() {
+            Arrays.fill(this.latencyCounts, 0);
+            this.size = 0;
         }
 
         /**
