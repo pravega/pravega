@@ -431,6 +431,16 @@ public class TableHelper {
     }
 
     /**
+     * Method to check if a scale operation is currently ongoing and has created a new epoch (presence of partial record).
+     * @param historyTable history table
+     * @return true if a scale operation is ongoing, false otherwise
+     */
+    public static boolean isPartialHistoryRecord(final byte[] historyTable) {
+        HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+        return latestHistoryRecord.isPartial();
+    }
+
+    /**
      * Method to check if no scale operation is currently ongoing and scale operation can be performed with given input.
      * @param segmentsToSeal segments to seal
      * @param historyTable history table
