@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
+import io.pravega.shared.metrics.MetricsConfig;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,6 +106,12 @@ public class SelfTestRunner {
                                   .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, bkWriteQuorum)
                                   .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, bkWriteQuorum));
+        if (testConfig.isMetricsEnabled()) {
+            b.include(MetricsConfig.builder()
+                    .with(MetricsConfig.ENABLE_STATISTICS, true)
+                    .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
+                    .with(MetricsConfig.CSV_ENDPOINT, testConfig.getComponentMetricsPath("segmentstore", 0)));
+        }
 
         return b.build();
     }
@@ -216,7 +223,8 @@ public class SelfTestRunner {
                     new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
                     new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
-                    new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT)));
+                    new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
+                    new Shortcut("metrics", TestConfig.METRICS_ENABLED)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);
         }

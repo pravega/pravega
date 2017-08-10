@@ -31,6 +31,9 @@ import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.shared.metrics.MetricsConfig;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
@@ -58,6 +61,7 @@ class SegmentStoreAdapter implements StoreAdapter {
     private static final String LOG_ID = SegmentStoreAdapter.class.getSimpleName();
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
+    private final ServiceBuilderConfig builderConfig;
     private final AtomicBoolean closed;
     private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
@@ -67,6 +71,8 @@ class SegmentStoreAdapter implements StoreAdapter {
     private Process bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
     private CuratorFramework zkClient;
+    private StatsProvider statsProvider;
+
 
     //endregion
 
@@ -81,7 +87,7 @@ class SegmentStoreAdapter implements StoreAdapter {
      */
     SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
-        Preconditions.checkNotNull(builderConfig, "builderConfig");
+        this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
         this.closed = new AtomicBoolean();
         this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
@@ -141,6 +147,12 @@ class SegmentStoreAdapter implements StoreAdapter {
                 this.zkClient = null;
             }
 
+            StatsProvider sp = this.statsProvider;
+            if (sp != null) {
+                sp.close();
+                this.statsProvider = null;
+            }
+
             this.closed.set(true);
             Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
             TestLogger.log(LOG_ID, "Closed.");
@@ -164,6 +176,12 @@ class SegmentStoreAdapter implements StoreAdapter {
     public void initialize() throws Exception {
         Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
         TestLogger.log(LOG_ID, "Initializing.");
+        if (this.config.isMetricsEnabled()) {
+            MetricsProvider.initialize(this.builderConfig.getConfig(MetricsConfig::builder));
+            this.statsProvider = MetricsProvider.getMetricsProvider();
+            this.statsProvider.start();
+        }
+
         if (this.config.getBookieCount() > 0) {
             this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.config, LOG_ID);
         }

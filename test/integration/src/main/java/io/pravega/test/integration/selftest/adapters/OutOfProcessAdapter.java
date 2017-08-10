@@ -23,6 +23,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
+import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.io.File;
@@ -214,7 +215,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     private Process startSegmentStore(int segmentStoreId) throws IOException {
         int port = this.testConfig.getSegmentStorePort(segmentStoreId);
-        Process p = ProcessStarter
+        ProcessStarter ps = ProcessStarter
                 .forClass(ServiceStarter.class)
                 .sysProp(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, getSegmentStoreConfigFilePath())
                 .sysProp(configProperty(ServiceConfig.COMPONENT_CODE, ServiceConfig.ZK_URL), getZkUrl())
@@ -224,9 +225,15 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .sysProp(configProperty(FileSystemStorageConfig.COMPONENT_CODE, FileSystemStorageConfig.ROOT), getSegmentStoreStoragePath())
                 .sysProp(configProperty(AutoScalerConfig.COMPONENT_CODE, AutoScalerConfig.CONTROLLER_URI), getControllerUrl())
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("segmentStore", segmentStoreId))))
-                .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))))
-                .start();
+                .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("segmentStore", segmentStoreId))));
+        if (this.testConfig.isMetricsEnabled()) {
+            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_STATISTICS), true);
+            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_CSV_REPORTER), true);
+            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.CSV_ENDPOINT),
+                    this.testConfig.getComponentMetricsPath("segmentstore", segmentStoreId));
+        }
 
+        Process p = ps.start();
         TestLogger.log(LOG_ID, "SegmentStore %d started (Port = %d).", segmentStoreId, port);
         return p;
     }

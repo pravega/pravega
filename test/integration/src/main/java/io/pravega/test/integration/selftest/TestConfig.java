@@ -44,6 +44,7 @@ public class TestConfig {
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
     static final Property<Integer> WARMUP_PERCENTAGE = Property.named("warmupPercentage", 10);
+    static final Property<Boolean> METRICS_ENABLED = Property.named("metrics", false);
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
     static final Property<Integer> SEGMENT_STORE_COUNT = Property.named("segmentStoreCount", 1);
@@ -52,7 +53,9 @@ public class TestConfig {
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
-    private static final String LOG_PATH_FORMAT = "/tmp/pravega/selftest.%s.log";
+    private static final String TEST_OUTPUT_PATH = "/tmp/pravega";
+    private static final String LOG_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.%s.log";
+    private static final String METRICS_PATH_FORMAT = TEST_OUTPUT_PATH + "/selftest.metrics.%s";
     private static final String COMPONENT_CODE = "selftest";
     public static final String CONFIG_FILE_PROPERTY_NAME = COMPONENT_CODE + ".configFile";
 
@@ -102,6 +105,8 @@ public class TestConfig {
     @Getter
     private final TestType testType;
     @Getter
+    private final boolean metricsEnabled;
+    @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
 
     //endregion
@@ -144,6 +149,7 @@ public class TestConfig {
         this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
         this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
+        this.metricsEnabled = properties.getBoolean(METRICS_ENABLED);
         checkOverlappingPorts();
     }
 
@@ -171,6 +177,17 @@ public class TestConfig {
      */
     public String getComponentErrLogPath(String componentName, int id) {
         return getLogPath(String.format("%s_%d.err", componentName, id));
+    }
+
+    /**
+     * Gets the path to a CSV file which can be used for writing Metrics for a specified component.
+     *
+     * @param componentName The name of the component.
+     * @param id            The Id of the component.
+     * @return The path.
+     */
+    public String getComponentMetricsPath(String componentName, int id) {
+        return String.format(METRICS_PATH_FORMAT, String.format("%s_%d", componentName, id));
     }
 
     /**
