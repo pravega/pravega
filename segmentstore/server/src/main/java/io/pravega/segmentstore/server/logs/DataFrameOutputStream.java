@@ -235,7 +235,7 @@ class DataFrameOutputStream extends OutputStream {
     @RequiredArgsConstructor
     @NotThreadSafe
     private static class BufferFactory {
-        private static final int DEFAULT_MIN_LENGTH = 8 * 1024;
+        private static final int MIN_LENGTH = 1024; // Min amount of space remaining in the buffer when trying to reuse it.
         private final SimpleMovingAverage lastBuffers = new SimpleMovingAverage(10);
         private final int maxLength;
         private byte[] current;
@@ -265,7 +265,7 @@ class DataFrameOutputStream extends OutputStream {
         void markUsed(int length) {
             this.currentUsed += length;
             this.lastBuffers.add(length);
-            int minLength = (int) this.lastBuffers.getAverage(DEFAULT_MIN_LENGTH);
+            int minLength = (int) Math.max(MIN_LENGTH, this.lastBuffers.getAverage(0));
 
             if (this.current != null && (this.current.length - this.currentUsed < minLength)) {
                 this.current = null;
