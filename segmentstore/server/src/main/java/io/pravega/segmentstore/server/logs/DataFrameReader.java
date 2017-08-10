@@ -496,7 +496,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
 
             DataFrame frame;
             try {
-                frame = new DataFrame(nextItem.getPayload(), nextItem.getLength());
+                frame = DataFrame.from(nextItem.getPayload(), nextItem.getLength());
                 frame.setAddress(nextItem.getAddress());
             } catch (SerializationException ex) {
                 throw new DataCorruptionException(String.format("Unable to deserialize DataFrame. LastReadFrameSequence =  %d.",
