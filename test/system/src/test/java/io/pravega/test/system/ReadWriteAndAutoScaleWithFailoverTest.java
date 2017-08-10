@@ -98,6 +98,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
     @After
     public void tearDown() {
+        testState.stopReadFlag.set(true);
+        testState.stopWriteFlag.set(true);
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
