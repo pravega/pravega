@@ -194,9 +194,7 @@ public class ZkStreamTest {
         try {
             store.getScopeConfiguration(scope2).get();
         } catch (ExecutionException e) {
-            assertTrue("Get non existent scope", e.getCause() instanceof StoreException);
-            assertTrue("Get non existent scope",
-                    ((StoreException) e.getCause()).getType() == StoreException.Type.DATA_NOT_FOUND);
+            assertTrue("Get non existent scope", e.getCause() instanceof StoreException.DataNotFoundException);
         }
     }
 
@@ -218,6 +216,7 @@ public class ZkStreamTest {
 
     @Test
     public void testZkStream() throws Exception {
+        double keyChunk = 1.0 / 5;
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -248,7 +247,7 @@ public class ZkStreamTest {
 
         // 3, 4 -> 5 = .6 - 1.0
         newRanges = Collections.singletonList(
-                new AbstractMap.SimpleEntry<>(0.6, 1.0));
+                new AbstractMap.SimpleEntry<>(3 * keyChunk, 1.0));
 
         long scale1 = start + 10000;
         ArrayList<Integer> sealedSegments = Lists.newArrayList(3, 4);
@@ -264,9 +263,9 @@ public class ZkStreamTest {
         // 1 -> 6 = 0.2 -.3, 7 = .3 - .4
         // 2,5 -> 8 = .4 - 1.0
         newRanges = Arrays.asList(
-                new AbstractMap.SimpleEntry<>(0.2, 0.3),
-                new AbstractMap.SimpleEntry<>(0.3, 0.4),
-                new AbstractMap.SimpleEntry<>(0.4, 1.0));
+                new AbstractMap.SimpleEntry<>(keyChunk, 0.3),
+                new AbstractMap.SimpleEntry<>(0.3, 2 * keyChunk),
+                new AbstractMap.SimpleEntry<>(2 * keyChunk, 1.0));
 
         long scale2 = scale1 + 10000;
         ArrayList<Integer> sealedSegments1 = Lists.newArrayList(1, 2, 5);
@@ -283,8 +282,8 @@ public class ZkStreamTest {
         // 8 -> 10 = .35 - .6, 11 = .6 - 1.0
         newRanges = Arrays.asList(
                 new AbstractMap.SimpleEntry<>(0.3, 0.35),
-                new AbstractMap.SimpleEntry<>(0.35, 0.6),
-                new AbstractMap.SimpleEntry<>(0.6, 1.0));
+                new AbstractMap.SimpleEntry<>(0.35, 3 * keyChunk),
+                new AbstractMap.SimpleEntry<>(3 * keyChunk, 1.0));
 
         long scale3 = scale2 + 10000;
         ArrayList<Integer> sealedSegments2 = Lists.newArrayList(7, 8);

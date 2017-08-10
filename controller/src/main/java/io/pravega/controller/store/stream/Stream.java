@@ -50,7 +50,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<Boolean> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
 
     /**
      * Deletes an already SEALED stream.
@@ -136,8 +136,9 @@ interface Stream {
 
     /**
      * Returns the active segments in the specified epoch.
-     * @param epoch epoch number
-     * @return currently active stream epoch.
+     *
+     * @param epoch epoch number.
+     * @return list of numbers of segments active in the specified epoch.
      */
     CompletableFuture<List<Integer>> getActiveSegments(int epoch);
 
@@ -233,11 +234,11 @@ interface Stream {
     /**
      * Heartbeat method to keep transaction open for at least lease amount of time.
      *
-     * @param txId  Transaction identifier.
+     * @param txnData Transaction data.
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final UUID txId, final long lease);
+    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -256,8 +257,8 @@ interface Stream {
      * @return        a pair containing transaction status and its epoch.
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
-                                                                                   final boolean commit,
-                                                                                   final Optional<Integer> version);
+                                                                       final boolean commit,
+                                                                       final Optional<Integer> version);
 
     /**
      * Returns transaction's status
@@ -307,9 +308,11 @@ interface Stream {
 
     /**
      * Returns the currently active stream epoch.
+     *
+     * @param ignoreCached if ignore cache is set to true then fetch the value from the store. 
      * @return currently active stream epoch.
      */
-    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch();
+    CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

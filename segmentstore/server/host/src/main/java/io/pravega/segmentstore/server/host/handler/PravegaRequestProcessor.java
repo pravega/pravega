@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -370,6 +371,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof WrongHostException) {
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
+        }  else if (u instanceof ContainerNotFoundException) {
+            connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
             log.info("Closing connection due to: ", u.getMessage());
             connection.close();

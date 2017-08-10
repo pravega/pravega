@@ -13,7 +13,6 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionInternal;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
-import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
@@ -110,7 +109,7 @@ public class ConcurrentEventProcessorTest {
 
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        EventProcessor.Writer<TestEvent> writer = event -> new AckFutureMock(CompletableFuture.completedFuture(true));
+        EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
 
         EventProcessor.Checkpointer checkpointer = pos -> {
             checkpoint.set(((TestPosition) pos).getNumber());
@@ -167,7 +166,7 @@ public class ConcurrentEventProcessorTest {
             } else {
                 writerTest.completeExceptionally(new RuntimeException());
             }
-            return new AckFutureMock(CompletableFuture.completedFuture(true));
+            return CompletableFuture.completedFuture(null);
         };
 
         // process throwing retryable exception. Verify that event is written back and checkpoint has moved forward
@@ -198,7 +197,7 @@ public class ConcurrentEventProcessorTest {
 
         EventProcessor.Writer<TestEvent> writer = event -> {
             writerTest.complete(null);
-            return new AckFutureMock(CompletableFuture.completedFuture(true));
+            return CompletableFuture.completedFuture(null);
         };
 
         // process throwing non retryable exception. Verify that no event is written back while the checkpoint has moved forward
@@ -224,7 +223,7 @@ public class ConcurrentEventProcessorTest {
         EventProcessor.Writer<TestEvent> writer = event -> {
             if (counter.incrementAndGet() > 3) {
                 writerTest.complete(null);
-                return new AckFutureMock(CompletableFuture.completedFuture(true));
+                return CompletableFuture.completedFuture(null);
             }
             throw new RetryableTestException();
         };

@@ -575,6 +575,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @throws IllegalArgumentException If the parameters are invalid (offset, length or offset+length are not in the Segment's range).
      */
     InputStream readDirect(long startOffset, int length) {
+        Exceptions.checkNotClosed(this.closed, this);
+        Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
         Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(), "startOffset must refer to an offset beyond the Segment's StorageLength offset.");
         Preconditions.checkArgument(startOffset + length <= this.metadata.getDurableLogLength(), "startOffset+length must be less than the length of the Segment.");

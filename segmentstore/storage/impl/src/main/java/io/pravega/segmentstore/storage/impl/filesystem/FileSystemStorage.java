@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.filesystem;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -28,6 +29,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
@@ -40,6 +42,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.AccessControlException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -213,6 +216,7 @@ public class FileSystemStorage implements Storage {
 
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
+        Timer timer = new Timer();
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
 
@@ -224,13 +228,17 @@ public class FileSystemStorage implements Storage {
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
             int bytesRead = 0;
+            long totalBytesRead = 0;
 
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
                 bytesRead = channel.read(readBuffer, offset);
                 bufferOffset += bytesRead;
+                totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
+            Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+            Metrics.READ_BYTES.add(totalBytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -272,6 +280,7 @@ public class FileSystemStorage implements Storage {
     private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length)
             throws IOException, StreamSegmentSealedException, BadOffsetException {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
+        Timer timer = new Timer();
 
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException("Write called on a readonly handle of segment "
@@ -290,14 +299,18 @@ public class FileSystemStorage implements Storage {
         if (fileSize < offset) {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
+            long totalBytesWritten = 0;
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
                  ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
                 while (length != 0) {
                     long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
                     offset += bytesWritten;
+                    totalBytesWritten += bytesWritten;
                     length -= bytesWritten;
                 }
             }
+            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+            Metrics.WRITE_BYTES.add(totalBytesWritten);
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }
@@ -398,7 +411,9 @@ public class FileSystemStorage implements Storage {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 
-        if (e instanceof AccessDeniedException) {
+        if (e instanceof AccessControlException
+                || e instanceof AccessDeniedException
+                || e instanceof NonWritableChannelException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
 

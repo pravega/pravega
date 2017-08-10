@@ -26,8 +26,8 @@ public class EventWriterConfig implements Serializable {
 
     public static final class EventWriterConfigBuilder {
         private int initalBackoffMillis = 1;
-        private int maxBackoffMillis = 60000;
-        private int retryAttempts = 5;
+        private int maxBackoffMillis = 20000;
+        private int retryAttempts = 10;
         private int backoffMultiple = 10;
     }
     

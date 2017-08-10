@@ -9,13 +9,15 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -171,7 +173,7 @@ public abstract class StreamMetadataStoreTest {
         // Delete a deleted stream, should fail with node not found error.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
 
         // Delete other stream from the scope.
         assertNull(store.deleteStream(scope, stream2, null, executor).join());
@@ -185,7 +187,7 @@ public abstract class StreamMetadataStoreTest {
         // Deleting non-existing stream should return null.
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.deleteStream(scope, "nonExistent", null, executor),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
         // endregion
     }
 
@@ -207,9 +209,10 @@ public abstract class StreamMetadataStoreTest {
             store.listStreamsInScope("Scope1").join();
         } catch (StoreException se) {
             assertTrue("List streams in non-existent scope Scope1",
-                    se.getType() == StoreException.Type.DATA_NOT_FOUND);
+                    se instanceof StoreException.DataNotFoundException);
         } catch (CompletionException ce) {
-            checkStoreExceptionType(ce.getCause(), StoreException.Type.DATA_NOT_FOUND);
+            assertTrue("List streams in non-existent scope Scope1",
+                    ce.getCause() instanceof StoreException.DataNotFoundException);
         }
     }
 
@@ -247,7 +250,65 @@ public abstract class StreamMetadataStoreTest {
         // get non-existent scope
         AssertExtensions.assertThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
-                (Throwable t) -> checkStoreExceptionType(t, StoreException.Type.DATA_NOT_FOUND));
+                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
+    }
+
+    @Test
+    public void txnHostIndexTest() {
+        String host1 = "host1";
+        String host2 = "host2";
+
+        TxnResource txn1 = new TxnResource(scope, stream1, UUID.randomUUID());
+        TxnResource txn2 = new TxnResource(scope, stream1, UUID.randomUUID());
+
+        addTxnToHost(host1, txn1, 0);
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+        Optional<TxnResource> txn = store.getRandomTxnFromIndex(host1).join();
+        Assert.assertTrue(txn.isPresent());
+        Assert.assertEquals(txn1.getTxnId().toString(), txn.get().getTxnId().toString());
+
+        // Adding a txn again should not fail.
+        addTxnToHost(host1, txn1, 0);
+        addTxnToHost(host1, txn2, 5);
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+
+        // Fetching version of txn not existing in the index should return null.
+        Assert.assertNull(store.getTxnVersionFromIndex(host1, new TxnResource(scope, stream1, UUID.randomUUID())).join());
+
+        txn = store.getRandomTxnFromIndex(host1).join();
+        Assert.assertTrue(txn.isPresent());
+        UUID randomTxnId = txn.get().getTxnId();
+        Assert.assertTrue(randomTxnId.equals(txn1.getTxnId()) || randomTxnId.equals(txn2.getTxnId()));
+        Assert.assertEquals(scope, txn.get().getScope());
+        Assert.assertEquals(stream1, txn.get().getStream());
+
+        // Test remove txn from index.
+        store.removeTxnFromIndex(host1, txn1, true).join();
+        // Test remove is idempotent operation.
+        store.removeTxnFromIndex(host1, txn1, true).join();
+        // Test remove last txn from the index.
+        store.removeTxnFromIndex(host1, txn2, false).join();
+        Assert.assertEquals(1, store.listHostsOwningTxn().join().size());
+        // Test remove is idempotent operation.
+        store.removeTxnFromIndex(host1, txn2, true).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test removal of txn that was never added.
+        store.removeTxnFromIndex(host1, new TxnResource(scope, stream1, UUID.randomUUID()), true).join();
+
+        // Test host removal.
+        store.removeHostFromIndex(host1).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test host removal is idempotent.
+        store.removeHostFromIndex(host1).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+        // Test removal of host that was never added.
+        store.removeHostFromIndex(host2).join();
+        Assert.assertEquals(0, store.listHostsOwningTxn().join().size());
+    }
+
+    private void addTxnToHost(String host, TxnResource txnResource, int version) {
+        store.addTxnToIndex(host, txnResource, version).join();
+        Assert.assertEquals(version, store.getTxnVersionFromIndex(host, txnResource).join().intValue());
     }
 
     @Test
@@ -306,13 +367,13 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
 
         // rerun  -- illegal state exception
         AssertExtensions.assertThrows("", () ->
                         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof IllegalStateException);
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
 
         // rerun start scale -- should fail with precondition failure
         AssertExtensions.assertThrows("", () ->
@@ -364,6 +425,41 @@ public abstract class StreamMetadataStoreTest {
                 e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
         // endregion
+    }
+
+    @Test
+    public void updateTest() throws Exception {
+        final String scope = "ScopeUpdate";
+        final String stream = "StreamUpdate";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // region idempotent
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        // run update configuration multiple times
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        assertEquals(State.UPDATING, store.getState(scope, stream, null, executor).get());
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // set state to updating and run update configuration
+        store.setState(scope, stream, State.UPDATING, null, executor).get();
+        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        // endregion
+
+        store.setState(scope, stream, State.SCALING, null, executor).get();
+        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, configuration2, null, executor).get(),
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
     }
 
     @Test
@@ -430,10 +526,6 @@ public abstract class StreamMetadataStoreTest {
 
         deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
         assertEquals(false, deleteResponse.isDeleted());
-    }
-
-    private boolean checkStoreExceptionType(Throwable t, StoreException.Type type) {
-        return t instanceof StoreException && ((StoreException) t).getType() == type;
     }
 }
 

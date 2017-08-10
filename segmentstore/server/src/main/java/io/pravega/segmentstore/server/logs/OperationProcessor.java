@@ -171,8 +171,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * failed, it will contain the exception that caused the failure.
      * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
-    public CompletableFuture<Long> process(Operation operation) {
-        CompletableFuture<Long> result = new CompletableFuture<>();
+    public CompletableFuture<Void> process(Operation operation) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         if (!isRunning()) {
             result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
         } else {

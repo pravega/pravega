@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -161,7 +161,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                     // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
                     // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
                     context.writer.startAsync().awaitRunning();
-                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                    ServiceListeners.awaitShutdown(context.writer, TIMEOUT, true);
                 },
                 ex -> ex instanceof IllegalStateException);
 
@@ -169,7 +169,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         // we should wait until the writer is properly terminated.
         AssertExtensions.assertThrows(
                 "StorageWriter did not fail when a fatal data retrieval error occurred.",
-                () -> ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true),
+                () -> ServiceListeners.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
@@ -247,11 +247,11 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                     // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
                     // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
                     context.writer.startAsync().awaitRunning();
-                    ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, true);
+                    ServiceListeners.awaitShutdown(context.writer, TIMEOUT, true);
                 },
                 ex -> ex instanceof IllegalStateException);
 
-        ServiceShutdownListener.awaitShutdown(context.writer, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
         Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
 

@@ -9,8 +9,8 @@
  */
 package io.pravega.client.state;
 
+import io.pravega.client.stream.EventWriterConfig;
 import java.io.Serializable;
-
 import lombok.Builder;
 import lombok.Data;
 
@@ -21,5 +21,9 @@ import lombok.Data;
 @Builder
 public class SynchronizerConfig implements Serializable {
 
+    EventWriterConfig eventWriterConfig;
     
+    public static class SynchronizerConfigBuilder {
+        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().build();
+    }
 }

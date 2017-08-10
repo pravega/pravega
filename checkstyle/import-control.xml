@@ -26,6 +26,7 @@
     <allow pkg="com.typesafe.config"/>
     <allow pkg="org.rocksdb"/>
     <allow pkg="com.codahale"/>
+    <allow pkg="com.emc.object"/>
     <allow pkg="com.readytalk"/>
     <allow pkg="org.glassfish.jersey"/>
     <allow pkg="javax.ws.rs"/>
@@ -37,7 +38,13 @@
     <allow pkg="feign"/>
     <allow pkg="io.grpc" />
     <allow pkg="info.ganglia" />
+<<<<<<< HEAD
     <allow pkg="com.spotify" />
     <allow pkg="org.hamcrest.core" />
+=======
+    <allow pkg="org.gaul.s3proxy" />
+    <allow pkg="org.jclouds" />
+    <allow pkg="org.glassfish.grizzly" />
+>>>>>>> dcebf98fc3fdd5040d3d9970218f468bd6ab9c7a
 
 </import-control>

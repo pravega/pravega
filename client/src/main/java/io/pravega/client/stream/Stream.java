@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream;
 
+import java.io.Serializable;
+
 /**
  * A stream can be thought of as an unbounded sequence of events.
  * A stream can be written to or read from.
@@ -18,7 +20,7 @@ package io.pravega.client.stream;
  * Strongly Consistent (Events are either in the stream or they are not, and not subject to reordering once written)
  * Scalable (The rate of events in a stream can greatly exceed the capacity of any single host)
  */
-public interface Stream {
+public interface Stream extends Serializable {
     /**
      * Gets the scope of this stream.
      *

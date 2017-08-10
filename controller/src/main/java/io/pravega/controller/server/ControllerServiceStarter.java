@@ -17,6 +17,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.controller.fault.ControllerClusterListener;
+import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -34,9 +35,8 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -46,7 +46,8 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -70,7 +71,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
-    private TimeoutService timeoutService;
     private ControllerService controllerService;
 
     private LocalController localController;
@@ -145,9 +145,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, taskMetadataStore, segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
-            timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                    serviceConfig.getTimeoutServiceConfig());
+                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -156,22 +154,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Moreover, on controller process startup, it detects any hostIds not in the currently active set of
             // controllers and starts sweeping tasks orphaned by those hostIds.
             TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, host.getHostId(), controllerExecutor,
-                    streamMetadataTasks, streamTransactionMetadataTasks);
+                    streamMetadataTasks);
 
-            // Setup and start controller cluster listener.
+            TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
+                    serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
+
             if (serviceConfig.isControllerClusterListenerEnabled()) {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
-                controllerClusterListener = new ControllerClusterListener(host, cluster,
-                        Optional.ofNullable(controllerEventProcessors),
-                        taskSweeper, controllerExecutor);
-
-                log.info("Starting controller cluster listener");
-                controllerClusterListener.startAsync();
             }
 
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, timeoutService, new SegmentHelper(), controllerExecutor,
-                    cluster);
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService));
@@ -186,6 +179,22 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Starting event processors");
                 controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
+            }
+
+            // Setup and start controller cluster listener after all sweepers have been initialized.
+            if (serviceConfig.isControllerClusterListenerEnabled()) {
+                List<FailoverSweeper> failoverSweepers = new ArrayList<>();
+                failoverSweepers.add(taskSweeper);
+                failoverSweepers.add(txnSweeper);
+                if (serviceConfig.getEventProcessorConfig().isPresent()) {
+                    assert controllerEventProcessors != null;
+                    failoverSweepers.add(controllerEventProcessors);
+                }
+
+                controllerClusterListener = new ControllerClusterListener(host, cluster, controllerExecutor, failoverSweepers);
+
+                log.info("Starting controller cluster listener");
+                controllerClusterListener.startAsync();
             }
 
             // Start RPC server.
@@ -245,7 +254,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerClusterListener.stopAsync();
                 log.info("Controller cluster listener shutdown");
             }
-            timeoutService.stopAsync();
 
             log.info("Closing stream metadata tasks");
             streamMetadataTasks.close();

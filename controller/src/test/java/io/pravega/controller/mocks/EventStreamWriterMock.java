@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.mocks;
 
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -30,15 +29,15 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     BlockingQueue<T> eventList = new LinkedBlockingQueue<>();
 
     @Override
-    public AckFuture writeEvent(T event) {
+    public CompletableFuture<Void> writeEvent(T event) {
         eventList.add(event);
-        return new AckFutureMock(CompletableFuture.completedFuture(true));
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public AckFuture writeEvent(String routingKey, T event) {
+    public CompletableFuture<Void> writeEvent(String routingKey, T event) {
         eventList.add(event);
-        return new AckFutureMock(CompletableFuture.completedFuture(true));
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

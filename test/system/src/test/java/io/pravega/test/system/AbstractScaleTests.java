@@ -10,42 +10,36 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.client.stream.impl.ControllerImpl;
-import lombok.extern.slf4j.Slf4j;
-
 import java.net.URI;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Abstract scale tests. This contains all the common methods used for auto scale related tests.
  */
 @Slf4j
 abstract class AbstractScaleTests {
-    private final AtomicReference<ClientFactory> clientFactoryRef = new AtomicReference<>();
-    private final AtomicReference<ControllerImpl> controllerRef = new AtomicReference<>();
+    protected final static String SCOPE = "testAutoScale" + new Random().nextInt(Integer.MAX_VALUE);
+    @Getter(lazy = true)
+    private final URI controllerURI = createControllerURI();
+    @Getter(lazy = true)
+    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+    @Getter(lazy = true)
+    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI()));
+    @Getter(lazy = true)
+    private final ControllerImpl controller = new ControllerImpl(getControllerURI());
 
-    ClientFactory getClientFactory(final String scope) {
-        if (clientFactoryRef.get() == null) {
-            clientFactoryRef.set(ClientFactory.withScope(scope, getControllerURI()));
-        }
-        return clientFactoryRef.get();
-    }
-
-    ControllerImpl getController(final URI controllerUri) {
-        if (controllerRef.get() == null) {
-            log.debug("Controller uri: {}", controllerUri);
-
-            controllerRef.set(new ControllerImpl(controllerUri));
-        }
-        return controllerRef.get();
-    }
-
-    URI getControllerURI() {
+    private URI createControllerURI() {
         Service conService = new PravegaControllerService("controller", null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);

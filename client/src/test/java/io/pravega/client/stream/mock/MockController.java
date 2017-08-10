@@ -18,8 +18,10 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -49,6 +51,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -137,7 +140,18 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+    public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CancellableRequest<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
+                                                   ScheduledExecutorService executor) {
+        throw new NotImplementedException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkScaleStatus(Stream stream, int epoch) {
         throw new NotImplementedException();
     }
 
@@ -386,6 +400,11 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(Collections.emptyMap()));
+    }
+
+    @Override
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+        throw new NotImplementedException();
     }
 
     @Override

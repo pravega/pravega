@@ -35,7 +35,8 @@ public class ConfigTest {
         Assert.assertEquals("localhost:2181", Config.ZK_URL);
         Assert.assertEquals(100, Config.ZK_RETRY_SLEEP_MS);
         Assert.assertEquals(5, Config.ZK_MAX_RETRIES);
-        Assert.assertEquals("localhost", Config.REST_SERVER_IP);
+        Assert.assertEquals(10 * 1000, Config.ZK_SESSION_TIMEOUT_MS);
+        Assert.assertEquals("0.0.0.0", Config.REST_SERVER_IP);
         Assert.assertEquals(9091, Config.REST_SERVER_PORT);
         Assert.assertEquals(30000, Config.MAX_LEASE_VALUE);
         Assert.assertEquals(30000, Config.MAX_SCALE_GRACE_PERIOD);

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
@@ -23,6 +22,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -318,7 +318,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 super::isExpectedExceptionForNonDataCorruption);
 
         // Wait for the OperationProcessor to shutdown with failure.
-        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
         Assert.assertEquals("Expected the OperationProcessor to fail after DurableDataLogException encountered.",
                 Service.State.FAILED, operationProcessor.state());
 
@@ -367,7 +367,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
                 ex -> ex instanceof IOException || ex instanceof DataLogWriterNotPrimaryException);
 
         // Verify that the OperationProcessor automatically shuts down and that it has the right failure cause.
-        ServiceShutdownListener.awaitShutdown(operationProcessor, TIMEOUT, false);
+        ServiceListeners.awaitShutdown(operationProcessor, TIMEOUT, false);
         Assert.assertEquals("OperationProcessor is not in a failed state after fence-out detected.",
                 Service.State.FAILED, operationProcessor.state());
         Assert.assertTrue("OperationProcessor did not fail with the correct exception.",
@@ -420,7 +420,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Wait for the store to fail (and make sure it failed).
         AssertExtensions.assertThrows(
                 "Operation Processor did not shut down with failure.",
-                () -> ServiceShutdownListener.awaitShutdown(operationProcessor, true),
+                () -> ServiceListeners.awaitShutdown(operationProcessor, true),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected service state after encountering DataCorruptionException.", Service.State.FAILED, operationProcessor.state());
 
@@ -573,10 +573,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
             Operation expectedOp = oc.operation;
-            long currentSeqNo = oc.completion.join();
-            Assert.assertEquals("Operation and its corresponding Completion Future have different Sequence Numbers.", currentSeqNo, expectedOp.getSequenceNumber());
-            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, currentSeqNo);
-            lastSeqNo = currentSeqNo;
+            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
+            lastSeqNo = expectedOp.getSequenceNumber();
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from MemoryLog. Expected: " + expectedOp, memoryLogIterator.hasNext());
