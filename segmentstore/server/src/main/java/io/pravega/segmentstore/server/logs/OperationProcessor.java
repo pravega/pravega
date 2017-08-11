@@ -43,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final QueueProcessingState state;
     @GuardedBy("stateLock")
     private final DataFrameBuilder<Operation> dataFrameBuilder;
+    @Getter
     private final Metrics.OperationProcessor metrics;
 
     //endregion
@@ -213,7 +215,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
         int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
         delayMillis = Math.min(delayMillis, 1000);
-        this.metrics.delay(delayMillis);
+        this.metrics.processingDelay(delayMillis);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
@@ -288,7 +290,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             }
 
-            this.metrics.report(this.operationQueue.size(), this.state.getPendingCount(), firstOperationWaitNanos / AbstractTimer.NANOS_TO_MILLIS);
+            this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount(), firstOperationWaitNanos / AbstractTimer.NANOS_TO_MILLIS);
         }
     }
 
@@ -532,7 +534,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
 
-                Metrics.operationLogAdd(count);
+                metrics.operationLogAdd(count);
+                metrics.operationsCompleted(toComplete);
+                metrics.operationsFailed(toFail.keySet());
             }
         }
 

@@ -25,7 +25,6 @@ import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
-import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -247,7 +246,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
-                    Metrics.operationLogTruncate(count);
+                    this.operationProcessor.getMetrics().operationLogTruncate(count);
                 }, this.executor);
     }
 
@@ -317,7 +316,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Reset metadata.
         this.metadata.reset();
-        Metrics.operationLogInit();
+        this.operationProcessor.getMetrics().operationLogInit();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
@@ -342,7 +341,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
-        Metrics.operationLogAdd(recoveredItemCount);
+        this.operationProcessor.getMetrics().operationLogAdd(recoveredItemCount);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         return recoveredItemCount > 0;
     }

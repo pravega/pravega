@@ -11,13 +11,15 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.AbstractTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
+import java.util.Collection;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -28,23 +30,6 @@ import java.util.concurrent.TimeUnit;
 public final class Metrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final Counter OPERATION_LOG_SIZE = STATS_LOGGER.createCounter(MetricsNames.OPERATION_LOG_SIZE);
-
-    //region OperationLog
-
-    public static void operationLogAdd(int count) {
-        OPERATION_LOG_SIZE.add(count);
-    }
-
-    public static void operationLogTruncate(int count) {
-        OPERATION_LOG_SIZE.add(-count);
-    }
-
-    public static void operationLogInit() {
-        OPERATION_LOG_SIZE.clear();
-    }
-
-    //endregion
 
     //region CacheManager
 
@@ -107,22 +92,52 @@ public final class Metrics {
         private final OpStatsLogger operationsInFlight;
         private final OpStatsLogger operationQueueWaitTime;
         private final OpStatsLogger operationProcessorDelay;
+        private final OpStatsLogger operationCompleted;
+        private final String operationLogSize;
 
         public OperationProcessor(int containerId) {
             this.operationQueueSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_SIZE, containerId));
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, containerId));
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
+            this.operationCompleted = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
+            this.operationLogSize = MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
 
-        public void report(int queueSize, int inFlightCount, long queueWaitTimeMillis) {
+        public void currentState(int queueSize, int inFlightCount, long queueWaitTimeMillis) {
             this.operationQueueSize.reportSuccessValue(queueSize);
             this.operationsInFlight.reportSuccessValue(inFlightCount);
             this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
-        public void delay(int millis) {
+        public void processingDelay(int millis) {
             this.operationProcessorDelay.reportSuccessValue(millis);
+        }
+
+        public void operationLogAdd(int count) {
+            DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, count);
+        }
+
+        public void operationLogTruncate(int count) {
+            DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, -count);
+        }
+
+        public void operationLogInit() {
+            DYNAMIC_LOGGER.updateCounterValue(this.operationLogSize, 0);
+        }
+
+        public void operationsCompleted(Collection<CompletableOperation> operations) {
+            if (operations.size() > 0) {
+                long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
+                this.operationCompleted.reportSuccessValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
+            }
+        }
+
+        public void operationsFailed(Collection<CompletableOperation> operations) {
+            if (operations.size() > 0) {
+                long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
+                this.operationCompleted.reportFailValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
+            }
         }
     }
 
