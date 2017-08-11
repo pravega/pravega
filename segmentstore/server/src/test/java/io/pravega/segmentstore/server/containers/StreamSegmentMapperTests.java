@@ -363,9 +363,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         };
         val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
-                ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
+                ex -> ex instanceof TooManyActiveSegmentsException);
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
         Assert.assertTrue("Cleanup was not invoked.", cleanupInvoked.get());
 
@@ -373,9 +373,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         exceptionCounter.set(0);
         cleanupInvoked.set(false);
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a transaction to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
-                ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
+                ex -> ex instanceof TooManyActiveSegmentsException);
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
         Assert.assertTrue("Cleanup was not invoked.", cleanupInvoked.get());
 
