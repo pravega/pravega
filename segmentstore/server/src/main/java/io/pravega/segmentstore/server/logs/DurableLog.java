@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.LogItemFactory;
+import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -242,10 +243,11 @@ public class DurableLog extends AbstractService implements OperationLog {
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
+                    int count = this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
+                    Metrics.operationLogTruncate(count);
                 }, this.executor);
     }
 
@@ -315,18 +317,19 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Reset metadata.
         this.metadata.reset();
+        Metrics.operationLogInit();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean successfulRecovery = false;
-        boolean anyItemsRecovered;
+        int recoveredItemCount;
         try {
             try {
                 this.durableDataLog.initialize(timer.getRemaining());
-                anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+                recoveredItemCount = recoverFromDataFrameLog(metadataUpdater);
                 this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), recoveredItemCount);
                 successfulRecovery = true;
             } finally {
                 // We must exit recovery mode when done, regardless of outcome.
@@ -339,8 +342,9 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
+        Metrics.operationLogAdd(recoveredItemCount);
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
-        return anyItemsRecovered;
+        return recoveredItemCount > 0;
     }
 
     /**
@@ -351,9 +355,9 @@ public class DurableLog extends AbstractService implements OperationLog {
      * been built up using the Operations up to them).
      *
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
-     * @return True if any operations were recovered, false otherwise.
+     * @return The number of Operations recovered.
      */
-    private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
+    private int recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverFromDataFrameLog");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -399,7 +403,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
         metadataUpdater.commitAll();
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
-        return recoveredItemCount > 0;
+        return recoveredItemCount;
     }
 
     private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {

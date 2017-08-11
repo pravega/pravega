@@ -40,9 +40,10 @@ public final class MetricsNames {
     public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
     public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
     public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "operation_processor_delay_ms";
+    public static final String OPERATION_LOG_SIZE = "operation_log_size";
     public static final String ACTIVE_SEGMENT_COUNT = "active_segments";
     public static final String THREAD_POOL_QUEUE_SIZE = "thread_pool_queue_size";
-    public static final String THREAD_POOL_USED_THREADS = "thread_pool_used_threads";
+    public static final String THREAD_POOL_ACTIVE_THREADS = "thread_pool_active_threads";
 
     // Metrics in Controller
     // Stream request counts (Static)

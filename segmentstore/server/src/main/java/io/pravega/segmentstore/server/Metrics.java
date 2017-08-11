@@ -13,8 +13,11 @@ package io.pravega.segmentstore.server;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.OpStatsLogger;
+import io.pravega.shared.metrics.StatsLogger;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -23,19 +26,58 @@ import java.util.concurrent.TimeUnit;
  * General Metrics for the SegmentStore.
  */
 public final class Metrics {
-    private static final DynamicLogger LOGGER = MetricsProvider.getDynamicLogger();
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+    private static final Counter OPERATION_LOG_SIZE = STATS_LOGGER.createCounter(MetricsNames.OPERATION_LOG_SIZE);
 
-    public static void cacheStats(long totalBytes, int generationSpread) {
-        LOGGER.reportGaugeValue(MetricsNames.CACHE_TOTAL_SIZE_BYTES, totalBytes);
-        LOGGER.reportGaugeValue(MetricsNames.CACHE_GENERATION_SPREAD, generationSpread);
+    //region OperationLog
+
+    public static void operationLogAdd(int count) {
+        OPERATION_LOG_SIZE.add(count);
     }
 
+    public static void operationLogTruncate(int count) {
+        OPERATION_LOG_SIZE.add(-count);
+    }
+
+    public static void operationLogInit() {
+        OPERATION_LOG_SIZE.clear();
+    }
+
+    //endregion
+
+    //region CacheManager
+
+    /**
+     * CacheManager metrics.
+     */
+    public final static class CacheManager {
+        private final OpStatsLogger totalSize = STATS_LOGGER.createStats(MetricsNames.CACHE_TOTAL_SIZE_BYTES);
+        private final OpStatsLogger generationSpread = STATS_LOGGER.createStats(MetricsNames.CACHE_GENERATION_SPREAD);
+
+        public void report(long totalBytes, int generationSpread) {
+            this.totalSize.reportSuccessValue(totalBytes);
+            this.generationSpread.reportSuccessValue(generationSpread);
+        }
+    }
+
+    //endregion
+
+    //region ThreadPool
+
+    /**
+     * SegmentStore ThreadPool metrics.
+     */
     public final static class ThreadPool implements AutoCloseable {
+        private final OpStatsLogger queueSize;
+        private final OpStatsLogger activeThreads;
         private final ScheduledExecutorService executor;
         private final ScheduledFuture<?> reporter;
 
         public ThreadPool(ScheduledExecutorService executor) {
             this.executor = Preconditions.checkNotNull(executor, "executor");
+            this.queueSize = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_QUEUE_SIZE);
+            this.activeThreads = STATS_LOGGER.createStats(MetricsNames.THREAD_POOL_ACTIVE_THREADS);
             this.reporter = executor.scheduleWithFixedDelay(this::report, 1000, 1000, TimeUnit.MILLISECONDS);
         }
 
@@ -47,38 +89,46 @@ public final class Metrics {
         private void report() {
             ExecutorServiceHelpers.Snapshot s = ExecutorServiceHelpers.getSnapshot(this.executor);
             if (s != null) {
-                LOGGER.reportGaugeValue(MetricsNames.THREAD_POOL_QUEUE_SIZE, s.getQueueSize());
-                LOGGER.reportGaugeValue(MetricsNames.THREAD_POOL_USED_THREADS, s.getActiveThreadCount());
+                this.queueSize.reportSuccessValue(s.getQueueSize());
+                this.activeThreads.reportSuccessValue(s.getActiveThreadCount());
             }
         }
     }
+
+    //endregion
+
+    //region OperationProcessor
 
     /**
      * OperationProcessor metrics.
      */
     public final static class OperationProcessor {
-        private final String operationQueueSize;
-        private final String operationsInFlight;
-        private final String operationQueueWaitTime;
-        private final String operationProcessorDelay;
+        private final OpStatsLogger operationQueueSize;
+        private final OpStatsLogger operationsInFlight;
+        private final OpStatsLogger operationQueueWaitTime;
+        private final OpStatsLogger operationProcessorDelay;
 
         public OperationProcessor(int containerId) {
-            this.operationQueueSize = MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_SIZE, containerId);
-            this.operationsInFlight = MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, containerId);
-            this.operationQueueWaitTime = MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId);
-            this.operationProcessorDelay = MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId);
+            this.operationQueueSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_SIZE, containerId));
+            this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, containerId));
+            this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
+            this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
         }
 
         public void report(int queueSize, int inFlightCount, long queueWaitTimeMillis) {
-            LOGGER.reportGaugeValue(this.operationQueueSize, queueSize);
-            LOGGER.reportGaugeValue(this.operationsInFlight, inFlightCount);
-            LOGGER.reportGaugeValue(this.operationQueueWaitTime, queueWaitTimeMillis);
+            this.operationQueueSize.reportSuccessValue(queueSize);
+            this.operationsInFlight.reportSuccessValue(inFlightCount);
+            this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
         public void delay(int millis) {
-            LOGGER.reportGaugeValue(this.operationProcessorDelay, millis);
+            this.operationProcessorDelay.reportSuccessValue(millis);
         }
     }
+
+    //endregion
+
+    //region Metadata
 
     /**
      * ContainerMetadata metrics.
@@ -91,7 +141,9 @@ public final class Metrics {
         }
 
         public void segmentCount(int count) {
-            LOGGER.reportGaugeValue(this.activeSegmentCount, count);
+            DYNAMIC_LOGGER.reportGaugeValue(this.activeSegmentCount, count);
         }
     }
+
+    //endregion
 }

@@ -457,6 +457,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             List<CompletableOperation> toComplete = new ArrayList<>();
             Map<CompletableOperation, Throwable> toFail = new HashMap<>();
+            int count = 0;
             try {
                 // Record the end of a frame in the DurableDataLog directly into the base metadata. No need for locking here,
                 // as the metadata has its own.
@@ -487,7 +488,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                             && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastOperationSequence) {
                         CompletableOperation op = this.pendingOperations.pollFirst();
                         try {
-                            this.logUpdater.process(op.getOperation());
+                            if (this.logUpdater.process(op.getOperation())) {
+                                count++;
+                            }
                         } catch (Throwable ex) {
                             // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
                             // throws something else (i.e. NullPtr), we still need to handle it.
@@ -528,6 +531,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     // Only record the commit if we had no failures.
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
+
+                Metrics.operationLogAdd(count);
             }
         }
 

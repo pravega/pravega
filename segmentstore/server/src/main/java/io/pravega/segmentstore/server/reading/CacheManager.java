@@ -52,6 +52,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private int oldestGeneration;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
+    private final Metrics.CacheManager metrics;
 
     //endregion
 
@@ -73,6 +74,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.currentGeneration = 0;
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
+        this.metrics = new Metrics.CacheManager();
     }
 
     //endregion
@@ -204,7 +206,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
         } while (sizeReduction > 0 && oldestChanged);
-        Metrics.cacheStats(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
     }
 
     private CacheStatus collectStatus() {
