@@ -80,7 +80,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 1;
+        return 5;
     }
 
     /**
