@@ -4,8 +4,8 @@
     {
       "id": "/pravega/bkgroup",
       "apps": [
-      { 
-          "id": "/pravega/bkgroup/bookie", 
+      {
+          "id": "/pravega/bkgroup/bookie",
           "cpus": 2,
           "mem": 1000,
           "instances": 5,
@@ -43,11 +43,11 @@
               ],
 
               "docker": {
-                  "image": "zhaijia/bookie",
+                  "image": "pravega/bookkeeper",
                   "network": "HOST",
                    "parameters": [
                                  { "key": "env",
-                                   "value": "DLOG_EXTRA_OPTS=-Xms512m " 
+                                   "value": "DLOG_EXTRA_OPTS=-Xms512m "
 				 }
 		   ]
 
@@ -87,13 +87,14 @@
       ]
     },
     {
-      "id": "/pravega/hostgroup",
+      "id": "/pravega/segmentstoregroup",
+      "cmd": "segmentstore",
       "dependencies": ["/pravega/bkgroup"],
       "dependencies": ["/pravega/controllergroup"],
       "apps": [
-      { 
-          "id": "/pravega/hostgroup/host",
-	  "backoffSeconds": 7200, 
+      {
+          "id": "/pravega/segmentstoregroup/segmentstore",
+	  "backoffSeconds": 7200,
           "cpus": 2,
           "mem": 1000,
           "instances": 3,
@@ -108,7 +109,7 @@
               }
 		],
               "docker": {
-                  "image": "arvindkandhare/pravega_host",
+                  "image": "pravega/pravega",
                   "network": "HOST",
                   "parameters": [
                   {
@@ -132,7 +133,7 @@
           ],
 
           "requirePorts": true,
-     
+
 	  "healthChecks": [
             {
                "protocol": "TCP",
@@ -153,10 +154,11 @@
     },
     {
       "id": "/pravega/controllergroup",
+      "cmd": "controller",
       "dependencies": ["/pravega/bkgroup"],
       "apps": [
-      { 
-          "id": "/pravega/controllergroup/controller", 
+      {
+          "id": "/pravega/controllergroup/controller",
           "cpus": 0.4,
           "mem": 500,
           "instances": 2,
@@ -164,7 +166,7 @@
           "container": {
               "type": "DOCKER",
               "docker": {
-                  "image": "arvindkandhare/pravega_controller",
+                  "image": "pravega/pravega",
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
@@ -181,7 +183,7 @@
           "portDefinitions": [
           {
               "protocol": "tcp",
-              "port": 9090 
+              "port": 9090
           }
           ],
 
@@ -206,4 +208,3 @@
     }
   ]
 }
-

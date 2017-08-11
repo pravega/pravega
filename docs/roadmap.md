@@ -19,10 +19,10 @@ Retention policies allow an operator to define a specific Stream size or data ag
 The current transactions API is functional, however it is cumbersome and requires detailed knowledge of Pravega to configure appropriate values such as timeouts.  This work will simplify the API and automate as many timeouts as possible.
 
 ## Exactly Once Guarantees
-Focus in on testing and strengthening exactly once guarantees and correctness under failure conditions.
+Focus is on testing and strengthening exactly once guarantees and correctness under failure conditions.
 
 ## Low-level Reader API
-This will expose a low-level reader API that can be leveraged to build different flavors of reader groups.
+This will expose a new low-level reader API that provides access the low level byte stream as opposed to the event semantics offered by the Java Client API.  This can also be leveraged in the future to build different flavors of reader groups.
 
 ## Security
 Security for this release will focus on support for securing Pravega external interfaces along with basic access controls on stream access and administration.
