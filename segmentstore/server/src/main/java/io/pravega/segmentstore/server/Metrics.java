@@ -101,7 +101,7 @@ public final class Metrics {
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
-            this.operationLogSize = MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
+            this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
 
         public void currentState(int queueSize, int inFlightCount, long queueWaitTimeMillis) {

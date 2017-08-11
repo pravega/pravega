@@ -28,8 +28,8 @@ final class Metrics {
      * BookKeeperLog-specific (i.e. per Container) Metrics.
      */
     final static class BookKeeperLog {
-        private final String writeQueueSize;
-        private final String writeQueueFillRate;
+        private final OpStatsLogger writeQueueSize;
+        private final OpStatsLogger writeQueueFillRate;
         private final String ledgerCount;
         private final OpStatsLogger writeLatency;
         private final OpStatsLogger totalWriteLatency;
@@ -37,8 +37,8 @@ final class Metrics {
 
         BookKeeperLog(int containerId) {
             this.ledgerCount = MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, containerId);
-            this.writeQueueSize = MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, containerId);
-            this.writeQueueFillRate = MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, containerId);
+            this.writeQueueSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, containerId));
+            this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, containerId));
             this.writeLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_LATENCY, containerId));
             this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_TOTAL_WRITE_LATENCY, containerId));
             this.writeBytes = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_BYTES, containerId));
@@ -49,9 +49,8 @@ final class Metrics {
         }
 
         void queueStats(QueueStats qs) {
-            int fillRate = (int) (qs.getAverageItemFillRate() * 100);
-            DYNAMIC_LOGGER.reportGaugeValue(this.writeQueueSize, qs.getSize());
-            DYNAMIC_LOGGER.reportGaugeValue(this.writeQueueFillRate, fillRate);
+            this.writeQueueSize.reportSuccessValue(qs.getSize());
+            this.writeQueueFillRate.reportSuccessValue((int) (qs.getAverageItemFillRate() * 100));
         }
 
         void writeCompleted(Duration elapsed) {
