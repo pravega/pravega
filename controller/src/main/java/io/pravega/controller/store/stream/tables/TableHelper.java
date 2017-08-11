@@ -435,7 +435,7 @@ public class TableHelper {
      * @param historyTable history table
      * @return true if a scale operation is ongoing, false otherwise
      */
-    public static boolean isPartialHistoryRecord(final byte[] historyTable) {
+    public static boolean isNewEpochCreated(final byte[] historyTable) {
         HistoryRecord latestHistoryRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
         return latestHistoryRecord.isPartial();
     }

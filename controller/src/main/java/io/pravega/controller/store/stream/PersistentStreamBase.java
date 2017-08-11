@@ -443,7 +443,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(historyTable -> {
                     CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-                    if (TableHelper.isPartialHistoryRecord(historyTable.getData())) {
+                    if (TableHelper.isNewEpochCreated(historyTable.getData())) {
                         deleteEpochNode(epoch)
                                 .whenComplete((r, e) -> {
                                     if (e != null) {
