@@ -325,18 +325,19 @@ public class StreamMetadataTasks extends TaskBase {
                 runOnlyIfStarted,
                 context,
                 executor), executor)
-                .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
-                        .thenCompose(x -> {
-                            assert !response.getSegmentsCreated().isEmpty();
+                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
+                        .thenCompose(updated -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
+                                .thenCompose(x -> {
+                                    assert !response.getSegmentsCreated().isEmpty();
 
-                            long scaleTs = response.getSegmentsCreated().get(0).getStart();
+                                    long scaleTs = response.getSegmentsCreated().get(0).getStart();
 
-                            return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
-                                    scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
-                                    scaleTs, context, executor), executor);
-                        })
-                        .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context))
-                        .thenApply(y -> response.getSegmentsCreated()));
+                                    return withRetries(() -> streamMetadataStore.scaleNewSegmentsCreated(scaleInput.getScope(), scaleInput.getStream(),
+                                            scaleInput.getSegmentsToSeal(), response.getSegmentsCreated(), response.getActiveEpoch(),
+                                            scaleTs, context, executor), executor);
+                                })
+                                .thenCompose(x -> tryCompleteScale(scaleInput.getScope(), scaleInput.getStream(), response.getActiveEpoch(), context))
+                                .thenApply(y -> response.getSegmentsCreated())));
     }
 
     /**
