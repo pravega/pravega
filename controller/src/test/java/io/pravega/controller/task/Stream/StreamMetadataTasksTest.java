@@ -219,7 +219,6 @@ public class StreamMetadataTasksTest {
                 newRanges, 30, null).get();
 
         assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
-        // explicitly set the state to active.
         OperationContext context = streamStorePartialMock.createContext(SCOPE, "test");
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", context, executor).get(), State.ACTIVE);
 
