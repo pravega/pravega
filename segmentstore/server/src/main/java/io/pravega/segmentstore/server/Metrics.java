@@ -92,7 +92,7 @@ public final class Metrics {
         private final OpStatsLogger operationsInFlight;
         private final OpStatsLogger operationQueueWaitTime;
         private final OpStatsLogger operationProcessorDelay;
-        private final OpStatsLogger operationCompleted;
+        private final OpStatsLogger operationLatency;
         private final String operationLogSize;
 
         public OperationProcessor(int containerId) {
@@ -100,7 +100,7 @@ public final class Metrics {
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, containerId));
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
-            this.operationCompleted = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
+            this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
             this.operationLogSize = MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
 
@@ -129,14 +129,14 @@ public final class Metrics {
         public void operationsCompleted(Collection<CompletableOperation> operations) {
             if (operations.size() > 0) {
                 long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
-                this.operationCompleted.reportSuccessValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
+                this.operationLatency.reportSuccessValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
             }
         }
 
         public void operationsFailed(Collection<CompletableOperation> operations) {
             if (operations.size() > 0) {
                 long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
-                this.operationCompleted.reportFailValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
+                this.operationLatency.reportFailValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
             }
         }
     }

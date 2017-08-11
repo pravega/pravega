@@ -230,7 +230,7 @@ class BookKeeperLog implements DurableDataLog {
                 handleWriteException(ex);
             } else {
                 // Update metrics and take care of other logging tasks.
-                Metrics.writeCompleted(data.getLength(), timer.getElapsed());
+                this.metrics.writeCompleted(timer.getElapsed());
                 LoggerHelpers.traceLeave(log, this.traceObjectId, "append", traceId, address, data.getLength());
             }
         }, this.executorService);
@@ -437,7 +437,7 @@ class BookKeeperLog implements DurableDataLog {
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
                 Timer t = write.complete();
                 if (t != null) {
-                    Metrics.bookKeeperWriteCompleted(t.getElapsed());
+                    this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
                 }
 
                 return;

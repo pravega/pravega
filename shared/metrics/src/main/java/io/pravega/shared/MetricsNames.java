@@ -26,12 +26,12 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
     //DurableDataLog (Tier1) stats
-    public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency";      // Timer
-    public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";          // Counter
-    public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";            // Timer
-    public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";      // Dynamic Counter
-    public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill"; // Dynamic Counter
-    public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";              // Dynamic Counter
+    public static final String BK_TOTAL_WRITE_LATENCY = "bookkeeper_total_write_latency"; // Including Queue
+    public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";  // Exclusively the write to BK.
+    public static final String BK_WRITE_BYTES = "bookkeeper_write_bytes";
+    public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";
+    public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill";
+    public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";
 
     // General metrics
     public static final String CACHE_TOTAL_SIZE_BYTES = "cache_size_bytes";
