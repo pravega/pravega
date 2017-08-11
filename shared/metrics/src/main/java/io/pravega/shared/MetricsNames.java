@@ -40,6 +40,7 @@ public final class MetricsNames {
     public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
     public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
     public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "operation_processor_delay_ms";
+    public static final String OPERATION_COMMIT_LATENCY = "operation_commit_latency_ms";
     public static final String OPERATION_LATENCY = "operation_latency_ms";
     public static final String OPERATION_LOG_SIZE = "operation_log_size";
     public static final String ACTIVE_SEGMENT_COUNT = "active_segments";

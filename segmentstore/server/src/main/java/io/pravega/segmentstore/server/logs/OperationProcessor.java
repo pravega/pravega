@@ -14,6 +14,7 @@ import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.function.CallbackHelpers;
@@ -456,6 +457,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         void commit(DataFrameBuilder.CommitArgs commitArgs) {
             assert commitArgs.key() >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
             log.debug("{}: CommitSuccess ({}).", traceObjectId, commitArgs);
+            Timer timer = new Timer();
 
             List<CompletableOperation> toComplete = new ArrayList<>();
             Map<CompletableOperation, Throwable> toFail = new HashMap<>();
@@ -534,7 +536,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
 
-                metrics.operationLogAdd(count);
+                metrics.operationsCommitted(count, timer.getElapsed());
                 metrics.operationsCompleted(toComplete);
                 metrics.operationsFailed(toFail.keySet());
             }

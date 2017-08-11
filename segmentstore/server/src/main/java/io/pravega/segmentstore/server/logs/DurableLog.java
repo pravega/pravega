@@ -16,6 +16,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.SequencedItemList;
@@ -308,7 +309,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
-        TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
+        Timer timer = new Timer();
         log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
@@ -325,10 +326,11 @@ public class DurableLog extends AbstractService implements OperationLog {
         int recoveredItemCount;
         try {
             try {
-                this.durableDataLog.initialize(timer.getRemaining());
+                this.durableDataLog.initialize(RECOVERY_TIMEOUT);
                 recoveredItemCount = recoverFromDataFrameLog(metadataUpdater);
                 this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), recoveredItemCount);
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
+                        this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
                 successfulRecovery = true;
             } finally {
                 // We must exit recovery mode when done, regardless of outcome.
@@ -341,7 +343,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
-        this.operationProcessor.getMetrics().operationLogAdd(recoveredItemCount);
+        this.operationProcessor.getMetrics().operationsCommitted(recoveredItemCount, timer.getElapsed());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         return recoveredItemCount > 0;
     }

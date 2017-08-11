@@ -19,6 +19,7 @@ import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -88,10 +89,35 @@ public final class Metrics {
      * OperationProcessor metrics.
      */
     public final static class OperationProcessor {
+        /**
+         * Number of items in the Operation Queue.
+         */
         private final OpStatsLogger operationQueueSize;
+
+        /**
+         * Number of items out of the Operation Queue, sent to Tier1, but not yet acknowledged.
+         */
         private final OpStatsLogger operationsInFlight;
+
+        /**
+         * Amount of time an operation spends in the queue, before being picked up.
+         */
         private final OpStatsLogger operationQueueWaitTime;
+
+        /**
+         * Amount of time the OperationProcessor delays in order to relieve Tier1 in case of back-up.
+         */
         private final OpStatsLogger operationProcessorDelay;
+
+        /**
+         * Amount of time spent committing an operation after being written to Tier1 (this includes in-memory structures
+         * and Cache).
+         */
+        private final OpStatsLogger operationCommitLatency;
+
+        /**
+         * End-to-end latency of an operation from when it enters the OperationProcessor until it is completed.
+         */
         private final OpStatsLogger operationLatency;
         private final String operationLogSize;
 
@@ -100,6 +126,7 @@ public final class Metrics {
             this.operationsInFlight = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_IN_FLIGHT, containerId));
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
+            this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LATENCY, containerId));
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
             this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
@@ -114,8 +141,9 @@ public final class Metrics {
             this.operationProcessorDelay.reportSuccessValue(millis);
         }
 
-        public void operationLogAdd(int count) {
+        public void operationsCommitted(int count, Duration elapsed) {
             DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, count);
+            this.operationCommitLatency.reportSuccessEvent(elapsed);
         }
 
         public void operationLogTruncate(int count) {
