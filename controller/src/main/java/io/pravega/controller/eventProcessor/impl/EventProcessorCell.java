@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -230,9 +232,12 @@ class EventProcessorCell<T extends ControllerEvent> {
                        final String readerId,
                        final int index,
                        final CheckpointStore checkpointStore) {
-        this.reader = reader;
-        this.selfWriter = selfWriter;
-        this.checkpointStore = checkpointStore;
+        Preconditions.checkNotNull(eventProcessorConfig);
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(process));
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(readerId));
+        this.reader = Preconditions.checkNotNull(reader);
+        this.selfWriter = Preconditions.checkNotNull(selfWriter);
+        this.checkpointStore = Preconditions.checkNotNull(checkpointStore);
         this.process = process;
         this.readerGroupName = eventProcessorConfig.getConfig().getReaderGroupName();
         this.readerId = readerId;
