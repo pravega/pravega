@@ -396,10 +396,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return setSegmentTable(updatedData)
                 .thenApply(z -> new ImmutablePair<>(activeEpoch, nextSegmentNumber))
-                .thenCompose(response -> updateState(State.SCALING).thenApply(x -> {
+                .thenApply(response -> {
                     log.debug("scale {}/{} new segments created successfully", scope, name);
                     return response;
-                }));
+                });
     }
 
     private CompletableFuture<ImmutablePair<Integer, Integer>> isScaleRerun(final List<Integer> sealedSegments,
