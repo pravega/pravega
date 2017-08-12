@@ -11,7 +11,6 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.AbstractTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.shared.MetricsNames;
@@ -31,6 +30,11 @@ import java.util.concurrent.TimeUnit;
 public final class Metrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+    /**
+     * Global (not container-specific) end-to-end latency of an operation from when it enters the OperationProcessor
+     * until it is completed.
+     */
+    private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
 
     //region CacheManager
 
@@ -116,7 +120,7 @@ public final class Metrics {
         private final OpStatsLogger operationCommitLatency;
 
         /**
-         * End-to-end latency of an operation from when it enters the OperationProcessor until it is completed.
+         * Container-specific, end-to-end latency of an operation from when it enters the OperationProcessor until it is completed.
          */
         private final OpStatsLogger operationLatency;
         private final String operationLogSize;
@@ -155,17 +159,19 @@ public final class Metrics {
         }
 
         public void operationsCompleted(Collection<CompletableOperation> operations) {
-            if (operations.size() > 0) {
-                long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
-                this.operationLatency.reportSuccessValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
-            }
+            operations.forEach(o -> {
+                long millis = o.getTimer().getElapsedMillis();
+                this.operationLatency.reportSuccessValue(millis);
+                GLOBAL_OPERATION_LATENCY.reportSuccessValue(millis);
+            });
         }
 
         public void operationsFailed(Collection<CompletableOperation> operations) {
-            if (operations.size() > 0) {
-                long sum = operations.stream().mapToLong(op -> op.getTimer().getElapsedNanos()).sum();
-                this.operationLatency.reportFailValue(sum / operations.size() / AbstractTimer.NANOS_TO_MILLIS);
-            }
+            operations.forEach(o -> {
+                long millis = o.getTimer().getElapsedMillis();
+                this.operationLatency.reportFailValue(millis);
+                GLOBAL_OPERATION_LATENCY.reportFailValue(millis);
+            });
         }
     }
 
