@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -57,7 +58,8 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
         this.executor = executor;
     }
 
-    public CompletableFuture<Void> process(final AutoScaleEvent request) {
+    @Override
+    public CompletableFuture<Void> process(final AutoScaleEvent request, final EventProcessor.Writer<AutoScaleEvent> writer) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.

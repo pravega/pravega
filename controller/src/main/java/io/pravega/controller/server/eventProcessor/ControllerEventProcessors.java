@@ -83,7 +83,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
-    private final RequestHandlerMultiplexer requestHandler;
+    private final RequestHandlerMultiplexer scaleRequestHandler;
+    private final CommitRequestHandler commitRequestHandler;
+    private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -123,9 +125,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
-        this.requestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
+        this.scaleRequestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
-
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
+        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
         this.executor = executor;
     }
 
@@ -328,7 +333,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new ConcurrentEventProcessor<>(commitRequestHandler, executor))
                         .build();
 
         log.info("Creating commit event processors");
@@ -356,7 +361,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new ConcurrentEventProcessor<>(abortRequestHandler, executor))
                         .build();
 
         log.info("Creating abort event processors");
@@ -385,7 +390,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(CONTROLLER_EVENT_SERIALIZER)
                         .supplier(() -> new ConcurrentEventProcessor<>(
-                                requestHandler,
+                                scaleRequestHandler,
                                 executor))
                         .build();
 

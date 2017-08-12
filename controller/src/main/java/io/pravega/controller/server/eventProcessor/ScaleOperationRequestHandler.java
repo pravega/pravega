@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -24,7 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Request handler for performing scale operations received from requeststream.
  */
 @Slf4j
-public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent> {
+public class ScaleOperationRequestHandler extends StreamRequestHandler<ScaleOpEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -41,7 +42,8 @@ public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent
         this.executor = executor;
     }
 
-    public CompletableFuture<Void> process(final ScaleOpEvent request) {
+    @Override
+    public CompletableFuture<Void> processEvent(final ScaleOpEvent request, final EventProcessor.Writer<ScaleOpEvent> writer) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 

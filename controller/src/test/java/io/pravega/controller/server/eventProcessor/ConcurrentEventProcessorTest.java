@@ -62,14 +62,14 @@ public class ConcurrentEventProcessorTest {
         private final Exception exception;
 
         @Override
-        public CompletableFuture<Void> process(TestEvent testEvent) {
+        public CompletableFuture<Void> process(TestEvent testEvent, EventProcessor.Writer<TestEvent> writer) {
             return FutureHelpers.failedFuture(exception);
         }
     }
 
     private class TestRequestHandler implements RequestHandler<TestEvent> {
         @Override
-        public CompletableFuture<Void> process(TestEvent testEvent) {
+        public CompletableFuture<Void> process(TestEvent testEvent, EventProcessor.Writer<TestEvent> writer) {
             if (runningcount.getAndIncrement() > 2) {
                 result.completeExceptionally(new RuntimeException("max concurrent not honoured"));
             }

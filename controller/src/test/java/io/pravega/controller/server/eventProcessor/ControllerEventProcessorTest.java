@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -99,9 +100,9 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
-        CommitEventProcessor commitEventProcessor = new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, hostStore, executor,
                 segmentHelperMock, null);
-        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
+        commitRequestHandler.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), event -> CompletableFuture.completedFuture(null)).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
@@ -116,9 +117,9 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
-        AbortEventProcessor abortEventProcessor = new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
+        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor,
                 segmentHelperMock, null);
-        abortEventProcessor.process(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
+        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), event -> CompletableFuture.completedFuture(null)).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 

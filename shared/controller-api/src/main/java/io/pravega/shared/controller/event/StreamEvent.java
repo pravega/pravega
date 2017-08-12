@@ -7,24 +7,23 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.shared.controller.event;
 
-import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.util.UUID;
-
 @Data
 @AllArgsConstructor
-public class AbortEvent implements ControllerEvent {
+public abstract class StreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
-    private final int epoch;
-    private final UUID txid;
 
     @Override
     public String getKey() {
+        return String.format("%s/%s", scope, stream);
+    }
+
+    public String getScopedStreamName() {
         return String.format("%s/%s", scope, stream);
     }
 }

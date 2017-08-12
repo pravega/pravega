@@ -9,22 +9,21 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.AllArgsConstructor;
+import io.pravega.shared.controller.event.StreamEvent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.UUID;
 
 @Data
-@AllArgsConstructor
-public class CommitEvent implements ControllerEvent {
-    private final String scope;
-    private final String stream;
+@EqualsAndHashCode(callSuper = false)
+public class CommitEvent extends StreamEvent {
     private final int epoch;
     private final UUID txid;
 
-    @Override
-    public String getKey() {
-        return String.format("%s/%s", scope, stream);
+    public CommitEvent(String scope, String stream, int epoch, UUID txid) {
+        super(scope, stream);
+        this.epoch = epoch;
+        this.txid = txid;
     }
 }

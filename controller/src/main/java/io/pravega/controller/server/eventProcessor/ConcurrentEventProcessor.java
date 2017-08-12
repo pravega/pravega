@@ -101,7 +101,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
             running.add(pc);
 
             // In case of a retryable exception, retry few times before putting the event back into event stream.
-            withRetries(() -> requestHandler.process(request), executor)
+            withRetries(() -> requestHandler.process(request, getSelfWriter()), executor)
                     .whenCompleteAsync((r, e) -> {
                         CompletableFuture<Void> future;
                         if (e != null) {

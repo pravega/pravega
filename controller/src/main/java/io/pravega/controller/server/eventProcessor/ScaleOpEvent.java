@@ -9,25 +9,27 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.AllArgsConstructor;
+import io.pravega.shared.controller.event.StreamEvent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.AbstractMap;
 import java.util.List;
 
 @Data
-@AllArgsConstructor
-public class ScaleOpEvent implements ControllerEvent {
-    private final String scope;
-    private final String stream;
+@EqualsAndHashCode(callSuper = false)
+public class ScaleOpEvent extends StreamEvent {
     private final List<Integer> segmentsToSeal;
     private final List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
     private final boolean runOnlyIfStarted;
     private final long scaleTime;
 
-    @Override
-    public String getKey() {
-        return String.format("%s/%s", scope, stream);
+    public ScaleOpEvent(String scope, String stream, List<Integer> segmentsToSeal,
+                        List<AbstractMap.SimpleEntry<Double, Double>> newRanges, boolean runOnlyIfStarted, long scaleTime) {
+        super(scope, stream);
+        this.segmentsToSeal = segmentsToSeal;
+        this.newRanges = newRanges;
+        this.runOnlyIfStarted = runOnlyIfStarted;
+        this.scaleTime = scaleTime;
     }
 }
