@@ -61,7 +61,7 @@ public abstract class StreamRequestHandler<T extends StreamEvent> implements Req
 
     abstract CompletableFuture<Void> processEvent(final T event, final EventProcessor.Writer<T> writer);
 
-    private CompletableFuture<Void> process(Work work) {
+    private CompletableFuture<Void> work(Work work) {
         return processEvent(work.getEvent(), work.getWriter()).whenComplete((r, e) -> {
             if (e != null) {
                 work.getResult().completeExceptionally(e);
@@ -73,7 +73,7 @@ public abstract class StreamRequestHandler<T extends StreamEvent> implements Req
 
     private void run(String scopedStreamName, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        process(work).whenComplete((r, e) -> {
+        work(work).whenComplete((r, e) -> {
             synchronized (lock) {
                 if (workQueue.isEmpty()) {
                     workers.remove(scopedStreamName);
