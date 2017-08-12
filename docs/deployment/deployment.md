@@ -30,7 +30,7 @@ The following prerequisites are required for running in production. These are on
 - Zookeeper 3.5.1-alpha
 - Bookkeeper 4.4.0
 
-For more details on the prerequisites and recommended configuration options for bookkeeper see the [Prerequisites Guide](prereqs.md).
+For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
 ## Installation
 
