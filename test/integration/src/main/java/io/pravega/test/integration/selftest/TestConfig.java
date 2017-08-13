@@ -44,6 +44,7 @@ public class TestConfig {
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 10 * 1000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
     static final Property<Integer> WARMUP_PERCENTAGE = Property.named("warmupPercentage", 10);
+    static final Property<Boolean> READS_ENABLED = Property.named("reads", true);
     static final Property<Boolean> METRICS_ENABLED = Property.named("metrics", false);
     static final Property<Integer> BOOKIE_COUNT = Property.named("bookieCount", 1);
     static final Property<Integer> CONTROLLER_COUNT = Property.named("controllerCount", 1);
@@ -105,6 +106,8 @@ public class TestConfig {
     @Getter
     private final TestType testType;
     @Getter
+    private final boolean readsEnabled;
+    @Getter
     private final boolean metricsEnabled;
     @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
@@ -149,6 +152,7 @@ public class TestConfig {
         this.controllerBasePort = properties.getInt(CONTROLLER_BASE_PORT);
         this.segmentStoreBasePort = properties.getInt(SEGMENT_STORE_BASE_PORT);
         this.testType = TestType.valueOf(properties.get(TEST_TYPE));
+        this.readsEnabled = properties.getBoolean(READS_ENABLED);
         this.metricsEnabled = properties.getBoolean(METRICS_ENABLED);
         checkOverlappingPorts();
     }

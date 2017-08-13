@@ -190,14 +190,19 @@ class SelfTest extends AbstractService implements AutoCloseable {
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
-        if (Consumer.canUseStoreAdapter(this.store)) {
+        boolean readsEnabled = this.testConfig.isReadsEnabled();
+        boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
+        if (readsEnabled && storeSupportsReads) {
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
                     this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
                 }
             }
         } else {
-            TestLogger.log(LOG_ID, "Not creating any consumers because the StoreAdapter does not support all required features.");
+            String reason = readsEnabled
+                    ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
+                    : "reads are not enabled";
+            TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
         }
     }
 

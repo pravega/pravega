@@ -225,7 +225,8 @@ public class SelfTestRunner {
                     new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
-                    new Shortcut("metrics", TestConfig.METRICS_ENABLED)));
+                    new Shortcut("metrics", TestConfig.METRICS_ENABLED),
+                    new Shortcut("reads", TestConfig.READS_ENABLED)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);
         }

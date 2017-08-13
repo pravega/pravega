@@ -95,14 +95,17 @@ class Reporter extends AbstractScheduledService {
                 ? "(warmup)"
                 : String.format("%s/%s", this.testState.getSuccessfulOperationCount(), this.testConfig.getOperationCount());
 
-        TestLogger.log(
-                LOG_ID,
-                "Ops = %s; Data (P/T/C/S): %.1f/%.1f/%.1f/%.1f MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
-                ops,
+        String data = String.format(this.testConfig.isReadsEnabled() ? " (P/T/C/S): %.1f/%.1f/%.1f/%.1f" : ": %.1f",
                 toMB(producedLength),
                 toMB(this.testState.getVerifiedTailLength()),
                 toMB(this.testState.getVerifiedCatchupLength()),
-                toMB(this.testState.getVerifiedStorageLength()),
+                toMB(this.testState.getVerifiedStorageLength()));
+
+        TestLogger.log(
+                LOG_ID,
+                "Ops = %s; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                ops,
+                data,
                 instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
                 formatSnapshot(storePoolSnapshot, "Store"),
