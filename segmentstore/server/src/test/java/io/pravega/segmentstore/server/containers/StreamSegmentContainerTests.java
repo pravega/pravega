@@ -664,6 +664,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 6. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
+
         context.container.stopAsync().awaitTerminated();
     }
 
