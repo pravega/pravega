@@ -632,7 +632,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
-            // 3. Merge all the Transaction.
+        // 3. Merge all the Transaction.
         mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 4. Add more appends (to the parent segments)
