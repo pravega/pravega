@@ -615,66 +615,53 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
      * Test the createTransaction, append-to-Transaction, mergeTransaction methods.
      */
     @Test
-    @SneakyThrows
-    public void testTransactionOperations() {
+    public void testTransactionOperations() throws Exception {
         // Create Transaction and Append to Transaction were partially tested in the Delete test, so we will focus on merge Transaction here.
         @Cleanup
         TestContext context = new TestContext();
-        try {
-            context.container.startAsync().awaitRunning();
+        context.container.startAsync().awaitRunning();
 
-            // 1. Create the StreamSegments.
-            ArrayList<String> segmentNames = createSegments(context);
-            HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
-            activateAllSegments(segmentNames, context);
-            transactionsBySegment.values().forEach(s -> activateAllSegments(s, context));
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+        HashMap<String, ArrayList<String>> transactionsBySegment = createTransactions(segmentNames, context);
+        activateAllSegments(segmentNames, context);
+        transactionsBySegment.values().forEach(s -> activateAllSegments(s, context));
 
-            // 2. Add some appends.
-            HashMap<String, Long> lengths = new HashMap<>();
-            HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
-            appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
+        // 2. Add some appends.
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendToParentsAndTransactions(segmentNames, transactionsBySegment, lengths, segmentContents, context);
 
             // 3. Merge all the Transaction.
-            mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
+        mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
-            // 4. Add more appends (to the parent segments)
-            ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                for (String segmentName : segmentNames) {
-                    byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
-                    appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
-                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                    recordAppend(segmentName, appendData, segmentContents);
+        // 4. Add more appends (to the parent segments)
+        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            for (String segmentName : segmentNames) {
+                byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
+                appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                recordAppend(segmentName, appendData, segmentContents);
 
-                    // Verify that we can no longer append to Transaction.
-                    for (String transactionName : transactionsBySegment.get(segmentName)) {
-                        AssertExtensions.assertThrows(
-                                "An append was allowed to a merged Transaction " + transactionName,
-                                context.container.append(transactionName, "foo".getBytes(), null, TIMEOUT)::join,
-                                ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
-                    }
-                }
-            }
-
-            FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-            // 5. Verify their contents.
-            checkReadIndex(segmentContents, lengths, context);
-
-            // 6. Writer moving data to Storage.
-            waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, lengths, context);
-        } catch (Throwable t) {
-            if (context.container.state() != Service.State.RUNNING) {
-                if (context.container.state() != Service.State.STOPPING && context.container.state() != Service.State.FAILED) {
-                    try {
-                        context.container.awaitTerminated();
-                    } catch (Throwable t2) {
-                    }
-                    throw context.container.failureCause();
+                // Verify that we can no longer append to Transaction.
+                for (String transactionName : transactionsBySegment.get(segmentName)) {
+                    AssertExtensions.assertThrows(
+                            "An append was allowed to a merged Transaction " + transactionName,
+                            context.container.append(transactionName, "foo".getBytes(), null, TIMEOUT)::join,
+                            ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
                 }
             }
         }
+
+        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 5. Verify their contents.
+        checkReadIndex(segmentContents, lengths, context);
+
+        // 6. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkStorage(segmentContents, lengths, context);
         context.container.stopAsync().awaitTerminated();
     }
 
