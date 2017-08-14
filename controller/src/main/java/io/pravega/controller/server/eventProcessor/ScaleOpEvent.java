@@ -1,21 +1,23 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.shared.controller.event.ControllerEvent;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.AbstractMap;
 import java.util.List;
 
 @Data
+@AllArgsConstructor
 public class ScaleOpEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
