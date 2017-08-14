@@ -25,6 +25,10 @@ public final class MetricsNames {
     public static final String STORAGE_READ_BYTES = "tier2_read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
+    //Cache (RocksDB) stats
+    public static final String CACHE_INSERT_LATENCY = "cache_insert_latency";
+    public static final String CACHE_GET_LATENCY = "cache_get_latency";
+
     //DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = "bookkeeper_total_write_latency"; // Including Queue
     public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";  // Exclusively the write to BK.
