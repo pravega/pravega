@@ -14,18 +14,20 @@ import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Data
-public class RequestHandlerMultiplexer implements RequestHandler<ControllerEvent> {
+@EqualsAndHashCode(callSuper = false)
+public class RequestHandlerMultiplexer extends SerializedRequestHandler<ControllerEvent> {
     private final AutoScaleRequestHandler autoScaleRequestHandler;
     private final ScaleOperationRequestHandler scaleOperationRequestHandler;
 
     @Override
-    public CompletableFuture<Void> process(ControllerEvent controllerEvent, EventProcessor.Writer<ControllerEvent> writer) {
+    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent, EventProcessor.Writer<ControllerEvent> writer) {
         if (controllerEvent instanceof AutoScaleEvent) {
             return autoScaleRequestHandler.process((AutoScaleEvent) controllerEvent, writer::write);
         }

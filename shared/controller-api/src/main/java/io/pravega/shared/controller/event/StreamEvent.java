@@ -20,10 +20,10 @@ public abstract class StreamEvent implements ControllerEvent {
 
     @Override
     public String getKey() {
-        return String.format("%s/%s", scope, stream);
+        return getScopedStreamName();
     }
 
-    public String getScopedStreamName() {
+    private String getScopedStreamName() {
         return String.format("%s/%s", scope, stream);
     }
 }

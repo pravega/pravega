@@ -13,6 +13,7 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.StreamEvent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -31,7 +32,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class StreamRequestHandlerTest {
+public class SerializedRequestHandlerTest {
 
     private ScheduledExecutorService executor;
 
@@ -50,10 +51,10 @@ public class StreamRequestHandlerTest {
         EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
-        StreamRequestHandler<TestEvent> requestHandler = new StreamRequestHandler<TestEvent>() {
+        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>() {
             @Override
             CompletableFuture<Void> processEvent(TestEvent event, EventProcessor.Writer<TestEvent> writer) {
-                orderOfProcessing.compute(event.getScopedStreamName(), (x, y) -> {
+                orderOfProcessing.compute(event.getKey(), (x, y) -> {
                     if (y == null) {
                         y = new ArrayList<>();
                     }
@@ -64,7 +65,7 @@ public class StreamRequestHandlerTest {
             }
         };
 
-        List<Pair<TestEvent, CompletableFuture<Void>>> stream1Queue = requestHandler.getEventQueueForStream("scope", "stream1");
+        List<Pair<TestEvent, CompletableFuture<Void>>> stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertNull(stream1Queue);
         // post 3 work for stream1
         TestEvent s1e1 = new TestEvent("scope", "stream1", 1);
@@ -74,7 +75,7 @@ public class StreamRequestHandlerTest {
         TestEvent s1e3 = new TestEvent("scope", "stream1", 3);
         CompletableFuture<Void> s1p3 = requestHandler.process(s1e3, writer);
 
-        stream1Queue = requestHandler.getEventQueueForStream("scope", "stream1");
+        stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream1Queue.size() >= 2);
         assertTrue(stream1Queue.stream().noneMatch(x -> x.getRight().isDone()));
         List<Integer> collect = stream1Queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
@@ -82,7 +83,7 @@ public class StreamRequestHandlerTest {
 
         s1e3.complete();
 
-        stream1Queue = requestHandler.getEventQueueForStream("scope", "stream1");
+        stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
 
         // verify that no processing is complete
         assertTrue(stream1Queue.size() >= 2);
@@ -98,7 +99,7 @@ public class StreamRequestHandlerTest {
         TestEvent s2e3 = new TestEvent("scope", "stream2", 3);
         CompletableFuture<Void> s2p3 = requestHandler.process(s2e3, writer);
 
-        List<Pair<TestEvent, CompletableFuture<Void>>> stream2Queue = requestHandler.getEventQueueForStream("scope", "stream2");
+        List<Pair<TestEvent, CompletableFuture<Void>>> stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream2Queue.size() >= 2);
         assertTrue(stream2Queue.stream().noneMatch(x -> x.getRight().isDone()));
         collect = stream2Queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
@@ -107,7 +108,7 @@ public class StreamRequestHandlerTest {
         s1e1.complete();
         FutureHelpers.await(s1p1);
 
-        stream1Queue = requestHandler.getEventQueueForStream("scope", "stream1");
+        stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream1Queue.size() >= 1);
         assertTrue(stream1Queue.stream().noneMatch(x -> x.getRight().isDone()));
         collect = stream1Queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
@@ -117,7 +118,7 @@ public class StreamRequestHandlerTest {
         s2e1.complete();
         FutureHelpers.await(s2p1);
 
-        stream2Queue = requestHandler.getEventQueueForStream("scope", "stream2");
+        stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream2Queue.size() >= 1);
         assertTrue(stream2Queue.stream().noneMatch(x -> x.getRight().isDone()));
         collect = stream2Queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
@@ -135,16 +136,16 @@ public class StreamRequestHandlerTest {
         FutureHelpers.await(s1p3);
         FutureHelpers.await(s2p3);
 
-        assertTrue(orderOfProcessing.get(s1e1.getScopedStreamName()).get(0) == 1 &&
-                orderOfProcessing.get(s1e1.getScopedStreamName()).get(1) == 2 &&
-                orderOfProcessing.get(s1e1.getScopedStreamName()).get(2) == 3);
-        assertTrue(orderOfProcessing.get(s2e1.getScopedStreamName()).get(0) == 1 &&
-                orderOfProcessing.get(s1e1.getScopedStreamName()).get(1) == 2 &&
-                orderOfProcessing.get(s1e1.getScopedStreamName()).get(2) == 3);
+        assertTrue(orderOfProcessing.get(s1e1.getKey()).get(0) == 1 &&
+                orderOfProcessing.get(s1e1.getKey()).get(1) == 2 &&
+                orderOfProcessing.get(s1e1.getKey()).get(2) == 3);
+        assertTrue(orderOfProcessing.get(s2e1.getKey()).get(0) == 1 &&
+                orderOfProcessing.get(s1e1.getKey()).get(1) == 2 &&
+                orderOfProcessing.get(s1e1.getKey()).get(2) == 3);
 
-        FutureHelpers.loop(() -> requestHandler.getEventQueueForStream("scope", "stream1") == null,
+        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
                 () -> CompletableFuture.completedFuture(null), executor);
-        FutureHelpers.loop(() -> requestHandler.getEventQueueForStream("scope", "stream2") == null,
+        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
                 () -> CompletableFuture.completedFuture(null), executor);
 
         // now that we have drained all the work from the processor.
@@ -152,16 +153,21 @@ public class StreamRequestHandlerTest {
         TestEvent s1e4 = new TestEvent("scope", "stream1", 4);
         CompletableFuture<Void> s1p4 = requestHandler.process(s1e4, writer);
 
-        stream1Queue = requestHandler.getEventQueueForStream("scope", "stream1");
+        stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertNotNull(stream1Queue);
 
         s1e4.complete();
         FutureHelpers.await(s1p4);
 
-        assertTrue(orderOfProcessing.get(s1e1.getScopedStreamName()).get(3) == 4);
+        assertTrue(orderOfProcessing.get(s1e1.getKey()).get(3) == 4);
+    }
+
+    private String getKeyForStream(String scope, String stream) {
+        return String.format("%s/%s", scope, stream);
     }
 
     @Data
+    @EqualsAndHashCode(callSuper = false)
     public static class TestEvent extends StreamEvent {
         private final int number;
         private final CompletableFuture<Void> future;
@@ -176,5 +182,4 @@ public class StreamRequestHandlerTest {
             future.complete(null);
         }
     }
-
 }

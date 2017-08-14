@@ -25,7 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * Request handler for performing scale operations received from requeststream.
  */
 @Slf4j
-public class ScaleOperationRequestHandler extends StreamRequestHandler<ScaleOpEvent> {
+public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -43,7 +43,7 @@ public class ScaleOperationRequestHandler extends StreamRequestHandler<ScaleOpEv
     }
 
     @Override
-    public CompletableFuture<Void> processEvent(final ScaleOpEvent request, final EventProcessor.Writer<ScaleOpEvent> writer) {
+    public CompletableFuture<Void> process(final ScaleOpEvent request, final EventProcessor.Writer<ScaleOpEvent> writer) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 

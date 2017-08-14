@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * 2. Change txn state from committing to committed.
  */
 @Slf4j
-public class CommitRequestHandler extends StreamRequestHandler<CommitEvent> {
+public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> {
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;

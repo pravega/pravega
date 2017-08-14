@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * 2. Change txn state from aborting to aborted.
  */
 @Slf4j
-public class AbortRequestHandler extends StreamRequestHandler<AbortEvent> {
+public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final HostControllerStore hostControllerStore;
