@@ -95,7 +95,9 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -136,8 +138,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
             .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
             .build();
-    //    @Rule
-    //    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
+    @Rule
+    public Timeout globalTimeout = Timeout.millis(TEST_TIMEOUT_MILLIS);
 
     @Override
     protected int getThreadPoolSize() {
