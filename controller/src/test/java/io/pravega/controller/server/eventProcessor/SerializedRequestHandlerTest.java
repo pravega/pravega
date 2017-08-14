@@ -11,9 +11,8 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
-import io.pravega.shared.controller.event.StreamEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
@@ -167,15 +166,15 @@ public class SerializedRequestHandlerTest {
     }
 
     @Data
-    @EqualsAndHashCode(callSuper = false)
-    public static class TestEvent extends StreamEvent {
+    public static class TestEvent implements ControllerEvent {
+        private final String scope;
+        private final String stream;
         private final int number;
-        private final CompletableFuture<Void> future;
+        private final CompletableFuture<Void> future = new CompletableFuture<>();
 
-        public TestEvent(String scope, String stream, int number) {
-            super(scope, stream);
-            this.number = number;
-            this.future = new CompletableFuture<>();
+        @Override
+        public String getKey() {
+            return String.format("%s/%s", scope, stream);
         }
 
         public void complete() {
