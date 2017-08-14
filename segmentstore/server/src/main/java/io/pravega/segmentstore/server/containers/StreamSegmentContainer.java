@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
+import io.pravega.segmentstore.server.Metrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -74,6 +75,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
+    private final Metrics.Container metrics;
 
     //endregion
 
@@ -115,6 +117,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
                 this.storage, this.executor);
+        this.metrics = new Metrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
     }
 
@@ -241,6 +244,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("append", streamSegmentName, data.length);
+        this.metrics.append();
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
@@ -254,6 +258,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("appendWithOffset", streamSegmentName, data.length);
+        this.metrics.appendWithOffset();
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
@@ -267,6 +272,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
         logRequest("updateAttributes", streamSegmentName, attributeUpdates);
+        this.metrics.updateAttributes();
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
                     UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
@@ -279,6 +285,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("read", streamSegmentName, offset, maxLength);
+        this.metrics.read();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
@@ -290,6 +297,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
+        this.metrics.getInfo();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         Function<Long, CompletableFuture<SegmentProperties>> metadataRetriever =
@@ -311,6 +319,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("createStreamSegment", streamSegmentName);
+        this.metrics.createSegment();
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
 
@@ -319,6 +328,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("createTransaction", parentSegmentName);
+        this.metrics.createTxn();
         return this.segmentMapper.createNewTransactionStreamSegment(parentSegmentName, transactionId, attributes, timeout);
     }
 
@@ -327,6 +337,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("deleteStreamSegment", streamSegmentName);
+        this.metrics.deleteSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // metadata.deleteStreamSegment will delete the given StreamSegment and all Transactions associated with it.
@@ -362,6 +373,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("mergeTransaction", transactionName);
+        this.metrics.mergeTxn();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(transactionName, timer.getRemaining(),
@@ -382,6 +394,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ensureRunning();
 
         logRequest("sealStreamSegment", streamSegmentName);
+        this.metrics.seal();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
         return this.segmentMapper

@@ -33,9 +33,18 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill";
     public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";
 
-    // General metrics
-    public static final String CACHE_TOTAL_SIZE_BYTES = "cache_size_bytes";
-    public static final String CACHE_GENERATION_SPREAD = "cache_gen";
+    //Container-specific metrics
+    public static final String CONTAINER_APPEND_COUNT = "container_append_count";
+    public static final String CONTAINER_APPEND_OFFSET_COUNT = "container_append_offset_count";
+    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = "container_update_attributes_count";
+    public static final String CONTAINER_READ_COUNT = "container_read_count";
+    public static final String CONTAINER_GET_INFO_COUNT = "container_get_info_count";
+    public static final String CONTAINER_CREATE_SEGMENT_COUNT = "container_create_segment_count";
+    public static final String CONTAINER_DELETE_SEGMENT_COUNT = "container_delete_segment_count";
+    public static final String CONTAINER_CREATE_TXN_COUNT = "container_create_txn_count";
+    public static final String CONTAINER_MERGE_TXN_COUNT = "container_merge_txn_count";
+    public static final String CONTAINER_SEAL_COUNT = "container_seal_count";
+    public static final String PROCESS_OPERATIONS_LATENCY = "process_operations_latency";
     public static final String OPERATION_QUEUE_SIZE = "operation_queue_size";
     public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
     public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
@@ -44,6 +53,10 @@ public final class MetricsNames {
     public static final String OPERATION_LATENCY = "operation_latency_ms";
     public static final String OPERATION_LOG_SIZE = "operation_log_size";
     public static final String ACTIVE_SEGMENT_COUNT = "active_segments";
+
+    // General metrics
+    public static final String CACHE_TOTAL_SIZE_BYTES = "cache_size_bytes";
+    public static final String CACHE_GENERATION_SPREAD = "cache_gen";
     public static final String THREAD_POOL_QUEUE_SIZE = "thread_pool_queue_size";
     public static final String THREAD_POOL_ACTIVE_THREADS = "thread_pool_active_threads";
 

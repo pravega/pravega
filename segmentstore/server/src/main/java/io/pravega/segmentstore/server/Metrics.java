@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 public final class Metrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+
     /**
      * Global (not container-specific) end-to-end latency of an operation from when it enters the OperationProcessor
      * until it is completed.
@@ -123,6 +124,11 @@ public final class Metrics {
          * Container-specific, end-to-end latency of an operation from when it enters the OperationProcessor until it is completed.
          */
         private final OpStatsLogger operationLatency;
+
+        /**
+         * Amount of time spent inside processOperations(Queue)
+         */
+        private final OpStatsLogger processOperationsLatency;
         private final String operationLogSize;
 
         public OperationProcessor(int containerId) {
@@ -132,17 +138,21 @@ public final class Metrics {
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
             this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LATENCY, containerId));
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
+            this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_LATENCY, containerId));
             this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
 
-        public void currentState(int queueSize, int inFlightCount, long queueWaitTimeMillis) {
+        public void currentState(int queueSize, int inFlightCount) {
             this.operationQueueSize.reportSuccessValue(queueSize);
             this.operationsInFlight.reportSuccessValue(inFlightCount);
-            this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
         public void processingDelay(int millis) {
             this.operationProcessorDelay.reportSuccessValue(millis);
+        }
+
+        public void operationQueueWaitTime(long queueWaitTimeMillis) {
+            this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
         public void operationsCommitted(int count, Duration elapsed) {
@@ -156,6 +166,10 @@ public final class Metrics {
 
         public void operationLogInit() {
             DYNAMIC_LOGGER.updateCounterValue(this.operationLogSize, 0);
+        }
+
+        public void processOperationsLatency(long millis) {
+            this.processOperationsLatency.reportSuccessValue(millis);
         }
 
         public void operationsCompleted(Collection<CompletableOperation> operations) {
@@ -191,6 +205,79 @@ public final class Metrics {
 
         public void segmentCount(int count) {
             DYNAMIC_LOGGER.reportGaugeValue(this.activeSegmentCount, count);
+        }
+    }
+
+    //endregion
+
+    //region Container
+
+    /**
+     * StreamSegmentContainer Metrics.
+     */
+    public final static class Container {
+        private final String appendCount;
+        private final String appendOffsetCount;
+        private final String updateAttributesCount;
+        private final String readCount;
+        private final String getInfoCount;
+        private final String createSegmentCount;
+        private final String deleteSegmentCount;
+        private final String createTxnCount;
+        private final String mergeTxnCount;
+        private final String sealCount;
+
+        public Container(int containerId) {
+            this.appendCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_APPEND_COUNT, containerId);
+            this.appendOffsetCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_APPEND_OFFSET_COUNT, containerId);
+            this.updateAttributesCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_UPDATE_ATTRIBUTES_COUNT, containerId);
+            this.readCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_READ_COUNT, containerId);
+            this.getInfoCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_GET_INFO_COUNT, containerId);
+            this.createSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_SEGMENT_COUNT, containerId);
+            this.deleteSegmentCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_DELETE_SEGMENT_COUNT, containerId);
+            this.createTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_TXN_COUNT, containerId);
+            this.mergeTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_MERGE_TXN_COUNT, containerId);
+            this.sealCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_SEAL_COUNT, containerId);
+        }
+
+        public void createSegment() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.createSegmentCount, 1);
+        }
+
+        public void deleteSegment() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.deleteSegmentCount, 1);
+        }
+
+        public void append() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.appendCount, 1);
+        }
+
+        public void appendWithOffset() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.appendOffsetCount, 1);
+        }
+
+        public void updateAttributes() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.updateAttributesCount, 1);
+        }
+
+        public void read() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.readCount, 1);
+        }
+
+        public void getInfo() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.getInfoCount, 1);
+        }
+
+        public void createTxn() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.createTxnCount, 1);
+        }
+
+        public void mergeTxn() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.mergeTxnCount, 1);
+        }
+
+        public void seal() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.sealCount, 1);
         }
     }
 

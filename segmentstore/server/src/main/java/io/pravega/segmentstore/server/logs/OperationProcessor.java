@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.AbstractTimer;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
@@ -235,19 +234,16 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     private void processOperations(Queue<CompletableOperation> operations) {
         log.debug("{}: processOperations (OperationCount = {}).", this.traceObjectId, operations.size());
+        Timer timer = new Timer();
 
         // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
         // arrived while we were busy handling the current items.
-        long firstOperationWaitNanos = -1;
         while (!operations.isEmpty()) {
             try {
                 // Process the current set of operations.
                 while (!operations.isEmpty()) {
                     CompletableOperation o = operations.poll();
-                    if (firstOperationWaitNanos < 0) {
-                        firstOperationWaitNanos = o.getTimer().getElapsedNanos();
-                    }
-
+                    this.metrics.operationQueueWaitTime(o.getTimer().getElapsedMillis());
                     try {
                         processOperation(o);
                         this.state.addPending(o);
@@ -291,8 +287,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             }
 
-            this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount(), firstOperationWaitNanos / AbstractTimer.NANOS_TO_MILLIS);
+            this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
         }
+
+        this.metrics.processOperationsLatency(timer.getElapsedMillis());
     }
 
     /**
