@@ -369,7 +369,7 @@ public class EventProcessorTest {
 
         createEventProcessorGroupConfig(3);
 
-        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(1, input),
+        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(3, input),
                 writer, readerGroupName);
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
