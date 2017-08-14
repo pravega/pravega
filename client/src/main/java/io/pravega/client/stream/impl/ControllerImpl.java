@@ -37,6 +37,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
@@ -48,10 +50,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -68,8 +71,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import lombok.val;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -265,17 +266,21 @@ public class ControllerImpl implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
+                        log.error("failed to start scale {}", e);
                         cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
                     } else {
-                        final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
-
-                        cancellableRequest.start(() -> {
-                            if (started) {
-                                return checkScaleStatus(stream, startScaleResponse.getEpoch());
-                            } else {
-                                return CompletableFuture.completedFuture(false);
-                            }
-                        }, isDone -> !started || isDone, executor);
+                        try {
+                            final boolean started = handleScaleResponse(stream, startScaleResponse);
+                            cancellableRequest.start(() -> {
+                                if (started) {
+                                    return checkScaleStatus(stream, startScaleResponse.getEpoch());
+                                } else {
+                                    return CompletableFuture.completedFuture(false);
+                                }
+                            }, isDone -> !started || isDone, executor);
+                        } catch (Exception ex) {
+                            cancellableRequest.start(() -> FutureHelpers.failedFuture(ex), any -> true, executor);
+                        }
                     }
                 });
 
@@ -286,28 +291,32 @@ public class ControllerImpl implements Controller {
     public CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges) {
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
-        return startScaleInternal(stream, sealedSegments, newKeyRanges).thenApply(x -> {
-            switch (x.getStatus()) {
-            case FAILURE:
-                log.warn("Failed to scale stream: {}", stream.getStreamName());
-                throw new ControllerFailureException("Failed to scale stream: " + stream);
-            case PRECONDITION_FAILED:
-                log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
-                return false;
-            case STARTED:
-                log.info("Successfully started scale stream: {}", stream.getStreamName());
-                return true;
-            case UNRECOGNIZED:
-            default:
-                throw new ControllerFailureException("Unknown return status scaling stream " + stream
-                                                     + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("scaleStream failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "scaleStream", traceId);
-        });
+        return startScaleInternal(stream, sealedSegments, newKeyRanges)
+                .thenApply(response -> handleScaleResponse(stream, response))
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("scaleStream failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "scaleStream", traceId);
+                });
+    }
+
+    private Boolean handleScaleResponse(Stream stream, ScaleResponse response) {
+        switch (response.getStatus()) {
+        case FAILURE:
+            log.warn("Failed to scale stream: {}", stream.getStreamName());
+            throw new ControllerFailureException("Failed to scale stream: " + stream);
+        case PRECONDITION_FAILED:
+            log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
+            return false;
+        case STARTED:
+            log.info("Successfully started scale stream: {}", stream.getStreamName());
+            return true;
+        case UNRECOGNIZED:
+        default:
+            throw new ControllerFailureException("Unknown return status scaling stream " + stream
+                                                 + " " + response.getStatus());
+        }
     }
 
     @Override
