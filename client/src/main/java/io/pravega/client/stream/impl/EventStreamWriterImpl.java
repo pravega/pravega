@@ -23,7 +23,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,7 +82,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final ExecutorService retransmitPool;
     
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config) {
+            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -95,7 +94,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
         this.serializer = serializer;
         this.config = config;
-        this.retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"+stream.getScopedName());
+        this.retransmitPool = retransmitPool;
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
@@ -385,6 +384,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         } finally {
             writeFlushLock.readLock().unlock();
         }
+        retransmitPool.shutdown();
     }
 
     @Override
