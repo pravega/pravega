@@ -53,6 +53,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory,
                                final BlockingQueue<AbortEvent> queue) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
@@ -68,6 +69,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;

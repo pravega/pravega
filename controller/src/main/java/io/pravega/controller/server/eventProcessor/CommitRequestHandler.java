@@ -56,6 +56,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory,
                                 final BlockingQueue<CommitEvent> queue) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
@@ -71,6 +72,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;

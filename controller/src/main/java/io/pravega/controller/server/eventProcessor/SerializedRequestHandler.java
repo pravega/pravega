@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -33,11 +35,14 @@ import java.util.stream.Collectors;
  * <p>
  * Once all pending processing for a key ends, the key is removed from the work map the moment its queue becomes empty.
  */
+@AllArgsConstructor
 public abstract class SerializedRequestHandler<T extends ControllerEvent> implements RequestHandler<T> {
 
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
+
+    private final ExecutorService executor;
 
     @Override
     public CompletableFuture<Void> process(final T streamEvent, final EventProcessor.Writer<T> writer) {
@@ -52,8 +57,8 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
                 ConcurrentLinkedQueue<Work> queue = new ConcurrentLinkedQueue<>();
                 queue.add(work);
                 workers.put(key, queue);
-                // Start work processing asyncrhonously and release the lock.
-                CompletableFuture.runAsync(() -> run(key, queue));
+                // Start work processing asynchronously and release the lock.
+                CompletableFuture.runAsync(() -> run(key, queue), executor);
             }
         }
         return result;
@@ -61,6 +66,12 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
 
     abstract CompletableFuture<Void> processEvent(final T event, final EventProcessor.Writer<T> writer);
 
+    /**
+     * Actual processing of the work is performed in this method.
+     * It processes the event and then completes the future in the work.
+     * @param work Work to do
+     * @return future of processing.
+     */
     private CompletableFuture<Void> work(Work work) {
         return processEvent(work.getEvent(), work.getWriter()).whenComplete((r, e) -> {
             if (e != null) {
@@ -71,6 +82,12 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         });
     }
 
+    /**
+     * Run method is called only if work queue is non empty. So we can safely do a workQueue.poll.
+     * WorkQueue.poll should only happen in the run method and no where else.
+     * @param key key for which we want to process the next event
+     * @param workQueue work queue for the key
+     */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
         work(work).whenComplete((r, e) -> {
@@ -78,7 +95,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
                 if (workQueue.isEmpty()) {
                     workers.remove(key);
                 } else {
-                    CompletableFuture.runAsync(() -> run(key, workQueue));
+                    CompletableFuture.runAsync(() -> run(key, workQueue), executor);
                 }
             }
         });
