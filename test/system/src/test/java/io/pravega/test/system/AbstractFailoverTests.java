@@ -83,6 +83,7 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
+        final AtomicBoolean autoScaleTestFlag = new AtomicBoolean(true);
     }
 
     void performFailoverTest() {
@@ -329,8 +330,10 @@ abstract class AbstractFailoverTests {
         if (!FutureHelpers.await(testState.writersComplete)) {
             log.error("Writers stopped with exceptions");
         }
-        if (!FutureHelpers.await(testState.newWritersComplete)) {
-            log.error("Writers stopped with exceptions");
+        if (testState.autoScaleTestFlag.get()) {
+            if (!FutureHelpers.await(testState.newWritersComplete)) {
+                log.error("Writers stopped with exceptions");
+            }
         }
         // check for exceptions during writes
         if (testState.getWriteException.get() != null) {

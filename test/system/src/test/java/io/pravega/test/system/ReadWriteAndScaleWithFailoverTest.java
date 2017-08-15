@@ -90,11 +90,12 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        //executor service
-        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
+        //num. of readers + num. of writers + 1 to run checkScale operation
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1);
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         testState = new TestState();
+        testState.autoScaleTestFlag.set(false);
     }
 
     @After
