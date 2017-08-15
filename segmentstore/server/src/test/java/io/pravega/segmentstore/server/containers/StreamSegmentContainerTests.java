@@ -14,7 +14,6 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ConfigurationException;
@@ -41,6 +40,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -827,7 +827,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
         applyAttributes(appendAttributes, expectedAttributes);
-        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT);
+        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
@@ -848,7 +848,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Seal (this should clear out non-dynamic attributes).
         expectedAttributes.keySet().removeIf(Attributes::isDynamic);
-        localContainer.sealStreamSegment(segmentName, TIMEOUT);
+        localContainer.sealStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
 
