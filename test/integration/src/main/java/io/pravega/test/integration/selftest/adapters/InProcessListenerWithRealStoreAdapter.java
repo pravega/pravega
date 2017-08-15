@@ -37,23 +37,20 @@ class InProcessListenerWithRealStoreAdapter extends InProcessMockClientAdapter {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        super.close();
-        this.segmentStoreAdapter.close();
-    }
-
-    //endregion
-
     //region InProcessMockClientAdapter Overrides
 
     @Override
-    public void initialize() throws Exception {
-        this.segmentStoreAdapter.initialize();
-        super.initialize();
+    protected void startUp() throws Exception {
+        this.segmentStoreAdapter.startUp();
+        super.startUp();
     }
+
+    @Override
+    protected void shutDown() {
+        super.shutDown();
+        this.segmentStoreAdapter.shutDown();
+    }
+
 
     @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {

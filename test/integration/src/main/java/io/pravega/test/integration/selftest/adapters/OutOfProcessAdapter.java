@@ -25,7 +25,6 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.ZooKeeperServiceRunner;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.test.integration.selftest.TestConfig;
-import io.pravega.test.integration.selftest.TestLogger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -46,7 +45,6 @@ import org.apache.bookkeeper.util.IOUtils;
 class OutOfProcessAdapter extends ExternalAdapter {
     //region Members
 
-    private static final String LOG_ID = OutOfProcessAdapter.class.getSimpleName();
     private static final int PROCESS_SHUTDOWN_TIMEOUT_MILLIS = 10 * 1000;
     private final ServiceBuilderConfig builderConfig;
     private final AtomicReference<Process> zooKeeperProcess;
@@ -86,40 +84,10 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        super.close();
-
-        // Stop all services.
-        destroyExternalComponents();
-        Runtime.getRuntime().removeShutdownHook(this.destroyChildProcesses);
-        TestLogger.log(LOG_ID, "Closed.");
-    }
-
-    private void destroyExternalComponents() {
-        // Stop all services.
-        int controllerCount = stopProcesses(this.controllerProcesses);
-        TestLogger.log(LOG_ID, "Controller(s) (%d count) shut down.", controllerCount);
-        int segmentStoreCount = stopProcesses(this.segmentStoreProcesses);
-        TestLogger.log(LOG_ID, "SegmentStore(s) (%d count) shut down.", segmentStoreCount);
-        stopProcess(this.bookieProcess);
-        TestLogger.log(LOG_ID, "Bookies shut down.");
-        stopProcess(this.zooKeeperProcess);
-        TestLogger.log(LOG_ID, "ZooKeeper shut down.");
-
-        // Delete temporary files and directories.
-        delete(this.segmentStoreRoot);
-    }
-
-    //endregion
-
     //region ClientAdapterBase and StorageAdapter Implementation
 
-
     @Override
-    public void initialize() throws Exception {
+    protected void startUp() throws Exception {
         try {
             startZooKeeper();
             startBookKeeper();
@@ -137,8 +105,31 @@ class OutOfProcessAdapter extends ExternalAdapter {
             throw ex;
         }
 
-        TestLogger.log(LOG_ID, "Initialized.");
-        super.initialize();
+        super.startUp();
+    }
+
+    @Override
+    protected void shutDown() {
+        super.shutDown();
+
+        // Stop all services.
+        destroyExternalComponents();
+        Runtime.getRuntime().removeShutdownHook(this.destroyChildProcesses);
+    }
+
+    private void destroyExternalComponents() {
+        // Stop all services.
+        int controllerCount = stopProcesses(this.controllerProcesses);
+        log("Controller(s) (%d count) shut down.", controllerCount);
+        int segmentStoreCount = stopProcesses(this.segmentStoreProcesses);
+        log("SegmentStore(s) (%d count) shut down.", segmentStoreCount);
+        stopProcess(this.bookieProcess);
+        log("Bookies shut down.");
+        stopProcess(this.zooKeeperProcess);
+        log("ZooKeeper shut down.");
+
+        // Delete temporary files and directories.
+        delete(this.segmentStoreRoot);
     }
 
     //endregion
@@ -158,7 +149,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
             throw new RuntimeException("Unable to start ZooKeeper at port " + this.testConfig.getZkPort());
         }
 
-        TestLogger.log(LOG_ID, "ZooKeeper started (Port = %s).", this.testConfig.getZkPort());
+        log("ZooKeeper started (Port = %s).", this.testConfig.getZkPort());
     }
 
     private void startBookKeeper() throws IOException {
@@ -173,7 +164,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("bk", 0))))
                 .start());
-        TestLogger.log(LOG_ID, "Bookies started (Count = %s, Ports = [%s-%s])",
+        log("Bookies started (Count = %s, Ports = [%s-%s])",
                 bookieCount, this.testConfig.getBkPort(0), this.testConfig.getBkPort(bookieCount - 1));
     }
 
@@ -200,8 +191,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("controller", controllerId))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("controller", controllerId))))
                 .start();
-        TestLogger.log(LOG_ID, "Controller %d started (Port = %d, RestPort = %d, RPCPort = %d).",
-                controllerId, port, restPort, rpcPort);
+        log("Controller %d started (Port = %d, RestPort = %d, RPCPort = %d).", controllerId, port, restPort, rpcPort);
         return p;
     }
 
@@ -234,7 +224,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
         }
 
         Process p = ps.start();
-        TestLogger.log(LOG_ID, "SegmentStore %d started (Port = %d).", segmentStoreId, port);
+        log("SegmentStore %d started (Port = %d).", segmentStoreId, port);
         return p;
     }
 
@@ -250,13 +240,13 @@ class OutOfProcessAdapter extends ExternalAdapter {
         File configFile = new File(getSegmentStoreConfigFilePath());
         configFile.delete();
         configFile.createNewFile();
-        TestLogger.log(LOG_ID, "SegmentStore Config: '%s'.", configFile.getAbsolutePath());
+        log("SegmentStore Config: '%s'.", configFile.getAbsolutePath());
 
         // Storage.
         File storageDir = new File(getSegmentStoreStoragePath());
         storageDir.delete();
         storageDir.mkdir();
-        TestLogger.log(LOG_ID, "SegmentStore Storage: '%s/'.", storageDir.getAbsolutePath());
+        log("SegmentStore Storage: '%s/'.", storageDir.getAbsolutePath());
         this.builderConfig.store(configFile);
     }
 
@@ -283,7 +273,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
         File f = fileRef.getAndSet(null);
         if (f != null && f.exists()) {
             if (FileHelpers.deleteFileOrDirectory(f)) {
-                TestLogger.log(LOG_ID, "Deleted '%s'.", f.getAbsolutePath());
+                log("Deleted '%s'.", f.getAbsolutePath());
             }
         }
     }

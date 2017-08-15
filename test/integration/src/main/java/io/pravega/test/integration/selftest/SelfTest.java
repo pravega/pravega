@@ -25,7 +25,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.SneakyThrows;
 import lombok.val;
 
 /**
@@ -113,8 +112,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture
-                .runAsync(this::initializeStore)
+        ServiceHelpers.startAsync(this.store, this.executor)
                 .thenCompose(v -> this.dataSource.createStreams())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
@@ -160,11 +158,6 @@ class SelfTest extends AbstractService implements AutoCloseable {
     protected void doStop() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.actorManager.stopAsync();
-    }
-
-    @SneakyThrows(Exception.class)
-    private void initializeStore() {
-        this.store.initialize();
     }
 
     //endregion

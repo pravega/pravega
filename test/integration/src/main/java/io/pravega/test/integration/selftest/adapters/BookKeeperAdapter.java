@@ -11,7 +11,6 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.lang.ProcessStarter;
@@ -35,7 +34,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -45,17 +43,15 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 /**
  * Store adapter that executes requests directly to BookKeeper via the BookKeeperLog class.
  */
-class BookKeeperAdapter implements StoreAdapter {
+class BookKeeperAdapter extends StoreAdapter {
     //region Members
 
-    private static final String LOG_ID = BookKeeperAdapter.class.getSimpleName();
     private final TestConfig testConfig;
     private final BookKeeperConfig bkConfig;
     private final ScheduledExecutorService executor;
     private final ConcurrentHashMap<String, DurableDataLog> logs;
     @GuardedBy("internalIds")
     private final HashMap<String, Integer> internalIds;
-    private final AtomicBoolean closed;
     private final Thread stopBookKeeperProcess;
     private Process bookKeeperService;
     private CuratorFramework zkClient;
@@ -79,46 +75,8 @@ class BookKeeperAdapter implements StoreAdapter {
         Preconditions.checkArgument(testConfig.getBookieCount() > 0, "BookKeeperAdapter requires at least one Bookie.");
         this.logs = new ConcurrentHashMap<>();
         this.internalIds = new HashMap<>();
-        this.closed = new AtomicBoolean();
         this.stopBookKeeperProcess = new Thread(this::stopBookKeeper);
         Runtime.getRuntime().addShutdownHook(this.stopBookKeeperProcess);
-    }
-
-    //endregion
-
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        if (!this.closed.getAndSet(true)) {
-            this.logs.values().forEach(DurableDataLog::close);
-            this.logs.clear();
-
-            BookKeeperLogFactory lf = this.logFactory;
-            if (lf != null) {
-                lf.close();
-                this.logFactory = null;
-            }
-
-            stopBookKeeper();
-            CuratorFramework zkClient = this.zkClient;
-            if (zkClient != null) {
-                zkClient.close();
-                this.zkClient = null;
-            }
-
-            Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
-            TestLogger.log(LOG_ID, "Closed.");
-        }
-    }
-
-    private void stopBookKeeper() {
-        val bk = this.bookKeeperService;
-        if (bk != null) {
-            bk.destroyForcibly();
-            TestLogger.log(LOG_ID, "Bookies shut down.");
-            this.bookKeeperService = null;
-        }
     }
 
     //endregion
@@ -132,12 +90,9 @@ class BookKeeperAdapter implements StoreAdapter {
     }
 
     @Override
-    public void initialize() throws Exception {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.bookKeeperService == null, "Cannot call initialize() after initialization happened.");
-
+    protected void startUp() throws Exception {
         // Start BookKeeper.
-        this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.testConfig, LOG_ID);
+        this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.testConfig, this.logId);
 
         // Create a ZK client.
         this.zkClient = CuratorFrameworkFactory
@@ -156,8 +111,29 @@ class BookKeeperAdapter implements StoreAdapter {
     }
 
     @Override
+    protected void shutDown() {
+        this.logs.values().forEach(DurableDataLog::close);
+        this.logs.clear();
+
+        BookKeeperLogFactory lf = this.logFactory;
+        if (lf != null) {
+            lf.close();
+            this.logFactory = null;
+        }
+
+        stopBookKeeper();
+        CuratorFramework zkClient = this.zkClient;
+        if (zkClient != null) {
+            zkClient.close();
+            this.zkClient = null;
+        }
+
+        Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
+    }
+
+    @Override
     public CompletableFuture<Void> createStream(String logName, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureRunning();
 
         int id;
         synchronized (this.internalIds) {
@@ -196,7 +172,7 @@ class BookKeeperAdapter implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> append(String logName, Event event, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+        ensureRunning();
         DurableDataLog log = this.logs.getOrDefault(logName, null);
         if (log == null) {
             return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(logName));
@@ -208,32 +184,32 @@ class BookKeeperAdapter implements StoreAdapter {
 
     @Override
     public StoreReader createReader() {
-        throw new UnsupportedOperationException("createReader() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("createReader() is not supported on " + this.logId);
     }
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
-        throw new UnsupportedOperationException("createTransaction() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("createTransaction() is not supported on " + this.logId);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        throw new UnsupportedOperationException("mergeTransaction() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("mergeTransaction() is not supported on " + this.logId);
     }
 
     @Override
     public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
-        throw new UnsupportedOperationException("abortTransaction() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("abortTransaction() is not supported on " + this.logId);
     }
 
     @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
-        throw new UnsupportedOperationException("seal() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("seal() is not supported on " + this.logId);
     }
 
     @Override
     public CompletableFuture<Void> delete(String streamName, Duration timeout) {
-        throw new UnsupportedOperationException("delete() is not supported on " + LOG_ID);
+        throw new UnsupportedOperationException("delete() is not supported on " + this.logId);
     }
 
     @Override
@@ -242,6 +218,15 @@ class BookKeeperAdapter implements StoreAdapter {
     }
 
     //endregion
+
+    private void stopBookKeeper() {
+        val bk = this.bookKeeperService;
+        if (bk != null) {
+            bk.destroyForcibly();
+            log("Bookies shut down.");
+            this.bookKeeperService = null;
+        }
+    }
 
     /**
      * Starts a BookKeeper (using a number of bookies) along with a ZooKeeper out-of-process.

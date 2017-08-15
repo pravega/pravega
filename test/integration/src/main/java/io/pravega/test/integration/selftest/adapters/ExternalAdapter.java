@@ -9,14 +9,12 @@
  */
 package io.pravega.test.integration.selftest.adapters;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.TestConfig;
-import io.pravega.test.integration.selftest.TestLogger;
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,7 +28,6 @@ import lombok.SneakyThrows;
 class ExternalAdapter extends ClientAdapterBase {
     //region Members
 
-    private static final String LOG_ID = ExternalAdapter.class.getSimpleName();
     private final AtomicReference<StreamManager> streamManager;
     private final AtomicReference<ClientFactory> clientFactory;
 
@@ -52,33 +49,11 @@ class ExternalAdapter extends ClientAdapterBase {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        super.close();
-
-        // Stop clients.
-        stopComponent(this.clientFactory);
-        stopComponent(this.streamManager);
-    }
-
-    @SneakyThrows(Exception.class)
-    private void stopComponent(AtomicReference<? extends AutoCloseable> componentReference) {
-        AutoCloseable p = componentReference.getAndSet(null);
-        if (p != null) {
-            p.close();
-        }
-    }
-
-    //endregion
-
     //region ClientAdapterBase and StorageAdapter Implementation
 
     @Override
-    public void initialize() throws Exception {
+    protected void startUp() throws Exception {
         try {
-            Preconditions.checkState(this.streamManager.get() == null && this.clientFactory.get() == null, "Client is already initialized.");
             URI controllerUri = new URI(getControllerUrl());
 
             // Create Stream Manager, Scope and Client Factory.
@@ -97,7 +72,7 @@ class ExternalAdapter extends ClientAdapterBase {
             this.streamManager.get().createStream(SCOPE, testStreamName, StreamConfiguration.builder().build());
             this.streamManager.get().sealStream(SCOPE, testStreamName);
             this.streamManager.get().deleteStream(SCOPE, testStreamName);
-            TestLogger.log(LOG_ID, "Client initialized; using scope '%s'.", SCOPE);
+            log("Client initialized; using scope '%s'.", SCOPE);
         } catch (Throwable ex) {
             if (!ExceptionHelpers.mustRethrow(ex)) {
                 close();
@@ -106,8 +81,24 @@ class ExternalAdapter extends ClientAdapterBase {
             throw ex;
         }
 
-        TestLogger.log(LOG_ID, "Initialized.");
-        super.initialize();
+        super.startUp();
+    }
+
+    @Override
+    protected void shutDown() {
+        super.shutDown();
+
+        // Stop clients.
+        stopComponent(this.clientFactory);
+        stopComponent(this.streamManager);
+    }
+
+    @SneakyThrows(Exception.class)
+    private void stopComponent(AtomicReference<? extends AutoCloseable> componentReference) {
+        AutoCloseable p = componentReference.getAndSet(null);
+        if (p != null) {
+            p.close();
+        }
     }
 
     @Override

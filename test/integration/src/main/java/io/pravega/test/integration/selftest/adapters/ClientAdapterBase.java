@@ -19,7 +19,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
@@ -29,7 +28,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
-import io.pravega.test.integration.selftest.TestLogger;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -40,14 +38,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 
 /**
  * Store adapter wrapping a real Pravega Client.
  */
-abstract class ClientAdapterBase implements StoreAdapter {
+abstract class ClientAdapterBase extends StoreAdapter {
     //region Members
     static final String SCOPE = "SelfTest";
     static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
@@ -55,13 +52,10 @@ abstract class ClientAdapterBase implements StoreAdapter {
     private static final long TXN_MAX_EXEC_TIME = TXN_TIMEOUT;
     private static final long TXN_SCALE_GRACE_PERIOD = TXN_TIMEOUT;
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
-    private static final String LOG_ID = "ClientAdapter";
     final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, List<EventStreamWriter<byte[]>>> streamWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
-    private final AtomicBoolean closed;
-    private final AtomicBoolean initialized;
     private final AtomicReference<ClientReader> clientReader;
 
     //endregion
@@ -79,28 +73,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.streamWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();
-        this.closed = new AtomicBoolean();
-        this.initialized = new AtomicBoolean();
         this.clientReader = new AtomicReference<>();
-    }
-
-    //endregion
-
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        if (!this.closed.getAndSet(true)) {
-            ClientReader reader = this.clientReader.getAndSet(null);
-            if (reader != null) {
-                reader.close();
-            }
-
-            this.streamWriters.values().forEach(l -> l.forEach(EventStreamWriter::close));
-            this.streamWriters.clear();
-
-            TestLogger.log(LOG_ID, "Closed.");
-        }
     }
 
     //endregion
@@ -114,18 +87,26 @@ abstract class ClientAdapterBase implements StoreAdapter {
     }
 
     @Override
-    public void initialize() throws Exception {
-        Preconditions.checkState(!this.initialized.getAndSet(true), "Cannot call initialize() after initialization happened.");
+    protected void startUp() throws Exception {
         if (isFeatureSupported(Feature.TailRead)) {
             this.clientReader.set(new ClientReader(new URI(getControllerUrl()), this.testConfig, getClientFactory(), this.testExecutor));
         }
+    }
 
-        this.initialized.set(true);
+    @Override
+    protected void shutDown() {
+        ClientReader reader = this.clientReader.getAndSet(null);
+        if (reader != null) {
+            reader.close();
+        }
+
+        this.streamWriters.values().forEach(l -> l.forEach(EventStreamWriter::close));
+        this.streamWriters.clear();
     }
 
     @Override
     public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return CompletableFuture.runAsync(() -> {
             if (this.streamWriters.containsKey(streamName)) {
                 throw new CompletionException(new StreamSegmentExistsException(streamName));
@@ -153,7 +134,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> delete(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
             // We have a transaction to abort.
@@ -171,7 +152,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
         String routingKey = Integer.toString(event.getRoutingKey());
@@ -198,7 +179,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return CompletableFuture.runAsync(() -> {
             if (getStreamManager().sealStream(SCOPE, streamName)) {
                 closeWriters(streamName);
@@ -210,7 +191,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return CompletableFuture.supplyAsync(() -> {
             EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
             UUID txnId = writer.beginTxn(TXN_TIMEOUT, TXN_MAX_EXEC_TIME, TXN_SCALE_GRACE_PERIOD).getTxnId();
@@ -222,7 +203,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
@@ -240,7 +221,7 @@ abstract class ClientAdapterBase implements StoreAdapter {
 
     @Override
     public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
@@ -317,11 +298,6 @@ abstract class ClientAdapterBase implements StoreAdapter {
         }
 
         return writers.get(routingKey % writers.size());
-    }
-
-    private void ensureInitializedAndNotClosed() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
     }
 
     private boolean isTransaction(String streamName, String parentName) {

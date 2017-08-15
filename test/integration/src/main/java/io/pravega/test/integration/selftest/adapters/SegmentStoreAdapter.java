@@ -36,7 +36,6 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
-import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
@@ -55,15 +54,12 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Store Adapter wrapping a StreamSegmentStore directly. Every "Stream" is actually a single Segment. Routing keys are
  * ignored.
  */
-class SegmentStoreAdapter implements StoreAdapter {
+class SegmentStoreAdapter extends StoreAdapter {
     //region Members
 
-    private static final String LOG_ID = SegmentStoreAdapter.class.getSimpleName();
     private final ScheduledExecutorService testExecutor;
     private final TestConfig config;
     private final ServiceBuilderConfig builderConfig;
-    private final AtomicBoolean closed;
-    private final AtomicBoolean initialized;
     private final ServiceBuilder serviceBuilder;
     private final AtomicReference<Storage> storage;
     private final AtomicReference<ScheduledExecutorService> storeExecutor;
@@ -88,8 +84,6 @@ class SegmentStoreAdapter implements StoreAdapter {
     SegmentStoreAdapter(TestConfig testConfig, ServiceBuilderConfig builderConfig, ScheduledExecutorService testExecutor) {
         this.config = Preconditions.checkNotNull(testConfig, "testConfig");
         this.builderConfig = Preconditions.checkNotNull(builderConfig, "builderConfig");
-        this.closed = new AtomicBoolean();
-        this.initialized = new AtomicBoolean();
         this.storage = new AtomicReference<>();
         this.storeExecutor = new AtomicReference<>();
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
@@ -133,49 +127,10 @@ class SegmentStoreAdapter implements StoreAdapter {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        if (!this.closed.get()) {
-            this.serviceBuilder.close();
-            stopBookKeeper();
-
-            val zk = this.zkClient;
-            if (zk != null) {
-                zk.close();
-                this.zkClient = null;
-            }
-
-            StatsProvider sp = this.statsProvider;
-            if (sp != null) {
-                sp.close();
-                this.statsProvider = null;
-            }
-
-            this.closed.set(true);
-            Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
-            TestLogger.log(LOG_ID, "Closed.");
-        }
-    }
-
-    private void stopBookKeeper() {
-        val bk = this.bookKeeperService;
-        if (bk != null) {
-            bk.destroyForcibly();
-            TestLogger.log(LOG_ID, "Bookies shut down.");
-            this.bookKeeperService = null;
-        }
-    }
-
-    //endregion
-
     //region StoreAdapter Implementation
 
     @Override
-    public void initialize() throws Exception {
-        Preconditions.checkState(!this.initialized.get(), "Cannot call initialize() after initialization happened.");
-        TestLogger.log(LOG_ID, "Initializing.");
+    protected void startUp() throws Exception {
         if (this.config.isMetricsEnabled()) {
             MetricsProvider.initialize(this.builderConfig.getConfig(MetricsConfig::builder));
             this.statsProvider = MetricsProvider.getMetricsProvider();
@@ -183,18 +138,36 @@ class SegmentStoreAdapter implements StoreAdapter {
         }
 
         if (this.config.getBookieCount() > 0) {
-            this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.config, LOG_ID);
+            this.bookKeeperService = BookKeeperAdapter.startBookKeeperOutOfProcess(this.config, this.logId);
         }
 
         this.serviceBuilder.initialize();
         this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
-        this.initialized.set(true);
-        TestLogger.log(LOG_ID, "Up and running.");
+    }
+
+    @Override
+    protected void shutDown() {
+        this.serviceBuilder.close();
+        stopBookKeeper();
+
+        val zk = this.zkClient;
+        if (zk != null) {
+            zk.close();
+            this.zkClient = null;
+        }
+
+        StatsProvider sp = this.statsProvider;
+        if (sp != null) {
+            sp.close();
+            this.statsProvider = null;
+        }
+
+        Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
     }
 
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
         return this.streamSegmentStore.append(streamName, payload, null, timeout)
@@ -203,24 +176,25 @@ class SegmentStoreAdapter implements StoreAdapter {
 
     @Override
     public StoreReader createReader() {
+        ensureRunning();
         return new SegmentStoreReader(this.config, this.streamSegmentStore, this.storage.get(), this.testExecutor);
     }
 
     @Override
     public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return this.streamSegmentStore.createStreamSegment(streamName, null, timeout);
     }
 
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return this.streamSegmentStore.createTransaction(parentStream, UUID.randomUUID(), null, timeout);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.streamSegmentStore
                 .sealStreamSegment(transactionName, timer.getRemaining())
@@ -230,19 +204,19 @@ class SegmentStoreAdapter implements StoreAdapter {
     @Override
     public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
         // At the SegmentStore level, aborting transactions means deleting their segments.
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return this.delete(transactionName, timeout);
     }
 
     @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
     }
 
     @Override
     public CompletableFuture<Void> delete(String streamName, Duration timeout) {
-        ensureInitializedAndNotClosed();
+        ensureRunning();
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }
 
@@ -258,6 +232,15 @@ class SegmentStoreAdapter implements StoreAdapter {
     //endregion
 
     //region Helpers
+
+    private void stopBookKeeper() {
+        val bk = this.bookKeeperService;
+        if (bk != null) {
+            bk.destroyForcibly();
+            log("Bookies shut down.");
+            this.bookKeeperService = null;
+        }
+    }
 
     @SneakyThrows
     private Void attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
@@ -285,11 +268,6 @@ class SegmentStoreAdapter implements StoreAdapter {
         return ex instanceof StreamSegmentSealedException
                 || ex instanceof StreamSegmentNotExistsException
                 || ex instanceof StreamSegmentMergedException;
-    }
-
-    private void ensureInitializedAndNotClosed() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkState(this.initialized.get(), "initialize() must be called before invoking this operation.");
     }
 
     StreamSegmentStore getStreamSegmentStore() {

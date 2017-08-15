@@ -24,7 +24,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.test.integration.selftest.TestConfig;
-import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +38,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 class InProcessMockClientAdapter extends ClientAdapterBase {
     //region Members
-    private static final String LOG_ID = "InProcessAdapter";
+
     private static final String LISTENING_ADDRESS = "localhost";
     private PravegaConnectionListener listener;
     private MockStreamManager streamManager;
@@ -60,11 +59,22 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
     //endregion
 
-    //region AutoCloseable Implementation
+    //region ClientAdapterBase Implementation
 
     @Override
-    public void close() {
-        super.close();
+    protected void startUp() throws Exception {
+        int segmentStorePort = this.testConfig.getSegmentStorePort(0);
+        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore());
+        this.listener.startListening();
+
+        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
+        this.streamManager.createScope(SCOPE);
+        super.startUp();
+    }
+
+    @Override
+    protected void shutDown() {
+        super.shutDown();
 
         if (this.listener != null) {
             this.listener.close();
@@ -75,24 +85,6 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
             this.streamManager.close();
             this.streamManager = null;
         }
-        TestLogger.log(LOG_ID, "Closed.");
-    }
-
-    //endregion
-
-    //region ClientAdapterBase Implementation
-
-    @Override
-    public void initialize() throws Exception {
-        int segmentStorePort = this.testConfig.getSegmentStorePort(0);
-        this.listener = new PravegaConnectionListener(false, segmentStorePort, getStreamSegmentStore());
-        this.listener.startListening();
-
-        this.streamManager = new MockStreamManager(SCOPE, LISTENING_ADDRESS, segmentStorePort);
-        this.streamManager.createScope(SCOPE);
-
-        TestLogger.log(LOG_ID, "Initialized.");
-        super.initialize();
     }
 
     @Override
