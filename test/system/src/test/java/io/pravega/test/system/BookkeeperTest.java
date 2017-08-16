@@ -47,7 +47,7 @@ public class BookkeeperTest {
      * The test fails incase bookkeeper is not running on given port.
      */
 
-    @Test
+    @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
         Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);

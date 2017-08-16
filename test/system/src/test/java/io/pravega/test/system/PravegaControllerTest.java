@@ -48,7 +48,7 @@ public class PravegaControllerTest {
      * The test fails incase controller is not running on given ports
      */
 
-    @Test
+    @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
