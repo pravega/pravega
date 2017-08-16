@@ -524,8 +524,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.highestCommittedDataFrame = addressSequence;
                 }
 
+                Timer flushTimer = new Timer();
                 this.logUpdater.flush();
+                metrics.logFlushed(flushTimer.getElapsed());
             } finally {
+                Timer ackTimer = new Timer();
                 toComplete.forEach(CompletableOperation::complete);
                 toFail.forEach(this::failOperation);
                 autoCompleteIfNeeded();
@@ -534,7 +537,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
 
-                metrics.operationsCommitted(count, timer.getElapsed());
+                metrics.operationsCommitted(count, timer.getElapsed(), ackTimer.getElapsed());
                 metrics.operationsCompleted(toComplete);
                 metrics.operationsFailed(toFail.keySet());
             }
