@@ -160,7 +160,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapStreamSegment SegmentId = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
@@ -170,8 +170,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
-            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id.");
-            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction.");
+            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id (%s).", parentStreamSegmentId);
+            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction (%s).", parentStreamSegmentId);
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
@@ -179,7 +179,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, SegmentId = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
         return segmentMetadata;
     }
 
@@ -304,6 +304,15 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                         this.metadataByName.remove(m.getName());
                         evictedSegments.add(m);
                     });
+
+            List<SegmentMetadata> orphanedTxns = this.metadataById.values()
+                                                                  .stream()
+                                                                  .filter(SegmentMetadata::isTransaction)
+                                                                  .filter(sm -> !this.metadataById.containsKey(sm.getParentId()))
+                                                                  .collect(Collectors.toList());
+            if (orphanedTxns.size() > 0) {
+                log.warn("{}: Found orphaned transactions after eviction: {}.", orphanedTxns);
+            }
         }
 
         log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
