@@ -164,7 +164,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             performFailoverTest();
 
             stopWriters(false);
-            stopReaders(readerGroupManager, readerGroupName);
+            stopReaders();
             validateResults(readerGroupManager, readerGroupName);
         }
         cleanUp(scope, SCALE_STREAM);
