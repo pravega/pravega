@@ -83,7 +83,6 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
-        final AtomicBoolean autoScaleTestFlag = new AtomicBoolean(true);
     }
 
     void performFailoverTest() {
