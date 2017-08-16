@@ -9,12 +9,20 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Transaction;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.server.eventProcessor.ScaleOpEvent;
+import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.StartScaleResponse;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
@@ -34,6 +42,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import lombok.Data;
+import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -47,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -116,6 +127,7 @@ public class StreamMetadataTasksTest {
         List<Integer> sealedSegments = Collections.singletonList(1);
         StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
+        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         streamStorePartialMock.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
     }
@@ -187,5 +199,89 @@ public class StreamMetadataTasksTest {
 
         scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 5, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
+    }
+
+    @Test
+    public void manualScaleTest() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
+                newRanges, 30, null).get();
+
+        assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
+        OperationContext context = streamStorePartialMock.createContext(SCOPE, "test");
+        assertEquals(streamStorePartialMock.getState(SCOPE, "test", context, executor).get(), State.ACTIVE);
+
+        // Now when startScale runs even after that we should get the state as active.
+        StartScaleResponse response = streamStorePartialMock.startScale(SCOPE, "test", Collections.singletonList(0), newRanges, 30, true, null, executor).get();
+        assertEquals(response.getActiveEpoch(), 0);
+        assertEquals(streamStorePartialMock.getState(SCOPE, "test", context, executor).get(), State.ACTIVE);
+
+        AssertExtensions.assertThrows("", () -> streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, "test",
+                Collections.singletonList(0), response.getSegmentsCreated(),
+                response.getActiveEpoch(), 30, context, executor).get(),
+                ex -> ExceptionHelpers.getRealException(ex) instanceof StoreException.IllegalStateException);
+
+        List<Segment> segments = streamMetadataTasks.startScale(requestEventWriter.getScaleOp(), true, context).get();
+
+        assertTrue(segments.stream().anyMatch(x -> x.getNumber() == 1 && x.getKeyStart() == 0.0 && x.getKeyEnd() == 0.5));
+        assertTrue(segments.stream().anyMatch(x -> x.getNumber() == 2 && x.getKeyStart() == 0.5 && x.getKeyEnd() == 1.0));
+    }
+
+    @Data
+    public class WriterMock implements EventStreamWriter<ControllerEvent> {
+        private final StreamMetadataTasks streamMetadataTasks;
+        private final ScheduledExecutorService executor;
+        @Getter
+        private ScaleOpEvent scaleOp;
+
+        @Override
+        public CompletableFuture<Void> writeEvent(ControllerEvent event) {
+            if (event instanceof ScaleOpEvent) {
+                scaleOp = (ScaleOpEvent) event;
+            }
+
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
+            return writeEvent(event);
+        }
+
+        @Override
+        public Transaction<ControllerEvent> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod) {
+            return null;
+        }
+
+        @Override
+        public Transaction<ControllerEvent> getTxn(UUID transactionId) {
+            return null;
+        }
+
+        @Override
+        public EventWriterConfig getConfig() {
+            return null;
+        }
+
+        @Override
+        public void flush() {
+
+        }
+
+        @Override
+        public void close() {
+
+        }
     }
 }
