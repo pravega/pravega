@@ -13,9 +13,6 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
