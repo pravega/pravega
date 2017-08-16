@@ -138,7 +138,9 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test after scaling
             performFailoverTest();
 
-            stopReadersAndWriters(readerGroupManager, readerGroupName);
+            stopWriters(true);
+            stopReaders(readerGroupManager, readerGroupName);
+            validateResults(readerGroupManager, readerGroupName);
 
         }
         cleanUp(scope, AUTO_SCALE_STREAM);
