@@ -107,7 +107,8 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         Stream stream = new StreamImpl(scope, streamName);
-        ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"+stream.getScopedName());
+        ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
+                + stream.getScopedName());
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
     }
 
