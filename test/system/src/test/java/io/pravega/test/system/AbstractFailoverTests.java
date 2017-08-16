@@ -343,7 +343,7 @@ abstract class AbstractFailoverTests {
         }
     }
 
-    void stopReaders(ReaderGroupManager readerGroupManager, String readerGroupName) {
+    void stopReaders() {
         //Stop Readers
         log.info("Stop read flag status {}", testState.stopReadFlag);
         testState.stopReadFlag.set(true);

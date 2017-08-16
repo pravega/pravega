@@ -139,7 +139,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             performFailoverTest();
 
             stopWriters(true);
-            stopReaders(readerGroupManager, readerGroupName);
+            stopReaders();
             validateResults(readerGroupManager, readerGroupName);
 
         }
