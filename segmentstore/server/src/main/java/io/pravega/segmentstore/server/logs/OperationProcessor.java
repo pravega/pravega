@@ -467,7 +467,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 final long lastOperationSequence = commitArgs.getLastFullySerializedSequenceNumber();
                 final long addressSequence = commitArgs.getLogAddress().getSequence();
 
+                Timer lockAcquireTimer = new Timer();
                 synchronized (stateLock) {
+                    metrics.lockAcquired(lockAcquireTimer.getElapsed());
                     if (addressSequence <= this.highestCommittedDataFrame) {
                         // Ack came out of order (we already processed one with a higher SeqNo).
                         log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = {}).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
@@ -480,12 +482,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         return;
                     }
 
+                    Timer metadataCommitTimer = new Timer();
                     // Commit any changes to the metadata.
                     boolean checkpointExists = this.metadataTransactions.removeLessThanOrEqual(commitArgs);
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
                     OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
+                    metrics.metadataCommitted(metadataCommitTimer.getElapsed());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
+                    Timer logUpdateProcessTimer = new Timer();
                     while (!this.pendingOperations.isEmpty()
                             && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastOperationSequence) {
                         CompletableOperation op = this.pendingOperations.pollFirst();
@@ -520,6 +525,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                             toComplete.add(op);
                         }
                     }
+                    metrics.logProcessed(logUpdateProcessTimer.getElapsed());
 
                     this.highestCommittedDataFrame = addressSequence;
                 }

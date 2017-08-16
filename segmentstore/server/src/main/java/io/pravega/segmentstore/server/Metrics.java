@@ -134,6 +134,9 @@ public final class Metrics {
          * Amount of time spent flushing into the log.
          */
         private final OpStatsLogger logFlushLatency;
+        private final OpStatsLogger lockAcquireLatency;
+        private final OpStatsLogger logProcessLatency;
+        private final OpStatsLogger metadataCommitLatency;
 
         /**
          * Amount of time spent inside processOperations(Queue)
@@ -150,6 +153,9 @@ public final class Metrics {
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
             this.operationAckLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_ACK_LATENCY, containerId));
             this.logFlushLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.LOG_FLUSH_LATENCY, containerId));
+            this.lockAcquireLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_ACQ_LOCK_LATENCY, containerId));
+            this.logProcessLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LOG_UPDATE_LATENCY, containerId));
+            this.metadataCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_METADATA_LATENCY, containerId));
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_LATENCY, containerId));
             this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
@@ -171,6 +177,18 @@ public final class Metrics {
             DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, count);
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
             this.operationAckLatency.reportSuccessEvent(ackElapsed);
+        }
+
+        public void lockAcquired(Duration elapsed) {
+            this.lockAcquireLatency.reportSuccessEvent(elapsed);
+        }
+
+        public void logProcessed(Duration elapsed) {
+            this.logProcessLatency.reportSuccessEvent(elapsed);
+        }
+
+        public void metadataCommitted(Duration elapsed) {
+            this.metadataCommitLatency.reportSuccessEvent(elapsed);
         }
 
         public void logFlushed(Duration elapsed) {
