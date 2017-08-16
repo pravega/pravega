@@ -164,7 +164,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //run the failover test after scaling
             performFailoverTest();
 
-            stopReadersAndWriters(readerGroupManager, readerGroupName);
+            stopWriters(false);
+            stopReaders(readerGroupManager, readerGroupName);
+            validateResults(readerGroupManager, readerGroupName);
         }
         cleanUp(scope, SCALE_STREAM);
         log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");

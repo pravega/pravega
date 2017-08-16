@@ -322,7 +322,7 @@ abstract class AbstractFailoverTests {
                                         t -> log.error("Exception while waiting for writers to complete", t));
     }
 
-    void stopReadersAndWriters(ReaderGroupManager readerGroupManager, String readerGroupName) {
+    void stopWriters(boolean stopAdditionalWriters) {
         //Stop Writers
         log.info("Stop write flag status {}", testState.stopWriteFlag);
         testState.stopWriteFlag.set(true);
@@ -331,17 +331,21 @@ abstract class AbstractFailoverTests {
         if (!FutureHelpers.await(testState.writersComplete)) {
             log.error("Writers stopped with exceptions");
         }
-        if (testState.autoScaleTestFlag.get()) {
+
+        if (stopAdditionalWriters) {
             if (!FutureHelpers.await(testState.newWritersComplete)) {
                 log.error("Writers stopped with exceptions");
             }
         }
+
         // check for exceptions during writes
         if (testState.getWriteException.get() != null) {
             log.info("Unable to write events:", testState.getWriteException.get());
             Assert.fail("Unable to write events. Test failure");
         }
+    }
 
+    void stopReaders(ReaderGroupManager readerGroupManager, String readerGroupName) {
         //Stop Readers
         log.info("Stop read flag status {}", testState.stopReadFlag);
         testState.stopReadFlag.set(true);
@@ -355,7 +359,9 @@ abstract class AbstractFailoverTests {
             log.info("Unable to read events:", testState.getReadException.get());
             Assert.fail("Unable to read events. Test failure");
         }
+    }
 
+    void validateResults(ReaderGroupManager readerGroupManager, String readerGroupName) {
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
