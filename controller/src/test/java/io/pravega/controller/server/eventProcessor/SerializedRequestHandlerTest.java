@@ -37,7 +37,7 @@ public class SerializedRequestHandlerTest {
 
     @Before
     public void setUp() {
-        executor = Executors.newSingleThreadScheduledExecutor();
+        executor = Executors.newScheduledThreadPool(5);
     }
 
     @After
@@ -50,7 +50,7 @@ public class SerializedRequestHandlerTest {
         EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
-        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>() {
+        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executor) {
             @Override
             CompletableFuture<Void> processEvent(TestEvent event, EventProcessor.Writer<TestEvent> writer) {
                 orderOfProcessing.compute(event.getKey(), (x, y) -> {

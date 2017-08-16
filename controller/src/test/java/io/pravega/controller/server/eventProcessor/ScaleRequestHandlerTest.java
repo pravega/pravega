@@ -140,7 +140,7 @@ public class ScaleRequestHandlerTest {
     public void testScaleRequest() throws ExecutionException, InterruptedException {
         AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
         ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
-        RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler);
+        RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler, executor);
         // Send number of splits = 1
         AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
         CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
