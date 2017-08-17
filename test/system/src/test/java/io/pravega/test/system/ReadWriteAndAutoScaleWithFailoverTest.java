@@ -94,6 +94,10 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         testState = new TestState();
+        testState.writersListComplete.add(testState.writersComplete);
+        testState.writersListComplete.add(testState.newWritersComplete);
+        testState.writersListComplete.set(0, testState.writersComplete);
+        testState.writersListComplete.set(1, testState.newWritersComplete);
     }
 
     @After
@@ -138,7 +142,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test after scaling
             performFailoverTest();
 
-            stopWriters(true);
+            stopWriters();
             stopReaders();
             validateResults(readerGroupManager, readerGroupName);
 
