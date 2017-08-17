@@ -119,7 +119,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
-            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, RuntimeException::new, timeout) == null) {
+            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, this::logError, timeout) == null) {
                 return null;
             }
             handleRequest();
@@ -143,6 +143,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         }
         result.flip();
         return result;
+    }
+    
+    private final RuntimeException logError(Throwable e) {
+        log.error("Unable to read data for " + asyncInput.getSegmentId(), e);
+        return null;
     }
 
 
