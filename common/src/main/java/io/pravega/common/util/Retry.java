@@ -202,11 +202,14 @@ public final class Retry {
                     }
                 }
 
-                final long sleepFor = delay;
-                Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
+                if (attemptNumber < params.attempts) {
+                    // no need to sleep if it is the last attempt
+                    final long sleepFor = delay;
+                    Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
 
-                delay = Math.min(params.maxDelay, params.multiplier * delay);
-                log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                    delay = Math.min(params.maxDelay, params.multiplier * delay);
+                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                }
             }
             throw new RetriesExhaustedException(last);
         }

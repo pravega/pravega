@@ -338,12 +338,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithMetadataLimit() throws Exception {
+        // We use different "parent" segment names because it is possible that, if the test runs fast enough, and the
+        // StreamSegmentMapper does not clean up its state quickly enough, subsequent mapping attempts will piggyback
+        // on the first one, and thus not execute the test as desired.
         final String segmentName = "Segment";
-        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        final String transactionParent = "SegmentWithTxn";
+        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(transactionParent, UUID.randomUUID());
 
-        HashSet<String> storageSegments = new HashSet<>();
-        storageSegments.add(segmentName);
-        storageSegments.add(transactionName);
+        HashSet<String> storageSegments = new HashSet<>(Arrays.asList(segmentName, transactionParent, transactionName));
 
         @Cleanup
         TestContext context = new TestContext();
@@ -357,13 +359,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
         Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times/"));
+                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
             return CompletableFuture.completedFuture(null);
         };
         val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
@@ -373,7 +375,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         exceptionCounter.set(0);
         cleanupInvoked.set(false);
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a transaction to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());

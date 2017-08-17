@@ -120,7 +120,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
             await(() -> commitFrames.size() >= order.size(), 20);
 
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
 
             // Check the correctness of the commit callback.
@@ -209,7 +209,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Items read back do not match expected values.", expectedItems, readItems, TestLogItem::equals);
 
         // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-        List<DataFrame> frames = dataLog.getAllEntries(ri -> new DataFrame(ri.getPayload(), ri.getLength()));
+        List<DataFrame> frames = dataLog.getAllEntries(ri -> DataFrame.from(ri.getPayload(), ri.getLength()));
 
         // Check the correctness of the commit callback.
         AssertExtensions.assertGreaterThan("Not enough Data Frames were generated.", 1, frames.size());
@@ -256,7 +256,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
             Assert.assertEquals("Unexpected number of frames generated.", commitFrames.size(), frames.size());
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
@@ -310,7 +310,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
 
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            List<DataFrame> frames = dataLog.getAllEntries(readItem -> new DataFrame(readItem.getPayload(), readItem.getLength()));
+            List<DataFrame> frames = dataLog.getAllEntries(readItem -> DataFrame.from(readItem.getPayload(), readItem.getLength()));
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
         }
     }

@@ -30,7 +30,7 @@ public class AuthEnabledMetronomeClient {
     }
 
     private static Metronome createMetronomeClient() {
-        String token = LoginClient.getAuthToken(LOGIN_URL, LoginClient.getAuthenticationRequestInterceptor());
+        String token = LoginClient.getAuthToken(LOGIN_URL);
         return MetronomeClient.getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
     }
 

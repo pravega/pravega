@@ -17,8 +17,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -64,6 +66,16 @@ public final class ExecutorServiceHelpers {
         } else {
             return null;
         }
+    }
+    
+    public static ThreadPoolExecutor getShrinkingExecutor(int maxThreads, int threadTimeout, String poolName) {
+        return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new ThreadFactory() {
+            private final ThreadGroup group = new ThreadGroup(poolName);
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(group, r);
+            }
+        });
     }
 
     /**
