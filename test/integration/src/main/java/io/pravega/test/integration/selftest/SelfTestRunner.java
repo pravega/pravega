@@ -161,7 +161,6 @@ public class SelfTestRunner {
                                         .with(ContainerConfig.MAX_ACTIVE_SEGMENT_COUNT, 500))
                 // This is for those tests that use BookKeeper for Tier1.
                 .include(BookKeeperConfig.builder()
-                                         .with(BookKeeperConfig.MAX_CONCURRENT_WRITES, 4)
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
                                          .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH));

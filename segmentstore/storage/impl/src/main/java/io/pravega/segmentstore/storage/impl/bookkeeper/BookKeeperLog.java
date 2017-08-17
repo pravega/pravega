@@ -271,18 +271,18 @@ class BookKeeperLog implements DurableDataLog {
      * Write Processor main loop. This method is not thread safe and should only be invoked as part of the Write Processor.
      */
     private void processWritesSync() {
-        try{
-        if (getWriteLedger().ledger.isClosed()) {
-            // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
-            // the write processor upon finish, so
-            this.rolloverProcessor.runAsync();
-        } else if (!processPendingWrites()) {
-            // We were not able to complete execution of all writes. Try again.
-            this.writeProcessor.runAsync();
-        } else {
-            // After every run, check if we need to trigger a rollover.
-            this.rolloverProcessor.runAsync();
-        }
+        try {
+            if (getWriteLedger().ledger.isClosed()) {
+                // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
+                // the write processor upon finish, so
+                this.rolloverProcessor.runAsync();
+            } else if (!processPendingWrites()) {
+                // We were not able to complete execution of all writes. Try again.
+                this.writeProcessor.runAsync();
+            } else {
+                // After every run, check if we need to trigger a rollover.
+                this.rolloverProcessor.runAsync();
+            }
         } catch (Exception ex) {
             log.error("{}: processWritesSync failed.", this.traceObjectId, ex);
             throw ex;
