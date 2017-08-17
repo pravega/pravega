@@ -223,6 +223,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         StartScaleResponse response = store.startScale(scope, stream, existingSegments, newRanges,
                 scaleTimestamp, false, null, executor).join();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
+        store.setState(scope, stream, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),
                 scaleTimestamp, null, executor).join();
         store.scaleSegmentsSealed(scope, stream, existingSegments, segmentsCreated, response.getActiveEpoch(),

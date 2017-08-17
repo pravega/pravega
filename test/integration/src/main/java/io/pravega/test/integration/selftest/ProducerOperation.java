@@ -7,17 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
-import com.google.common.base.Preconditions;
-import lombok.Getter;
-import lombok.Setter;
-
-import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * Represents an Operation for a Producer
@@ -35,12 +34,15 @@ class ProducerOperation {
     @Getter
     @Setter
     private int length;
+    @Getter
+    @Setter
+    private CompletableFuture<Void> waitOn;
     @Setter
     private Consumer<ProducerOperation> completionCallback;
     @Setter
     private BiConsumer<ProducerOperation, Throwable> failureCallback;
     @Getter
-    private Duration duration = Duration.ZERO;
+    private long elapsedMillis = 0;
 
     //endregion
 
@@ -67,10 +69,10 @@ class ProducerOperation {
      * Indicates that this ProducerOperation completed successfully. Invokes any associated success callbacks that are
      * registered with it.
      *
-     * @param duration The elapsed time for this operation.
+     * @param elapsedMillis The elapsed time, in milliseconds, for this operation.
      */
-    void completed(Duration duration) {
-        this.duration = duration;
+    void completed(long elapsedMillis) {
+        this.elapsedMillis = elapsedMillis;
         Consumer<ProducerOperation> callback = this.completionCallback;
         if (callback != null) {
             CallbackHelpers.invokeSafely(callback, this, null);

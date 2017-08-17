@@ -840,7 +840,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(readItem.getLength());
+                            DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
                             ArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
@@ -1409,7 +1409,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //endregion
 
-    // CorruptedDurableLog
+    //region CorruptedDurableLog
 
     private static class CorruptedDurableLog extends DurableLog {
         private static final AtomicInteger FAIL_AT_INDEX = new AtomicInteger();

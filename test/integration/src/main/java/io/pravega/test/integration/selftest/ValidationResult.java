@@ -7,13 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
 import io.pravega.common.Exceptions;
+import java.time.Duration;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.Duration;
 
 /**
  * Represents the result of a validation process.
@@ -22,26 +21,25 @@ class ValidationResult {
     //region Members
     @Getter
     @Setter
-    private String source;
+    private ValidationSource source;
     @Getter
     @Setter
     private Duration elapsed;
     @Getter
     @Setter
-    private long segmentOffset;
-
-    /**
-     * Indicates whether more data is needed in order to make a proper determination.
-     * If this is true, it does not mean that the test failed.
-     */
-    @Getter
-    private boolean moreDataNeeded;
+    private Object address;
 
     /**
      * Indicates the length of the validated append. This value is undefined if isSuccess() == false.
      */
     @Getter
     private int length;
+
+    /**
+     * Indicates the Routing Key (if applicable) for the validation result.  This value is undefined if isSuccess() == false.
+     */
+    @Getter
+    private int routingKey;
 
     /**
      * Indicates the failure message. This is undefined if isFailed() == false.
@@ -57,8 +55,8 @@ class ValidationResult {
      * Creates a new instance of the ValidationResult class. Not to be used externally (use the static factory methods instead).
      */
     private ValidationResult() {
-        this.moreDataNeeded = false;
-        this.length = AppendContentGenerator.HEADER_LENGTH;
+        this.length = 0;
+        this.routingKey = -1;
         this.failureMessage = null;
         this.elapsed = null;
     }
@@ -74,20 +72,14 @@ class ValidationResult {
     }
 
     /**
-     * Creates a new ValidationResult for an inconclusive verification, when more data is needed to determine correctness.
-     */
-    static ValidationResult moreDataNeeded() {
-        ValidationResult result = new ValidationResult();
-        result.moreDataNeeded = true;
-        return result;
-    }
-
-    /**
      * Creates a new ValidationResult for a successful test.
+     * @param routingKey  The Event Routing Key.
+     * @param length      The Event size, in bytes, including header and contents.
      */
-    static ValidationResult success(int length) {
+    static ValidationResult success(int routingKey, int length) {
         ValidationResult result = new ValidationResult();
-        result.length = AppendContentGenerator.HEADER_LENGTH + length;
+        result.length = length;
+        result.routingKey = routingKey;
         return result;
     }
 
@@ -96,27 +88,18 @@ class ValidationResult {
     //region Properties
 
     /**
-     * Gets a value indicating whether the verification failed.
-     */
-    boolean isFailed() {
-        return this.failureMessage != null;
-    }
-
-    /**
      * Gets a value indicating whether the verification succeeded.
      */
     boolean isSuccess() {
-        return !isFailed() && !isMoreDataNeeded();
+        return this.failureMessage == null;
     }
 
     @Override
     public String toString() {
-        if (isFailed()) {
-            return String.format("Failed (Source=%s, Offset=%d, Reason=%s)", this.source, this.segmentOffset, this.failureMessage);
-        } else if (isMoreDataNeeded()) {
-            return String.format("More data needed (Source=%s, Offset=%d)", this.source, this.segmentOffset);
+        if (isSuccess()) {
+            return String.format("Success (Source=%s, Address=[%s])", this.source, this.address);
         } else {
-            return String.format("Success (Source=%s, Offset=%d, Length = %d)", this.source, this.segmentOffset, this.length);
+            return String.format("Failed (Source=%s, Address=[%s], Reason=%s)", this.source, this.address, this.failureMessage);
         }
     }
 

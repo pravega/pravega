@@ -256,6 +256,18 @@ project('segmentstore:server:host') {
 }
 
 project('test:integration') {
+    apply plugin: 'application'
+    applicationName = "pravega-selftest"
+    mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
+
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+
+    applicationDistribution.from('src/config') {
+        into "conf"
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -279,12 +291,6 @@ project('test:integration') {
 
     task startServer(type: JavaExec) {
         main = "io.pravega.segmentstore.server.host.ServiceStarter"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -335,6 +341,12 @@ project('test:integration') {
         main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
+    }
+
+    task selftest(type: JavaExec) {
+        main = "io.pravega.test.integration.selftest.SelfTestRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        systemProperties System.getProperties()
     }
 }
 

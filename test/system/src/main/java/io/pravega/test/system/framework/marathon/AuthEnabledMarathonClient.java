@@ -71,7 +71,7 @@ public class AuthEnabledMarathonClient {
     }
 
     private static Marathon createMarathonClient() {
-        String token = LoginClient.getAuthToken(LOGIN_URL, LoginClient.getAuthenticationRequestInterceptor());
+        String token = LoginClient.getAuthToken(LOGIN_URL);
         return getInstance(ENDPOINT, new TokenAuthRequestInterceptor(token));
     }
 

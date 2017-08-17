@@ -201,6 +201,33 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
         cm.applyCachePolicy();
     }
 
+    /**
+     * Tests the case where the CacheManager deals with clients that have no data in them.
+     */
+    @Test
+    public void testEmptyClients() {
+        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // Setup the client so that it throws ObjectClosedException when updateGenerations is called.
+        client.setCacheStatus(policy.getMaxSize() + 1, 0, 0);
+        client.setUpdateGenerationsImpl((current, oldest) -> {
+            Assert.assertEquals("Expected current generation to change.", 1, (long) current);
+            Assert.assertEquals("Expected oldest generation to change.", 1, (long) oldest);
+            return 1L;
+        });
+        cm.applyCachePolicy();
+        client.setCacheStatus(0, 0, 0);
+        client.setUpdateGenerationsImpl((current, oldest) -> {
+            Assert.fail("Not expecting any updates in generations.");
+            return -1L;
+        });
+        cm.applyCachePolicy();
+    }
+
     private static class TestClient implements CacheManager.Client {
         private CacheManager.CacheStatus currentStatus;
         private BiFunction<Integer, Integer, Long> updateGenerationsImpl = (current, oldest) -> -1L;
