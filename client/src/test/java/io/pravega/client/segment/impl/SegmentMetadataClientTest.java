@@ -10,14 +10,19 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -34,7 +39,7 @@ public class SegmentMetadataClientTest {
     public void testCurrentStreamLength() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -58,7 +63,7 @@ public class SegmentMetadataClientTest {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -81,7 +86,7 @@ public class SegmentMetadataClientTest {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -103,7 +108,7 @@ public class SegmentMetadataClientTest {
     public void testReconnects() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
-        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl(endpoint));
+        MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -133,6 +138,48 @@ public class SegmentMetadataClientTest {
         order.verify(connection).send(getSegmentInfo1);
         order.verify(cf).establishConnection(endpoint, processor);
         order.verify(connection).send(getSegmentInfo2);
+        order.verifyNoMoreInteractions();
+        assertEquals(123, length);
+    }
+    
+    @Test(timeout = 10000)
+    public void testExceptionOnSend() throws Exception {
+        Segment segment = new Segment("scope", "testRetry", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        ClientConnection connection1 = mock(ClientConnection.class);
+        ClientConnection connection2 = mock(ClientConnection.class);
+        AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
+        Mockito.when(cf.establishConnection(Mockito.eq(endpoint), Mockito.any()))
+               .thenReturn(FutureHelpers.failedFuture(new ConnectionFailedException()))
+               .thenReturn(CompletableFuture.completedFuture(connection1))
+               .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
+                   @Override
+                   public CompletableFuture<ClientConnection> answer(InvocationOnMock invocation) throws Throwable {
+                       processor.set(invocation.getArgument(1));
+                       return CompletableFuture.completedFuture(connection2);
+                   }
+               });
+        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(2, segment.getScopedName());
+        Mockito.doThrow(new ConnectionFailedException()).when(connection1).send(getSegmentInfo1);
+        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(3, segment.getScopedName());
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                processor.get().streamSegmentInfo(new StreamSegmentInfo(3, segment.getScopedName(), true, false, false, 0,
+                                                                  123));
+                return null;
+            }
+        }).when(connection2).send(getSegmentInfo2);
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
+        InOrder order = Mockito.inOrder(connection1, connection2, cf);
+        long length = client.fetchCurrentStreamLength();
+        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.eq(endpoint), Mockito.any());
+        order.verify(connection1).send(getSegmentInfo1);
+        order.verify(connection1).close();
+        order.verify(cf).establishConnection(Mockito.eq(endpoint), Mockito.any());
+        order.verify(connection2).send(getSegmentInfo2);
         order.verifyNoMoreInteractions();
         assertEquals(123, length);
     }

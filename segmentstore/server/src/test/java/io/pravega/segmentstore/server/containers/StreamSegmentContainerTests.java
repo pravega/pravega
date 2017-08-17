@@ -14,7 +14,6 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceShutdownListener;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ConfigurationException;
@@ -41,6 +40,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -827,7 +827,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
         applyAttributes(appendAttributes, expectedAttributes);
-        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT);
+        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
@@ -848,7 +848,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Seal (this should clear out non-dynamic attributes).
         expectedAttributes.keySet().removeIf(Attributes::isDynamic);
-        localContainer.sealStreamSegment(segmentName, TIMEOUT);
+        localContainer.sealStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
 
@@ -1037,9 +1037,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
-        ServiceShutdownListener.awaitShutdown(container1, shutdownTimeout, false);
+        ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
-        Assert.assertTrue("Container1 did not fail with the correct exception.", container1.failureCause() instanceof DataLogWriterNotPrimaryException);
+        Assert.assertTrue("Container1 did not fail with the correct exception.",
+                ExceptionHelpers.getRealException(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -1059,7 +1060,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         container.startAsync();
 
         // Wait for the container to be shut down and verify it is failed.
-        ServiceShutdownListener.awaitShutdown(container, shutdownTimeout, false);
+        ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
 
         Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
@@ -1070,7 +1071,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         // Verify the OperationLog is also shut down, and make sure it is not in a Failed state.
-        ServiceShutdownListener.awaitShutdown(log.get(), shutdownTimeout, true);
+        ServiceListeners.awaitShutdown(log.get(), shutdownTimeout, true);
     }
 
     /**

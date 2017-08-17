@@ -10,12 +10,13 @@
 package io.pravega.client.netty.impl;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 
 /**
- * A factory that establishes connections to Prevaga servers.
+ * A factory that establishes connections to Pravega servers.
  * The underlying implementation may or may not implement connection pooling.
  */
 public interface ConnectionFactory extends AutoCloseable {
@@ -28,6 +29,12 @@ public interface ConnectionFactory extends AutoCloseable {
      * @return An instance of client connection.
      */
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
+
+    /**
+     * Get the internal executor which is used by the client.
+     * @return A ScheduledExecutorService.
+     */
+    ScheduledExecutorService getInternalExecutor();
 
     @Override
     void close();

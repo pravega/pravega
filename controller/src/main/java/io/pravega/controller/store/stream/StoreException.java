@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.retryable.RetryableException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,77 +31,81 @@ public class StoreException extends RuntimeException {
         DATA_CONTAINS_ELEMENTS,
         WRITE_CONFLICT,
         ILLEGAL_STATE,
+        OPERATION_NOT_ALLOWED,
         CONNECTION_ERROR,
         UNKNOWN
     }
 
-    protected String path;
-    private Type type;
-
     /**
      * Construct a StoreException.
      *
-     * @param type  Type of Exception.
-     * @param path  The ZooKeeper path being operated on.
-     * @param cause The underlying cause for the exception.
+     * @param errorMessage  The detailed error message.
+     * @param cause         Exception cause.
      */
-    private StoreException(final Type type, final String path, final Throwable cause) {
-        super(cause);
-        this.type = type;
-        this.path = path;
-    }
-
-    /**
-     * Construct a StoreException.
-     *
-     * @param type  Type of Exception.
-     */
-    private StoreException(final Type type) {
-        this.type = type;
+    private StoreException(final String errorMessage, final Throwable cause) {
+        super(errorMessage, cause);
     }
 
     /**
      * Factory method to construct Store exceptions.
      *
-     * @param type Type of Exception.
-     * @param path The ZooKeeper path being operated on.
+     * @param type  Type of Exception.
+     * @param cause Exception cause.
      * @return Instance of StoreException.
      */
-    public static StoreException create(Type type, String path) {
-        StoreException storeException = create(type);
-        storeException.path = path;
-        return storeException;
+    public static StoreException create(final Type type, final Throwable cause) {
+        Preconditions.checkNotNull(cause, "cause");
+        return create(type, cause, null);
     }
 
     /**
      * Factory method to construct Store exceptions.
      *
-     * @param type Type of Exception.
+     * @param type          Type of Exception.
+     * @param errorMessage  The detailed error message.
+     * @return Instance of StoreException.
+     */
+    public static StoreException create(final Type type, final String errorMessage) {
+        Exceptions.checkNotNullOrEmpty(errorMessage, "errorMessage");
+        return create(type, null, errorMessage);
+    }
+
+    /**
+     * Factory method to construct Store exceptions.
+     *
+     * @param type          Type of Exception.
+     * @param cause         Exception cause.
+     * @param errorMessage  The detailed error message.
      * @return Instance of type of StoreException.
      */
-    public static StoreException create(final Type type) {
+    public static StoreException create(final Type type, final Throwable cause, final String errorMessage) {
+        Preconditions.checkArgument(cause != null || (errorMessage != null && !errorMessage.isEmpty()),
+                "Either cause or errorMessage should be non-empty");
         StoreException exception;
         switch (type) {
             case DATA_EXISTS:
-                exception = new DataExistsException();
+                exception = new DataExistsException(errorMessage, cause);
                 break;
             case DATA_NOT_FOUND:
-                exception = new DataNotFoundException();
+                exception = new DataNotFoundException(errorMessage, cause);
                 break;
             case DATA_CONTAINS_ELEMENTS:
-                exception = new DataNotEmptyException();
+                exception = new DataNotEmptyException(errorMessage, cause);
                 break;
             case WRITE_CONFLICT:
-                exception = new WriteConflictException();
+                exception = new WriteConflictException(errorMessage, cause);
                 break;
             case ILLEGAL_STATE:
-                exception = new IllegalStateException();
+                exception = new IllegalStateException(errorMessage, cause);
+                break;
+            case OPERATION_NOT_ALLOWED:
+                exception = new OperationNotAllowedException(errorMessage, cause);
                 break;
             case CONNECTION_ERROR:
-                exception = new StoreConnectionException();
+                exception = new StoreConnectionException(errorMessage, cause);
                 break;
             case UNKNOWN:
-                exception = new UnknownException();
+                exception = new UnknownException(errorMessage, cause);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid exception type");
@@ -111,8 +117,8 @@ public class StoreException extends RuntimeException {
      * Exception type when node exists, and duplicate node is created.
      */
     public static class DataExistsException extends StoreException {
-        public DataExistsException() {
-            super(Type.DATA_EXISTS);
+        private DataExistsException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -120,8 +126,8 @@ public class StoreException extends RuntimeException {
      * Exception type when node does not exist and is operated on.
      */
     public static class DataNotFoundException extends StoreException {
-        public DataNotFoundException() {
-            super(Type.DATA_NOT_FOUND);
+        private DataNotFoundException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -129,8 +135,8 @@ public class StoreException extends RuntimeException {
      * Exception type when deleting a non empty node.
      */
     public static class DataNotEmptyException extends StoreException {
-        public DataNotEmptyException() {
-            super(Type.DATA_CONTAINS_ELEMENTS);
+        private DataNotEmptyException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -138,8 +144,8 @@ public class StoreException extends RuntimeException {
      * Exception type when you are attempting to update a stale value.
      */
     public static class WriteConflictException extends StoreException implements RetryableException {
-        public WriteConflictException() {
-            super(Type.WRITE_CONFLICT);
+        private WriteConflictException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -147,8 +153,17 @@ public class StoreException extends RuntimeException {
      * Exception type when you are attempting a disallowed operation.
      */
     public static class IllegalStateException extends StoreException {
-        public IllegalStateException() {
-            super(Type.ILLEGAL_STATE);
+        private IllegalStateException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
+        }
+    }
+
+    /**
+     * Exception type when the attempted operation is currently not allowed.
+     */
+    public static class OperationNotAllowedException extends StoreException implements RetryableException {
+        private OperationNotAllowedException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -156,8 +171,8 @@ public class StoreException extends RuntimeException {
      * Exception type due to failure in connecting to the store.
      */
     public static class StoreConnectionException extends StoreException implements RetryableException {
-        public StoreConnectionException() {
-            super(Type.CONNECTION_ERROR);
+        private StoreConnectionException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 
@@ -165,12 +180,8 @@ public class StoreException extends RuntimeException {
      * Exception type when the cause is not known.
      */
     public static class UnknownException extends StoreException {
-        public UnknownException(final String path, final Throwable cause) {
-            super(Type.UNKNOWN, path, cause);
-        }
-
-        public UnknownException() {
-            super(Type.UNKNOWN);
+        private UnknownException(String errorMessage, Throwable cause) {
+            super(errorMessage, cause);
         }
     }
 }

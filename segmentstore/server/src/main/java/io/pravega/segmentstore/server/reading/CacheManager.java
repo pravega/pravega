@@ -9,12 +9,13 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.ServiceShutdownListener;
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractScheduledService;
+import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.ServiceHelpers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -23,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -81,8 +81,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (state() == State.RUNNING) {
-                stopAsync();
-                ServiceShutdownListener.awaitShutdown(this, false);
+                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
             }
 
             synchronized (this.clients) {
@@ -210,10 +209,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         int maxGeneration = 0;
         long totalSize = 0;
         Collection<Client> clients = getCurrentClients();
-        if (clients.size() == 0) {
-            return null;
-        }
-
         for (Client c : clients) {
             CacheStatus clientStatus;
             try {
@@ -237,6 +232,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
             minGeneration = Math.min(minGeneration, clientStatus.oldestGeneration);
             maxGeneration = Math.max(maxGeneration, clientStatus.newestGeneration);
+        }
+
+        if (minGeneration > maxGeneration) {
+            // Either no clients or clients are empty.
+            return null;
         }
 
         return new CacheStatus(totalSize, minGeneration, maxGeneration);

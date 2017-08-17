@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.test.common.AssertExtensions;
+import java.io.ByteArrayInputStream;
 import java.util.List;
 import lombok.val;
 import org.junit.Assert;
@@ -39,7 +40,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame df = new DataFrame(maxFrameSize);
+        DataFrame df = DataFrame.ofSize(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, df);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         df.seal();
@@ -61,7 +62,7 @@ public class DataFrameTests {
         List<ByteArraySegment> allRecords = DataFrameTestHelpers.generateRecords(maxRecordCount, minRecordSize, maxRecordSize, ByteArraySegment::new);
 
         // Append some records.
-        DataFrame writeFrame = new DataFrame(maxFrameSize);
+        DataFrame writeFrame = DataFrame.ofSize(maxFrameSize);
         int recordsAppended = appendRecords(allRecords, writeFrame);
         AssertExtensions.assertGreaterThan("Did not append enough records. Test may not be valid.", allRecords.size() / 2, recordsAppended);
         writeFrame.seal();
@@ -70,7 +71,7 @@ public class DataFrameTests {
         Assert.assertEquals("Unexpected length from getData().", writeFrame.getLength(), frameData.getLength());
 
         // Read them back, by deserializing the frame.
-        DataFrame readFrame = new DataFrame(new ByteArraySegment(frameData.array(), frameData.arrayOffset(), frameData.getLength()));
+        DataFrame readFrame = DataFrame.from(new ByteArrayInputStream(frameData.array(), frameData.arrayOffset(), frameData.getLength()), frameData.getLength());
         DataFrameTestHelpers.checkReadRecords(readFrame, allRecords, b -> b);
     }
 
@@ -80,7 +81,7 @@ public class DataFrameTests {
     @Test
     public void testStartEndDiscardEntry() {
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(dataFrameSize);
+        DataFrame df = DataFrame.ofSize(dataFrameSize);
         AssertExtensions.assertThrows(
                 "append(byte) worked even though no entry started.",
                 () -> df.append((byte) 1),
@@ -159,7 +160,7 @@ public class DataFrameTests {
     public void testFrameSequence() {
         long newSequence = 67890;
         int dataFrameSize = 1000;
-        DataFrame df = new DataFrame(dataFrameSize);
+        DataFrame df = DataFrame.ofSize(dataFrameSize);
 
         LogAddress a = new LogAddress(newSequence) {
         };

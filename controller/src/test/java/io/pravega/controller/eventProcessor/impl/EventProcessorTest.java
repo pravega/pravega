@@ -350,6 +350,52 @@ public class EventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    public void testInitialize() throws ReinitializationRequiredException, CheckpointStoreException {
+        String systemName = "testSystem";
+        String readerGroupName = "testReaderGroup";
+        EventStreamWriterMock<TestEvent> writer = new EventStreamWriterMock<>();
+        int[] input = {1, 2, 3, 4, 5};
+
+        CheckpointStore checkpointStore = CheckpointStoreFactory.createInMemoryStore();
+
+        CheckpointConfig checkpointConfig = CheckpointConfig.builder().type(CheckpointConfig.Type.None).build();
+
+        EventProcessorGroupConfig config = EventProcessorGroupConfigImpl.builder()
+                .eventProcessorCount(3)
+                .readerGroupName(READER_GROUP)
+                .streamName(STREAM_NAME)
+                .checkpointConfig(checkpointConfig)
+                .build();
+
+        createEventProcessorGroupConfig(3);
+
+        EventProcessorSystemImpl system = createMockSystem(systemName, PROCESS, SCOPE, createEventReaders(3, input),
+                writer, readerGroupName);
+
+        EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(() -> new StartWritingEventProcessor(false, input))
+                .serializer(new JavaSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+
+        // Create EventProcessorGroup.
+        EventProcessorGroupImpl<TestEvent> group = (EventProcessorGroupImpl<TestEvent>)
+                system.createEventProcessorGroup(eventProcessorConfig, checkpointStore);
+
+        // test idempotent initialize
+        group.initialize();
+        group.initialize();
+
+        // Await until it is ready.
+        group.awaitRunning();
+
+        group.initialize();
+
+        assertEquals(3, group.getEventProcessorMap().values().size());
+    }
+
+    @Test(timeout = 10000)
     public void testFailingEventProcessorInGroup() throws ReinitializationRequiredException, CheckpointStoreException {
         String systemName = "testSystem";
         String readerGroupName = "testReaderGroup";

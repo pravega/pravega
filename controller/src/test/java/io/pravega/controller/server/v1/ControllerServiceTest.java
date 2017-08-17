@@ -27,9 +27,6 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.controller.timeout.TimeoutService;
-import io.pravega.controller.timeout.TimeoutServiceConfig;
-import io.pravega.controller.timeout.TimerWheelTimeoutService;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -65,7 +62,6 @@ public class ControllerServiceTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final TimeoutService timeoutService;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ConnectionFactoryImpl connectionFactory;
@@ -92,12 +88,10 @@ public class ControllerServiceTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, taskMetadataStore, segmentHelper, executor, "host", connectionFactory);
-        timeoutService = new TimerWheelTimeoutService(streamTransactionMetadataTasks,
-                TimeoutServiceConfig.defaultConfig());
+                hostStore, segmentHelper, executor, "host", connectionFactory);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                timeoutService, new SegmentHelper(), executor, null);
+                new SegmentHelper(), executor, null);
     }
 
     @Before
@@ -131,6 +125,7 @@ public class ControllerServiceTest {
         scaleTs = System.currentTimeMillis();
         StartScaleResponse startScaleResponse = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, false, null, executor).get();
         List<Segment> segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
 
@@ -140,6 +135,7 @@ public class ControllerServiceTest {
         sealedSegments = Arrays.asList(0, 1, 2);
         startScaleResponse = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, false, null, executor).get();
         segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         // endregion
@@ -147,8 +143,6 @@ public class ControllerServiceTest {
 
     @After
     public void tearDown() throws Exception {
-        timeoutService.stopAsync();
-        timeoutService.awaitTerminated();
         streamTransactionMetadataTasks.close();
         streamMetadataTasks.close();
         connectionFactory.close();

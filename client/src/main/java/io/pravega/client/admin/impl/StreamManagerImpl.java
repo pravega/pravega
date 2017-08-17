@@ -9,14 +9,13 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
-import io.pravega.client.stream.StreamConfiguration;
-import com.google.common.annotations.VisibleForTesting;
-
 import java.net.URI;
 
 /**
@@ -85,7 +84,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public void close() {
-        // Nothing to do.
+        //Nothing to close
     }
 
 }

@@ -225,10 +225,11 @@ resource "aws_instance" "pravega" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
-      "wget -c http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz",
-      "wget -c http://www.apache.org/dist/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz",
-      "wget -c http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz",
+      "wget -c http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz && sudo cp zookeeper-3.5.1-alpha.tar.gz /zookeeper-3.5.1-alpha.tar.gz", 
+      "wget -c http://www.apache.org/dist/hadoop/core/hadoop-2.7.3/hadoop-2.7.3.tar.gz && sudo cp hadoop-2.7.3.tar.gz /hadoop-2.7.3.tar.gz",
+      "wget -c http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz && sudo cp bookkeeper-server-4.4.0-bin.tar.gz /bookkeeper-server-4.4.0-bin.tar.gz",
       "sudo apt-get install -y python",
+      "sudo cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/",
    ]
  } 
 }
@@ -258,11 +259,15 @@ resource "aws_instance" "boot" {
       private_key = "${file("${var.cred_path}")}"
    }
    inline = [
-      "wget ${var.pravega_release} && mv pravega*.tgz data/pravega-0.1.0-SNAPSHOT.tgz",
       "sudo apt-add-repository ppa:ansible/ansible -y",
       "sudo apt-get -y update",
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
+      "sudo apt-get install -y git",
+      "cd /tmp && git clone https://github.com/pravega/pravega.git && cd pravega/",
+      "sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk",
+      "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew distTar && mv build/distributions/pravega*.tgz /home/ubuntu/data/pravega-0.1.0-SNAPSHOT.tgz",
+      "cd /home/ubuntu",
       "chmod 400 $(basename ${var.cred_path})",
       "ansible-playbook -i hosts entry_point.yml --private-key=$(basename ${var.cred_path})",
    ]

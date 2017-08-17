@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.mocks;
 
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
@@ -32,17 +31,17 @@ public class ScaleEventStreamWriterMock implements EventStreamWriter<ControllerE
     private final ScheduledExecutorService executor;
 
     @Override
-    public AckFuture writeEvent(ControllerEvent event) {
+    public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         if (event instanceof ScaleOpEvent) {
             ScaleOpEvent scaleOp = (ScaleOpEvent) event;
             FutureHelpers.delayedFuture(() ->
                     streamMetadataTasks.startScale(scaleOp, scaleOp.isRunOnlyIfStarted(), null), 1000, executor);
         }
-        return new AckFutureMock(CompletableFuture.completedFuture(true));
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public AckFuture writeEvent(String routingKey, ControllerEvent event) {
+    public CompletableFuture<Void> writeEvent(String routingKey, ControllerEvent event) {
         return writeEvent(event);
     }
 

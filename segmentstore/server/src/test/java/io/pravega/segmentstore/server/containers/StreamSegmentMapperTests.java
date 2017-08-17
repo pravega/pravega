@@ -40,10 +40,12 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -336,12 +338,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithMetadataLimit() throws Exception {
+        // We use different "parent" segment names because it is possible that, if the test runs fast enough, and the
+        // StreamSegmentMapper does not clean up its state quickly enough, subsequent mapping attempts will piggyback
+        // on the first one, and thus not execute the test as desired.
         final String segmentName = "Segment";
-        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        final String transactionParent = "SegmentWithTxn";
+        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(transactionParent, UUID.randomUUID());
 
-        HashSet<String> storageSegments = new HashSet<>();
-        storageSegments.add(segmentName);
-        storageSegments.add(transactionName);
+        HashSet<String> storageSegments = new HashSet<>(Arrays.asList(segmentName, transactionParent, transactionName));
 
         @Cleanup
         TestContext context = new TestContext();
@@ -355,13 +359,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
         Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times/"));
+                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
             return CompletableFuture.completedFuture(null);
         };
         val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
@@ -371,7 +375,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         exceptionCounter.set(0);
         cleanupInvoked.set(false);
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a transaction to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
@@ -398,6 +402,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment, with concurrent requests.
+     * Also tests the ability to execute such callbacks in the order in which they were received.
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithConcurrency() throws Exception {
@@ -405,6 +410,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // is driven by the same code for Transactions as well.
         final String segmentName = "Segment";
         final long segmentId = 12345;
+        final String firstResult = "first";
+        final String secondResult = "second";
+        final String thirdResult = "third";
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
@@ -412,7 +420,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
-        CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
+        CompletableFuture<Void> initialAddFuture = new CompletableFuture<>();
+        CompletableFuture<Void> addInvoked = new CompletableFuture<>();
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
             if (!(op instanceof StreamSegmentMapOperation)) {
@@ -424,19 +433,50 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
             // Need to set SegmentId on operation.
             ((StreamSegmentMapOperation) op).setStreamSegmentId(segmentId);
+            UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(segmentName, segmentId);
+            segmentMetadata.setStorageLength(0);
+            segmentMetadata.setDurableLogLength(0);
+            addInvoked.complete(null);
             return initialAddFuture;
         };
 
-        CompletableFuture<Long> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
-        CompletableFuture<Long> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
-        Thread.sleep(20);
+        List<Integer> invocationOrder = Collections.synchronizedList(new ArrayList<>());
+
+        // Second call is designed to hit when the first call still tries to assign the id, hence we test normal queueing.
+        CompletableFuture<String> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (first).", segmentId, (long) id);
+                    invocationOrder.add(1);
+                    return CompletableFuture.completedFuture(firstResult);
+                });
+
+        CompletableFuture<String> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (second).", segmentId, (long) id);
+                    invocationOrder.add(2);
+                    return CompletableFuture.completedFuture(secondResult);
+                });
+
+        // Wait for the metadata to be updated properly.
+        addInvoked.join();
         Assert.assertFalse("getOrAssignStreamSegmentId (first call) returned before OperationLog finished.", firstCall.isDone());
         Assert.assertFalse("getOrAssignStreamSegmentId (second call) returned before OperationLog finished.", secondCall.isDone());
-        initialAddFuture.complete(1L);
-        long firstCallResult = firstCall.get(100, TimeUnit.MILLISECONDS);
-        long secondCallResult = secondCall.get(100, TimeUnit.MILLISECONDS);
 
-        Assert.assertEquals("Two concurrent calls to getOrAssignStreamSegmentId for the same StreamSegment returned different ids.", firstCallResult, secondCallResult);
+        // Third call is designed to hit after the metadata has been updated, but prior to the other callbacks being invoked.
+        // It verifies that even in that case it still executes in order.
+        CompletableFuture<String> thirdCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (second).", segmentId, (long) id);
+                    invocationOrder.add(3);
+                    return CompletableFuture.completedFuture(thirdResult);
+                });
+        initialAddFuture.complete(null);
+
+        Assert.assertEquals("Unexpected result from firstCall.", firstResult, firstCall.join());
+        Assert.assertEquals("Unexpected result from secondCall.", secondResult, secondCall.join());
+        Assert.assertEquals("Unexpected result from thirdCall.", thirdResult, thirdCall.join());
+        val expectedOrder = Arrays.asList(1, 2, 3);
+        AssertExtensions.assertListEquals("", expectedOrder, invocationOrder, Integer::equals);
     }
 
     private String getName(long segmentId) {
@@ -509,7 +549,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 segmentMetadata.updateAttributes(mapOp.getAttributes());
             }
 
-            return CompletableFuture.completedFuture(currentSeqNo);
+            return CompletableFuture.completedFuture(null);
         };
     }
 
@@ -568,10 +608,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     //region TestOperationLog
 
     private static class TestOperationLog implements OperationLog {
-        Function<Operation, CompletableFuture<Long>> addHandler;
+        Function<Operation, CompletableFuture<Void>> addHandler;
 
         @Override
-        public CompletableFuture<Long> add(Operation operation, Duration timeout) {
+        public CompletableFuture<Void> add(Operation operation, Duration timeout) {
             return addHandler.apply(operation);
         }
 

@@ -21,6 +21,7 @@ import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
@@ -30,18 +31,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Slf4j
 class SegmentMetadataClientImpl implements SegmentMetadataClient {
-    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 5);
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 6);
 
     private final Segment segmentId;
     private final Controller controller;
@@ -63,7 +64,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         
         @Override
         public void streamSegmentInfo(StreamSegmentInfo streamInfo) {
-            log.trace("Received stream segment info {}", streamInfo);
+            log.debug("Received stream segment info {}", streamInfo);
             CompletableFuture<StreamSegmentInfo> future;
             synchronized (lock) {
                 future = infoRequests.remove(streamInfo.getRequestId());
@@ -75,7 +76,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
         @Override
         public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            log.trace("Received stream segment attribute {}", segmentAttribute);
+            log.debug("Received stream segment attribute {}", segmentAttribute);
             CompletableFuture<WireCommands.SegmentAttribute> future;
             synchronized (lock) {
                 future = getAttributeRequests.remove(segmentAttribute.getRequestId());
@@ -87,7 +88,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         
         @Override
         public void segmentAttributeUpdated(SegmentAttributeUpdated segmentAttributeUpdated) {
-            log.trace("Received stream segment attribute update result {}", segmentAttributeUpdated);
+            log.debug("Received stream segment attribute update result {}", segmentAttributeUpdated);
             CompletableFuture<SegmentAttributeUpdated> future;
             synchronized (lock) {
                 future = setAttributeRequests.remove(segmentAttributeUpdated.getRequestId());
@@ -119,7 +120,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
     }
 
-    private void closeConnection(Exception exceptionToInflightRequests) {
+    private void closeConnection(Throwable exceptionToInflightRequests) {
         log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
@@ -136,7 +137,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         failAllInflight(exceptionToInflightRequests);
     }
     
-    private void failAllInflight(Exception e) {
+    private void failAllInflight(Throwable e) {
         log.info("SegmentMetadata connection failed due to a {}.", e.getMessage());
         List<CompletableFuture<StreamSegmentInfo>> infoRequestsToFail;
         List<CompletableFuture<WireCommands.SegmentAttribute>> getAttributeRequestsToFail;
@@ -184,17 +185,19 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         synchronized (lock) {
             infoRequests.put(requestId, result);
         }
-        FutureHelpers.exceptionListener(getConnection().thenAccept(c -> {
-            try {
-                log.debug("Getting segment info for segment: {}", segmentId);
-                c.send(new WireCommands.GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
-            } catch (ConnectionFailedException e) {
-                closeConnection(e);
-            }
-        }), e -> {
-            result.completeExceptionally(new CompletionException(e));
+        getConnection().thenAccept(c -> {
+            log.debug("Getting segment info for segment: {}", segmentId);
+            send(c, new WireCommands.GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
+        }).exceptionally(e -> {
+            closeConnection(e);
+            return null;
         });
         return result;
+    }
+    
+    @SneakyThrows(ConnectionFailedException.class)
+    private void send(ClientConnection c, WireCommand cmd) {
+        c.send(cmd);
     }
     
     private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId) {
@@ -203,15 +206,12 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         synchronized (lock) {
             getAttributeRequests.put(requestId, result);
         }
-        FutureHelpers.exceptionListener(getConnection().thenAccept(c -> {
-            try {
-                log.debug("Getting segment attribute: {}", attributeId);
-                c.send(new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId));
-            } catch (ConnectionFailedException e) {
-                closeConnection(e);
-            }
-        }), e -> {
-            result.completeExceptionally(new CompletionException(e));
+        getConnection().thenAccept(c -> {
+            log.debug("Getting segment attribute: {}", attributeId);
+            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId));
+        }).exceptionally(e -> {
+            closeConnection(e);
+            return null;
         });
         return result;
     }
@@ -222,15 +222,12 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         synchronized (lock) {
             setAttributeRequests.put(requestId, result);
         }
-        FutureHelpers.exceptionListener(getConnection().thenAccept(c -> {
-            try {
-                log.trace("Updating segment attribute: {}", attributeId);
-                c.send(new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, value, expected));
-            } catch (ConnectionFailedException e) {
-                closeConnection(e);
-            }
-        }), e -> {
-            result.completeExceptionally(new CompletionException(e));
+        getConnection().thenAccept(c -> {
+            log.trace("Updating segment attribute: {}", attributeId);
+            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, value, expected));
+        }).exceptionally(e -> {
+            closeConnection(e);
+            return null;
         });
         return result;
     }
@@ -241,29 +238,33 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(getSegmentInfo()).getSegmentLength();
+                                 return FutureHelpers.getThrowingException(getSegmentInfo())
+                                                     .getSegmentLength();
                              });
     }
 
-    
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue())).getValue();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue()))
+                                                     .getValue();
+                             });
     }
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                .throwingOn(InvalidStreamException.class)
-                .run(() -> {
-                    return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)).isSuccess();
-                });
+                             .throwingOn(InvalidStreamException.class)
+                             .run(() -> {
+                                 return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(),
+                                                                                                 expectedValue,
+                                                                                                 newValue))
+                                                     .isSuccess();
+                             });
     }
 
     @Override

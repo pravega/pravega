@@ -9,9 +9,13 @@
  */
 package io.pravega.controller.store.task;
 
+import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.task.TaskData;
 import com.google.common.base.Preconditions;
 
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -20,9 +24,13 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
 
+    private final static String TAG_SEPARATOR = "_%%%_";
+    private final static String RESOURCE_PART_SEPARATOR = "_%_";
     protected final ScheduledExecutorService executor;
+    private final HostIndex hostIndex;
 
-    AbstractTaskMetadataStore(ScheduledExecutorService executor) {
+    AbstractTaskMetadataStore(HostIndex hostIndex, ScheduledExecutorService executor) {
+        this.hostIndex = hostIndex;
         this.executor = executor;
     }
 
@@ -80,4 +88,51 @@ public abstract class AbstractTaskMetadataStore implements TaskMetadataStore {
                               final String oldThreadId);
 
     abstract Void removeLock(final Resource resource, final String owner, final String tag);
+
+    @Override
+    public CompletableFuture<Void> putChild(final String parent, final TaggedResource child) {
+        return hostIndex.addEntity(parent, getNode(child));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeChild(final String parent,
+                                               final TaggedResource child,
+                                               final boolean deleteEmptyParent) {
+        return hostIndex.removeEntity(parent, getNode(child), deleteEmptyParent);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeNode(final String parent) {
+        return hostIndex.removeHost(parent);
+    }
+
+    @Override
+    public CompletableFuture<Optional<TaggedResource>> getRandomChild(final String parent) {
+        return hostIndex.getEntities(parent).thenApply(list -> list != null && list.size() > 0 ?
+                Optional.of(this.getTaggedResource(list.get(new Random().nextInt(list.size())))) : Optional.empty());
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> getHosts() {
+        return hostIndex.getHosts();
+    }
+
+    protected String getNode(final Resource resource) {
+        return resource.getString().replaceAll("/", RESOURCE_PART_SEPARATOR);
+    }
+
+    protected String getNode(final TaggedResource resource) {
+        return getNode(resource.getResource()) + TAG_SEPARATOR + resource.getTag();
+    }
+
+    protected Resource getResource(final String node) {
+        String[] parts = node.split(RESOURCE_PART_SEPARATOR);
+        return new Resource(parts);
+    }
+
+    protected TaggedResource getTaggedResource(final String node) {
+        String[] splits = node.split(TAG_SEPARATOR);
+        Preconditions.checkArgument(splits.length == 2, "Invalid TaggedResource node");
+        return new TaggedResource(splits[1], getResource(splits[0]));
+    }
 }

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -189,13 +190,31 @@ public class ContainerReadIndex implements ReadIndex {
                         missingIds.add(segmentId);
                     }
                 }
-            } else {
+                continue;
+            }
+
+            try {
                 index.triggerFutureReads();
+            } catch (ObjectClosedException ex) {
+                // It is possible that between the time we got the pointer to the StreamSegmentReadIndex and when we got
+                // to invoking triggerFutureReads, the StreamSegmentReadIndex has already been closed. If this is the case,
+                // ignore the error.
+                // This is possible in the following scenario: for a Transaction, we have an Append/Seal, followed by a Merge;
+                // the Append/Seal makes this index eligible for triggering future reads, and the Merge (once committed to Storage)
+                // will close it. If the StorageWriter is sufficiently fast in comparison to the OperationProcessor callbacks
+                // (which could be the case for in-memory unit tests), it may trigger this condition.
+                if (getIndex(segmentId) != null) {
+                    throw ex;
+                } else {
+                    log.debug("{}: triggerFutureReads: StreamSegmentId {} was skipped because it is no longer registered.",
+                            this.traceObjectId, segmentId);
+                }
             }
         }
 
         // Throw any exception at the end - we want to make sure at least the ones that did have a valid index entry got triggered.
-        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds", "At least one StreamSegmentId does not exist in the metadata: %s", missingIds);
+        Exceptions.checkArgument(missingIds.size() == 0, "streamSegmentIds",
+                "At least one StreamSegmentId does not exist in the metadata: %s", missingIds);
     }
 
     @Override

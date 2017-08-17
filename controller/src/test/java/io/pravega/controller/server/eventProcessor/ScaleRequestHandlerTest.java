@@ -13,7 +13,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.AckFuture;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -21,7 +20,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.mocks.AckFutureMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -115,7 +113,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory);
 
         long createTimestamp = System.currentTimeMillis();
@@ -143,7 +141,8 @@ public class ScaleRequestHandlerTest {
         AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
         ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
         RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler);
-        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 2, false);
+        // Send number of splits = 1
+        AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
         CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
         CompletableFuture<ScaleOpEvent> request2 = new CompletableFuture<>();
         EventStreamWriter<ControllerEvent> writer = createWriter(x -> {
@@ -174,6 +173,7 @@ public class ScaleRequestHandlerTest {
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 2));
+        // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.size() == 4);
@@ -199,7 +199,11 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0, 1, 5),
+        // make it throw a non retryable failure so that test does not wait for number of retries.
+        // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
+        // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
+        // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
+        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
@@ -228,15 +232,15 @@ public class ScaleRequestHandlerTest {
     private EventStreamWriter<ControllerEvent> createWriter(Consumer<ControllerEvent> consumer) {
         return new EventStreamWriter<ControllerEvent>() {
             @Override
-            public AckFuture writeEvent(ControllerEvent event) {
+            public CompletableFuture<Void> writeEvent(ControllerEvent event) {
                 consumer.accept(event);
-                return new AckFutureMock(CompletableFuture.completedFuture(true));
+                return CompletableFuture.completedFuture(null);
             }
 
             @Override
-            public AckFuture writeEvent(String routingKey, ControllerEvent event) {
+            public CompletableFuture<Void>  writeEvent(String routingKey, ControllerEvent event) {
                 consumer.accept(event);
-                return new AckFutureMock(CompletableFuture.completedFuture(true));
+                return CompletableFuture.completedFuture(null);
             }
 
             @Override

@@ -41,7 +41,7 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
@@ -79,7 +79,7 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
@@ -112,7 +112,7 @@ public class RevisionedStreamClientTest {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
-        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl(endpoint);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup

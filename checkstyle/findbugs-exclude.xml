@@ -38,13 +38,6 @@
             <Bug pattern="EI_EXPOSE_REP2" />
         </Or>
     </Match>
-    <Match> <!-- generated code -->
-        <Or> 
-            <Method name="equals"/>
-            <Method name="hashCode"/>
-        </Or>
-        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE" />
-    </Match>
     <Match> <!-- These patterns while normally bad practice, are common in tests -->
         <Class name="~.*\.*Tests?" />
         <Or>

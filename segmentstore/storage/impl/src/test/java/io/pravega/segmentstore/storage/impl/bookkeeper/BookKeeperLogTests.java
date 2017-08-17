@@ -18,6 +18,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -183,12 +185,14 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 // Suspend a bookie (this will trigger write errors).
                 suspendFirstBookie();
 
-                // First write should fail.
+                // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
+                // WriteFailureException (general unable to write) should be thrown.
                 AssertExtensions.assertThrows(
                         "First write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
-                                && ex.getCause() instanceof DataLogNotAvailableException);
+                                && (ex.getCause() instanceof DataLogNotAvailableException
+                                || isLedgerClosedException(ex.getCause())));
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
@@ -301,6 +305,10 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static void resumeFirstBookie() {
         BK_SERVICE.get().resumeBookie(0);
+    }
+
+    private static boolean isLedgerClosedException(Throwable ex) {
+        return ex instanceof WriteFailureException && ex.getCause() instanceof BKException.BKLedgerClosedException;
     }
 
     //endregion

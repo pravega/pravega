@@ -18,71 +18,65 @@ Pravega](pravega-concepts.md).
 Pravega was designed to support the new generation of streaming applications:
 applications that deal with a large amount of data arriving continuously that
 also need to generate an accurate analysis of that data in the face of late
-arriving data, data arriving out of order and failure conditions.  There  is a
-large variety of new open source tools to help developers build this kind of
-application, including Apache Flink, Apache Beam, Spark Streaming and others.
- To date, these applications used tools such as Apache Kafka or the Apache
-Hadoop Distributed File System (HDFS) to ingest and
-store data.  Unfortunately, these tools were designed for previous generations
-of big data applications and are not ideally suited for streaming applications.
+arriving data, data arriving out of order and failure conditions. There are
+several open source tools to enable developers to build such applications,
+including Apache Flink, Apache Beam, Spark Streaming and others.
+To date, these applications used systems such as Apache Kafka, Apache ActiveMQ,
+RabbitMQ, Apache Cassandra, and Apache HDFS to ingest and store data. We envision
+instead a unification of the two concepts and our work focuses on both ingesting
+and storing stream data.
 
-Pravega looks at streaming applications from a storage perspective; what kind of
-storage primitive would be ideally suited for building the new generation of
-streaming applications in conjunction with tools like Flink?  
-The design of Pravega incorporates lessons learned from using Lambda architectures to build streaming
-applications and the challenges to deploy streaming applications at scale that
-consistently deliver accurate results in a fault tolerant manner.  Pravega is
-based on solid storage principles such as durability and consistency, delivering
-a rock solid foundation upon which streaming applications can be built.
+Pravega approaches streaming applications from a storage perspective. It enables
+applications to ingest stream data continuously and storing it permanently. Such
+stream data can be accessed with low latency (order of milliseconds), but also
+months, years ahead as part of analyzing historical data.
 
-in a Lambda architecture, the developer uses a complex combination of middleware
+The design of Pravega incorporates lessons learned from using the Lambda architecture
+to build streaming applications and the challenges to deploy streaming applications
+at scale that consistently deliver accurate results in a fault tolerant manner.
+The Pravega architecture provides strong durability and consistency guarantees,
+delivering a rock solid foundation to build streaming applications upon.
+
+With the Lambda architecture, the developer uses a complex combination of middleware
 tools that include batch style middleware mainly influenced by Hadoop and
 continuous processing tools like Storm, Samza, Kafka and others.
 
 ![Lambda](img/lambda.png)
 
-Batch style processing is used to deliver accurate, but potentially out of date
-analysis of data.  So-called "real-time" processing can deliver faster results
-but at a cost of some accuracy.  With this approach, there are two copies of the
-application logic because the programming models of the speed layer are
-different than those used in the batch layer.  An implementation of the Lambda
-architecture can be costly to maintain and manage in production.  This style
-of big data application design has been losing traction.  
+In this architecture, batch processing is used to deliver accurate, but potentially
+out of date analysis of data. The second path processes data as it is ingested, and
+in principle the results are innacurate, which justifies the first
+batch path. With this approach, there are two copies of the application logic because
+the programming models of the speed layer are different than those used in the
+batch layer.  An implementation of the Lambda architecture can be difficult to maintain
+and manage in production. This style of big data application design consequently has
+been losing traction. A different kind of architecture has been gaining traction recently
+that does not rely on a batch processing data path. This architecture is called Kappa.
 
-As more applications, like IoT application, require continuous processing with
-near real-time results, we simply cannot afford to think in terms of Lambda
-architectures and old style middleware.
-
-With the advent of more modern streaming tools, such as Flink and Pravega, a
-different style of architecture is gaining favor.  A Kappa architecture style is
-a reaction to the complexity of Lambda architectures and relies on middleware
-components that are designed for streaming applications, supporting stronger
-semantics and delivering both fast AND accurate data analysis.  A Kappa
-architecture is a significantly simpler approach.  Using Pravega makes it even
-simpler:
+ 
+The Kappa architecture style is a reaction to the complexity of the Lambda architecture
+and relies on components that are designed for streaming, supporting stronger
+semantics and delivering both fast and accurate data analysis. The Kappa
+architecture is a simpler approach:
 
 ![Kappa](img/kappa.png)
 
-There is one set of middleware to deploy and operate, not two.  One expression
-of application logic to develop and maintain, not two.  With the right tools,
-built for the demands of processing streaming data in a fast and accurate
-fashion, it becomes much simpler to design and run applications like IoT, real
-time data analytics and other high data volume, high data velocity applications.
+There is only one data path to execute, and one implementation of the application logic
+to maintain, not two.  With the right tools, built for the demands of processing
+streaming data in a fast and accurate fashion, it becomes simpler to design
+and run applications in the space of IoT, connected cars, finance, risk management, online
+services, etc. With the right tooling, it is possible to build such pipelines and serve
+applications that present high volume and demand low latency.
 
-Although some streaming applications can be developed and deployed in terms of a
-single application, most applications, certainly most IoT applications, involve
-a pipeline of several, sometimes dozens of individual applications or jobs. 
+Applications often require more than one stage of processing. Any practical system for stream
+analytics must be able to accomodate the composition of stages in the form of data pipelines:
 
 ![Pipeline](img/pipeline.png)
 
-So the real way to think about the problem is in terms of chains or pipelines of data
-processing.  The requirements now involve not just component by component
-capabilities, but end-end semantics.  We need to think about scaling in terms of
-end-end scaling, not just scaling a single component.  We need to think in terms
-of ordering, exactly once delivery semantics, fault-tolerance etc. across the
-entire pipeline.  Using Pravega to coordinate the output of one component with
-the input of a downstream component makes delivering a pipeline of stream
-components much easier.
+With data pipelines, it is important to think of guarantees end-to-end rather than on a
+per componenent basis. For example, it is not sufficient that one stage guarantees exactly-once
+semantics while at least one other does not make such a guarantee. Our goal in Pravega is enable
+the design and implementation of data pipelines with strong guarantees end-to-end.
 
 ## Pravega - Storage Reimagined for a Streaming World
 
@@ -130,7 +124,7 @@ coming from the source already contains duplicates. Written data is opaque to
 Pravega and it makes no attempt to remove existing duplicates.
 
 We have not limited our focus to exactly-once semantics for writing, however.
-We are provide, and are actively working on extending the features, that enable
+We also provide, and are actively working on extending the features, that enable
 exactly-once end-to-end for a data pipeline. The strong consistency guarantees
 that the Pravega store provides along with the semantics of a data analytics 
 engine like Flink enables such end-to-end guarantees. 

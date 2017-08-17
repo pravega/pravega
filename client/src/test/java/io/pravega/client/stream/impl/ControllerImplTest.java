@@ -9,16 +9,22 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
-import io.grpc.inprocess.InProcessChannelBuilder;
-import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.StatusRuntimeException;
 import io.grpc.internal.ServerImpl;
+import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -47,18 +53,27 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.pravega.test.common.TestUtils;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -78,19 +93,23 @@ public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(20, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     // Test implementation for simulating the server responses.
-    private ServerImpl fakeServer = null;
+    private ControllerServiceImplBase testServerImpl;
+    private ServerImpl testGRPCServer = null;
+
+    private int serverPort;
 
     // The controller RPC client.
     private ControllerImpl controllerClient = null;
+    private ScheduledExecutorService executor;
 
     @Before
     public void setup() throws IOException {
 
-        // Setup fake server generating different success and failure responses.
-        ControllerServiceImplBase fakeServerImpl = new ControllerServiceImplBase() {
+        // Setup test server generating different success and failure responses.
+        testServerImpl = new ControllerServiceImplBase() {
             @Override
             public void createStream(StreamConfig request,
                     StreamObserver<CreateStreamStatus> responseObserver) {
@@ -122,16 +141,19 @@ public class ControllerImplTest {
                 } else if (request.getStreamInfo().getStream().equals("streamparallel")) {
 
                     // Simulating delay in sending response.
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        log.error("Unexpected interrupt");
-                        responseObserver.onError(e);
-                        return;
-                    }
+                    Exceptions.handleInterrupted(() -> Thread.sleep(500));
                     responseObserver.onNext(CreateStreamStatus.newBuilder()
                                                     .setStatus(CreateStreamStatus.Status.SUCCESS)
                                                     .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("streamdelayed")) {
+
+                    // Simulating delay in sending response. This is used for the keepalive test,
+                    // where response time > 30 seconds is required to simulate a failure.
+                    Exceptions.handleInterrupted(() -> Thread.sleep(40000));
+                    responseObserver.onNext(CreateStreamStatus.newBuilder()
+                            .setStatus(CreateStreamStatus.Status.SUCCESS)
+                            .build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -233,24 +255,18 @@ public class ControllerImplTest {
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     0,
+                                                                                                     6,
                                                                                                      0.0,
                                                                                                      0.4))
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "stream1",
-                                                                                                     1,
+                                                                                                     7,
                                                                                                      0.4,
                                                                                                      1.0))
                                                     .build());
                     responseObserver.onCompleted();
                 } else if (request.getStream().equals("streamparallel")) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        log.error("Unexpected interrupt");
-                        responseObserver.onError(e);
-                        return;
-                    }
+                    Exceptions.handleInterrupted(() -> Thread.sleep(500));
                     responseObserver.onNext(SegmentRanges.newBuilder()
                                                     .addSegmentRanges(ModelHelper.createSegmentRange("scope1",
                                                                                                      "streamparallel",
@@ -291,31 +307,32 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getSegmentsImmediatlyFollowing(SegmentId request,
-                                                       StreamObserver<SuccessorResponse> responseObserver) {
+            public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(SuccessorResponse.newBuilder()
-                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                    .setSegment(Controller.SegmentRange.newBuilder()
-                                            .setSegmentId(ModelHelper.createSegmentId(
-                                                    "scope1",
-                                                    "stream1",
-                                                    0))
-                                            .setMinKey(0.0)
-                                            .setMaxKey(0.5).build())
-                                    .addValue(10)
-                                    .build())
-                            .addSegments(SuccessorResponse.SegmentEntry.newBuilder()
-                                    .setSegment(Controller.SegmentRange.newBuilder()
-                                            .setSegmentId(ModelHelper.createSegmentId(
-                                                    "scope1",
-                                                    "stream1",
-                                                    1))
-                                            .setMinKey(0.5)
-                                            .setMaxKey(1.0).build())
-                                    .addValue(20)
-                                    .build())
-                            .build());
+                    Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
+                    if (request.getSegmentNumber() == 0) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 2), Pair.of(0.0, 0.25));
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 3), Pair.of(0.25, 0.5));
+                    } else if (request.getSegmentNumber() == 1) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 4), Pair.of(0.5, 0.75));
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 5), Pair.of(0.75, 1.0));
+                    } else if (request.getSegmentNumber() == 2 || request.getSegmentNumber() == 3) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 6), Pair.of(0.0, 0.5));
+                    } else if (request.getSegmentNumber() == 4 || request.getSegmentNumber() == 5) {
+                        result.put(ModelHelper.createSegmentId("scope1", "stream1", 7), Pair.of(0.5, 0.25));
+                    }
+                    val builder = SuccessorResponse.newBuilder();
+                    for (Entry<SegmentId, Pair<Double, Double>> entry : result.entrySet()) {
+                        builder.addSegments(SuccessorResponse.SegmentEntry.newBuilder()
+                                            .setSegment(Controller.SegmentRange.newBuilder()
+                                                        .setSegmentId(entry.getKey())
+                                                        .setMinKey(entry.getValue().getLeft())
+                                                        .setMaxKey(entry.getValue().getRight())
+                                                        .build())
+                                            .addValue(10 * entry.getKey().getSegmentNumber())
+                                            .build());
+                    }
+                    responseObserver.onNext(builder.build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -326,7 +343,7 @@ public class ControllerImplTest {
             public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(ScaleResponse.newBuilder()
-                                                    .setStatus(ScaleResponse.ScaleStreamStatus.SUCCESS)
+                                                    .setStatus(ScaleResponse.ScaleStreamStatus.STARTED)
                                                     .addSegments(ModelHelper.createSegmentRange("scope1",
                                                                                                 "stream1",
                                                                                                 0,
@@ -337,7 +354,19 @@ public class ControllerImplTest {
                                                                                                 1,
                                                                                                 0.5,
                                                                                                 1.0))
+                                                    .setEpoch(0)
                                                     .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(ScaleStatusResponse.newBuilder()
+                            .setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
@@ -532,17 +561,51 @@ public class ControllerImplTest {
             }
         };
 
-        fakeServer = InProcessServerBuilder.forName("fakeserver")
-                .addService(fakeServerImpl)
-                .directExecutor()
+        serverPort = TestUtils.getAvailableListenPort();
+        testGRPCServer = NettyServerBuilder.forPort(serverPort)
+                .addService(testServerImpl)
                 .build()
                 .start();
-        controllerClient = new ControllerImpl(InProcessChannelBuilder.forName("fakeserver").directExecutor());
+        controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort));
+        executor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void tearDown() {
-        fakeServer.shutdown();
+        executor.shutdown();
+        testGRPCServer.shutdownNow();
+    }
+
+    @Test
+    public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
+
+        // Verify that keep-alive timeout less than permissible by the server results in a failure.
+        ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
+        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        AssertExtensions.assertThrows("Should throw Exception", createStreamStatus,
+                throwable -> throwable instanceof StatusRuntimeException);
+
+        // Verify that the same RPC with permissible keepalive time succeeds.
+        int serverPort2 = TestUtils.getAvailableListenPort();
+        ServerImpl testServer = NettyServerBuilder.forPort(serverPort2)
+                .addService(testServerImpl)
+                .permitKeepAliveTime(5, TimeUnit.SECONDS)
+                .build()
+                .start();
+        controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
+        createStreamStatus = controller.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        assertTrue(createStreamStatus.get());
+        testServer.shutdownNow();
     }
 
     @Test
@@ -680,8 +743,8 @@ public class ControllerImplTest {
         CompletableFuture<StreamSegments> streamSegments;
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream1");
         assertTrue(streamSegments.get().getSegments().size() == 2);
-        assertEquals(new Segment("scope1", "stream1", 0), streamSegments.get().getSegmentForKey(0.2));
-        assertEquals(new Segment("scope1", "stream1", 1), streamSegments.get().getSegmentForKey(0.6));
+        assertEquals(new Segment("scope1", "stream1", 6), streamSegments.get().getSegmentForKey(0.2));
+        assertEquals(new Segment("scope1", "stream1", 7), streamSegments.get().getSegmentForKey(0.6));
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
         AssertExtensions.assertThrows("Should throw Exception", streamSegments, throwable -> true);
@@ -704,9 +767,9 @@ public class ControllerImplTest {
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
         assertEquals(2, successors.get().size());
-        assertEquals(10, successors.get().get(new Segment("scope1", "stream1", 0))
+        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 2))
                 .get(0).longValue());
-        assertEquals(20, successors.get().get(new Segment("scope1", "stream1", 1))
+        assertEquals(30, successors.get().get(new Segment("scope1", "stream1", 3))
                 .get(0).longValue());
 
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0))
@@ -717,16 +780,24 @@ public class ControllerImplTest {
     @Test
     public void testScale() throws Exception {
         CompletableFuture<Boolean> scaleStream;
-        scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream1"), new ArrayList<>(),
-                                                   new HashMap<>());
+        StreamImpl stream = new StreamImpl("scope1", "stream1");
+        scaleStream = controllerClient.scaleStream(stream, new ArrayList<>(), new HashMap<>(), executor).getFuture();
         assertTrue(scaleStream.get());
         CompletableFuture<StreamSegments> segments = controllerClient.getCurrentSegments("scope1", "stream1");
         assertEquals(2, segments.get().getSegments().size());
-        assertEquals(new Segment("scope1", "stream1", 0), segments.get().getSegmentForKey(0.25));
-        assertEquals(new Segment("scope1", "stream1", 1), segments.get().getSegmentForKey(0.75));
+        assertEquals(new Segment("scope1", "stream1", 6), segments.get().getSegmentForKey(0.25));
+        assertEquals(new Segment("scope1", "stream1", 7), segments.get().getSegmentForKey(0.75));
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
-                                                   new HashMap<>());
+                                                   new HashMap<>(), executor).getFuture();
+        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+
+        scaleStream = controllerClient.scaleStream(new StreamImpl("UNKNOWN", "stream2"), new ArrayList<>(),
+                new HashMap<>(), executor).getFuture();
+        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+
+        scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "UNKNOWN"), new ArrayList<>(),
+                new HashMap<>(), executor).getFuture();
         AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
     }
 
@@ -953,5 +1024,23 @@ public class ControllerImplTest {
         createCount.acquire();
         executorService.shutdownNow();
         assertTrue(success.get());
+    }
+    
+    @Test
+    public void testCutpointSuccessors() throws Exception {
+        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
+        String scope = "scope1";
+        String stream = "stream1";
+        Stream s = new StreamImpl(scope, stream);
+        Map<Segment, Long> segments = new HashMap<>();
+        segments.put(new Segment(scope, stream, 0), 4L);
+        segments.put(new Segment(scope, stream, 1), 6L);
+        StreamCut cut = new StreamCut(s, segments);
+        Set<Segment> successors = controllerClient.getSuccessors(cut).get();
+        assertEquals(ImmutableSet.of(new Segment(scope, stream, 0), new Segment(scope, stream, 1),
+                                     new Segment(scope, stream, 2), new Segment(scope, stream, 3),
+                                     new Segment(scope, stream, 4), new Segment(scope, stream, 5),
+                                     new Segment(scope, stream, 6), new Segment(scope, stream, 7)),
+                     successors);
     }
 }

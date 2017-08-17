@@ -140,7 +140,7 @@ public final class FutureHelpers {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(ExceptionHelpers.unwrapIfRequired(e));
+            throw Lombok.sneakyThrow(ExceptionHelpers.getRealException(e));
         }
     }
 
@@ -183,12 +183,11 @@ public final class FutureHelpers {
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
      * @throws ExceptionT       If thrown by the future.
-     * @throws TimeoutException If the timeout expired prior to the future completing.
-     * @return The result of calling future.get().
+     * @return The result of calling future.get() or null if the timeout expired prior to the future completing.
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable, ExceptionT> exceptionConstructor, long timeoutMillis) throws TimeoutException, ExceptionT {
+                                                                                         Function<Throwable, ExceptionT> exceptionConstructor, long timeoutMillis) throws ExceptionT {
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
@@ -201,6 +200,8 @@ public final class FutureHelpers {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw e;
+        } catch (TimeoutException e) {
+            return null;
         }
     }
 

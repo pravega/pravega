@@ -9,7 +9,9 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.shared.MetricsNames;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -24,12 +26,16 @@ import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+
+import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -63,11 +69,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
     private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
     private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
+    private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
+    private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore() {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -101,6 +109,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                 }
                             }
                         });
+
+        this.hostIndex = hostIndex;
     }
 
     /**
@@ -117,7 +127,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final String scope,
+    public CompletableFuture<CreateStreamResponse> createStream(final String scope,
                                                    final String name,
                                                    final StreamConfiguration configuration,
                                                    final long createTimestamp,
@@ -291,11 +301,26 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<Integer>> getActiveSegments(final String scope,
+    public CompletableFuture<List<Segment>> getActiveSegments(final String scope,
                                                               final String stream,
                                                               final int epoch,
                                                               final OperationContext context,
                                                               final Executor executor) {
+        final Stream streamObj = getStream(scope, stream, context);
+        return withCompletion(streamObj.getActiveSegments(epoch).thenComposeAsync(segments -> {
+            return FutureHelpers.allOfWithResults(segments
+                    .stream()
+                    .map(streamObj::getSegment)
+                    .collect(Collectors.toList()));
+        }, executor), executor);
+    }
+
+    @Override
+    public CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
+                                                                final String stream,
+                                                                final int epoch,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveSegments(epoch), executor);
     }
 
@@ -347,17 +372,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         final List<AbstractMap.SimpleEntry<Double, Double>> newRanges = newSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
 
-        future.thenAccept(result -> {
-            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                    newSegments.size() - sealedSegments.size());
-            getSealedRanges(scope, name, sealedSegments, context, executor)
-                    .thenAccept(sealedRanges -> {
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_SPLITS, scope, name),
-                                findSplits(sealedRanges, newRanges));
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_MERGES, scope, name),
-                                findSplits(newRanges, sealedRanges));
-                    });
-        });
+        future.thenCompose(result -> CompletableFuture.allOf(
+                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
+                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry -> {
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), simpleEntry.getKey());
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), simpleEntry.getValue());
+                })));
 
         return future;
     }
@@ -409,10 +430,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                       final UUID txId, final long lease,
+                                                                       final VersionedTransactionData txData,
+                                                                       final long lease,
                                                                        final OperationContext context,
                                                                        final Executor executor) {
-        return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txId, lease), executor);
+        return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txData, lease), executor);
     }
 
     @Override
@@ -483,6 +505,38 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(Integer.BYTES).putInt(version).array());
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
+        return hostIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
+    }
+
+    @Override
+    public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
+        return hostIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
+                Optional.of(this.getTxnResource(list.get(new Random().nextInt(list.size())))) : Optional.empty());
+    }
+
+    @Override
+    public CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
+        return hostIndex.getEntityData(hostId, getTxnResourceString(resource)).thenApply(data ->
+            data != null ? ByteBuffer.wrap(data).getInt() : null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeHostFromIndex(String hostId) {
+        return hostIndex.removeHost(hostId);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listHostsOwningTxn() {
+        return hostIndex.getHosts();
+    }
+
+    @Override
     public CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp,
                                             final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, stream, context).setColdMarker(segmentNumber, timestamp), executor);
@@ -517,8 +571,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Pair<Integer, List<Integer>>>  getActiveEpoch(final String scope,
                                               final String stream,
                                               final OperationContext context,
+                                              final boolean ignoreCached,
                                               final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getActiveEpoch(), executor);
+        return withCompletion(getStream(scope, stream, context).getActiveEpoch(ignoreCached), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
@@ -550,7 +605,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.whenCompleteAsync((r, e) -> {
             if (e != null) {
-                log.error("AbstractStreamMetadataStore exception: {}", e);
                 result.completeExceptionally(e);
             } else {
                 result.complete(r);
@@ -560,39 +614,56 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return result;
     }
 
-    private CompletableFuture<List<AbstractMap.SimpleEntry<Double, Double>>> getSealedRanges(final String scopeName,
-                                                                                             final String streamName,
-                                                                                             final List<Integer> sealedSegments,
-                                                                                             final OperationContext context,
-                                                                                             final Executor executor) {
-        return FutureHelpers.allOfWithResults(
-                sealedSegments.stream()
-                        .map((Integer value) ->
-                                getSegment(scopeName, streamName, value, context, executor).thenApply(segment ->
-                                        new AbstractMap.SimpleEntry<>(
-                                                segment.getKeyStart(),
-                                                segment.getKeyEnd())))
-                        .collect(Collectors.toList()));
-    }
+    @Override
+    public CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
+            int size = scaleMetadataList.size();
+            long totalNumSplits = 0;
+            long totalNumMerges = 0;
+            List<Segment> segmentList1;
+            List<Segment> segmentList2;
+            boolean isDescendingOrder = (size > 1) ?
+                    (scaleMetadataList.get(0).getTimestamp() > scaleMetadataList.get(1).getTimestamp()) : true;
 
-    private int findSplits(final List<AbstractMap.SimpleEntry<Double, Double>> sealedRanges,
-                           final List<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
-        int splits = 0;
-        for (AbstractMap.SimpleEntry<Double, Double> sealedRange : sealedRanges) {
-            int overlaps = 0;
-            for (AbstractMap.SimpleEntry<Double, Double> newRange : newRanges) {
-                if (Segment.overlaps(sealedRange, newRange)) {
-                    overlaps++;
-                }
-                if (overlaps > 1) {
-                    splits++;
-                    break;
+            for (int i = 0; i < size - 1; i++) {
+                segmentList1 = scaleMetadataList.get(i).getSegments();
+                segmentList2 = scaleMetadataList.get(i+1).getSegments();
+                if (isDescendingOrder) {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList2, segmentList1);
+                    totalNumMerges += findSegmentSplitsMerges(segmentList1, segmentList2);
+                } else {
+                    totalNumSplits += findSegmentSplitsMerges(segmentList1, segmentList2);
+                    totalNumMerges += findSegmentSplitsMerges(segmentList2, segmentList1);
                 }
             }
-        }
-        return splits;
+            return new SimpleEntry<>(totalNumSplits, totalNumMerges);
+        });
+    }
+
+    /**
+     * Method to calculate number of splits and merges.
+     *
+     * Principle to calculate the number of splits and merges:
+     * 1- An event has occurred if a reference range is present (overlaps) in at least two consecutive target ranges.
+     * 2- If the direction of the check in 1 is forward, then it is a split, otherwise it is a merge.
+     *
+     * @param referenceSegmentsList Reference segment list.
+     * @param targetSegmentsList Target segment list.
+     * @return Number of splits/merges
+     */
+    private long findSegmentSplitsMerges(List<Segment> referenceSegmentsList, List<Segment> targetSegmentsList) {
+        return referenceSegmentsList.stream().filter(
+                segment -> targetSegmentsList.stream().filter(target -> target.overlaps(segment)).count() > 1 ).count();
     }
 
     abstract Stream newStream(final String scope, final String name);
+
+    private String getTxnResourceString(TxnResource txn) {
+        return txn.toString(RESOURCE_PART_SEPARATOR);
+    }
+
+    private TxnResource getTxnResource(String str) {
+        return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
+    }
 }
 

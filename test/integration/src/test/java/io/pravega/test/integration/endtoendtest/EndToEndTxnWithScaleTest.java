@@ -12,6 +12,8 @@ package io.pravega.test.integration.endtoendtest;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -33,9 +35,12 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.common.TestUtils;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -59,9 +64,13 @@ public class EndToEndTxnWithScaleTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
+    private ScheduledExecutorService executorService;
+
 
     @Before
     public void setUp() throws Exception {
+        executorService = Executors.newSingleThreadScheduledExecutor();
+
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -82,6 +91,7 @@ public class EndToEndTxnWithScaleTest {
 
     @After
     public void tearDown() throws Exception {
+        executorService.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -99,7 +109,9 @@ public class EndToEndTxnWithScaleTest {
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -113,7 +125,7 @@ public class EndToEndTxnWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executorService).getFuture().get();
 
         assertTrue(result);
 
@@ -121,7 +133,7 @@ public class EndToEndTxnWithScaleTest {
         transaction.writeEvent("0", "txntest2");
         transaction.commit();
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory);
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().build(), Collections.singleton("test"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),

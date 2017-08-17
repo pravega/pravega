@@ -35,9 +35,16 @@ public interface ZKClientConfig {
     int getInitialSleepInterval();
 
     /**
-     * Fetches the maximum nnumber of retries the client should make while attempting to connect to ZK servers.
+     * Fetches the maximum number of retries the client should make while attempting to connect to ZK servers.
      *
-     * @return The maximum nnumber of retries the client should make while attempting to connect to ZK servers.
+     * @return The maximum number of retries the client should make while attempting to connect to ZK servers.
      */
     int getMaxRetries();
+
+    /**
+     * Fetches the session timeout in milli seconds.
+     * @return
+     */
+    int getSessionTimeoutMs();
+
 }

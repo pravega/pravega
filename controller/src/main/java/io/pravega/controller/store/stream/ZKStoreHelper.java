@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,13 +28,15 @@ import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    
+
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    static final String STREAM_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
+    private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
+    static final String STREAM_TX_ROOT = SCOPE_TX_ROOT + "/%s";
     private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
-    
+    static final String SCOPE_COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
+    static final String COMPLETED_TX_PATH = SCOPE_COMPLETED_TX_PATH + "/%s";
+
     private final CuratorFramework client;
     private final Executor executor;
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
@@ -58,7 +59,7 @@ public class ZKStoreHelper {
             client.create().creatingParentsIfNeeded().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -69,7 +70,7 @@ public class ZKStoreHelper {
             client.delete().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -91,7 +92,7 @@ public class ZKStoreHelper {
                                 }
                             }, path), executor).forPath(path);
         } catch (Exception e) {
-            deleteNode.completeExceptionally(new StoreException.UnknownException(path, e));
+            deleteNode.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         deleteNode.whenComplete((res, ex) -> {
@@ -112,7 +113,7 @@ public class ZKStoreHelper {
                                         }
                                     }, path), executor).forPath(container);
                 } catch (Exception e) {
-                    result.completeExceptionally(new StoreException.UnknownException(path, e));
+                    result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
                 }
             } else {
                 result.complete(null);
@@ -130,7 +131,7 @@ public class ZKStoreHelper {
                             executor)
                     .forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -150,7 +151,7 @@ public class ZKStoreHelper {
                                             result::completeExceptionally, path), executor)
                                     .forPath(path);
                         } catch (Exception e) {
-                            result.completeExceptionally(new StoreException.UnknownException(path, e));
+                            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
                         }
                     } else {
                         result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, path));
@@ -158,25 +159,6 @@ public class ZKStoreHelper {
                 });
 
         return result;
-    }
-
-    CompletableFuture<Void> updateTxnData(final String path, final byte[] data) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                client.setData().forPath(path, data);
-                return null;
-            } catch (KeeperException.NoNodeException nne) {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, path);
-            } catch (Exception e) {
-                throw new StoreException.UnknownException(path, e);
-            }
-        });
-    }
-
-    private CompletableFuture<List<String>> getChildrenPath(final String rootPath) {
-        return getChildren(rootPath)
-                .thenApply(children -> children.stream().map(x -> ZKPaths.makePath(rootPath, x))
-                        .collect(Collectors.toList()));
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
@@ -193,7 +175,7 @@ public class ZKStoreHelper {
                                 }
                             }, path), executor).forPath(path);
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -212,7 +194,7 @@ public class ZKStoreHelper {
                         .forPath(path, data.getData());
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
         return result;
     }
@@ -239,7 +221,7 @@ public class ZKStoreHelper {
                 createBuilder.inBackground(callback, executor).forPath(path, data);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -268,7 +250,7 @@ public class ZKStoreHelper {
                 createBuilder.inBackground(callback, executor).forPath(path);
             }
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -289,7 +271,7 @@ public class ZKStoreHelper {
                             }, path), executor).forPath(path);
 
         } catch (Exception e) {
-            result.completeExceptionally(new StoreException.UnknownException(path, e));
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
 
         return result;
@@ -313,7 +295,7 @@ public class ZKStoreHelper {
             } else if (event.getResultCode() == KeeperException.Code.NOTEMPTY.intValue()) {
                 exception.accept(StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, path));
             } else {
-                exception.accept(new StoreException.UnknownException(path,
+                exception.accept(StoreException.create(StoreException.Type.UNKNOWN,
                         KeeperException.create(KeeperException.Code.get(event.getResultCode()), path)));
             }
         };
