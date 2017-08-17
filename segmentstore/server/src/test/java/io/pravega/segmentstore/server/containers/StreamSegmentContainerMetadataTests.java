@@ -27,7 +27,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for StreamSegmentContainerMetadata class.
@@ -37,8 +39,8 @@ public class StreamSegmentContainerMetadataTests {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT_COUNT = 2;
 
-    //    @Rule
-    //    public Timeout globalTimeout = Timeout.seconds(10);
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests SequenceNumber-related operations.
