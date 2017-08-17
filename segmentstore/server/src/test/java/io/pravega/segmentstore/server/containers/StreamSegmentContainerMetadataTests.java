@@ -579,6 +579,7 @@ public class StreamSegmentContainerMetadataTests {
         // Attempt to cleanup the eviction candidates, and even throw in a new truncation (to verify that alone won't trigger the cleanup).
         m.removeTruncationMarkers(touchedSeqNo + 1);
         Collection<SegmentMetadata> evictedSegments = m.cleanup(evictionCandidates, maxLastUsed);
+        verifyMetadataConsistency(m);
         for (SegmentMetadata sm : evictedSegments) {
             Assert.assertFalse("Evicted segment was not marked as inactive.", sm.isActive());
         }
@@ -598,6 +599,7 @@ public class StreamSegmentContainerMetadataTests {
         // Now expire the remaining segments and verify.
         evictionCandidates = m.getEvictionCandidates(touchedSeqNo + 1, Integer.MAX_VALUE);
         evictedSegments = m.cleanup(evictionCandidates, touchedSeqNo + 1);
+        verifyMetadataConsistency(m);
         for (SegmentMetadata sm : evictedSegments) {
             Assert.assertFalse("Evicted segment was not marked as inactive.", sm.isActive());
         }
@@ -610,9 +612,9 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
-     * Tests the ability to evict Segment Metadatas that are not in use anymore, subject to a cap. This test focuses in
-     * particular to the case when a segment and all its transactions are eligible for removal, however due to the cap,
-     * some transactions are no longer eligible, and thus the parent segment must not be evicted either.
+     * Tests the ability to evict Segment Metadata instances that are not in use anymore, subject to a cap. This test
+     * focuses in particular to the case when a segment and all its transactions are eligible for removal, however due
+     * to the cap, some transactions are no longer eligible, and thus the parent segment must not be evicted either.
      */
     @Test
     public void testCleanupCapped() {
@@ -645,17 +647,18 @@ public class StreamSegmentContainerMetadataTests {
         AssertExtensions.assertGreaterThan("At least one segment was expected to be evicted.", 0, evictedSegments.size());
 
         // Validate ContainerMetadata integrity.
-        boolean encounteredParent = false;
+        verifyMetadataConsistency(m);
+        Assert.assertNotNull("Not expecting the parent Segment to be evicted.", m.getStreamSegmentMetadata(parentSegmentId));
+    }
+
+    private void verifyMetadataConsistency(ContainerMetadata m) {
         for (Long segmentId : m.getAllStreamSegmentIds()) {
             val sm = m.getStreamSegmentMetadata(segmentId);
-            encounteredParent = encounteredParent || !sm.isTransaction();
             if (sm.isTransaction()) {
                 Assert.assertNotNull("Found orphaned Transaction Metadata pointing to parent id " + sm.getParentId(),
                         m.getStreamSegmentMetadata(sm.getParentId()));
             }
         }
-
-        Assert.assertTrue("Not expecting the parent Segment to be evicted.", encounteredParent);
     }
 
     private void populateSegmentsForEviction(List<Long> segments, Map<Long, Long> transactions, UpdateableContainerMetadata m) {

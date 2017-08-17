@@ -53,6 +53,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final HashMap<String, StreamSegmentMetadata> metadataByName;
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentMetadata> metadataById;
+    @GuardedBy("lock")
+    private final HashMap<Long, Integer> activeTxnCounts;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     private final int maxActiveSegmentCount;
@@ -80,6 +82,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber = new AtomicLong();
         this.metadataByName = new HashMap<>();
         this.metadataById = new HashMap<>();
+        this.activeTxnCounts = new HashMap<>();
         this.truncationMarkers = new TreeMap<>();
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
@@ -176,6 +179,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
+            updateValue(this.activeTxnCounts, parentStreamSegmentId, 1);
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
@@ -293,26 +297,18 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, long sequenceNumberCutoff) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
-        HashMap<Long, Integer> txnCounts = new HashMap<>();
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
         synchronized (this.lock) {
-            // Count how many total transactions per parent segment there are.
-            this.metadataById
-                    .values().stream()
-                    .filter(SegmentMetadata::isTransaction)
-                    .forEach(m -> updateValue(txnCounts, m.getParentId(), 1));
-
-            // Subtract the counts for those transactions that will be evicted.
+            // First, process all transactions eligible for removal and update their parent's stats.
             evictionCandidates
                     .stream()
                     .filter(m -> m.isTransaction() && isEligibleForEviction(m, adjustedCutoff))
-                    .forEach(m -> updateValue(txnCounts, m.getParentId(), -1));
+                    .forEach(m -> updateValue(this.activeTxnCounts, m.getParentId(), -1));
 
             // Remove those candidates that are still eligible for removal and which do not have any active transactions.
             evictionCandidates
                     .stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff)
-                            && txnCounts.getOrDefault(m.getId(), 0) <= 0)
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !this.activeTxnCounts.containsKey(m.getId()))
                     .forEach(m -> {
                         StreamSegmentMetadata removedMetadata = this.metadataById.remove(m.getId());
                         removedMetadata.markInactive();
@@ -340,7 +336,12 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     private void updateValue(HashMap<Long, Integer> map, long key, int delta) {
-        map.put(key, map.getOrDefault(key, 0) + delta);
+        int newValue = map.getOrDefault(key, 0) + delta;
+        if (newValue == 0) {
+            map.remove(key);
+        } else {
+            map.put(key, newValue);
+        }
     }
 
     //endregion
@@ -370,6 +371,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             this.metadataByName.clear();
             this.metadataById.clear();
+            this.activeTxnCounts.clear();
         }
 
         synchronized (this.truncationMarkers) {
