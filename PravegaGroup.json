@@ -43,7 +43,7 @@
               ],
 
               "docker": {
-                  "image": "pravega/bookkeeper",
+                  "image": "zhaijia/bookie",
                   "network": "HOST",
                    "parameters": [
                                  { "key": "env",
@@ -87,13 +87,12 @@
       ]
     },
     {
-      "id": "/pravega/segmentstoregroup",
-      "cmd": "segmentstore",
+      "id": "/pravega/hostgroup",
       "dependencies": ["/pravega/bkgroup"],
       "dependencies": ["/pravega/controllergroup"],
       "apps": [
       {
-          "id": "/pravega/segmentstoregroup/segmentstore",
+          "id": "/pravega/hostgroup/host",
 	  "backoffSeconds": 7200,
           "cpus": 2,
           "mem": 1000,
@@ -109,7 +108,7 @@
               }
 		],
               "docker": {
-                  "image": "pravega/pravega",
+                  "image": "arvindkandhare/pravega_host",
                   "network": "HOST",
                   "parameters": [
                   {
@@ -154,7 +153,6 @@
     },
     {
       "id": "/pravega/controllergroup",
-      "cmd": "controller",
       "dependencies": ["/pravega/bkgroup"],
       "apps": [
       {
@@ -166,7 +164,7 @@
           "container": {
               "type": "DOCKER",
               "docker": {
-                  "image": "pravega/pravega",
+                  "image": "arvindkandhare/pravega_controller",
                   "network": "HOST",
 		   "parameters": [
         				{ "key": "env",
