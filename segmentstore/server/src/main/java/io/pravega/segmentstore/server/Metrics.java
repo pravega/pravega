@@ -137,6 +137,7 @@ public final class Metrics {
         private final OpStatsLogger lockAcquireLatency;
         private final OpStatsLogger logProcessLatency;
         private final OpStatsLogger metadataCommitLatency;
+        private final OpStatsLogger truncationMarkerLatency;
 
         /**
          * Amount of time spent inside processOperations(Queue)
@@ -150,6 +151,7 @@ public final class Metrics {
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
             this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LATENCY, containerId));
+            this.truncationMarkerLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_TRUNCATION_MARKER_LATENCY, containerId));
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
             this.operationAckLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_ACK_LATENCY, containerId));
             this.logFlushLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.LOG_FLUSH_LATENCY, containerId));
@@ -177,6 +179,10 @@ public final class Metrics {
             DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, count);
             this.operationCommitLatency.reportSuccessEvent(commitElapsed);
             this.operationAckLatency.reportSuccessEvent(ackElapsed);
+        }
+
+        public void recordTruncationMarker(Duration elapsed) {
+            this.truncationMarkerLatency.reportSuccessEvent(elapsed);
         }
 
         public void lockAcquired(Duration elapsed) {

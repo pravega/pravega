@@ -463,9 +463,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             try {
                 // Record the end of a frame in the DurableDataLog directly into the base metadata. No need for locking here,
                 // as the metadata has its own.
+                Timer recordMarkerTimer = new Timer();
                 OperationProcessor.this.metadata.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
                 final long lastOperationSequence = commitArgs.getLastFullySerializedSequenceNumber();
                 final long addressSequence = commitArgs.getLogAddress().getSequence();
+                metrics.recordTruncationMarker(recordMarkerTimer.getElapsed());
 
                 Timer lockAcquireTimer = new Timer();
                 synchronized (stateLock) {

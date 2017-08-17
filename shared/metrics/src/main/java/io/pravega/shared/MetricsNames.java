@@ -57,6 +57,7 @@ public final class MetricsNames {
     public static final String OPERATION_ACK_LATENCY = "operation_ack_latency_ms";
     public static final String OPERATION_LATENCY = "operation_latency_ms";
     public static final String LOG_FLUSH_LATENCY = "log_flush_latency_ms";
+    public static final String OPERATION_COMMIT_TRUNCATION_MARKER_LATENCY = "operation_commit_truncation_marker_latency_ms";
     public static final String OPERATION_COMMIT_ACQ_LOCK_LATENCY = "operation_commit_lock_latency_ms";
     public static final String OPERATION_COMMIT_METADATA_LATENCY = "operation_commit_metadata_latency_ms";
     public static final String OPERATION_COMMIT_LOG_UPDATE_LATENCY = "operation_commit_log_update_latency_ms";
