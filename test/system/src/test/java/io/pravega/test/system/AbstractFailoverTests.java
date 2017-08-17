@@ -10,6 +10,7 @@
 
 package io.pravega.test.system;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -81,6 +82,7 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
+        final List<CompletableFuture<Void>> writersListComplete = new ArrayList<>();
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
@@ -241,6 +243,7 @@ abstract class AbstractFailoverTests {
     }
 
     void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+        Preconditions.checkNotNull(testState.writersListComplete.get(0));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
         List<EventStreamWriter<Long>> writerList = new ArrayList<>(writers);
@@ -259,7 +262,7 @@ abstract class AbstractFailoverTests {
                 writerFutureList.add(writerFuture);
             }
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersComplete);
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersListComplete.get(0));
         FutureHelpers.exceptionListener(testState.writersComplete,
                                         t -> log.error("Exception while waiting for writers to complete", t));
 
@@ -298,6 +301,7 @@ abstract class AbstractFailoverTests {
     }
 
     void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+        Preconditions.checkNotNull(testState.writersListComplete.get(1));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
         List<EventStreamWriter<Long>> newlyAddedWriterList = new ArrayList<>();
@@ -316,25 +320,19 @@ abstract class AbstractFailoverTests {
                 newWritersFutureList.add(writerFuture);
             }
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.newWritersComplete);
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
         FutureHelpers.exceptionListener(testState.writersComplete,
                                         t -> log.error("Exception while waiting for writers to complete", t));
     }
 
-    void stopWriters(boolean stopAdditionalWriters) {
+    void stopWriters() {
         //Stop Writers
         log.info("Stop write flag status {}", testState.stopWriteFlag);
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        if (!FutureHelpers.await(testState.writersComplete)) {
+        if (!FutureHelpers.await(FutureHelpers.allOf(testState.writersListComplete))) {
             log.error("Writers stopped with exceptions");
-        }
-
-        if (stopAdditionalWriters) {
-            if (!FutureHelpers.await(testState.newWritersComplete)) {
-                log.error("Writers stopped with exceptions");
-            }
         }
 
         // check for exceptions during writes
