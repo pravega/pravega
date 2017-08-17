@@ -92,7 +92,6 @@ public class NameUtilsTest {
             // expected
         }
         
-        
         try {
             NameUtils.validateUserStreamName("a-b-c");
         } catch (Exception e) {
