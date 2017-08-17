@@ -9,9 +9,8 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
-
+import io.pravega.common.Exceptions;
 import java.util.Map;
 import java.util.Properties;
 
@@ -69,11 +68,24 @@ public class ConfigBuilder<T> {
      * Includes the given property and its value in the builder.
      *
      * @param property The property to set.
-     * @param value    The value of the property.
+     * @param value    The value of the property. This must be of the same type as accepted by the Property.
      * @param <V>      Type of the property.
      * @return This instance.
      */
     public <V> ConfigBuilder<T> with(Property<V> property, V value) {
+        String key = String.format("%s.%s", this.namespace, property.getName());
+        this.properties.setProperty(key, value.toString());
+        return this;
+    }
+
+    /**
+     * Includes the given property and its value in the builder, without Property-Value type-enforcement.
+     *
+     * @param property The property to set.
+     * @param value    The value of the property.
+     * @return This instance.
+     */
+    public ConfigBuilder<T> withUnsafe(Property<?> property, Object value) {
         String key = String.format("%s.%s", this.namespace, property.getName());
         this.properties.setProperty(key, value.toString());
         return this;
