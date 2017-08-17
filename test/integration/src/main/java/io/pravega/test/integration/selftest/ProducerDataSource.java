@@ -7,20 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import com.google.common.base.Preconditions;
-import lombok.val;
-
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.val;
 
 /**
  * Represents a Data Source for all Producers of the SelfTest.
@@ -32,11 +33,12 @@ class ProducerDataSource {
     private final TestConfig config;
     private final TestState state;
     private final StoreAdapter store;
-    private final ConcurrentHashMap<String, AppendContentGenerator> appendGenerators;
+    private final ConcurrentHashMap<String, EventGenerator> eventGenerators;
     private final Random appendSizeGenerator;
     private final boolean sealSupported;
     private final boolean transactionsSupported;
     private final boolean appendSupported;
+    @GuardedBy("lock")
     private int lastCreatedTransaction;
     private final Object lock = new Object();
 
@@ -51,7 +53,7 @@ class ProducerDataSource {
         this.config = config;
         this.state = state;
         this.store = store;
-        this.appendGenerators = new ConcurrentHashMap<>();
+        this.eventGenerators = new ConcurrentHashMap<>();
         this.appendSizeGenerator = new Random();
         this.lastCreatedTransaction = 0;
         this.appendSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Append);
@@ -67,7 +69,7 @@ class ProducerDataSource {
      * Generates the next ProducerOperation to be executed. Based on the current TestState, this operation can be:
      * * CreateTransaction: If no CreateTransaction happened for a while (based on the TestConfig).
      * * MergeTransaction: If a transaction has exceeded its maximum number of appends (based on the TestConfig).
-     * * Append: If any of the above are not met (this represents the majority of cases).
+     * * Event: If any of the above are not met (this represents the majority of cases).
      *
      * @return The next ProducerOperation, or null if not such operation can be generated (we reached the end of the test).
      */
@@ -76,27 +78,35 @@ class ProducerDataSource {
         ProducerOperation result = null;
         synchronized (this.lock) {
             if (operationIndex > this.config.getOperationCount()) {
-                // We have reached the end of the test. We need to seal all segments before we stop.
-                val si = this.state.getSegment(s -> !s.isClosed());
-                if (si != null && this.sealSupported) {
-                    // Seal the next segment that is on the list.
-                    result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
-                    si.setClosed(true);
-                } else {
-                    // We have reached the end of the test and no more segments are left for sealing.
+                // We have reached the end of the test. We need to seal all Streams before we stop.
+                val si = this.state.getStream(s -> !s.isClosed());
+                if (si != null) {
+                    if (si.isTransaction()) {
+                        // Transactions can't be Sealed - abort them instead.
+                        result = new ProducerOperation(ProducerOperationType.ABORT_TRANSACTION, si.getName());
+                        result.setWaitOn(si.close());
+                    } else if (this.sealSupported) {
+                        // Seal the Stream.
+                        result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
+                        result.setWaitOn(si.close());
+                    }
+                }
+
+                if (result == null) {
+                    // If we have nothing else to do, this will return null, which signals the end of the test.
                     return null;
                 }
             } else if (this.transactionsSupported) {
                 if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                     // We have exceeded the number of operations since we last created a transaction.
-                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionSegmentName(operationIndex));
+                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionStreamName(operationIndex));
                     this.lastCreatedTransaction = operationIndex;
                 } else {
                     // If any transaction has already exceeded the max number of appends, then merge it.
-                    val si = this.state.getSegment(s -> s.isTransaction() && !s.isClosed() && s.getOperationCount() >= this.config.getMaxTransactionAppendCount());
+                    val si = this.state.getStream(s -> s.isTransaction() && !s.isClosed() && s.getCompletedOperationCount() >= this.config.getMaxTransactionAppendCount());
                     if (si != null) {
                         result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
-                        si.setClosed(true);
+                        result.setWaitOn(si.close());
                     }
                 }
             }
@@ -107,7 +117,17 @@ class ProducerDataSource {
                     return null;
                 }
 
-                result = new ProducerOperation(ProducerOperationType.APPEND, this.state.getSegmentOrTransactionName(operationIndex));
+                val si = this.state.getStreamOrTransaction(operationIndex);
+                si.operationStarted();
+                result = new ProducerOperation(ProducerOperationType.APPEND, si.getName());
+            }
+        }
+
+        // Check to see if we need to end the warm-up period.
+        if (this.state.isWarmup() && operationIndex == this.config.getWarmupCount()) {
+            this.state.setWarmup(false);
+            synchronized (this.lock) {
+                this.lastCreatedTransaction = 0;
             }
         }
 
@@ -118,14 +138,14 @@ class ProducerDataSource {
     }
 
     /**
-     * Generates a byte array representing the contents of an append (which follows a deterministic pattern).
+     * Generates a new Event (which follows a deterministic pattern and has a routing key).
      */
-    byte[] generateAppendContent(String segmentName) {
-        AppendContentGenerator generator = this.appendGenerators.getOrDefault(segmentName, null);
+    Event nextEvent(String streamName, int producerId) {
+        EventGenerator generator = this.eventGenerators.getOrDefault(streamName, null);
         if (generator == null) {
             // If the argument is indeed correct, this segment was deleted between the time the operation got generated
             // and when this method was invoked.
-            throw new UnknownSegmentException(segmentName);
+            throw new UnknownStreamException(streamName);
         }
 
         int maxSize = this.config.getMaxAppendSize();
@@ -135,27 +155,25 @@ class ProducerDataSource {
             size = this.appendSizeGenerator.nextInt(maxSize - minSize) + minSize;
         }
 
-        return generator.newAppend(size);
+        return generator.newEvent(size, producerId);
     }
 
     /**
      * Determines if the Segment with given name is closed for appends or not.
      */
     boolean isClosed(String segmentName) {
-        synchronized (this.lock) {
-            val si = this.state.getSegment(segmentName);
-            return si == null || si.isClosed();
-        }
+        val si = this.state.getStream(segmentName);
+        return si == null || si.isClosed();
     }
 
     private void operationCompletionCallback(ProducerOperation op) {
         // Record the operation as completed in the State.
         this.state.operationCompleted(op.getTarget());
-        this.state.recordDuration(op.getType(), op.getDuration());
+        this.state.recordDuration(op.getType(), op.getElapsedMillis());
 
         // OperationType-specific updates.
         if (op.getType() == ProducerOperationType.MERGE_TRANSACTION) {
-            postSegmentDeletion(op.getTarget());
+            postStreamDeletion(op.getTarget());
         } else if (op.getType() == ProducerOperationType.CREATE_TRANSACTION) {
             Object r = op.getResult();
             if (r == null || !(r instanceof String)) {
@@ -165,7 +183,11 @@ class ProducerDataSource {
 
             String transactionName = (String) r;
             this.state.recordNewTransaction(transactionName);
-            this.appendGenerators.put(transactionName, new AppendContentGenerator((int) System.nanoTime(), false));
+            int id;
+            synchronized (this.lock) {
+                id = -this.lastCreatedTransaction;
+            }
+            this.eventGenerators.put(transactionName, new EventGenerator(id, false));
         } else if (op.getType() == ProducerOperationType.APPEND) {
             this.state.recordAppend(op.getLength());
         }
@@ -174,15 +196,6 @@ class ProducerDataSource {
     private void operationFailureCallback(ProducerOperation op, Throwable ex) {
         // Record the operation as failed in the State.
         this.state.operationFailed(op.getTarget());
-
-        // OperationType-specific cleanup.
-        if (op.getType() == ProducerOperationType.MERGE_TRANSACTION || op.getType() == ProducerOperationType.SEAL) {
-            // Make sure we clear the 'Closed' flag if the Seal/Merge operation failed.
-            TestState.SegmentInfo si = this.state.getSegment(op.getTarget());
-            if (si != null) {
-                si.setClosed(false);
-            }
-        }
     }
 
     //endregion
@@ -190,55 +203,61 @@ class ProducerDataSource {
     //region Segment Management
 
     /**
-     * Creates all the segments required for this test.
+     * Creates all the Streams/Segments required for this test.
      *
-     * @return A CompletableFuture that will be completed when all segments are created.
+     * @return A CompletableFuture that will be completed when all Streams/Segments are created.
      */
-    CompletableFuture<Void> createSegments() {
-        Preconditions.checkArgument(this.state.getAllSegments().size() == 0, "Cannot call createSegments more than once.");
-        ArrayList<CompletableFuture<Void>> segmentFutures = new ArrayList<>();
+    CompletableFuture<Void> createStreams() {
+        Preconditions.checkArgument(this.state.getAllStreams().size() == 0, "Cannot call createStreams more than once.");
+        ArrayList<CompletableFuture<Void>> creationFutures = new ArrayList<>();
 
-        TestLogger.log(LOG_ID, "Creating segments.");
-        StoreAdapter.Feature.Create.ensureSupported(this.store, "create segments");
-        for (int i = 0; i < this.config.getSegmentCount(); i++) {
-            final int segmentId = i;
-            String name = String.format("Segment_%s", segmentId);
-            segmentFutures.add(
-                    this.store.createStreamSegment(name, null, this.config.getTimeout())
-                              .thenRun(() -> {
-                                  this.state.recordNewSegmentName(name);
-                                  this.appendGenerators.put(name, new AppendContentGenerator(segmentId, true));
-                              }));
+        TestLogger.log(LOG_ID, "Creating Streams.");
+        StoreAdapter.Feature.Create.ensureSupported(this.store, "create streams");
+        for (int i = 0; i < this.config.getStreamCount(); i++) {
+            // Streams names are of the form: Stream<TestId><StreamId> - to avoid clashes between different tests.
+            final int streamId = i;
+            String name = String.format("Stream%s%s", this.config.getTestId(), streamId);
+            creationFutures.add(this.store.createStream(name, this.config.getTimeout())
+                    .thenRun(() -> {
+                        this.state.recordNewStreamName(name);
+                        this.eventGenerators.put(name, new EventGenerator(streamId, true));
+                    }));
         }
 
-        return FutureHelpers.allOf(segmentFutures);
+        return FutureHelpers.allOf(creationFutures);
     }
 
     /**
-     * Deletes all the segments required for this test.
+     * Deletes all the Streams/Segments required for this test.
      */
-    CompletableFuture<Void> deleteAllSegments() {
+    CompletableFuture<Void> deleteAllStreams() {
         if (!this.store.isFeatureSupported(StoreAdapter.Feature.Delete)) {
-            TestLogger.log(LOG_ID, "Not deleting segments because the store adapter does not support it.");
+            TestLogger.log(LOG_ID, "Not deleting Streams because the store adapter does not support it.");
             return CompletableFuture.completedFuture(null);
         }
 
-        TestLogger.log(LOG_ID, "Deleting segments.");
+        TestLogger.log(LOG_ID, "Deleting Streams.");
         return deleteSegments(this.state.getTransactionNames())
-                .thenCompose(v -> deleteSegments(this.state.getAllSegmentNames()));
+                .thenCompose(v -> deleteSegments(this.state.getAllStreamNames()));
     }
 
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames) {
         ArrayList<CompletableFuture<Void>> deletionFutures = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            deletionFutures.add(deleteSegment(segmentName));
+            try {
+                deletionFutures.add(deleteStream(segmentName));
+            } catch (Throwable ex) {
+                if (ExceptionHelpers.mustRethrow(ex) || !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                    throw ex;
+                }
+            }
         }
 
         return FutureHelpers.allOf(deletionFutures);
     }
 
-    private CompletableFuture<Void> deleteSegment(String name) {
-        return this.store.deleteStreamSegment(name, this.config.getTimeout())
+    private CompletableFuture<Void> deleteStream(String name) {
+        return this.store.delete(name, this.config.getTimeout())
                          .exceptionally(ex -> {
                              ex = ExceptionHelpers.getRealException(ex);
                              if (!(ex instanceof StreamSegmentNotExistsException)) {
@@ -247,23 +266,23 @@ class ProducerDataSource {
 
                              return null;
                          })
-                         .thenRun(() -> postSegmentDeletion(name));
+                .thenRun(() -> postStreamDeletion(name));
     }
 
-    private void postSegmentDeletion(String name) {
-        this.appendGenerators.remove(name);
-        this.state.recordDeletedSegment(name);
+    private void postStreamDeletion(String name) {
+        this.eventGenerators.remove(name);
+        this.state.recordDeletedStream(name);
     }
 
     //endregion
 
     /**
-     * Exception that is thrown whenever an unknown segment name is passed to this data source (one that was not created
-     * using it).
+     * Exception that is thrown whenever an unknown Stream/Segment name is passed to this data source (one that was not
+     * created using it).
      */
-    static class UnknownSegmentException extends RuntimeException {
-        private UnknownSegmentException(String segmentName) {
-            super(String.format("No such segment was created using this DataSource: %s.", segmentName));
+    static class UnknownStreamException extends RuntimeException {
+        private UnknownStreamException(String segmentName) {
+            super(String.format("No such Stream/Segment was created using this DataSource: %s.", segmentName));
         }
     }
 }

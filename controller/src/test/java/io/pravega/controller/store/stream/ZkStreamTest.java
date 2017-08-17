@@ -253,6 +253,7 @@ public class ZkStreamTest {
         ArrayList<Integer> sealedSegments = Lists.newArrayList(3, 4);
         StartScaleResponse response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
         List<Segment> newSegments = response.getSegmentsCreated();
+        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments, newSegments, response.getActiveEpoch(), scale1, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments, newSegments, response.getActiveEpoch(), scale1, context, executor).get();
 
@@ -271,6 +272,7 @@ public class ZkStreamTest {
         ArrayList<Integer> sealedSegments1 = Lists.newArrayList(1, 2, 5);
         response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
+        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments1, segmentsCreated, response.getActiveEpoch(), scale2, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1, segmentsCreated, response.getActiveEpoch(), scale2, context, executor).get();
 
@@ -289,6 +291,7 @@ public class ZkStreamTest {
         ArrayList<Integer> sealedSegments2 = Lists.newArrayList(7, 8);
         response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
         segmentsCreated = response.getSegmentsCreated();
+        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
         store.scaleNewSegmentsCreated(SCOPE, streamName, sealedSegments2, segmentsCreated, response.getActiveEpoch(), scale3, context, executor).get();
         store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2, segmentsCreated, response.getActiveEpoch(), scale3, context, executor).get();
 

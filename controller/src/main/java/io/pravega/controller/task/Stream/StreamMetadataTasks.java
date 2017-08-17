@@ -327,6 +327,8 @@ public class StreamMetadataTasks extends TaskBase {
                 runOnlyIfStarted,
                 context,
                 executor), executor)
+                .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
+                        .thenApply(updated -> response))
                 .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
                         .thenCompose(x -> {
                             assert !response.getSegmentsCreated().isEmpty();

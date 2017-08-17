@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
 /**
  * Defines various types of Producer Operations.
  */
 final class ProducerOperationType extends OperationType {
     /**
-     * An Append Operation triggered by a Producer.
+     * An Event Operation triggered by a Producer.
      */
     static final ProducerOperationType APPEND = new ProducerOperationType("Append");
 
@@ -32,6 +32,11 @@ final class ProducerOperationType extends OperationType {
      * A Merge Transaction Operation triggered by a Producer.
      */
     static final ProducerOperationType MERGE_TRANSACTION = new ProducerOperationType("Merge Transaction");
+
+    /**
+     * A Transaction Abort Operation triggered by a Producer.
+     */
+    static final ProducerOperationType ABORT_TRANSACTION = new ProducerOperationType("Abort Transaction");
 
     private ProducerOperationType(String name) {
         super(name);

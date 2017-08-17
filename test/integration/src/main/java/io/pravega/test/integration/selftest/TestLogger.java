@@ -7,19 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
 import io.pravega.common.Timer;
 
 import java.time.Duration;
 
 /**
- * Logging for Self tester
+ * Logging for Self tester.
  */
-class TestLogger {
+public final class TestLogger {
     private static final Timer TIME = new Timer();
 
-    static void log(String component, String messageFormat, Object... args) {
+    public static void log(String component, String messageFormat, Object... args) {
         String header = String.format("%s [%s]: ", formatTime(TIME.getElapsed()), component);
         String message = String.format(messageFormat, args);
         System.out.println(header + message);

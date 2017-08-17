@@ -127,6 +127,7 @@ public class TaskTest {
         List<Integer> sealedSegments = Collections.singletonList(1);
         StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
 
@@ -135,8 +136,8 @@ public class TaskTest {
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
         response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
-
         segmentsCreated = response .getSegmentsCreated();
+        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments1, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         // endregion
