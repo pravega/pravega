@@ -268,7 +268,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         List<SegmentMetadata> candidates;
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
+            Set<Long> activeTransactions = this.metadataById
+                    .values().stream()
+                    .filter(m -> m.isTransaction() && !isEligibleForEviction(m, adjustedCutoff))
+                    .map(SegmentMetadata::getParentId)
+                    .collect(Collectors.toSet());
 
             // The result is all segments that are eligible for removal but that do not have any active transactions.
             candidates = this.metadataById
@@ -289,50 +293,36 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, long sequenceNumberCutoff) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
+        HashMap<Long, Integer> txnCounts = new HashMap<>();
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
         synchronized (this.lock) {
-            // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
+            // Count how many total transactions per parent segment there are.
+            this.metadataById
+                    .values().stream()
+                    .filter(SegmentMetadata::isTransaction)
+                    .forEach(m -> updateValue(txnCounts, m.getParentId(), 1));
+
+            // Subtract the counts for those transactions that will be evicted.
+            evictionCandidates
+                    .stream()
+                    .filter(m -> m.isTransaction() && isEligibleForEviction(m, adjustedCutoff))
+                    .forEach(m -> updateValue(txnCounts, m.getParentId(), -1));
 
             // Remove those candidates that are still eligible for removal and which do not have any active transactions.
             evictionCandidates
                     .stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff)
+                            && txnCounts.getOrDefault(m.getId(), 0) <= 0)
                     .forEach(m -> {
                         StreamSegmentMetadata removedMetadata = this.metadataById.remove(m.getId());
                         removedMetadata.markInactive();
                         this.metadataByName.remove(m.getName());
                         evictedSegments.add(m);
                     });
-
-            List<SegmentMetadata> orphanedTxns = this.metadataById.values()
-                                                                  .stream()
-                                                                  .filter(SegmentMetadata::isTransaction)
-                                                                  .filter(sm -> !this.metadataById.containsKey(sm.getParentId()))
-                                                                  .collect(Collectors.toList());
-            if (orphanedTxns.size() > 0) {
-                log.warn("{}: Found orphaned transactions after eviction: {}.", orphanedTxns);
-            }
         }
 
         log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
         return evictedSegments;
-    }
-
-    /**
-     * Gets a Set of Segment Ids that have active transactions referring to them.
-     *
-     * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
-     *                             if it has a LastUsed value smaller than this threshold.
-     * @return A Set of Segment Ids that have active transactions referring to them.
-     */
-    @GuardedBy("lock")
-    private Set<Long> getSegmentsWithActiveTransactions(long sequenceNumberCutoff) {
-        return this.metadataById
-                .values().stream()
-                .filter(m -> m.isTransaction() && !isEligibleForEviction(m, sequenceNumberCutoff))
-                .map(SegmentMetadata::getParentId)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -347,6 +337,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
         return metadata.getLastUsed() < sequenceNumberCutoff
                 || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
+    }
+
+    private void updateValue(HashMap<Long, Integer> map, long key, int delta) {
+        map.put(key, map.getOrDefault(key, 0) + delta);
     }
 
     //endregion

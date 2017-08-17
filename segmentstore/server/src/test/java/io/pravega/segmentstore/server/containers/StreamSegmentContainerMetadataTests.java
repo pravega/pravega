@@ -27,9 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
  * Unit tests for StreamSegmentContainerMetadata class.
@@ -39,8 +37,8 @@ public class StreamSegmentContainerMetadataTests {
     private static final int SEGMENT_COUNT = 100;
     private static final int TRANSACTIONS_PER_SEGMENT_COUNT = 2;
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(10);
+    //    @Rule
+    //    public Timeout globalTimeout = Timeout.seconds(10);
 
     /**
      * Tests SequenceNumber-related operations.
@@ -607,6 +605,55 @@ public class StreamSegmentContainerMetadataTests {
         for (long segmentId : segments) {
             Assert.assertNull("Candidate segment was not evicted (lookup by id)", m.getStreamSegmentMetadata(segmentId));
         }
+    }
+
+    /**
+     * Tests the ability to evict Segment Metadatas that are not in use anymore, subject to a cap. This test focuses in
+     * particular to the case when a segment and all its transactions are eligible for removal, however due to the cap,
+     * some transactions are no longer eligible, and thus the parent segment must not be evicted either.
+     */
+    @Test
+    public void testCleanupCapped() {
+        final int maxCap = 5;
+        final int txnCount = maxCap * 2 + 1;
+        // Expire each Segment at a different stage.
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
+
+        // Create a single parent segment, followed by a number of transactions. Each segment has a 'LastUsed' set in
+        // incremental order, with the Parent Segment being the least recently used.
+        long maxLastUsed = 1;
+        val segments = new ArrayList<Long>();
+        final long parentSegmentId = segments.size();
+        segments.add(parentSegmentId);
+        m.mapStreamSegmentId(getName(parentSegmentId), parentSegmentId)
+         .setLastUsed(maxLastUsed++);
+
+        for (int i = 0; i < txnCount; i++) {
+            final long transactionId = segments.size();
+            segments.add(transactionId);
+            m.mapStreamSegmentId("Transaction_" + transactionId, transactionId, parentSegmentId)
+             .setLastUsed(maxLastUsed++);
+        }
+
+        // Collect a number of eviction candidates using a stringent max cap (less than the number of segments),
+        // then evict those segments.
+        m.removeTruncationMarkers(maxLastUsed);
+        val evictionCandidates = m.getEvictionCandidates(maxLastUsed, maxCap);
+        val evictedSegments = m.cleanup(evictionCandidates, maxLastUsed);
+        AssertExtensions.assertGreaterThan("At least one segment was expected to be evicted.", 0, evictedSegments.size());
+
+        // Validate ContainerMetadata integrity.
+        boolean encounteredParent = false;
+        for (Long segmentId : m.getAllStreamSegmentIds()) {
+            val sm = m.getStreamSegmentMetadata(segmentId);
+            encounteredParent = encounteredParent || !sm.isTransaction();
+            if (sm.isTransaction()) {
+                Assert.assertNotNull("Found orphaned Transaction Metadata pointing to parent id " + sm.getParentId(),
+                        m.getStreamSegmentMetadata(sm.getParentId()));
+            }
+        }
+
+        Assert.assertTrue("Not expecting the parent Segment to be evicted.", encounteredParent);
     }
 
     private void populateSegmentsForEviction(List<Long> segments, Map<Long, Long> transactions, UpdateableContainerMetadata m) {
