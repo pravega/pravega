@@ -346,7 +346,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                             final long scaleTimestamp,
                                                             boolean runOnlyIfStarted) {
-        return verifyState(() -> getHistoryTable()
+        return getHistoryTable()
                 .thenCompose(historyTable -> getSegmentTable().thenApply(segmentTable -> new ImmutablePair<>(historyTable, segmentTable)))
                 .thenCompose(pair -> {
                     final Data<T> segmentTable = pair.getRight();
@@ -382,9 +382,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         epochStartSegmentpair.getRight() + newRanges.size())
                         .boxed()
                         .collect(Collectors.toList()))
-                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments))),
-                Lists.newArrayList(State.ACTIVE, State.SCALING)
-        );
+                        .thenApply(newSegments -> new StartScaleResponse(epochStartSegmentpair.getLeft(), newSegments)));
     }
 
     private CompletableFuture<ImmutablePair<Integer, Integer>> scaleCreateNewSegments(final List<SimpleEntry<Double, Double>> newRanges,
@@ -398,10 +396,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
         return setSegmentTable(updatedData)
                 .thenApply(z -> new ImmutablePair<>(activeEpoch, nextSegmentNumber))
-                .thenCompose(response -> updateState(State.SCALING).thenApply(x -> {
+                .thenApply(response -> {
                     log.debug("scale {}/{} new segments created successfully", scope, name);
                     return response;
-                }));
+                });
     }
 
     private CompletableFuture<ImmutablePair<Integer, Integer>> isScaleRerun(final List<Integer> sealedSegments,

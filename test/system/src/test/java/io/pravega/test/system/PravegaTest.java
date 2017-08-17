@@ -141,7 +141,7 @@ public class PravegaTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    @Test
+    @Test(timeout = 10 * 60 * 1000)
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);

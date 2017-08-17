@@ -24,7 +24,7 @@ public class FileSystemStorageConfig {
     //region Config Names
 
     public static final Property<String> ROOT = Property.named("root", "/fs/");
-    private static final String COMPONENT_CODE = "filesystem";
+    public static final String COMPONENT_CODE = "filesystem";
 
     //endregion
 

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
@@ -18,13 +18,13 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.SneakyThrows;
 import lombok.val;
 
 /**
@@ -56,29 +56,20 @@ class SelfTest extends AbstractService implements AutoCloseable {
      * @param builderConfig The configuration to use for building the StreamSegmentStore Service.
      */
     SelfTest(TestConfig testConfig, ServiceBuilderConfig builderConfig) {
-        Preconditions.checkNotNull(testConfig, "testConfig");
         Preconditions.checkNotNull(builderConfig, "builderConfig");
 
-        this.testConfig = testConfig;
-        this.state = new TestState();
+        this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.closed = new AtomicBoolean();
         this.actors = new ArrayList<>();
+        this.testCompletion = new AtomicReference<>();
+        this.state = new TestState();
         this.executor = Executors.newScheduledThreadPool(
                 testConfig.getThreadPoolSize(),
                 new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
-        this.store = createStoreAdapter(builderConfig);
+        this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
-        this.testCompletion = new AtomicReference<>();
         ServiceHelpers.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
-    }
-
-    private StoreAdapter createStoreAdapter(ServiceBuilderConfig builderConfig) {
-        if (this.testConfig.isUseClient()) {
-            return new HostStoreAdapter(this.testConfig, builderConfig, this.executor);
-        } else {
-            return new StreamSegmentStoreAdapter(this.testConfig, builderConfig, this.executor);
-        }
     }
 
     //endregion
@@ -88,17 +79,21 @@ class SelfTest extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
-            this.dataSource.deleteAllSegments()
-                           .exceptionally(ex -> {
-                               TestLogger.log(LOG_ID, "Unable to delete all segments: %s.", ex);
-                               return null;
-                           }).join();
+            try {
+                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+                this.dataSource.deleteAllStreams()
+                        .exceptionally(ex -> {
+                            TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);
+                            return null;
+                        }).join();
 
-            this.store.close();
-            this.executor.shutdown();
-            this.closed.set(true);
-            TestLogger.log(LOG_ID, "Closed.");
+                this.store.close();
+            } finally {
+                this.executor.shutdown();
+                this.closed.set(true);
+                TestLogger.log(LOG_ID, "Closed.");
+
+            }
         }
     }
 
@@ -117,9 +112,8 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        CompletableFuture<Void> startFuture = CompletableFuture
-                .runAsync(this::initializeStore)
-                .thenCompose(v -> this.dataSource.createSegments())
+        ServiceHelpers.startAsync(this.store, this.executor)
+                .thenCompose(v -> this.dataSource.createStreams())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
                             createTestActors();
@@ -148,23 +142,22 @@ class SelfTest extends AbstractService implements AutoCloseable {
                             }, this.executor);
 
                             this.actorManager.startAsync();
-                            this.state.resetClock();
+                            this.state.setWarmup(this.testConfig.getWarmupCount() > 0);
                             this.reporter.startAsync();
                         },
-                        this.executor);
-
-        FutureHelpers.exceptionListener(startFuture, this::notifyFailed);
+                        this.executor)
+                .exceptionally(ex -> {
+                    TestLogger.log(LOG_ID, "Startup failure: " + ex);
+                    ex.printStackTrace(System.out);
+                    notifyFailed(ex);
+                    return null;
+                });
     }
 
     @Override
     protected void doStop() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         this.actorManager.stopAsync();
-    }
-
-    @SneakyThrows(Exception.class)
-    private void initializeStore() {
-        this.store.initialize();
     }
 
     //endregion
@@ -186,18 +179,23 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(Integer.toString(i), this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor));
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
-        if (Consumer.canUseStoreAdapter(this.store)) {
-            for (val si : this.state.getAllSegments()) {
+        boolean readsEnabled = this.testConfig.isReadsEnabled();
+        boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
+        if (readsEnabled && storeSupportsReads) {
+            for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
                     this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
                 }
             }
         } else {
-            TestLogger.log(LOG_ID, "Not creating any consumers because the StoreAdapter does not support all required features.");
+            String reason = readsEnabled
+                    ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
+                    : "reads are not enabled";
+            TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
         }
     }
 

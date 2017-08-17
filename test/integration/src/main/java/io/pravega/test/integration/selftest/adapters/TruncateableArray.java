@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.segmentstore.selftest;
+package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
@@ -27,7 +27,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * Represents an ArrayView that can append at one end and truncate at the other one.
  */
 @NotThreadSafe
-class TruncateableArray implements ArrayView {
+public class TruncateableArray implements ArrayView {
     //region Members
 
     /**
@@ -57,7 +57,7 @@ class TruncateableArray implements ArrayView {
 
     @Override
     public byte get(int index) {
-        Preconditions.checkArgument(index >= 0 && index < this.length, "index must be non-negative and less than the length of the array.");
+        Preconditions.checkElementIndex(index, this.length, "index must be non-negative and less than the length of the array.");
 
         // Adjust the index based on the first entry offset.
         index += this.firstArrayOffset;
