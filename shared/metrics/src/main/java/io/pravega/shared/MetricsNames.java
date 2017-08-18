@@ -49,6 +49,7 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_TXN_COUNT = "container_merge_txn_count";
     public static final String CONTAINER_SEAL_COUNT = "container_seal_count";
     public static final String PROCESS_OPERATIONS_LATENCY = "process_operations_latency";
+    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "process_operations_batch_size";
     public static final String OPERATION_QUEUE_SIZE = "operation_queue_size";
     public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
     public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
@@ -60,6 +61,7 @@ public final class MetricsNames {
     public static final String OPERATION_COMMIT_TRUNCATION_MARKER_LATENCY = "operation_commit_truncation_marker_latency_ms";
     public static final String OPERATION_COMMIT_ACQ_LOCK_LATENCY = "operation_commit_lock_latency_ms";
     public static final String OPERATION_COMMIT_METADATA_LATENCY = "operation_commit_metadata_latency_ms";
+    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "operation_commit_metadata_txn_count";
     public static final String OPERATION_COMMIT_LOG_UPDATE_LATENCY = "operation_commit_log_update_latency_ms";
     public static final String OPERATION_LOG_SIZE = "operation_log_size";
     public static final String ACTIVE_SEGMENT_COUNT = "active_segments";

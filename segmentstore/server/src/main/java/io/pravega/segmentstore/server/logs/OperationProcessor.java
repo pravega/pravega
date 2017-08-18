@@ -238,6 +238,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
         // arrived while we were busy handling the current items.
         Timer processTimer = new Timer();
+        int count = 0;
         while (!operations.isEmpty()) {
             try {
                 // Process the current set of operations.
@@ -247,6 +248,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     try {
                         processOperation(o);
                         this.state.addPending(o);
+                        count++;
                     } catch (Throwable ex) {
                         ex = ExceptionHelpers.getRealException(ex);
                         this.state.failOperation(o, ex);
@@ -264,8 +266,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 if (operations.isEmpty()) {
                     // We have processed all operations in the queue: this is a good time to report metrics.
                     this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
-                    this.metrics.processOperationsLatency(processTimer.getElapsedMillis());
+                    this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
+                    count = 0;
                     operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
@@ -488,8 +491,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     // Commit any changes to the metadata.
                     boolean checkpointExists = this.metadataTransactions.removeLessThanOrEqual(commitArgs);
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
-                    OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
-                    metrics.metadataCommitted(metadataCommitTimer.getElapsed());
+                    int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
+                    metrics.metadataCommitted(updateTxnCommitCount, metadataCommitTimer.getElapsed());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
                     Timer logUpdateProcessTimer = new Timer();

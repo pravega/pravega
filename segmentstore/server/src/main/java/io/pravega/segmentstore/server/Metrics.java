@@ -137,12 +137,14 @@ public final class Metrics {
         private final OpStatsLogger lockAcquireLatency;
         private final OpStatsLogger logProcessLatency;
         private final OpStatsLogger metadataCommitLatency;
+        private final OpStatsLogger metadataCommitTxnCount;
         private final OpStatsLogger truncationMarkerLatency;
 
         /**
          * Amount of time spent inside processOperations(Queue)
          */
         private final OpStatsLogger processOperationsLatency;
+        private final OpStatsLogger processOperationsBatchSize;
         private final String operationLogSize;
 
         public OperationProcessor(int containerId) {
@@ -158,7 +160,9 @@ public final class Metrics {
             this.lockAcquireLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_ACQ_LOCK_LATENCY, containerId));
             this.logProcessLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LOG_UPDATE_LATENCY, containerId));
             this.metadataCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_METADATA_LATENCY, containerId));
+            this.metadataCommitTxnCount = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_METADATA_TXN_COUNT, containerId));
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_LATENCY, containerId));
+            this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, containerId));
             this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
         }
 
@@ -193,7 +197,8 @@ public final class Metrics {
             this.logProcessLatency.reportSuccessEvent(elapsed);
         }
 
-        public void metadataCommitted(Duration elapsed) {
+        public void metadataCommitted(int txnCount, Duration elapsed) {
+            this.metadataCommitTxnCount.reportSuccessValue(txnCount);
             this.metadataCommitLatency.reportSuccessEvent(elapsed);
         }
 
@@ -209,7 +214,8 @@ public final class Metrics {
             DYNAMIC_LOGGER.updateCounterValue(this.operationLogSize, 0);
         }
 
-        public void processOperationsLatency(long millis) {
+        public void processOperations(int batchSize, long millis) {
+            this.processOperationsBatchSize.reportSuccessValue(batchSize);
             this.processOperationsLatency.reportSuccessValue(millis);
         }
 
