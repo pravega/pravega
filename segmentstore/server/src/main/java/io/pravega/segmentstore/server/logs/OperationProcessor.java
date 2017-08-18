@@ -234,10 +234,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      */
     private void processOperations(Queue<CompletableOperation> operations) {
         log.debug("{}: processOperations (OperationCount = {}).", this.traceObjectId, operations.size());
-        Timer timer = new Timer();
 
         // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
         // arrived while we were busy handling the current items.
+        Timer processTimer = new Timer();
         while (!operations.isEmpty()) {
             try {
                 // Process the current set of operations.
@@ -262,6 +262,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
                 if (operations.isEmpty()) {
+                    // We have processed all operations in the queue: this is a good time to report metrics.
+                    this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
+                    this.metrics.processOperationsLatency(processTimer.getElapsedMillis());
+                    processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
@@ -286,11 +290,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     throw Lombok.sneakyThrow(ex);
                 }
             }
-
-            this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
         }
-
-        this.metrics.processOperationsLatency(timer.getElapsedMillis());
     }
 
     /**
