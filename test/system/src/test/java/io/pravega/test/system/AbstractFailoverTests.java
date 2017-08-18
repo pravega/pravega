@@ -197,7 +197,7 @@ abstract class AbstractFailoverTests {
                     }
                 } catch (Throwable e) {
                     //TODO: remove it once issue https://github.com/pravega/pravega/issues/1687 is fixed.
-                    if (e.getCause() instanceof RetriesExhaustedException) {
+                    if (e.getCause() instanceof RetriesExhaustedException || e instanceof RetriesExhaustedException) {
                         log.warn("Test exception in reading events: ", e);
                         continue;
                     }
