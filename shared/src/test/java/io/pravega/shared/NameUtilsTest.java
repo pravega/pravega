@@ -43,6 +43,18 @@ public class NameUtilsTest {
         } catch (NullPointerException e) {
             // expected
         }
+        
+        try {
+            NameUtils.validateUserStreamName("a-b-c");
+        } catch (Exception e) {
+            Assert.fail();
+        }
+        
+        try {
+            NameUtils.validateUserStreamName("1.2.3");
+        } catch (Exception e) {
+            Assert.fail();
+        }
     }
 
     @Test
@@ -78,6 +90,18 @@ public class NameUtilsTest {
             Assert.fail();
         } catch (NullPointerException e) {
             // expected
+        }
+        
+        try {
+            NameUtils.validateUserStreamName("a-b-c");
+        } catch (Exception e) {
+            Assert.fail();
+        }
+        
+        try {
+            NameUtils.validateUserStreamName("1.2.3");
+        } catch (Exception e) {
+            Assert.fail();
         }
     }
 
