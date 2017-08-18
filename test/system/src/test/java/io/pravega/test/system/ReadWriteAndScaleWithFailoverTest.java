@@ -95,7 +95,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect);
         testState = new TestState();
-        testState.writersListComplete.set(0, testState.writersComplete);
+        testState.writersListComplete.add(0, testState.writersComplete);
     }
 
     @After
