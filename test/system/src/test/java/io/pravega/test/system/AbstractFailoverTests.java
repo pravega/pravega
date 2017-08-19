@@ -265,7 +265,10 @@ abstract class AbstractFailoverTests {
                     testState.writersListComplete.get(0));
             FutureHelpers.exceptionListener(testState.writersComplete,
                     t -> log.error("Exception while waiting for writers to complete", t));
-
+        });
+        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersListComplete.get(0));
+        FutureHelpers.exceptionListener(testState.writersComplete,
+                                        t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
 
