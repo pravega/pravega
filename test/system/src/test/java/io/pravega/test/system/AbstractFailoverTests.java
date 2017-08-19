@@ -1,13 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
@@ -261,11 +260,16 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                 writerFutureList.add(writerFuture);
             }
+        }).thenRun(() -> {
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
+                    testState.writersListComplete.get(0));
+            FutureHelpers.exceptionListener(testState.writersComplete,
+                    t -> log.error("Exception while waiting for writers to complete", t));
         });
         FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersListComplete.get(0));
         FutureHelpers.exceptionListener(testState.writersComplete,
                                         t -> log.error("Exception while waiting for writers to complete", t));
-
+        });
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
@@ -294,10 +298,11 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
                 readerFutureList.add(readerFuture);
             }
+        }).thenRun(() -> {
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
+            FutureHelpers.exceptionListener(testState.readersComplete,
+                    t -> log.error("Exception while waiting for all readers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
-        FutureHelpers.exceptionListener(testState.readersComplete,
-                                        t -> log.error("Exception while waiting for all readers to complete", t));
     }
 
     void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {

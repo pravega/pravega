@@ -335,7 +335,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             }
         } catch (Exception ex) {
             // Both the inner try and finally blocks above can throw, so we need to catch both of those cases here.
-            log.error("{} Recovery FAILED. {}", this.traceObjectId, ex);
+            log.error("{} Recovery FAILED.", this.traceObjectId, ex);
             throw new CompletionException(ex);
         }
 
