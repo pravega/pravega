@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.CircularBuffer;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
@@ -22,6 +23,8 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Manages buffering and provides a synchronus to {@link AsyncSegmentInputStream}
@@ -77,6 +80,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     public void setOffset(long offset) {
         log.trace("SetOffset {}", offset);
         Preconditions.checkArgument(offset >= 0);
+        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         if (offset != this.offset) {
             this.offset = offset;
             buffer.clear();
@@ -98,6 +102,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException {
         log.trace("Read called at offset {}", offset);
+        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         long originalOffset = offset;
         boolean success = false;
         try {
@@ -119,7 +124,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
-            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, this::logError, timeout) == null) {
+            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, e -> issueRequestIfNeeded(), timeout) == null) {
                 return null;
             }
             handleRequest();
@@ -144,12 +149,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         result.flip();
         return result;
     }
-    
-    private final RuntimeException logError(Throwable e) {
-        log.error("Unable to read data for " + asyncInput.getSegmentId(), e);
-        return null;
-    }
-
 
     private boolean dataWaitingToGoInBuffer() {
         return outstandingRequest != null && FutureHelpers.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
@@ -157,6 +156,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     private void handleRequest() {
         WireCommands.SegmentRead segmentRead = outstandingRequest.join();
+        verifyIsAtCorrectOffset(segmentRead);
         if (segmentRead.getData().hasRemaining()) {
             buffer.fill(segmentRead.getData());
         }
@@ -169,12 +169,25 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         }
     }
 
+    private void verifyIsAtCorrectOffset(WireCommands.SegmentRead segmentRead) {
+        long offsetRead = segmentRead.getOffset() + segmentRead.getData().position();
+        long expectedOffset = offset + buffer.dataAvailable();
+        checkState(offsetRead == expectedOffset, "ReadSegment returned data for the wrong offset %s vs %s", offsetRead,
+                   expectedOffset);
+    }
+
     /**
      * @return If there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() {
-        if (!receivedEndOfSegment && outstandingRequest == null && buffer.capacityAvailable() > readLength) {
-            outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
+        if (!receivedEndOfSegment && buffer.capacityAvailable() > readLength) {
+            if (outstandingRequest == null) {
+                outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
+            } else if(outstandingRequest.isCompletedExceptionally()) {
+                Throwable e = FutureHelpers.getException(outstandingRequest);
+                log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
+                outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
+            }
         }
     }
 
@@ -189,6 +202,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public void fillBuffer() {
         log.trace("Filling buffer {}", this);
+        Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         issueRequestIfNeeded();
         while (dataWaitingToGoInBuffer()) {
             handleRequest();

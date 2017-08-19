@@ -35,4 +35,6 @@ abstract class AsyncSegmentInputStream implements AutoCloseable {
 
     @Override
     public abstract void close();
+    
+    public abstract boolean isClosed();
 }

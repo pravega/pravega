@@ -129,6 +129,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     @Override
+    public boolean isClosed() {
+        return closed.get();
+    }
+
+    @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
