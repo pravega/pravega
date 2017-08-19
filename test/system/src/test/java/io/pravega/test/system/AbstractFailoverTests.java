@@ -266,10 +266,6 @@ abstract class AbstractFailoverTests {
             FutureHelpers.exceptionListener(testState.writersComplete,
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersListComplete.get(0));
-        FutureHelpers.exceptionListener(testState.writersComplete,
-                                        t -> log.error("Exception while waiting for writers to complete", t));
-        });
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
@@ -324,10 +320,11 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events :", t));
                 newWritersFutureList.add(writerFuture);
             }
+        }).thenRun(() -> {
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
+            FutureHelpers.exceptionListener(testState.writersComplete,
+                    t -> log.error("Exception while waiting for writers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
-        FutureHelpers.exceptionListener(testState.writersComplete,
-                                        t -> log.error("Exception while waiting for writers to complete", t));
     }
 
     void stopWriters() {
