@@ -263,7 +263,7 @@ abstract class AbstractFailoverTests {
         }).thenRun(() -> {
             FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
                     testState.writersListComplete.get(0));
-            FutureHelpers.exceptionListener(testState.writersComplete,
+            FutureHelpers.exceptionListener(testState.writersListComplete.get(0),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
@@ -322,7 +322,7 @@ abstract class AbstractFailoverTests {
             }
         }).thenRun(() -> {
             FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
-            FutureHelpers.exceptionListener(testState.writersComplete,
+            FutureHelpers.exceptionListener(testState.writersListComplete.get(1),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
