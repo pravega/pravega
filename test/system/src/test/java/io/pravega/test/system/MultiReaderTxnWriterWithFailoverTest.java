@@ -415,7 +415,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
                         }, Duration.ofMillis(2000), executorService);
                     }, executorService);
 
-
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
