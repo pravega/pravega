@@ -183,7 +183,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         if (!receivedEndOfSegment && buffer.capacityAvailable() > readLength) {
             if (outstandingRequest == null) {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
-            } else if(outstandingRequest.isCompletedExceptionally()) {
+            } else if (outstandingRequest.isCompletedExceptionally()) {
                 Throwable e = FutureHelpers.getException(outstandingRequest);
                 log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
