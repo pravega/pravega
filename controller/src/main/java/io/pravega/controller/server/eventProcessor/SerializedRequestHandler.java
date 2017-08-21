@@ -70,7 +70,8 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     /**
      * Run method is called only if work queue is non empty. So we can safely do a workQueue.poll.
      * WorkQueue.poll should only happen in the run method and no where else.
-     * @param key key for which we want to process the next event
+     *
+     * @param key       key for which we want to process the next event
      * @param workQueue work queue for the key
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
