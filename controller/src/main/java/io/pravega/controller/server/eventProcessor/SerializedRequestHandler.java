@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
@@ -58,29 +59,13 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
                 queue.add(work);
                 workers.put(key, queue);
                 // Start work processing asynchronously and release the lock.
-                CompletableFuture.runAsync(() -> run(key, queue), executor);
+                executor.execute(() -> run(key, queue));
             }
         }
         return result;
     }
 
     abstract CompletableFuture<Void> processEvent(final T event, final EventProcessor.Writer<T> writer);
-
-    /**
-     * Actual processing of the work is performed in this method.
-     * It processes the event and then completes the future in the work.
-     * @param work Work to do
-     * @return future of processing.
-     */
-    private CompletableFuture<Void> work(Work work) {
-        return processEvent(work.getEvent(), work.getWriter()).whenComplete((r, e) -> {
-            if (e != null) {
-                work.getResult().completeExceptionally(e);
-            } else {
-                work.getResult().complete(r);
-            }
-        });
-    }
 
     /**
      * Run method is called only if work queue is non empty. So we can safely do a workQueue.poll.
@@ -90,27 +75,34 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        work(work).whenComplete((r, e) -> {
+        FutureHelpers.completeAfter(() -> processEvent(work.getEvent(), work.getWriter()), work.getResult());
+        work.getResult().whenComplete((r, e) -> {
+            boolean toExecute = false;
             synchronized (lock) {
                 if (workQueue.isEmpty()) {
                     workers.remove(key);
                 } else {
-                    CompletableFuture.runAsync(() -> run(key, workQueue), executor);
+                    toExecute = true;
                 }
+            }
+
+            if (toExecute) {
+                executor.execute(() -> run(key, workQueue));
             }
         });
     }
 
     @VisibleForTesting
     List<Pair<T, CompletableFuture<Void>>> getEventQueueForKey(String key) {
+        List<Pair<T, CompletableFuture<Void>>> retVal = null;
 
         synchronized (lock) {
             if (workers.containsKey(key)) {
-                return workers.get(key).stream().map(x -> new ImmutablePair<>(x.getEvent(), x.getResult())).collect(Collectors.toList());
-            } else {
-                return null;
+                retVal = workers.get(key).stream().map(x -> new ImmutablePair<>(x.getEvent(), x.getResult())).collect(Collectors.toList());
             }
         }
+
+        return retVal;
     }
 
     @Data

@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -31,26 +32,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class SerializedRequestHandlerTest {
-
-    private ScheduledExecutorService executor;
-
-    @Before
-    public void setUp() {
-        executor = Executors.newScheduledThreadPool(5);
-    }
-
-    @After
-    public void tearDown() {
-        executor.shutdown();
-    }
+public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
         EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
-        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executor) {
+        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
             @Override
             CompletableFuture<Void> processEvent(TestEvent event, EventProcessor.Writer<TestEvent> writer) {
                 orderOfProcessing.compute(event.getKey(), (x, y) -> {
@@ -143,9 +132,9 @@ public class SerializedRequestHandlerTest {
                 orderOfProcessing.get(s1e1.getKey()).get(2) == 3);
 
         FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
-                () -> CompletableFuture.completedFuture(null), executor);
+                () -> CompletableFuture.completedFuture(null), executorService());
         FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
-                () -> CompletableFuture.completedFuture(null), executor);
+                () -> CompletableFuture.completedFuture(null), executorService());
 
         // now that we have drained all the work from the processor.
         // lets post new work for stream 1
@@ -163,6 +152,11 @@ public class SerializedRequestHandlerTest {
 
     private String getKeyForStream(String scope, String stream) {
         return String.format("%s/%s", scope, stream);
+    }
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
     }
 
     @Data
