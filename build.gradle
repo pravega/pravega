@@ -81,6 +81,7 @@ project ('shared') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(':test:testcommon')
     }
     javadoc {
         exclude 'io/pravega/shared/*'
