@@ -78,8 +78,9 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import lombok.val;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -407,7 +408,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         long requestId = commitTx.getRequestId();
         segmentStore.sealStreamSegment(transactionName, TIMEOUT)
-                .thenCompose((Long length) -> recordStatForTransaction(transactionName, commitTx.getSegment())
+                .exceptionally(this::ignoreSegmentSealed)
+                .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
                         .exceptionally((Throwable e) -> {
                             // gobble up any errors from stat recording so we do not affect rest of the flow.
                             log.error("exception while computing stats while merging txn {}", e);
@@ -509,5 +511,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         }
                     }
                 });
+    }
+
+    /**
+     * Ignores StreamSegmentSealedException, re-throws anything else.
+     */
+    @SneakyThrows
+    private Long ignoreSegmentSealed(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        if (!(ex instanceof StreamSegmentSealedException)) {
+            throw ex;
+        }
+
+        return null;
     }
 }
