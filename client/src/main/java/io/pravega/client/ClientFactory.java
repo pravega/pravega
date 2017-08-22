@@ -27,6 +27,8 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import java.net.URI;
+
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
 
 /**
@@ -60,7 +62,8 @@ public interface ClientFactory extends AutoCloseable {
      */
     static ClientFactory withScope(String scope, URI controllerUri) {
         val connectionFactory = new ConnectionFactoryImpl(false);
-        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri), connectionFactory);
+        return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+                connectionFactory.getInternalExecutor()), connectionFactory);
     }
 
     /**
