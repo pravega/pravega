@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.controller.server.rest.generated.api.JacksonJsonProvider;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
@@ -34,7 +35,20 @@ import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.integration.utils.SetupUtils;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
@@ -45,23 +59,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-
-import java.net.URI;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.concurrent.TimeUnit;
-
-import static javax.ws.rs.core.Response.Status.NOT_FOUND;
-import static javax.ws.rs.core.Response.Status.OK;
-import static javax.ws.rs.core.Response.Status.NO_CONTENT;
 import static javax.ws.rs.core.Response.Status.CREATED;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
+import static javax.ws.rs.core.Response.Status.NO_CONTENT;
+import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -235,7 +236,11 @@ public class ControllerRestApiTest {
         final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
         URI controllerUri = SETUP_UTILS.getControllerUri();
-        try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        final Controller controller = new ControllerImpl(controllerUri,
+                                                         ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -254,7 +259,6 @@ public class ControllerRestApiTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
-        Controller controller = new ControllerImpl(controllerUri);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),

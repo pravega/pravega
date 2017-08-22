@@ -14,4 +14,6 @@ A Writer is a client that creates Events and publishes them into Streams.
 A Reader is a client that Consumes events from Streams.
 We provide a Java library, which implements a convenient API for Writer and Reader applications to use.  The client library encapsulates the wire protocol that is used to convey requests and responses between Pravega Clients and the Pravega service.
 
-[Writer and Reader API](javadoc/clients/index.html) 
+[Writer and Reader API (v0.1.0)](javadoc/v0.1.0/clients/index.html)
+
+Prior releases: [v0.1.0-prerelease](javadoc/v0.1.0-prerelease/clients/index.html)

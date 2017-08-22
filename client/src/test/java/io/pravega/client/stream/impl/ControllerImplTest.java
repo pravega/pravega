@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -22,9 +21,9 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -36,6 +35,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScopeInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
@@ -52,6 +53,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceImplBase;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -69,8 +71,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import io.pravega.test.common.TestUtils;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -94,6 +95,9 @@ public class ControllerImplTest {
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+
+    // Global variable to track number of attempts to verify retries.
+    private final AtomicInteger retryAttempts = new AtomicInteger(0);
 
     // Test implementation for simulating the server responses.
     private ControllerServiceImplBase testServerImpl;
@@ -155,6 +159,17 @@ public class ControllerImplTest {
                             .setStatus(CreateStreamStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("streamretryfailure")) {
+                    responseObserver.onError(Status.UNKNOWN.withDescription("Transport error").asRuntimeException());
+                } else if (request.getStreamInfo().getStream().equals("streamretrysuccess")) {
+                    if (retryAttempts.incrementAndGet() > 3) {
+                        responseObserver.onNext(CreateStreamStatus.newBuilder()
+                                .setStatus(CreateStreamStatus.Status.SUCCESS)
+                                .build());
+                        responseObserver.onCompleted();
+                    } else {
+                        responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                    }
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
@@ -566,8 +581,9 @@ public class ControllerImplTest {
                 .addService(testServerImpl)
                 .build()
                 .start();
-        controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort));
         executor = Executors.newSingleThreadScheduledExecutor();
+        controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
+                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
     }
 
     @After
@@ -580,15 +596,16 @@ public class ControllerImplTest {
     public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
 
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
-        ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
-                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
+        final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
+                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        AssertExtensions.assertThrows("Should throw Exception", createStreamStatus,
-                throwable -> throwable instanceof StatusRuntimeException);
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+                throwable -> throwable instanceof RetriesExhaustedException);
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
@@ -597,15 +614,52 @@ public class ControllerImplTest {
                 .permitKeepAliveTime(5, TimeUnit.SECONDS)
                 .build()
                 .start();
-        controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
-                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true));
-        createStreamStatus = controller.createStream(StreamConfiguration.builder()
+        final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
+                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
         testServer.shutdownNow();
+    }
+
+    @Test
+    public void testRetries() throws IOException, ExecutionException, InterruptedException {
+
+        // Verify retries exhausted error after multiple attempts.
+        final ControllerImpl controller1 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
+                ControllerImplConfig.builder().retryAttempts(3).build(), this.executor);
+        CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
+                .streamName("streamretryfailure")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+                throwable -> throwable instanceof RetriesExhaustedException);
+
+        // The following call with retries should fail since number of retries is not sufficient.
+        this.retryAttempts.set(0);
+        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
+                .streamName("streamretrysuccess")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+                throwable -> throwable instanceof RetriesExhaustedException);
+
+        // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
+        this.retryAttempts.set(0);
+        final ControllerImpl controller2 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
+                ControllerImplConfig.builder().retryAttempts(4).build(), this.executor);
+        createStreamStatus = controller2.createStream(StreamConfiguration.builder()
+                .streamName("streamretrysuccess")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        assertTrue(createStreamStatus.get());
     }
 
     @Test
@@ -962,7 +1016,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelCreateStream() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelCreateStream");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {
@@ -996,7 +1050,7 @@ public class ControllerImplTest {
 
     @Test
     public void testParallelGetCurrentSegments() throws Exception {
-        final ExecutorService executorService = Executors.newFixedThreadPool(10);
+        final ExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(10, "testParallelGetCurrentSegments");
         Semaphore createCount = new Semaphore(-19);
         AtomicBoolean success = new AtomicBoolean(true);
         for (int i = 0; i < 10; i++) {

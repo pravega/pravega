@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -93,7 +94,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
     }
