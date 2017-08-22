@@ -50,12 +50,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
+    private static final Integer POOL_SIZE = Integer.valueOf(
+            System.getProperty("pravega.client.internal.threadpool.size",
+                    String.valueOf(Runtime.getRuntime().availableProcessors())));
     private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
-            Runtime.getRuntime().availableProcessors(),
+    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(POOL_SIZE,
             new ThreadFactoryBuilder().setNameFormat("clientInternal-%d").build());
 
     /**

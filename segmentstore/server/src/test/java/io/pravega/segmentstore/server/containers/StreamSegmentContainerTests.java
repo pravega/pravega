@@ -14,7 +14,6 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.ConfigurationException;
@@ -41,6 +40,7 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -78,7 +78,6 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +97,8 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -267,7 +268,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicLong expectedLength = new AtomicLong();
 
         @Cleanup("shutdown")
-        ExecutorService testExecutor = Executors.newFixedThreadPool(Math.min(20, APPENDS_PER_SEGMENT));
+        ExecutorService testExecutor = newScheduledThreadPool(Math.min(20, APPENDS_PER_SEGMENT), "testConcurrentSegmentActivation");
         val submitFutures = new ArrayList<Future<?>>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             final byte fillValue = (byte) i;
@@ -827,7 +828,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Add one append with some attribute changes and verify they were set correctly.
         val appendAttributes = createAttributeUpdates(attributes);
         applyAttributes(appendAttributes, expectedAttributes);
-        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT);
+        localContainer.append(segmentName, appendData, appendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after append.", expectedAttributes, sp);
 
@@ -848,7 +849,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Seal (this should clear out non-dynamic attributes).
         expectedAttributes.keySet().removeIf(Attributes::isDynamic);
-        localContainer.sealStreamSegment(segmentName, TIMEOUT);
+        localContainer.sealStreamSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
 

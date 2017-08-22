@@ -200,7 +200,7 @@ public class PravegaRequestProcessorTest {
     
     @Test(timeout = 20000)
     public void testTransaction() throws Exception {
-        String streamSegmentName = "testCreateSegment";
+        String streamSegmentName = "testTxn";
         UUID txnid = UUID.randomUUID();
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -244,9 +244,28 @@ public class PravegaRequestProcessorTest {
              .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
                                                                                                      txnid)));
 
+        // Verify the case when the transaction segment is already sealed. This simulates the case when the process
+        // crashed after sealing, but before issuing the merge.
+        txnid = UUID.randomUUID();
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(2, streamSegmentName, txnid));
+        assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
+
+        // Seal the transaction in the SegmentStore.
+        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
+        store.sealStreamSegment(txnName, Duration.ZERO).join();
+
+        processor.commitTransaction(new WireCommands.CommitTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCommitted(3, streamSegmentName, txnid));
+        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(4, streamSegmentName, txnid));
+        order.verify(connection)
+                .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                        txnid)));
+
         order.verifyNoMoreInteractions();
     }
-    
+
     @Test(timeout = 20000)
     public void testSegmentAttribute() throws Exception {
         String streamSegmentName = "testSegmentAttribute";

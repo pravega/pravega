@@ -383,11 +383,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                            event.getExpectedOffset()));
             } catch (ConnectionFailedException e) {
                 log.warn("Connection " + writerId + " failed due to: ", e);
-                try {
-                    getConnection(); // As the messages is inflight, this will perform the retransmition.
-                } catch (SegmentSealedException e2) {
-                    return;
-                }
+                reconnect(); // As the message is inflight, this will perform the retransmission.
             }
         }
     }

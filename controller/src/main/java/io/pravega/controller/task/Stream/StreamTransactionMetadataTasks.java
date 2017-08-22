@@ -519,7 +519,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             if (e != null) {
                 log.debug("Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
             } else {
-                log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
             }
         });
 

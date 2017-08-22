@@ -17,6 +17,8 @@ public interface ReaderGroupMetrics {
     /**
      * Returns the number of bytes between the last recorded position of the readers in the
      * ReaderGroup and the end of the stream. Note: This value may be somewhat delayed.
+     *
+     * @return The number of unread bytes.
      */
     long unreadBytes();
     

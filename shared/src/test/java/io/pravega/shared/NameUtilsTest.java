@@ -9,6 +9,7 @@
  */
 package io.pravega.shared;
 
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,143 +25,47 @@ public class NameUtilsTest {
 
     @Test
     public void testUserStreamNameVerifier() {
-        try {
-            NameUtils.validateUserStreamName("stream123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-        try {
-            NameUtils.validateUserStreamName("_stream");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateUserStreamName(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            // expected
-        }
+        NameUtils.validateUserStreamName("stream123");
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserStreamName("_stream"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserStreamName(null));
+        NameUtils.validateUserStreamName("a-b-c");
+        NameUtils.validateUserStreamName("1.2.3");
     }
 
     @Test
     public void testStreamNameVerifier() {
-        try {
-            NameUtils.validateStreamName("_systemstream123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-        try {
-            NameUtils.validateStreamName("stream123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-        try {
-            NameUtils.validateStreamName("system_stream123");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateStreamName("stream/123");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateStreamName(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            // expected
-        }
+        NameUtils.validateStreamName("_systemstream123");
+        NameUtils.validateStreamName("stream123");
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName("system_stream123"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateStreamName("stream/123"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateStreamName(null));
+        NameUtils.validateStreamName("a-b-c");
+        NameUtils.validateStreamName("1.2.3");
     }
 
     @Test
     public void testUserScopeNameVerifier() {
-        try {
-            NameUtils.validateUserScopeName("stream123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-        try {
-            NameUtils.validateUserScopeName("_stream");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateUserScopeName(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            // expected
-        }
+        NameUtils.validateUserScopeName("stream123");
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateUserScopeName("_stream"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateUserScopeName(null));
     }
 
     @Test
     public void testScopeNameVerifier() {
-        try {
-            NameUtils.validateScopeName("_systemscope123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
 
-        try {
-            NameUtils.validateScopeName("userscope123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
+        NameUtils.validateScopeName("_systemscope123");
+        NameUtils.validateScopeName("userscope123");
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system_scope"));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateScopeName("system/scope"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateScopeName(null));
 
-        try {
-            NameUtils.validateScopeName("system_scope");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateScopeName("system/scope");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateScopeName(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            // expected
-        }
     }
 
     @Test
     public void testReaderGroupNameVerifier() {
-        try {
-            NameUtils.validateReaderGroupName("stream123");
-        } catch (Exception e) {
-            Assert.fail();
-        }
-
-        try {
-            NameUtils.validateReaderGroupName("_stream");
-            Assert.fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            NameUtils.validateReaderGroupName(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            // expected
-        }
+        NameUtils.validateReaderGroupName("stream123");
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> NameUtils.validateReaderGroupName("_stream"));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> NameUtils.validateReaderGroupName(null));
     }
 
     @Test

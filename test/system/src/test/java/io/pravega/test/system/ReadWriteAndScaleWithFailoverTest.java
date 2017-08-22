@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -90,11 +91,12 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        //executor service
-        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
+        //num. of readers + num. of writers + 1 to run checkScale operation
+        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
         testState = new TestState();
+        testState.writersListComplete.add(0, testState.writersComplete);
     }
 
     @After
@@ -163,7 +165,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             //run the failover test after scaling
             performFailoverTest();
 
-            stopReadersAndWriters(readerGroupManager, readerGroupName);
+            stopWriters();
+            stopReaders();
+            validateResults(readerGroupManager, readerGroupName);
         }
         cleanUp(scope, SCALE_STREAM);
         log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");

@@ -30,7 +30,7 @@ The following prerequisites are required for running in production. These are on
 - Zookeeper 3.5.1-alpha
 - Bookkeeper 4.4.0
 
-For more details on the prerequisites and recommended configuration options for bookkeeper see the [Prerequisites Guide](prereqs.md).
+For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
 ## Installation
 
@@ -41,8 +41,7 @@ There are multiple options provided for running Pravega in different environment
     - Local Standalone Mode
     - Docker Compose (Distributed Mode)
 - Production - Multi-node installation suitable for running in production.
-    - [Manual Installation](installation.md)
+    - [Manual Installation](manual-install.md)
     - [Docker Swarm](docker-swarm.md)
     - [DC/OS](dcos-install.md)
     - Cloud - [AWS](aws-install.md)
-
