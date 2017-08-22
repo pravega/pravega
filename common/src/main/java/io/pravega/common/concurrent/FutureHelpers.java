@@ -112,6 +112,7 @@ public final class FutureHelpers {
     
     /**
      * If the future has failed returns the exception that caused it. Otherwise returns null.
+     * 
      * @param <T> The Type of the future's result.
      * @param future   The future to inspect.
      * @return null or the exception that caused the Future to fail.
