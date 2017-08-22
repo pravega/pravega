@@ -4,8 +4,8 @@
     {
       "id": "/pravega/bkgroup",
       "apps": [
-      {
-          "id": "/pravega/bkgroup/bookie",
+      { 
+          "id": "/pravega/bkgroup/bookie", 
           "cpus": 2,
           "mem": 1000,
           "instances": 5,
@@ -47,7 +47,7 @@
                   "network": "HOST",
                    "parameters": [
                                  { "key": "env",
-                                   "value": "DLOG_EXTRA_OPTS=-Xms512m "
+                                   "value": "DLOG_EXTRA_OPTS=-Xms512m " 
 				 }
 		   ]
 
@@ -91,9 +91,9 @@
       "dependencies": ["/pravega/bkgroup"],
       "dependencies": ["/pravega/controllergroup"],
       "apps": [
-      {
+      { 
           "id": "/pravega/hostgroup/host",
-	  "backoffSeconds": 7200,
+	  "backoffSeconds": 7200, 
           "cpus": 2,
           "mem": 1000,
           "instances": 3,
@@ -132,7 +132,7 @@
           ],
 
           "requirePorts": true,
-
+     
 	  "healthChecks": [
             {
                "protocol": "TCP",
@@ -155,8 +155,8 @@
       "id": "/pravega/controllergroup",
       "dependencies": ["/pravega/bkgroup"],
       "apps": [
-      {
-          "id": "/pravega/controllergroup/controller",
+      { 
+          "id": "/pravega/controllergroup/controller", 
           "cpus": 0.4,
           "mem": 500,
           "instances": 2,
@@ -181,7 +181,7 @@
           "portDefinitions": [
           {
               "protocol": "tcp",
-              "port": 9090
+              "port": 9090 
           }
           ],
 
@@ -206,3 +206,4 @@
     }
   ]
 }
+
