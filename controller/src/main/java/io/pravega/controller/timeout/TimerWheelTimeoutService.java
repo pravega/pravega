@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -50,7 +51,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
     // region HashedWheelTimer parameters
 
-    private static final ThreadFactory THREAD_FACTORY = Executors.defaultThreadFactory();
+    private static final ThreadFactory THREAD_FACTORY = ExecutorServiceHelpers.getThreadFactory("TimerWheelService");
     private static final long TICK_DURATION = 400;
     private static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
     private static final int TICKS_PER_WHEEL = 512;

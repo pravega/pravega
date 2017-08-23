@@ -33,6 +33,24 @@ import lombok.val;
  */
 public final class ExecutorServiceHelpers {
     
+    
+    /**
+     * Creates an returns a thread factory that will create threads with the given name prefix.
+     * 
+     * @param groupName the name of the threads
+     * @return a thread factory
+     */
+    public static ThreadFactory getThreadFactory(String groupName) {
+        ThreadGroup group = new ThreadGroup(groupName);
+        group.setDaemon(true);
+        return new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(group, r);
+            }
+        };
+    }
+    
     /**
      * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names the threads.
      * @param size The number of threads in the threadpool
@@ -40,14 +58,8 @@ public final class ExecutorServiceHelpers {
      * @return A new executor service.
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
-        ThreadGroup group = new ThreadGroup(poolName);
-        group.setDaemon(true);
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(group, r);
-            }
-        }, new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
+        // Caller runs only occurs after shutdown, as queue size is unbounded.
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRunsPolicy()); 
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         result.setRemoveOnCancelPolicy(true);
@@ -74,14 +86,8 @@ public final class ExecutorServiceHelpers {
     }
     
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreads, int threadTimeout, String poolName) {
-        final ThreadGroup group = new ThreadGroup(poolName);
-        group.setDaemon(true);
-        return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(group, r);
-            }
-        }, new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
+        return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+                getThreadFactory(poolName), new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 
     /**
