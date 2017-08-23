@@ -13,6 +13,7 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.test.common.TestingServerStarter;
@@ -76,8 +77,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         zkClient.start();
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
-        executorService = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);

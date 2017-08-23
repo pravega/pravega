@@ -16,6 +16,7 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
@@ -110,8 +111,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
         try {
             //Initialize the executor service.
-            controllerExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
-                    new ThreadFactoryBuilder().setNameFormat("controllerpool-%d").build());
+            controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+                                                                               "controllerpool");
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);

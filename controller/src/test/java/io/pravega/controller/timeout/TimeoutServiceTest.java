@@ -39,6 +39,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.Optional;
 import java.util.UUID;
@@ -89,8 +90,7 @@ public class TimeoutServiceTest {
         String connectionString = zkTestServer.getConnectString();
 
         // Initialize the executor service.
-        this.executor = Executors.newScheduledThreadPool(4,
-                new ThreadFactoryBuilder().setNameFormat("testtaskpool-%d").build());
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "testtaskpool");
 
         // Initialize ZK client.
         client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
