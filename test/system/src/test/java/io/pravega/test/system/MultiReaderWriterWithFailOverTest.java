@@ -28,6 +28,7 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -45,8 +46,7 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -71,7 +71,7 @@ public class MultiReaderWriterWithFailOverTest {
     private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
     private List<EventStreamReader<Long>> readerList = new ArrayList<>();
     private List<EventStreamWriter<Long>> writerList = new ArrayList<>();
-    private ExecutorService executorService;
+    private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
@@ -161,7 +161,8 @@ public class MultiReaderWriterWithFailOverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS, "MultiReaderWriterWithFailOverTest");
+
     }
 
     @After
@@ -182,8 +183,8 @@ public class MultiReaderWriterWithFailOverTest {
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        Controller controller = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build(), connectionFactory.getInternalExecutor());
+        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1)
+                .build(), executorService);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
