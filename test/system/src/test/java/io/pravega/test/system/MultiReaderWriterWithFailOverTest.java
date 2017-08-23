@@ -50,7 +50,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
@@ -205,8 +204,7 @@ public class MultiReaderWriterWithFailOverTest {
         //get ClientFactory instance
         log.info("Scope passed to client factory {}", scope);
         try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-                     ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
-
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
 
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
@@ -256,8 +254,7 @@ public class MultiReaderWriterWithFailOverTest {
             //start reading asynchronously
             List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
             readerList.forEach(reader -> {
-                CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount,
-                        stopReadFlag, reader);
+                CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
                 readerFutureList.add(readerFuture);
             });
 
@@ -303,8 +300,8 @@ public class MultiReaderWriterWithFailOverTest {
             CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
             log.info("Deleting scope {}", scope);
             assertTrue(deleteScopeStatus.get());
+            log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
         }
-        log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
     private void cleanUp() {
