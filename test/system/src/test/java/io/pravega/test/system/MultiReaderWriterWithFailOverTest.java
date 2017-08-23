@@ -161,7 +161,7 @@ public class MultiReaderWriterWithFailOverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS, "MultiReaderWriterWithFailOverTest");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "MultiReaderWriterWithFailOverTest");
 
     }
 
