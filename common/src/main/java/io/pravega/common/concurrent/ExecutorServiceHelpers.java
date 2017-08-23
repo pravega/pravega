@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -42,9 +43,11 @@ public final class ExecutorServiceHelpers {
      */
     public static ThreadFactory getThreadFactory(String groupName) {
         return new ThreadFactory() {
+            final AtomicInteger threadCount = new AtomicInteger();
+
             @Override
             public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, groupName + "-" + r.toString());
+                Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
                 thread.setDaemon(true);
                 return thread;
             }
