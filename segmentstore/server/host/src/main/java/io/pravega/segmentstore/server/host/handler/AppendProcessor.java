@@ -13,6 +13,7 @@ import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -103,6 +104,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     @Override
     public void hello(Hello hello) {
+        log.info("Received hello from connection: {}", connection);
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
     }
 
@@ -116,6 +118,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void setupAppend(SetupAppend setupAppend) {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
+        log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
         store.getStreamSegmentInfo(newSegment, true, TIMEOUT)
                 .whenComplete((info, u) -> {
                     try {
@@ -144,10 +147,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         if (append == null) {
             return;
         }
-
+        long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
         Timer timer = new Timer();
         storeAppend(append).whenComplete((v, e) -> {
             handleAppendResult(append, e);
+            LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
             if (e == null) {
                 WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
             } else {
@@ -301,9 +305,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         if (bytesWaiting > HIGH_WATER_MARK) {
+            log.debug("Pausing writing from connection {}", connection);
             connection.pauseReading();
         }
         if (bytesWaiting < LOW_WATER_MARK) {
+            log.trace("Resuming writing from connection {}", connection);
             connection.resumeReading();
         }
     }

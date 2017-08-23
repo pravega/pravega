@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.segment.StreamSegmentNameUtils;
@@ -130,9 +131,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-
+        long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
+            LoggerHelpers.traceLeave(log, "readSegment", trace, t);
             handleReadResult(readSegment, t);
             DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), t.getConsumedLength());
             READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
