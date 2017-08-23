@@ -28,10 +28,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import java.util.Collections;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
