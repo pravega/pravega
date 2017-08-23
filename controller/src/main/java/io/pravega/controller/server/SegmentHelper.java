@@ -316,6 +316,11 @@ public class SegmentHelper {
             }
 
             @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
+            }
+
+            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
