@@ -288,21 +288,21 @@ public class MultiReaderWriterWithFailOverTest {
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
-            //seal the stream
-            CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
-            log.info("Sealing stream {}", STREAM_NAME);
-            assertTrue(sealStreamStatus.get());
-            //delete the stream
-            CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
-            log.info("Deleting stream {}", STREAM_NAME);
-            assertTrue(deleteStreamStatus.get());
-
-            //delete the scope
-            CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
-            log.info("Deleting scope {}", scope);
-            assertTrue(deleteScopeStatus.get());
-            log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
         }
+        //seal the stream
+        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
+        log.info("Sealing stream {}", STREAM_NAME);
+        assertTrue(sealStreamStatus.get());
+        //delete the stream
+        CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
+        log.info("Deleting stream {}", STREAM_NAME);
+        assertTrue(deleteStreamStatus.get());
+
+        //delete the scope
+        CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
+        log.info("Deleting scope {}", scope);
+        assertTrue(deleteScopeStatus.get());
+        log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
     private void cleanUp() {
