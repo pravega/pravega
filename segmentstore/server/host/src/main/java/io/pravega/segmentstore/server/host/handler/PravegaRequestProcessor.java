@@ -330,7 +330,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.deleteStreamSegment(transactionName, TIMEOUT)
                 .thenRun(() -> connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid())))
                 .exceptionally(e -> {
-                    if (e instanceof CompletionException && e.getCause() instanceof StreamSegmentNotExistsException) {
+                    if (ExceptionHelpers.getRealException(e) instanceof StreamSegmentNotExistsException) {
                         connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid()));
                         return null;
                     } else {

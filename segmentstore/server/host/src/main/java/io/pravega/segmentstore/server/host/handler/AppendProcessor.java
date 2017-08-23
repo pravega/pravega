@@ -47,7 +47,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -222,13 +222,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private CompletableFuture<Void> storeAppend(Append append) {
-        ArrayList<AttributeUpdate> attributes = new ArrayList<>(2);
+        long lastEventNumber;
         synchronized (lock) {
-            long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-            attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals,
-                                               append.getEventNumber(), lastEventNumber));
+            lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
         }
-        attributes.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
+
+        List<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -340,15 +341,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void append(Append append) {
+        UUID id = append.getWriterId();
         synchronized (lock) {
-            UUID id = append.getWriterId();
             Long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), id));
-            if (lastEventNumber == null) {
-                throw new IllegalStateException("Data from unexpected connection: " + id);
-            }
-            if (append.getEventNumber() <= lastEventNumber) {
-                throw new IllegalStateException("Event was already appended.");
-            }
+            Preconditions.checkState(lastEventNumber != null, "Data from unexpected connection: %s.", id);
+            Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
         }
         pauseOrResumeReading();
