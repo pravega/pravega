@@ -264,14 +264,14 @@ public class StreamMetadataTasks extends TaskBase {
 
         getRequestWriter().writeEvent(event).whenComplete((r, e) -> {
             if (e != null) {
-                log.warn("post scale threw exception {}", e.getMessage());
+                log.warn("post scale threw exception {} {}", e.getClass().getName(), e.getMessage());
                 if (e instanceof ScaleOperationExceptions.ScaleRequestNotEnabledException) {
                     result.completeExceptionally(e);
                 } else {
                     result.completeExceptionally(new ScaleOperationExceptions.ScalePostException());
                 }
             } else {
-                log.debug("scale event posted successfully");
+                log.info("scale event posted successfully");
                 result.complete(null);
             }
         });
@@ -358,7 +358,7 @@ public class StreamMetadataTasks extends TaskBase {
         return withRetries(() -> streamMetadataStore.tryDeleteEpochIfScaling(scope, stream, epoch, context, executor), executor)
                 .thenCompose(response -> {
                     if (!response.isDeleted()) {
-                        return CompletableFuture.completedFuture(true);
+                        return CompletableFuture.completedFuture(false);
                     }
                     assert !response.getSegmentsCreated().isEmpty() && !response.getSegmentsSealed().isEmpty();
 
@@ -367,7 +367,10 @@ public class StreamMetadataTasks extends TaskBase {
                             .thenCompose(y ->
                                     withRetries(() -> streamMetadataStore.scaleSegmentsSealed(scope, stream, response.getSegmentsSealed(),
                                             response.getSegmentsCreated(), epoch, scaleTs, context, executor), executor)
-                                    .thenApply(z -> true));
+                                    .thenApply(z -> {
+                                        log.info("scale processing for {}/{} epoch {} completed.", scope, stream, epoch);
+                                        return true;
+                                    }));
                 });
     }
 

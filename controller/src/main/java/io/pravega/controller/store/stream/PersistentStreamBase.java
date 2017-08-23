@@ -373,7 +373,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             throw new ScaleOperationExceptions.ScaleStartException();
                         }
 
-                        log.info("Scale {}/{} for segments started. Creating new segments.", scope, name);
+                        log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}", scope, name, sealedSegments);
                         // fresh run
                         return scaleCreateNewSegments(newRanges, scaleTimestamp, segmentTable, activeEpoch);
                     }
