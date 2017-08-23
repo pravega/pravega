@@ -182,7 +182,6 @@ public class MultiReaderWriterWithFailOverTest {
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
-        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         Controller controller = new ControllerImpl(controllerUri,
                 ControllerImplConfig.builder().retryAttempts(1).build(), connectionFactory.getInternalExecutor());
@@ -205,91 +204,93 @@ public class MultiReaderWriterWithFailOverTest {
 
         //get ClientFactory instance
         log.info("Scope passed to client factory {}", scope);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri)) {
+        @Cleanup //connectionFactory is closed by clientFactory.close()
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerUri);
 
-            log.info("Client factory details {}", clientFactory.toString());
-            //create writers
-            log.info("Creating {} writers", NUM_WRITERS);
-            log.info("Writers writing in the scope {}", scope);
-            for (int i = 0; i < NUM_WRITERS; i++) {
-                log.info("Starting writer{}", i);
-                final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
-                        new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
-                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
-                writerList.add(writer);
-            }
-
-            //create a reader group
-            log.info("Creating Reader group : {}", readerGroupName);
-            log.info("Scope passed to readergroup manager {}", scope);
-
-            readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
-                    Collections.singleton(STREAM_NAME));
-            log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
-            log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
-            log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
-
-            //create readers
-            log.info("Creating {} readers", NUM_READERS);
-            String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
-            log.info("Scope that is seen by readers {}", scope);
-            //start reading events
-            for (int i = 0; i < NUM_READERS; i++) {
-                log.info("Starting reader{}", i);
-                log.info("Creating reader with id {}", readerName + i);
-                final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
-                        readerGroupName,
-                        new JavaSerializer<Long>(),
-                        ReaderConfig.builder().build());
-                readerList.add(reader);
-            }
-
-            // start writing asynchronously
-            List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
-            writerList.forEach(writer -> {
-                CompletableFuture<Void> writerFuture = startWriting(eventData, writer, stopWriteFlag);
-                writerFutureList.add(writerFuture);
-            });
-
-            //start reading asynchronously
-            List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
-            readerList.forEach(reader -> {
-                CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount, stopReadFlag, reader);
-                readerFutureList.add(readerFuture);
-            });
-
-            //perform the scaling operations
-            performFailoverTest();
-
-            //set the stop write flag to true
-            log.info("Stop write flag status {}", stopWriteFlag);
-            stopWriteFlag.set(true);
-
-            //wait for writers completion
-            log.info("Wait for writers execution to complete");
-            FutureHelpers.allOf(writerFutureList).get();
-
-            //set the stop read flag to true
-            log.info("Stop read flag status {}", stopReadFlag);
-            stopReadFlag.set(true);
-
-            //wait for readers completion
-            log.info("Wait for readers execution to complete");
-            FutureHelpers.allOf(readerFutureList).get();
-
-            log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
-                    "Count: {}", eventData.get(), eventsReadFromPravega.size());
-            assertEquals(eventData.get(), eventsReadFromPravega.size());
-            assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
-
-            cleanUp();
-
-            //delete readergroup
-            log.info("Deleting readergroup {}", readerGroupName);
-            readerGroupManager.deleteReaderGroup(readerGroupName);
+        log.info("Client factory details {}", clientFactory.toString());
+        //create writers
+        log.info("Creating {} writers", NUM_WRITERS);
+        log.info("Writers writing in the scope {}", scope);
+        for (int i = 0; i < NUM_WRITERS; i++) {
+            log.info("Starting writer{}", i);
+            final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
+                    new JavaSerializer<Long>(),
+                    EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                            .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
+            writerList.add(writer);
         }
+
+        //create a reader group
+        log.info("Creating Reader group : {}", readerGroupName);
+        log.info("Scope passed to readergroup manager {}", scope);
+
+        readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
+                Collections.singleton(STREAM_NAME));
+        log.info("Reader group name {} ", readerGroupManager.getReaderGroup(readerGroupName).getGroupName());
+        log.info("Reader group scope {}", readerGroupManager.getReaderGroup(readerGroupName).getScope());
+        log.info("Online readers {}", readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders());
+
+        //create readers
+        log.info("Creating {} readers", NUM_READERS);
+        String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
+        log.info("Scope that is seen by readers {}", scope);
+        //start reading events
+        for (int i = 0; i < NUM_READERS; i++) {
+            log.info("Starting reader{}", i);
+            log.info("Creating reader with id {}", readerName + i);
+            final EventStreamReader<Long> reader = clientFactory.createReader(readerName + i,
+                    readerGroupName,
+                    new JavaSerializer<Long>(),
+                    ReaderConfig.builder().build());
+            readerList.add(reader);
+        }
+
+        // start writing asynchronously
+        List<CompletableFuture<Void>> writerFutureList = new ArrayList<>();
+        writerList.forEach(writer -> {
+            CompletableFuture<Void> writerFuture = startWriting(eventData, writer, stopWriteFlag);
+            writerFutureList.add(writerFuture);
+        });
+
+        //start reading asynchronously
+        List<CompletableFuture<Void>> readerFutureList = new ArrayList<>();
+        readerList.forEach(reader -> {
+            CompletableFuture<Void> readerFuture = startReading(eventsReadFromPravega, eventData, eventReadCount,
+                    stopReadFlag, reader);
+            readerFutureList.add(readerFuture);
+        });
+
+        //perform the scaling operations
+        performFailoverTest();
+
+        //set the stop write flag to true
+        log.info("Stop write flag status {}", stopWriteFlag);
+        stopWriteFlag.set(true);
+
+        //wait for writers completion
+        log.info("Wait for writers execution to complete");
+        FutureHelpers.allOf(writerFutureList).get();
+
+        //set the stop read flag to true
+        log.info("Stop read flag status {}", stopReadFlag);
+        stopReadFlag.set(true);
+
+        //wait for readers completion
+        log.info("Wait for readers execution to complete");
+        FutureHelpers.allOf(readerFutureList).get();
+
+        log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
+                "Count: {}", eventData.get(), eventsReadFromPravega.size());
+        assertEquals(eventData.get(), eventsReadFromPravega.size());
+        assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
+
+        cleanUp();
+
+        //delete readergroup
+        log.info("Deleting readergroup {}", readerGroupName);
+        readerGroupManager.deleteReaderGroup(readerGroupName);
         //seal the stream
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
         log.info("Sealing stream {}", STREAM_NAME);
