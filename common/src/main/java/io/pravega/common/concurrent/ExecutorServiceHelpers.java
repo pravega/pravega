@@ -47,7 +47,7 @@ public final class ExecutorServiceHelpers {
             public Thread newThread(Runnable r) {
                 return new Thread(group, r);
             }
-        }, new CallerRunsPolicy());
+        }, new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
         result.setMaximumPoolSize(size);
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
@@ -82,7 +82,7 @@ public final class ExecutorServiceHelpers {
             public Thread newThread(Runnable r) {
                 return new Thread(group, r);
             }
-        }, new CallerRunsPolicy());
+        }, new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 
     /**

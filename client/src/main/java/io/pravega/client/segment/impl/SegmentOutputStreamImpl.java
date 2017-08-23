@@ -183,7 +183,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     waitingInflight.release();
                 } 
                 if (!closed) {
-                    log.warn("Connection for segment {} failed due to: {}", segmentName, throwable.toString());
+                    log.warn("Connection for segment {} failed due to: {}", segmentName, throwable.getMessage());
                 }
             }
             if (failSetupConnection) {
