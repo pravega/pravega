@@ -138,6 +138,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public void close() {
+        log.info("Shutting down connection factory");
         if (closed.compareAndSet(false, true)) {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();

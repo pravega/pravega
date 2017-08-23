@@ -123,6 +123,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     @Override
     public void close() {
+        log.info("Closing reader for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
