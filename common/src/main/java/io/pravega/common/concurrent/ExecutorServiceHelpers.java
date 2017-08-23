@@ -41,12 +41,12 @@ public final class ExecutorServiceHelpers {
      * @return a thread factory
      */
     public static ThreadFactory getThreadFactory(String groupName) {
-        ThreadGroup group = new ThreadGroup(groupName);
-        group.setDaemon(true);
         return new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
-                return new Thread(group, r);
+                Thread thread = new Thread(r, groupName + "-" + r.toString());
+                thread.setDaemon(true);
+                return thread;
             }
         };
     }
