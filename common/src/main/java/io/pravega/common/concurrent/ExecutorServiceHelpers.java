@@ -14,12 +14,13 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.function.RunnableWithException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
@@ -41,12 +42,17 @@ public final class ExecutorServiceHelpers {
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
         ThreadGroup group = new ThreadGroup(poolName);
         group.setDaemon(true);
-        return Executors.newScheduledThreadPool(size, new ThreadFactory() {
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
                 return new Thread(group, r);
             }
-        });
+        }, new CallerRunsPolicy());
+        result.setMaximumPoolSize(size);
+        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        result.setRemoveOnCancelPolicy(true);
+        return result;
     }
     
     /**
@@ -69,13 +75,14 @@ public final class ExecutorServiceHelpers {
     }
     
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreads, int threadTimeout, String poolName) {
+        final ThreadGroup group = new ThreadGroup(poolName);
+        group.setDaemon(true);
         return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new ThreadFactory() {
-            private final ThreadGroup group = new ThreadGroup(poolName);
             @Override
             public Thread newThread(Runnable r) {
                 return new Thread(group, r);
             }
-        });
+        }, new CallerRunsPolicy());
     }
 
     /**
