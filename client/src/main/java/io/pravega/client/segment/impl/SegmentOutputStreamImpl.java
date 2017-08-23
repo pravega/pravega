@@ -448,6 +448,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     
     @VisibleForTesting
     void reconnect() {
+        if (state.isClosed()) {
+            return;
+        }
         log.debug("(Re)connect invoked, Segment: {}, writerID: {}", segmentName, writerId);
         state.setupConnection.registerAndRunReleaser(() -> {
             Retry.indefinitelyWithExpBackoff(retrySchedule.getInitialMillis(), retrySchedule.getMultiplier(),
