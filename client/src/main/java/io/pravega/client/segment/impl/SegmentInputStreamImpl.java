@@ -19,9 +19,9 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Lombok;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -187,11 +187,12 @@ class SegmentInputStreamImpl implements SegmentInputStream {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {
                 Throwable e = FutureHelpers.getException(outstandingRequest);
-                if (ExceptionHelpers.getRealException(e) instanceof Error) {
-                    throw Lombok.sneakyThrow(e);
+                Throwable realException = ExceptionHelpers.getRealException(e);
+                if (!(realException instanceof Error || realException instanceof InterruptedException
+                        || realException instanceof CancellationException)) {
+                    log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
+                    outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
                 }
-                log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
-                outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             }
         }
     }
