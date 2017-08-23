@@ -179,7 +179,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     /**
-     * @return If there is enough room for another request, and we aren't already waiting on one
+     * Issues a request if there is enough room for another request, and we aren't already waiting on one
      */
     private void issueRequestIfNeeded() {
         if (!receivedEndOfSegment && buffer.capacityAvailable() > readLength) {
