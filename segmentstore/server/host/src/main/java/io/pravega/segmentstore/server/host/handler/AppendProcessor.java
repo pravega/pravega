@@ -243,13 +243,12 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
                 }
             } else {
-                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber()));
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
-
                 if (statsRecorder != null) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
+                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber()));
+                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
+                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
             }
       
             pauseOrResumeReading();
