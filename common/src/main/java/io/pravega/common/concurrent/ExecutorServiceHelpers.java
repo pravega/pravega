@@ -48,7 +48,6 @@ public final class ExecutorServiceHelpers {
                 return new Thread(group, r);
             }
         }, new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
-        result.setMaximumPoolSize(size);
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         result.setRemoveOnCancelPolicy(true);
