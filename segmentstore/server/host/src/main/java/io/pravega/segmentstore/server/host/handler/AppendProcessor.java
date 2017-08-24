@@ -176,15 +176,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
         Timer timer = new Timer();
-        storeAppend(append).whenComplete((v, e) -> {
-            handleAppendResult(append, e);
-            LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);if (e == null) {
-                WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-            } else {
-                WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-            }
-        }).whenComplete((v, e) ->
-            append.getData().release());
+        storeAppend(append)
+                .whenComplete((v, e) -> {
+                    handleAppendResult(append, e);
+                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
+                    if (e == null) {
+                        WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+                    } else {
+                        WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+                    }
+                })
+                .whenComplete((v, e) -> append.getData().release());
     }
 
     private Append getNextAppend() {

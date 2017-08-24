@@ -101,7 +101,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
             notifyStoppedOrFailed(null);
         } else if (this.runTask.isDone()) {
             // Our runTask is done. See if it completed normally or not.
-            notifyStoppedOrFailed(FutureHelpers.getFailureCause(this.runTask));
+            notifyStoppedOrFailed(FutureHelpers.getException(this.runTask));
         } else {
             // Still running. Wait (async) for the task to complete or a timeout to expire.
             CompletableFuture

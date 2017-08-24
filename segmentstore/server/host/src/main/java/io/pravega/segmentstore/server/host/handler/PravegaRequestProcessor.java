@@ -155,7 +155,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
                 .thenAccept(readResult -> {
-                    LoggerHelpers.traceLeave(log, "readSegment", trace, t);
+                    LoggerHelpers.traceLeave(log, "readSegment", trace, readResult);
                     handleReadResult(readSegment, readResult);
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), readResult.getConsumedLength());
                     READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
@@ -240,19 +240,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long expectedValue = updateSegmentAttribute.getExpectedValue();
         long trace = LoggerHelpers.traceEnter(log, "updateSegmentAttribute", updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
-        segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT).whenComplete((v, e) -> {
-            LoggerHelpers.traceLeave(log, "updateSegmentAttribute", trace, e);if (e == null) {
-                connection.send(new SegmentAttributeUpdated(requestId, true));
-            } else {
-                if (ExceptionHelpers.getRealException(e) instanceof BadAttributeUpdateException) {
-                    log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
-                    connection.send(new SegmentAttributeUpdated(requestId, false));
-                } else {
-                    handleException(requestId, segmentName, "Update attribute", e);
-                }
-            }
-        }).exceptionally( e ->
-            handleException(requestId, segmentName, "Update attribute", e));
+        segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
+                .whenComplete((v, e) -> {
+                    LoggerHelpers.traceLeave(log, "updateSegmentAttribute", trace, e);
+                    if (e == null) {
+                        connection.send(new SegmentAttributeUpdated(requestId, true));
+                    } else {
+                        if (ExceptionHelpers.getRealException(e) instanceof BadAttributeUpdateException) {
+                            log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
+                            connection.send(new SegmentAttributeUpdated(requestId, false));
+                        } else {
+                            handleException(requestId, segmentName, "Update attribute", e);
+                        }
+                    }
+                })
+                .exceptionally(e -> handleException(requestId, segmentName, "Update attribute", e));
     }
 
     @Override
@@ -263,7 +265,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long trace = LoggerHelpers.traceEnter(log, "getSegmentAttribute", getSegmentAttribute);
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
                 .thenAccept(properties -> {
-            LoggerHelpers.traceLeave(log, "getSegmentAttribute", trace, properties);
+                    LoggerHelpers.traceLeave(log, "getSegmentAttribute", trace, properties);
                     if (properties == null) {
                         connection.send(new NoSuchSegment(requestId, segmentName));
                     } else {
@@ -300,33 +302,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void getTransactionInfo(GetTransactionInfo request) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(request.getSegment(), request.getTxid());
-         segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
-        .thenAccept(properties -> {
-            if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getRequestId(),
-                                                             request.getSegment(),
-                                                             request.getTxid(),
-                                                             transactionName,
-                                                             !properties.isDeleted(),
-                                                             properties.isSealed(),
-                                                             properties.getLastModified().getTime(),
-                                                             properties.getLength());
-                log.trace("Read transaction segment info: {}", result);
-                connection.send(result);
-            } else {
-                log.trace("getTransactionInfo could not find segment {}", transactionName);
-                connection.send(new TransactionInfo(request.getRequestId(),
-                                                    request.getSegment(),
-                                                    request.getTxid(),
-                                                    transactionName,
-                                                    false,
-                                                    true,
-                                                    0,
-                                                    0));
-            }
-            })
-        .exceptionally( e ->
-            handleException(request.getRequestId(), transactionName, "Get transaction info", e));
+        segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT)
+                .thenAccept(properties -> {
+                    if (properties != null) {
+                        TransactionInfo result = new TransactionInfo(request.getRequestId(), request.getSegment(),
+                                request.getTxid(), transactionName, !properties.isDeleted(), properties.isSealed(),
+                                properties.getLastModified().getTime(), properties.getLength());
+                        log.trace("Read transaction segment info: {}", result);
+                        connection.send(result);
+                    } else {
+                        log.trace("getTransactionInfo could not find segment {}", transactionName);
+                        connection.send(new TransactionInfo(request.getRequestId(), request.getSegment(), request.getTxid(),
+                                transactionName, false, true, 0, 0));
+                    }
+                })
+                .exceptionally(e -> handleException(request.getRequestId(), transactionName, "Get transaction info", e));
     }
 
     @Override
@@ -476,20 +466,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
-log.debug("Updating segment policy {} ", updateSegmentPolicy);
-         segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT)
-        .thenRun(() ->
-            connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment())))
-        .whenComplete((r, e) -> {
-            if (e != null) {
-                handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(), "Update segment", e);
-            } else {
-                if (statsRecorder != null) {
-                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                            updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
-                }
-            }
-        });
+        log.debug("Updating segment policy {} ", updateSegmentPolicy);
+        segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT)
+                .thenRun(() ->
+                        connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment())))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(), "Update segment", e);
+                    } else {
+                        if (statsRecorder != null) {
+                            statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
+                                    updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
+                        }
+                    }
+                });
     }
 
     //endregion

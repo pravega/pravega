@@ -263,28 +263,6 @@ public final class FutureHelpers {
     }
 
     /**
-     * Attempts to retrieve the failure cause of a Future. This is equivalent to calling get() on the Future and catching
-     * and unwrapping any exceptions being thrown.
-     *
-     * @param future The Future to check.
-     * @return A Throwable indicating the failure cause, or null if the Future completed normally.
-     * @throws IllegalArgumentException If the Future is not yet completed.
-     */
-    public static Throwable getFailureCause(CompletableFuture<?> future) {
-        Preconditions.checkArgument(future.isDone(), "Future is not yet complete.");
-        if (future.isCompletedExceptionally()) {
-            try {
-                future.get();
-                throw new AssertionError("Unexpected condition: isCompletedExceptionally() == true, but get() did not throw.");
-            } catch (Exception ex) {
-                return ExceptionHelpers.getRealException(ex);
-            }
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Returns a CompletableFuture that will end when the given future ends, but discards its result. If the given future
      * fails, the returned future will fail with the same exception.
      *
