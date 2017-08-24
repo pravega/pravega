@@ -120,6 +120,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
+        //interrupt writers and readers threads if they are still running.
+        testState.writers.forEach(future -> future.cancel(true));
+        testState.readers.forEach(future -> future.cancel(true));
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
