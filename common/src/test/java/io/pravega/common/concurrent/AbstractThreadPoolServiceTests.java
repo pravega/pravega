@@ -32,7 +32,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = 10;
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     @Rule
-    public Timeout globalTimeout = new Timeout(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
     /**
      * Tests the behavior of AbstractThreadPoolService when a normal shutdown (no errors) happens.
