@@ -575,7 +575,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         FlushResult result = new FlushResult();
         return FutureHelpers
                 .loop(
-                        this::exceedsThresholds,
+                        () -> !this.metadata.isDeleted() && exceedsThresholds(),
                         () -> flushPendingAppends(timer.getRemaining()),
                         result::withFlushResult,
                         executor)
@@ -648,6 +648,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         int length = (int) appendOp.getLength();
         InputStream data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
         if (data == null) {
+            if (this.metadata.isDeleted()) {
+                // Segment was deleted - nothing more to do.
+                return new FlushArgs(null, 0);
+            }
             throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
         }
 
