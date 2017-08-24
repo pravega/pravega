@@ -14,6 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
@@ -33,7 +34,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
@@ -134,22 +134,23 @@ public class ControllerFailoverTest {
 
         // Connect with first controller instance.
         URI controllerUri = getTestControllerServiceURI();
-        Controller controller = new ControllerImpl(controllerUri);
+        final Controller controller1 = new ControllerImpl(controllerUri,
+                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
-        controller.createScope(scope).join();
+        controller1.createScope(scope).join();
         log.info("Scope {} created successfully", scope);
 
-        createStream(controller, scope, stream, ScalingPolicy.fixed(initialSegments));
+        createStream(controller1, scope, stream, ScalingPolicy.fixed(initialSegments));
         log.info("Stream {}/{} created successfully", scope, stream);
 
         long txnCreationTimestamp = System.nanoTime();
-        TxnSegments txnSegments = controller.createTransaction(
+        TxnSegments txnSegments = controller1.createTransaction(
                 new StreamImpl(scope, stream), lease, maxExecutionTime, scaleGracePeriod).join();
         log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
-        CompletableFuture<Boolean> scaleFuture = controller.scaleStream(
+        CompletableFuture<Boolean> scaleFuture = controller1.scaleStream(
                 new StreamImpl(scope, stream), segmentsToSeal, newRangesToCreate, EXECUTOR_SERVICE).getFuture();
 
         // Ensure that scale is not yet done.
@@ -162,12 +163,13 @@ public class ControllerFailoverTest {
 
         // Connect to another controller instance.
         controllerUri = getControllerURI();
-        controller = new ControllerImpl(controllerUri);
+        final Controller controller2 = new ControllerImpl(controllerUri,
+                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",
                 txnSegments.getTxnId(), System.nanoTime() - txnCreationTimestamp);
-        Transaction.Status status = controller.checkTransactionStatus(new StreamImpl(scope, stream),
+        Transaction.Status status = controller2.checkTransactionStatus(new StreamImpl(scope, stream),
                 txnSegments.getTxnId()).join();
         log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
 
@@ -175,7 +177,7 @@ public class ControllerFailoverTest {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
                     controllerUri);
-            controller.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+            controller2.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
         }
 
         // Scale operation should now complete on the second controller instance.
@@ -184,7 +186,7 @@ public class ControllerFailoverTest {
 
         // Ensure that the stream has 3 segments now.
         log.info("Checking whether scale operation succeeded by fetching current segments");
-        StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
+        StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
         log.info("Current segment count=", streamSegments.getSegments().size());
         Assert.assertEquals(initialSegments - segmentsToSeal.size() + newRangesToCreate.size(),
                 streamSegments.getSegments().size());

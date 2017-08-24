@@ -105,7 +105,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                     .whenCompleteAsync((r, e) -> {
                         CompletableFuture<Void> future;
                         if (e != null) {
-                            log.warn("ConcurrentEventProcessor Processing failed");
+                            log.warn("ConcurrentEventProcessor Processing failed {}", e.getClass().getName());
                             future = handleProcessingError(request, e);
                         } else {
                             log.debug("ConcurrentEventProcessor Processing complete");
@@ -135,7 +135,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
         }
 
         if (RetryableException.isRetryable(cause)) {
-            log.info("ConcurrentEventProcessor Processing failed, putting the event back");
+            log.info("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
 
             EventProcessor.Writer<R> writer;
             if (internalWriter != null) {

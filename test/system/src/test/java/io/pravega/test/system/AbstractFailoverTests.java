@@ -24,14 +24,11 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -196,11 +196,6 @@ abstract class AbstractFailoverTests {
                         log.debug("Read timeout");
                     }
                 } catch (Throwable e) {
-                    //TODO: remove it once issue https://github.com/pravega/pravega/issues/1687 is fixed.
-                    if (e.getCause() instanceof RetriesExhaustedException || e instanceof RetriesExhaustedException) {
-                        log.warn("Test exception in reading events: ", e);
-                        continue;
-                    }
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
                 }

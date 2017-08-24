@@ -16,16 +16,20 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -35,12 +39,6 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -51,11 +49,17 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import static java.time.Duration.ofSeconds;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -173,9 +177,10 @@ public class MultiReaderTxnWriterWithFailoverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
+                                                                        "MultiReaderTxnWriterWithFailoverTest");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -389,6 +394,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
                 Transaction<Long> txnDebugReference = null;
+                AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
                     Transaction<Long> transaction = retry
@@ -396,7 +402,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, stopWriteFlag));
                     txnDebugReference = transaction;
-                    AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                     // Sets a recurrent delayed task to ping the txn. It exits when the
                     // txn completes and no longer needs pinging
@@ -418,14 +423,16 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction);
+                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
                     }
                     //commit Txn
                     transaction.commit();
+                    txnIsDone.set(true);
 
                     //wait for transaction to get committed
                     txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
+                    txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: {}", e);
                     if (txnDebugReference != null) {
                         log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());

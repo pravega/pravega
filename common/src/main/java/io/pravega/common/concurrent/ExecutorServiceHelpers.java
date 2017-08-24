@@ -16,9 +16,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -29,6 +33,48 @@ import lombok.val;
  * Helper methods for ExecutorService.
  */
 public final class ExecutorServiceHelpers {
+    
+    private static class CallerRuns implements RejectedExecutionHandler {
+        @Override
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            r.run();
+        }
+    }
+    
+    /**
+     * Creates and returns a thread factory that will create threads with the given name prefix.
+     * 
+     * @param groupName the name of the threads
+     * @return a thread factory
+     */
+    public static ThreadFactory getThreadFactory(String groupName) {
+        return new ThreadFactory() {
+            final AtomicInteger threadCount = new AtomicInteger();
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
+                thread.setDaemon(true);
+                return thread;
+            }
+        };
+    }
+    
+    /**
+     * Creates a new ScheduledExecutorService that will use daemon threads with appropriate names the threads.
+     * @param size The number of threads in the threadpool
+     * @param poolName The name of the pool (this will be printed in logs)
+     * @return A new executor service.
+     */
+    public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
+        // Caller runs only occurs after shutdown, as queue size is unbounded.
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns()); 
+        result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        result.setRemoveOnCancelPolicy(true);
+        return result;
+    }
+    
     /**
      * Gets a snapshot of the given ExecutorService.
      *
@@ -49,13 +95,8 @@ public final class ExecutorServiceHelpers {
     }
     
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreads, int threadTimeout, String poolName) {
-        return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), new ThreadFactory() {
-            private final ThreadGroup group = new ThreadGroup(poolName);
-            @Override
-            public Thread newThread(Runnable r) {
-                return new Thread(group, r);
-            }
-        });
+        return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+                getThreadFactory(poolName), new CallerRuns()); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 
     /**

@@ -12,6 +12,7 @@ package io.pravega.controller.server.v1;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -27,10 +28,7 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import java.util.Collections;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
@@ -51,9 +49,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
     @Override
     public void setup() throws Exception {
-
-        executorService = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         taskMetadataStore = TaskStoreFactory.createInMemoryStore(executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
