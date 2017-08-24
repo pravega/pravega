@@ -109,6 +109,22 @@ public final class FutureHelpers {
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
         return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
     }
+    
+    /**
+     * If the future has failed returns the exception that caused it. Otherwise returns null.
+     * 
+     * @param <T> The Type of the future's result.
+     * @param future   The future to inspect.
+     * @return null or the exception that caused the Future to fail.
+     */
+    public static <T> Throwable getException(CompletableFuture<T> future) {
+        try {            
+            future.getNow(null);
+            return null;
+        } catch (Exception e) {
+            return ExceptionHelpers.getRealException(e);
+        }
+    }
 
     /**
      * Gets a future returning its result, or the exception that caused it to fail. (Unlike a normal
@@ -173,12 +189,11 @@ public final class FutureHelpers {
     }
 
     /**
-     * Same as {@link #getAndHandleExceptions(Future, Function)} but with a timeout on get().
+     * Similar to {@link #getAndHandleExceptions(Future, Function)} but with an exception handler rather than a transforming function
+     * and a timeout on get().
      *
      * @param future               The future whose result is wanted
-     * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
-     *                             If null is returned from the function no exception will be thrown.
+     * @param handler              An exception handler
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -187,16 +202,12 @@ public final class FutureHelpers {
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable, ExceptionT> exceptionConstructor, long timeoutMillis) throws ExceptionT {
+                                                                                         Consumer<Throwable> handler, long timeoutMillis) throws ExceptionT {
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
-            ExceptionT result = exceptionConstructor.apply(e.getCause());
-            if (result == null) {
-                return null;
-            } else {
-                throw result;
-            }
+            handler.accept(e.getCause());
+            return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw e;
