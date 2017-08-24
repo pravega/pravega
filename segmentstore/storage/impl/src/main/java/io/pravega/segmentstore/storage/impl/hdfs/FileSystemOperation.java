@@ -15,7 +15,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -208,18 +210,29 @@ abstract class FileSystemOperation<T> {
      * @param path The path of the file to create.
      * @throws IOException If an exception occurred.
      */
-    void createEmptyFile(Path path) throws IOException {
-        this.context.fileSystem
-                .create(path,
-                        READWRITE_PERMISSION,
-                        false,
-                        0,
-                        this.context.config.getReplication(),
-                        this.context.config.getBlockSize(),
-                        null)
-                .close();
-        setBooleanAttributeValue(path, SEALED_ATTRIBUTE, false);
-        log.debug("Created '{}'.", path);
+    void atomicCreate(Path path) throws IOException {
+        if (!this.context.beginCreateFile(path)) {
+            // Not the best exception, because technically the existing request hasn't finished and it might fail. But this
+            // is a far simpler solution than queueing requests and then making sure they are executed in order afterwards.
+            log.debug("Another create is in flight for {}.", path);
+            throw HDFSExceptionHelpers.segmentExistsException(path.toString());
+        }
+
+        try {
+            this.context.fileSystem
+                    .create(path,
+                            READWRITE_PERMISSION,
+                            false,
+                            0,
+                            this.context.config.getReplication(),
+                            this.context.config.getBlockSize(),
+                            null)
+                    .close();
+            setBooleanAttributeValue(path, SEALED_ATTRIBUTE, false);
+            log.debug("Created '{}'.", path);
+        } finally {
+            this.context.endCreateFile(path);
+        }
     }
 
     /**
@@ -318,17 +331,6 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Updates the sealed attribute on the file represented by the given descriptor to indicate it is not sealed.
-     *
-     * @param file The FileDescriptor of the file to unseal.
-     * @throws IOException If an exception occurred.
-     */
-    void makeUnsealed(FileDescriptor file) throws IOException {
-        setBooleanAttributeValue(file.getPath(), SEALED_ATTRIBUTE, false);
-        log.debug("MakeUnsealed '{}'.", file.getPath());
-    }
-
-    /**
      * Determines whether the given FileStatus indicates the file is read-only.
      *
      * @param fs The FileStatus to check.
@@ -403,6 +405,26 @@ abstract class FileSystemOperation<T> {
         final long epoch;
         final FileSystem fileSystem;
         final HDFSStorageConfig config;
+        private final Set<Path> pendingFileCreations = Collections.synchronizedSet(new HashSet<>());
+
+        /**
+         * Records the fact that the given Path has begun the creation process.
+         *
+         * @param path The Path.
+         * @return True if this is the only request to create, false if another request was registered.
+         */
+        boolean beginCreateFile(Path path) {
+            return this.pendingFileCreations.add(path);
+        }
+
+        /**
+         * Records the fact that the given Path has finished the creation process (whether successfully or not).
+         *
+         * @param path The Path.
+         */
+        void endCreateFile(Path path) {
+            this.pendingFileCreations.remove(path);
+        }
     }
 
     //endregion
