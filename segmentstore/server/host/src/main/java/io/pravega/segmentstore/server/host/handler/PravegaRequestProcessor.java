@@ -403,15 +403,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.debug("Commiting transaction {} ", commitTx);
         segmentStore.sealStreamSegment(transactionName, TIMEOUT)
                     .exceptionally(this::ignoreSegmentSealed)
-                    .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment()))
-                    .exceptionally((Throwable e) -> {
-                        // gobble up any errors from state recording so we do not affect rest of the flow.
-                        log.error("exception while computing stats while merging txn {}", e);
-                        return null;
-                    })
+                    .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
+                                 .exceptionally((Throwable e) -> {
+                                     // gobble up any errors from state recording so we do not affect rest of the flow.
+                                     log.error("exception while computing stats while merging txn {}", e);
+                                     return null;
+                                 }))
                     .thenApply(result -> {
                         segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
-                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(),
+                                    commitTx.getTxid()));
                         }).exceptionally((Throwable e) -> {
                             handleException(requestId, transactionName, "Commit transaction", e);
                             return null;
