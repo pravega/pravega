@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
-    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 6);
+    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
     private final ConnectionFactory connectionFactory;
 
     private final Object lock = new Object();
@@ -126,6 +126,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed.get();
     }
 
     @Override
