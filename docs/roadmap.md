@@ -9,97 +9,50 @@ You may obtain a copy of the License at
 -->
 # Pravega Roadmap
 
-# Version 0.2 (May 2017)
+# Version 0.3
+The following will be the primary feature focus areas for our upcoming release.
 
-## Auto scaling of Streams
+## Retention Policy Implementation
+Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will automatically be purged.
 
-Scaling means increasing and decreasing the number of segments in a Stream based
-on ingestion rate or number of events being ingested, aka Scaling Policy.
-Auto scaling is currently EXPERIMENTAL. We plan to fine tune and 
-stabilize it in the upcoming releases. 
+## Transactions API
+The current transactions API is functional, however it is cumbersome and requires detailed knowledge of Pravega to configure appropriate values such as timeouts.  This work will simplify the API and automate as many timeouts as possible.
 
-## Reader Group
- 
--  Callback when # of segment changes
--  Reader Group Metrics 
--  Independent Reader  (Not member of a group)
--  Manual assignment of segment
+## Exactly Once Guarantees
+Focus is on testing and strengthening exactly once guarantees and correctness under failure conditions.
 
-## Segment Store
-
--  Tools for debugging, more tests, etc.
--  Unified Auth with Tier 2 per segment/stream basis
-
-## Improve Metrics and expose more runtime metrics
-
--   Expose metrics via multiple reporters
--   Improve StatsD reporter
--   Metrics for writer, reader and reader groups
--   Cache monitoring (RocksDB hit/miss)
--   Tier 2 interaction metrics
--   Metrics for requests to/from external components (ZK, BK, HDFS..)
-
-## Flink Connector - Finalize 
--   Flink (source/sink) - [Completed](https://github.com/pravega/flink-connectors)
--   Support dynamic scaling of workers in flink jobs 
-
-# Version 0.3 (July 2017)
+## Low-level Reader API
+This will expose a new low-level reader API that provides access the low level byte stream as opposed to the event semantics offered by the Java Client API.  This can also be leveraged in the future to build different flavors of reader groups.
 
 ## Security
+Security for this release will focus on support for securing Pravega external interfaces along with basic access controls on stream access and administration.
+-  Access Control on Stream operations
+-  Auth between Clients and Controller/SegmentStore
+-  Auth between SegmentStore and Tier 2 Storage
 
--   Access Control on Stream operation
--   Encrypted connections among Clients, Controller and SegmentStore
--   Encrypted connections among Controller and SegmentStore, and ZK and HDFS
+## Pravega Connectors
+Pravega ecosystem interconnectivity will be augmented with the following:
+-  Expanded Flink connector support (batch & table API support)
+-  Logstash connector
+-  Others also under consideration (Interested in writing a connector? Talk to us...)
 
-## Direct Access to Streams in HDFS
 
-Allow Hadoop MapReduce jobs to access stream data stored in Tier 2 HDFS.
+# Future Items
+The following items are new features that we wish to build in upcoming Pravega releases, however no active work is currently underway.  Please reach out on the Pravega channels if you're interested in picking one of these up.
 
-## Low Level Reader API
-
--   A more flexible way to coordinate readers in a group with changing number of segments. 
-
-## Connectors for Stream Processors
-
-Additional streaming connectors allow data ingestion into Flink and using more
-systems as sinks for Flink streaming programs.
-
--   Spark (source/sink)
--   Apache Beam (TBD)
--   (TBD)
-
-# Version 0.4 (Sep 2017)
-
-## Object Storage as a Tier 2 Storage
-
-Ability to use Object storage as Tier 2 storage Layer. Preferably Amazon S3 or
-any storage systems that support S3 API. 
-
-## Pravega Mesos Framework
-
-To fully support dynamic scaling of Pravega cluster based on resource
-utilization. This would entail that we build Pravega framework that negotiates
-with Mesos Resource Manager on securing or releasing additional resource. 
-
-# Future Items - Not versioned yet. Subject to discussion 
-
--   REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
--   Stream aliasing
--   Stream trimming and retention
--   Ability to Geo-Replicate events
--   Ability to logically group multiple Streams
--   Exposing information for administration purposes
--   Provide default Failure Detector
--   Ability to assign arbitrary Key-Value pairs to streams - Tagging
--   Non-disruptive and rolling upgrades for Pravega
--   Policy driven tiering of Streams from Streaming Storage to Long-term storage
--   Ability to track/share schema of Stream message payload (Schema Registry or
-    equivalent)
--   Stream consumption/read of a Stream from multiple sites via the Streaming
-    API, HDFS and NFS APIs
--   Ability to enable reads/writes to/from Streams across all data-centers
-    (Active-Active)
--   Logical isolation of streams provisioned by different tenants
--   Ability for Operator to define soft quotas for tenants
--   Ability to define QoS for tenants (min MB/s per stream segment guarantees)
--   Kafka API Compatibility (Producer and Consumer APIs)
+-  Operational features
+  -  Non-disruptive and rolling upgrades for Pravega
+  -  Provide default Failure Detector
+  -  Exposing information for administration purposes
+  -  Ability to define throughput quotas and other QoS guarantees
+-  Pravega connectors / integration
+  -  Kafka API Compatibility (Producer and Consumer APIs)
+  -  Spark connectors (source/sink)
+  -  REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
+-  Stream Management
+  -  Stream aliasing
+  -  Ability to logically group multiple Streams
+  -  Ability to assign arbitrary Key-Value pairs to streams - Tagging
+-  Tiering Support
+  -  Policy driven tiering of Streams from Streaming Storage to Long-term storage
+  -  Support for additional Tier 2 Storage backends

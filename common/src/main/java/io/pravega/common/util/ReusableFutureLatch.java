@@ -12,12 +12,14 @@ package io.pravega.common.util;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class is similar to {@link ReusableLatch} but that works with {@link CompletableFuture} so
  * that blocking can be async and exceptions and results can be passed.
  * @param <T> The type of the futures that this class works with.
  */
+@Slf4j
 public class ReusableFutureLatch<T> {
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -91,6 +93,7 @@ public class ReusableFutureLatch<T> {
             }
         }
         if (run) {
+            log.debug("Running releaser now, runningThread:{}", Thread.currentThread().getName());
             boolean success = false;
             try {
                 willCallRelease.run();

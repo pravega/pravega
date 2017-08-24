@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -16,6 +18,7 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
@@ -33,26 +36,21 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
-import io.pravega.controller.task.TaskSweeper;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AbstractIdleService;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
-import org.apache.curator.framework.CuratorFramework;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * Creates the controller service, given the service configuration.
@@ -110,8 +108,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
         try {
             //Initialize the executor service.
-            controllerExecutor = Executors.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
-                    new ThreadFactoryBuilder().setNameFormat("controllerpool-%d").build());
+            controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
+                                                                               "controllerpool");
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);

@@ -54,7 +54,7 @@ public class NameUtils {
      */
     public static String validateUserStreamName(String name) {
         Preconditions.checkNotNull(name);
-        Preconditions.checkArgument(name.matches("[a-zA-Z0-9]+"), "Name must be [a-zA-Z0-9]+");
+        Preconditions.checkArgument(name.matches("[\\p{Alnum}\\.\\-]+"), "Name must be a-z, 0-9, ., -.");
         return name;
     }
 
@@ -68,7 +68,7 @@ public class NameUtils {
         Preconditions.checkNotNull(name);
 
         // In addition to user stream names, pravega internally created stream have a special prefix.
-        final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[a-zA-Z0-9]+";
+        final String matcher = "[" + INTERNAL_NAME_PREFIX + "]?[\\p{Alnum}\\.\\-]+";
         Preconditions.checkArgument(name.matches(matcher), "Name must be " + matcher);
         return name;
     }
