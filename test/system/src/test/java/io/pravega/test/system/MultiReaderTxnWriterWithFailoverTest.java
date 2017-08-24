@@ -39,6 +39,7 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -174,7 +175,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS, "MultiReaderTxnWriterWithFailoverTest");
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
+                                                                        "MultiReaderTxnWriterWithFailoverTest");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
         //read and write count variables
@@ -389,27 +391,49 @@ public class MultiReaderTxnWriterWithFailoverTest {
                                                         final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
+                Transaction<Long> txnDebugReference = null;
+                AtomicBoolean txnIsDone = new AtomicBoolean(false);
+
                 try {
-                    transaction = retry
+                    Transaction<Long> transaction = retry
                             .retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnCreationFailedException.class)
                             .throwingOn(RuntimeException.class)
                             .run(() -> createTransaction(writer, stopWriteFlag));
+                    txnDebugReference = transaction;
+
+                    // Sets a recurrent delayed task to ping the txn. It exits when the
+                    // txn completes and no longer needs pinging
+                    FutureHelpers.loop(txnIsDone::get, () -> {
+                        return FutureHelpers.delayedTask(() -> {
+                            if (transaction.checkStatus() == Transaction.Status.OPEN) {
+                                FutureHelpers.runOrFail(() -> {
+                                    transaction.ping(5000);
+                                    return null;
+                                }, new CompletableFuture<Void>());
+                            } else {
+                                txnIsDone.set(true);
+                            }
+
+                            return null;
+                        }, Duration.ofMillis(2000), executorService);
+                    }, executorService);
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction);
+                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
                     }
                     //commit Txn
                     transaction.commit();
+                    txnIsDone.set(true);
 
                     //wait for transaction to get committed
                     txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
+                    txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: {}", e);
-                    if (transaction != null) {
-                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    if (txnDebugReference != null) {
+                        log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());
                     }
                 }
             }
@@ -440,6 +464,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         try {
             //Default max scale grace period is 30000
             txn = writer.beginTxn(5000, 3600000, 29000);
+
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
