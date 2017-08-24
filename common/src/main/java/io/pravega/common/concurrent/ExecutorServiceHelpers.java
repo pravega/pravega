@@ -16,11 +16,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -34,6 +34,12 @@ import lombok.val;
  */
 public final class ExecutorServiceHelpers {
     
+    private static class CallerRuns implements RejectedExecutionHandler {
+        @Override
+        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            r.run();
+        }
+    }
     
     /**
      * Creates and returns a thread factory that will create threads with the given name prefix.
@@ -62,7 +68,7 @@ public final class ExecutorServiceHelpers {
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRunsPolicy()); 
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns()); 
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         result.setRemoveOnCancelPolicy(true);
@@ -90,7 +96,7 @@ public final class ExecutorServiceHelpers {
     
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreads, int threadTimeout, String poolName) {
         return new ThreadPoolExecutor(0, maxThreads, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-                getThreadFactory(poolName), new CallerRunsPolicy()); // Caller runs only occurs after shutdown, as queue size is unbounded.
+                getThreadFactory(poolName), new CallerRuns()); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 
     /**
