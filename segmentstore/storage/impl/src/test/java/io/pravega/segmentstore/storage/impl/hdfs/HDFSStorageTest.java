@@ -15,6 +15,8 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -74,6 +76,40 @@ public class HDFSStorageTest extends StorageTestBase {
     }
 
     //region Fencing tests
+    @Test
+    public void testMisc() throws Exception {
+        @Cleanup
+        val s1 = new HDFSStorage(this.adapterConfig, this.executorService());
+        s1.initialize(1);
+        val dfs1 = (DistributedFileSystem) s1.getContext().fileSystem;
+
+        val s2 = new HDFSStorage(this.adapterConfig, this.executorService());
+        s2.initialize(1);
+        val dfs2 = (DistributedFileSystem) s2.getContext().fileSystem;
+
+        val p = new Path("/hello/foo");
+        dfs1.create(p).close();
+        val os1 = dfs1.append(p);
+        os1.write("1".getBytes());
+        os1.close();
+        System.out.println(1);
+        dfs1.close();
+
+        for(int i =0;i<100;i++) {
+            try {
+                val os2 = dfs2.append(p); // This should work since we closed the lease
+                System.out.println(2);
+                os2.write("2".getBytes());
+                os2.close();
+            }catch (Exception ex){
+                ex.printStackTrace();
+                Thread.sleep(100);
+                continue;
+            }
+            break;
+        }
+        System.out.println(3);
+    }
 
     /**
      * Tests fencing abilities. We create two different Storage objects with different owner ids.

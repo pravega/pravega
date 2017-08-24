@@ -22,6 +22,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
@@ -81,6 +82,7 @@ class HDFSStorage implements Storage {
     private final Executor executor;
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
+    @Getter
     private FileSystemOperation.OperationContext context;
 
     //endregion
@@ -133,6 +135,10 @@ class HDFSStorage implements Storage {
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
+
+        // FileSystem has a bad habit of caching Clients/Instances based on target URI. We do not like this, since we
+        // want to own our implementation so that when we close it, we don't interfere with others.
+        conf.set("fs.hdfs.impl.disable.cache", "true");
         if (!this.config.isReplaceDataNodesOnFailure()) {
             // Default is DEFAULT, so we only set this if we want it disabled.
             conf.set("dfs.client.block.write.replace-datanode-on-failure.policy", "NEVER");
