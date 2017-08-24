@@ -304,26 +304,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getRequestId(),
-                                                             request.getSegment(),
-                                                             request.getTxid(),
-                                                             transactionName,
-                                                             !properties.isDeleted(),
-                                                             properties.isSealed(),
-                                                             properties.getLastModified().getTime(),
-                                                             properties.getLength());
+                TransactionInfo result = new TransactionInfo(request.getRequestId(), request.getSegment(),
+                        request.getTxid(), transactionName, !properties.isDeleted(), properties.isSealed(),
+                        properties.getLastModified().getTime(), properties.getLength());
                 log.trace("Read transaction segment info: {}", result);
                 connection.send(result);
             } else {
                 log.trace("getTransactionInfo could not find segment {}", transactionName);
-                connection.send(new TransactionInfo(request.getRequestId(),
-                                                    request.getSegment(),
-                                                    request.getTxid(),
-                                                    transactionName,
-                                                    false,
-                                                    true,
-                                                    0,
-                                                    0));
+                connection.send(new TransactionInfo(request.getRequestId(), request.getSegment(), request.getTxid(),
+                        transactionName, false, true, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
@@ -392,13 +381,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        Collection<AttributeUpdate> attributes = Collections.singleton(
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
+        Collection<AttributeUpdate> attributes = Collections.singleton(new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None,
+                System.currentTimeMillis()));
         log.debug("Creating transaction {} ", createTransaction);
-        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(),
-                createTransaction.getTxid(),
-                attributes,
-                TIMEOUT);
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(),
+                                                                          attributes, TIMEOUT);
         long requestId = createTransaction.getRequestId();
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(requestId, createTransaction.getSegment(), createTransaction.getTxid()));
@@ -415,25 +402,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long requestId = commitTx.getRequestId();
         log.debug("Commiting transaction {} ", commitTx);
         segmentStore.sealStreamSegment(transactionName, TIMEOUT)
-                .exceptionally(this::ignoreSegmentSealed)
-                .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
-                        .exceptionally((Throwable e) -> {
-                            // gobble up any errors from stat recording so we do not affect rest of the flow.
-                            log.error("exception while computing stats while merging txn {}", e);
+                    .exceptionally(this::ignoreSegmentSealed)
+                    .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment()))
+                    .exceptionally((Throwable e) -> {
+                        // gobble up any errors from state recording so we do not affect rest of the flow.
+                        log.error("exception while computing stats while merging txn {}", e);
+                        return null;
+                    })
+                    .thenApply(result -> {
+                        segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
+                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                        }).exceptionally((Throwable e) -> {
+                            handleException(requestId, transactionName, "Commit transaction", e);
                             return null;
-                        }))
-                .thenApply(result -> {
-                    segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
-                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
-                    }).exceptionally((Throwable e) -> {
+                        });
+                        return null;
+                    })
+                    .exceptionally((Throwable e) -> {
                         handleException(requestId, transactionName, "Commit transaction", e);
                         return null;
                     });
-                    return null;
-                }).exceptionally((Throwable e) -> {
-            handleException(requestId, transactionName, "Commit transaction", e);
-            return null;
-        });
     }
 
     @Override
@@ -499,8 +487,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(), "Update segment", e);
             } else {
                 if (statsRecorder != null) {
-                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                            updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
+                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(), updateSegmentPolicy.getScaleType(),
+                                               updateSegmentPolicy.getTargetRate());
                 }
             }
         });
