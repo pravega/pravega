@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Attributes;
 import io.grpc.EquivalentAddressGroup;
 import io.grpc.ManagedChannelBuilder;
@@ -21,25 +20,23 @@ import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
-import static io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * gRPC Factory for resolving controller host ips and ports.
@@ -151,8 +148,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             // We enable the periodic refresh only if controller discovery is enabled or if DNS resolution is required.
             if (this.enableDiscovery || this.bootstrapServers.stream().anyMatch(
                     inetSocketAddress -> !InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
-                this.scheduledExecutor = Executors.newScheduledThreadPool(1,
-                        new ThreadFactoryBuilder().setNameFormat("fetch-controllers-%d").setDaemon(true).build());
+                this.scheduledExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "fetch-controllers");
             } else {
                 this.scheduledExecutor = null;
             }

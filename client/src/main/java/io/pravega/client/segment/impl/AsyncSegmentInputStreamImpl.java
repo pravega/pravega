@@ -123,6 +123,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     @Override
     public void close() {
+        log.info("Closing reader for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
@@ -167,7 +168,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests);
+        if (closed.get()) {
+            log.info("Closing connection to segment: {}", segmentId);
+        } else {            
+            log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests);
+        }
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
