@@ -36,7 +36,7 @@ public final class ExecutorServiceHelpers {
     
     
     /**
-     * Creates an returns a thread factory that will create threads with the given name prefix.
+     * Creates and returns a thread factory that will create threads with the given name prefix.
      * 
      * @param groupName the name of the threads
      * @return a thread factory
