@@ -22,7 +22,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
@@ -82,7 +81,6 @@ class HDFSStorage implements Storage {
     private final Executor executor;
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
-    @Getter
     private FileSystemOperation.OperationContext context;
 
     //endregion
