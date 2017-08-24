@@ -205,29 +205,26 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
-     * Creates a new file with given path having a read-write permission.
+     * Creates a new file with given path having a read-write permission. This operation is atomic per Path, which means
+     * no two invocations to this method with the same argument are allowed; in such cases, subsequent calls will be rejected.
      *
      * @param path The path of the file to create.
-     * @throws IOException If an exception occurred.
+     * @throws org.apache.hadoop.fs.FileAlreadyExistsException If the Path already exists or if another invocation of this
+     * method is ongoing for this Path.
+     * @throws IOException If a general exception occurred.
      */
     void atomicCreate(Path path) throws IOException {
         if (!this.context.beginCreateFile(path)) {
             // Not the best exception, because technically the existing request hasn't finished and it might fail. But this
             // is a far simpler solution than queueing requests and then making sure they are executed in order afterwards.
-            log.debug("Another create is in flight for {}.", path);
+            log.debug("Another Create is in flight for {}; aborting this request.", path);
             throw HDFSExceptionHelpers.segmentExistsException(path.toString());
         }
 
         try {
-            this.context.fileSystem
-                    .create(path,
-                            READWRITE_PERMISSION,
-                            false,
-                            0,
-                            this.context.config.getReplication(),
-                            this.context.config.getBlockSize(),
-                            null)
-                    .close();
+            // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
+            this.context.fileSystem.create(path, READWRITE_PERMISSION, false, 0, this.context.config.getReplication(),
+                    this.context.config.getBlockSize(), null).close();
             setBooleanAttributeValue(path, SEALED_ATTRIBUTE, false);
             log.debug("Created '{}'.", path);
         } finally {
