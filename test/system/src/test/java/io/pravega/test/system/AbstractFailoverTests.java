@@ -90,7 +90,6 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
-
     }
 
     void performFailoverTest() {
