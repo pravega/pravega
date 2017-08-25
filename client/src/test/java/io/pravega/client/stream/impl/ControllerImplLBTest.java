@@ -123,7 +123,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -141,7 +141,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://" + localIP + ":" + serverPort1 + "," + localIP + ":" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
 
         // Verify we could reach all 3 controllers.
@@ -161,7 +161,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
 
         // Verify that we can read from the 2 live servers.
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
@@ -188,7 +188,7 @@ public class ControllerImplLBTest {
         Assert.assertTrue(testRPCServer3.isTerminated());
         final ControllerImpl client = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         AssertExtensions.assertThrows(ExecutionException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
@@ -203,7 +203,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
                 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -220,7 +220,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://" + localIP + ":" + serverPort1
                 + "," + localIP + ":" + serverPort2 + "," + localIP + ":" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         final Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 3);
         Assert.assertEquals(3, uris.size());
     }
@@ -240,7 +240,7 @@ public class ControllerImplLBTest {
         InlineExecutor executor = new InlineExecutor();
         final ControllerImpl controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort1
                 + ",localhost:" + serverPort2 + ",localhost:" + serverPort3),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         Set<PravegaNodeUri> uris = fetchFromServers(controllerClient, 2);
         Assert.assertEquals(2, uris.size());
         Assert.assertFalse(uris.contains(new PravegaNodeUri("localhost1", 1)));

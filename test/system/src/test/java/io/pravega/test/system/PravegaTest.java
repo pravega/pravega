@@ -130,7 +130,7 @@ public class PravegaTest {
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         ControllerImpl controller = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build(), connectionFactory.getInternalExecutor());
+                ControllerImplConfig.builder().retryAttempts(1).build());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());

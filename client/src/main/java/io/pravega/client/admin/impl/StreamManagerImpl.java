@@ -32,7 +32,7 @@ public class StreamManagerImpl implements StreamManager {
     
     public StreamManagerImpl(URI controllerUri) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build());
     }
 
     @VisibleForTesting

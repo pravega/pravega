@@ -301,7 +301,7 @@ public class ControllerRestApiTest {
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1).build());
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),

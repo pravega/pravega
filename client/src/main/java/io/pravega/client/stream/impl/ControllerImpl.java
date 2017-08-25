@@ -70,6 +70,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -107,15 +108,13 @@ public class ControllerImpl implements Controller {
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      * @param config        The configuration for this client implementation.
-     * @param executor      The executor service to be used for handling retries.
      */
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true), config, executor);
+                .usePlaintext(true), config);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -124,13 +123,11 @@ public class ControllerImpl implements Controller {
      *
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
-     * @param executor       The executor service to be used internally.
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
-        this.executor = executor;
+        this.executor = Executors.newScheduledThreadPool(config.getThreadpoolSize());
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
                 .retryingOn(StatusRuntimeException.class)

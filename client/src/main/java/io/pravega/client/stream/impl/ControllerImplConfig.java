@@ -22,11 +22,13 @@ public class ControllerImplConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
+    private final int threadpoolSize;
 
     public static final class ControllerImplConfigBuilder {
         private int initialBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
+        private int threadpoolSize = 2;
     }
 }

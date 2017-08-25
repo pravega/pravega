@@ -239,7 +239,7 @@ public class ControllerRestApiTest {
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         final Controller controller = new ControllerImpl(controllerUri,
-                                                         ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                                                         ControllerImplConfig.builder().retryAttempts(1).build());
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
