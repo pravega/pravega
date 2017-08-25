@@ -160,7 +160,7 @@ class RocksDBCache implements Cache {
             throw convert(ex, "insert key '%s'", key);
         }
 
-        Metrics.insert(timer.getElapsedMillis());
+        RocksDBMetrics.insert(timer.getElapsedMillis());
     }
 
     @Override
@@ -179,7 +179,7 @@ class RocksDBCache implements Cache {
             throw convert(ex, "get key '%s'", key);
         }
 
-        Metrics.get(timer.getElapsedMillis());
+        RocksDBMetrics.get(timer.getElapsedMillis());
         return result;
     }
 

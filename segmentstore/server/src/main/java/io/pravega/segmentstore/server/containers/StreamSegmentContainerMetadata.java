@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.EvictableMetadata;
-import io.pravega.segmentstore.server.Metrics;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -64,7 +64,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @GuardedBy("truncationMarkers")
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
-    private final Metrics.Metadata metrics;
+    private final SegmentStoreMetrics.Metadata metrics;
 
     //endregion
 
@@ -90,7 +90,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
         this.epoch = new AtomicLong(NO_EPOCH);
-        this.metrics = new Metrics.Metadata(this.streamSegmentContainerId);
+        this.metrics = new SegmentStoreMetrics.Metadata(this.streamSegmentContainerId);
         this.metrics.segmentCount(0);
     }
 

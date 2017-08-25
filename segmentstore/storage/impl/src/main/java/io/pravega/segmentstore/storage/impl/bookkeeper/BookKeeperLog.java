@@ -95,7 +95,7 @@ class BookKeeperLog implements DurableDataLog {
     private final WriteQueue writes;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
-    private final Metrics.BookKeeperLog metrics;
+    private final BookKeeperMetrics.BookKeeperLog metrics;
     private final ScheduledFuture<?> metricReporter;
 
     //endregion
@@ -124,7 +124,7 @@ class BookKeeperLog implements DurableDataLog {
         this.writes = new WriteQueue(this.config.getMaxConcurrentWrites());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this.executorService);
-        this.metrics = new Metrics.BookKeeperLog(this.containerId);
+        this.metrics = new BookKeeperMetrics.BookKeeperLog(this.containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 

@@ -20,7 +20,7 @@ import java.time.Duration;
 /**
  * Metrics for BookKeeper.
  */
-final class Metrics {
+final class BookKeeperMetrics {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("bookkeeper");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 

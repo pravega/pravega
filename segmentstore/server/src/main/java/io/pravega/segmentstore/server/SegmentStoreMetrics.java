@@ -1,13 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
@@ -27,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * General Metrics for the SegmentStore.
  */
-public final class Metrics {
+public final class SegmentStoreMetrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
 
@@ -110,7 +109,8 @@ public final class Metrics {
         private final OpStatsLogger operationQueueWaitTime;
 
         /**
-         * Amount of time the OperationProcessor delays in order to relieve Tier1 in case of back-up.
+         * Amount of time the OperationProcessor delays between calls to processOperations() when there is significant
+         * Tier1 backup.
          */
         private final OpStatsLogger operationProcessorDelay;
 
@@ -126,19 +126,15 @@ public final class Metrics {
         private final OpStatsLogger operationLatency;
 
         /**
-         * Amount of time spent ack-ing operations.
+         * Number of ContainerMetadataUpdateTransactions committed at once.
          */
-        private final OpStatsLogger operationAckLatency;
+        private final OpStatsLogger metadataCommitTxnCount;
 
         /**
-         * Amount of time spent flushing into the log.
+         * Amount of time elapsed to commit operations to memory, including commit to Metadata, adding to InMemoryLog
+         * and ReadIndex.
          */
-        private final OpStatsLogger logFlushLatency;
-        private final OpStatsLogger lockAcquireLatency;
-        private final OpStatsLogger logProcessLatency;
-        private final OpStatsLogger metadataCommitLatency;
-        private final OpStatsLogger metadataCommitTxnCount;
-        private final OpStatsLogger truncationMarkerLatency;
+        private final OpStatsLogger memoryCommitLatency;
 
         /**
          * Amount of time spent inside processOperations(Queue)
@@ -153,13 +149,8 @@ public final class Metrics {
             this.operationQueueWaitTime = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_QUEUE_WAIT_TIME, containerId));
             this.operationProcessorDelay = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_PROCESSOR_DELAY_MILLIS, containerId));
             this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LATENCY, containerId));
-            this.truncationMarkerLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_TRUNCATION_MARKER_LATENCY, containerId));
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_LATENCY, containerId));
-            this.operationAckLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_ACK_LATENCY, containerId));
-            this.logFlushLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.LOG_FLUSH_LATENCY, containerId));
-            this.lockAcquireLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_ACQ_LOCK_LATENCY, containerId));
-            this.logProcessLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_LOG_UPDATE_LATENCY, containerId));
-            this.metadataCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_METADATA_LATENCY, containerId));
+            this.memoryCommitLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_MEMORY_LATENCY, containerId));
             this.metadataCommitTxnCount = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.OPERATION_COMMIT_METADATA_TXN_COUNT, containerId));
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_LATENCY, containerId));
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, containerId));
@@ -179,31 +170,9 @@ public final class Metrics {
             this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
-        public void operationsCommitted(int count, Duration commitElapsed, Duration ackElapsed) {
-            DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, count);
-            this.operationCommitLatency.reportSuccessEvent(commitElapsed);
-            this.operationAckLatency.reportSuccessEvent(ackElapsed);
-        }
-
-        public void recordTruncationMarker(Duration elapsed) {
-            this.truncationMarkerLatency.reportSuccessEvent(elapsed);
-        }
-
-        public void lockAcquired(Duration elapsed) {
-            this.lockAcquireLatency.reportSuccessEvent(elapsed);
-        }
-
-        public void logProcessed(Duration elapsed) {
-            this.logProcessLatency.reportSuccessEvent(elapsed);
-        }
-
-        public void metadataCommitted(int txnCount, Duration elapsed) {
-            this.metadataCommitTxnCount.reportSuccessValue(txnCount);
-            this.metadataCommitLatency.reportSuccessEvent(elapsed);
-        }
-
-        public void logFlushed(Duration elapsed) {
-            this.logFlushLatency.reportSuccessEvent(elapsed);
+        public void memoryCommit(int metadataUpdateTxnCount, Duration elapsed) {
+            this.metadataCommitTxnCount.reportSuccessValue(metadataUpdateTxnCount);
+            this.memoryCommitLatency.reportSuccessEvent(elapsed);
         }
 
         public void operationLogTruncate(int count) {
@@ -219,7 +188,13 @@ public final class Metrics {
             this.processOperationsLatency.reportSuccessValue(millis);
         }
 
-        public void operationsCompleted(Collection<CompletableOperation> operations) {
+        public void operationsCompleted(int operationCount, Duration commitElapsed) {
+            DYNAMIC_LOGGER.incCounterValue(this.operationLogSize, operationCount);
+            this.operationCommitLatency.reportSuccessEvent(commitElapsed);
+        }
+
+        public void operationsCompleted(Collection<CompletableOperation> operations, Duration commitElapsed) {
+            operationsCompleted(operations.size(), commitElapsed);
             operations.forEach(o -> {
                 long millis = o.getTimer().getElapsedMillis();
                 this.operationLatency.reportSuccessValue(millis);

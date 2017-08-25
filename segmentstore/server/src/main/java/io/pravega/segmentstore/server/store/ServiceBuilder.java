@@ -14,7 +14,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.segment.SegmentToContainerMapper;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.Metrics;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
@@ -52,7 +52,7 @@ import lombok.val;
 public final class ServiceBuilder implements AutoCloseable {
     //region Members
 
-    private final Metrics.ThreadPool threadPoolMetrics;
+    private final SegmentStoreMetrics.ThreadPool threadPoolMetrics;
     private final SegmentToContainerMapper segmentToContainerMapper;
     private final ServiceBuilderConfig serviceBuilderConfig;
     private final ScheduledExecutorService executorService;
@@ -104,7 +104,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.segmentContainerManagerCreator = notConfiguredCreator(SegmentContainerManager.class);
         this.cacheFactoryCreator = notConfiguredCreator(CacheFactory.class);
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
-        this.threadPoolMetrics = new Metrics.ThreadPool(this.executorService);
+        this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.executorService);
     }
 
     private static ScheduledExecutorService createExecutorService(ServiceConfig serviceConfig) {

@@ -24,7 +24,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.Metrics;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -75,7 +75,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final ScheduledExecutorService executor;
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
-    private final Metrics.Container metrics;
+    private final SegmentStoreMetrics.Container metrics;
 
     //endregion
 
@@ -117,7 +117,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
                 this.storage, this.executor);
-        this.metrics = new Metrics.Container(streamSegmentContainerId);
+        this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
     }
 

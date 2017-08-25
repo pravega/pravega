@@ -55,14 +55,9 @@ public final class MetricsNames {
     public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
     public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "operation_processor_delay_ms";
     public static final String OPERATION_COMMIT_LATENCY = "operation_commit_latency_ms";
-    public static final String OPERATION_ACK_LATENCY = "operation_ack_latency_ms";
     public static final String OPERATION_LATENCY = "operation_latency_ms";
-    public static final String LOG_FLUSH_LATENCY = "log_flush_latency_ms";
-    public static final String OPERATION_COMMIT_TRUNCATION_MARKER_LATENCY = "operation_commit_truncation_marker_latency_ms";
-    public static final String OPERATION_COMMIT_ACQ_LOCK_LATENCY = "operation_commit_lock_latency_ms";
-    public static final String OPERATION_COMMIT_METADATA_LATENCY = "operation_commit_metadata_latency_ms";
     public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "operation_commit_metadata_txn_count";
-    public static final String OPERATION_COMMIT_LOG_UPDATE_LATENCY = "operation_commit_log_update_latency_ms";
+    public static final String OPERATION_COMMIT_MEMORY_LATENCY = "operation_commit_memory_latency_ms";
     public static final String OPERATION_LOG_SIZE = "operation_log_size";
     public static final String ACTIVE_SEGMENT_COUNT = "active_segments";
 

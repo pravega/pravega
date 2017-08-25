@@ -22,7 +22,7 @@ import io.pravega.common.util.SortedDeque;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.Metrics;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -70,7 +70,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     @GuardedBy("stateLock")
     private final DataFrameBuilder<Operation> dataFrameBuilder;
     @Getter
-    private final Metrics.OperationProcessor metrics;
+    private final SegmentStoreMetrics.OperationProcessor metrics;
 
     //endregion
 
@@ -95,7 +95,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
-        this.metrics = new Metrics.OperationProcessor(this.metadata.getContainerId());
+        this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
     }
 
     //endregion
@@ -462,19 +462,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             List<CompletableOperation> toComplete = new ArrayList<>();
             Map<CompletableOperation, Throwable> toFail = new HashMap<>();
-            int count = 0;
             try {
                 // Record the end of a frame in the DurableDataLog directly into the base metadata. No need for locking here,
                 // as the metadata has its own.
-                Timer recordMarkerTimer = new Timer();
                 OperationProcessor.this.metadata.recordTruncationMarker(commitArgs.getLastStartedSequenceNumber(), commitArgs.getLogAddress());
                 final long lastOperationSequence = commitArgs.getLastFullySerializedSequenceNumber();
                 final long addressSequence = commitArgs.getLogAddress().getSequence();
-                metrics.recordTruncationMarker(recordMarkerTimer.getElapsed());
 
-                Timer lockAcquireTimer = new Timer();
                 synchronized (stateLock) {
-                    metrics.lockAcquired(lockAcquireTimer.getElapsed());
                     if (addressSequence <= this.highestCommittedDataFrame) {
                         // Ack came out of order (we already processed one with a higher SeqNo).
                         log.debug("{}: CommitRejected ({}, HighestCommittedDataFrame = {}).", traceObjectId, commitArgs, this.highestCommittedDataFrame);
@@ -487,22 +482,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         return;
                     }
 
-                    Timer metadataCommitTimer = new Timer();
                     // Commit any changes to the metadata.
+                    Timer memoryCommitTimer = new Timer();
                     boolean checkpointExists = this.metadataTransactions.removeLessThanOrEqual(commitArgs);
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
                     int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
-                    metrics.metadataCommitted(updateTxnCommitCount, metadataCommitTimer.getElapsed());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
-                    Timer logUpdateProcessTimer = new Timer();
                     while (!this.pendingOperations.isEmpty()
                             && this.pendingOperations.peekFirst().getOperation().getSequenceNumber() <= lastOperationSequence) {
                         CompletableOperation op = this.pendingOperations.pollFirst();
                         try {
-                            if (this.logUpdater.process(op.getOperation())) {
-                                count++;
-                            }
+                            this.logUpdater.process(op.getOperation());
                         } catch (Throwable ex) {
                             // MemoryStateUpdater.process() should only throw DataCorruptionExceptions, but just in case it
                             // throws something else (i.e. NullPtr), we still need to handle it.
@@ -530,16 +521,13 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                             toComplete.add(op);
                         }
                     }
-                    metrics.logProcessed(logUpdateProcessTimer.getElapsed());
 
                     this.highestCommittedDataFrame = addressSequence;
+                    metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
                 }
 
-                Timer flushTimer = new Timer();
                 this.logUpdater.flush();
-                metrics.logFlushed(flushTimer.getElapsed());
             } finally {
-                Timer ackTimer = new Timer();
                 toComplete.forEach(CompletableOperation::complete);
                 toFail.forEach(this::failOperation);
                 autoCompleteIfNeeded();
@@ -548,8 +536,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
 
-                metrics.operationsCommitted(count, timer.getElapsed(), ackTimer.getElapsed());
-                metrics.operationsCompleted(toComplete);
+                metrics.operationsCompleted(toComplete, timer.getElapsed());
                 metrics.operationsFailed(toFail.keySet());
             }
         }

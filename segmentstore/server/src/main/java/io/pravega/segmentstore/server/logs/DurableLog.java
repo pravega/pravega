@@ -343,7 +343,7 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
-        this.operationProcessor.getMetrics().operationsCommitted(recoveredItemCount, timer.getElapsed(), Duration.ZERO);
+        this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
         return recoveredItemCount > 0;
     }
