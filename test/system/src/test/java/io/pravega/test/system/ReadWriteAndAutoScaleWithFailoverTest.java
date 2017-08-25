@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
@@ -92,12 +93,16 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
         testState = new TestState();
+        testState.writersListComplete.add(0, testState.writersComplete);
+        testState.writersListComplete.add(1, testState.newWritersComplete);
     }
 
     @After
     public void tearDown() {
+        testState.stopReadFlag.set(true);
+        testState.stopWriteFlag.set(true);
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
@@ -138,7 +143,9 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test after scaling
             performFailoverTest();
 
-            stopReadersAndWriters(readerGroupManager, readerGroupName);
+            stopWriters();
+            stopReaders();
+            validateResults(readerGroupManager, readerGroupName);
 
         }
         cleanUp(scope, AUTO_SCALE_STREAM);

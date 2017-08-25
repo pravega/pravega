@@ -79,6 +79,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     private ErrorInjector<Exception> getAppendDataErrorInjector;
     @GuardedBy("lock")
     private BiConsumer<Long, Long> completeMergeCallback;
+    @GuardedBy("lock")
+    private Runnable onGetAppendData;
     private final Object lock = new Object();
 
     //endregion
@@ -259,11 +261,17 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
 
     @Override
     public InputStream getAppendData(long streamSegmentId, long startOffset, int length) {
+        Runnable callback;
+        AppendData ad;
         synchronized (this.lock) {
             ErrorInjector.throwSyncExceptionIfNeeded(this.getAppendDataErrorInjector);
+            callback = this.onGetAppendData;
         }
 
-        AppendData ad;
+        if (callback != null) {
+            callback.run();
+        }
+
         synchronized (this.lock) {
             ad = this.appendData.getOrDefault(streamSegmentId, null);
         }
@@ -307,6 +315,12 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
     //endregion
 
     //region Other Properties
+
+    void setOnGetAppendData(Runnable callback) {
+        synchronized (this.lock) {
+            this.onGetAppendData = callback;
+        }
+    }
 
     void setSegmentMetadataRequested(Consumer<Long> callback) {
         synchronized (this.lock) {

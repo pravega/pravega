@@ -28,7 +28,7 @@ public class AutoScalerConfig {
     public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cacheExpiryInSeconds", 20 * 60);
     public static final Property<String> CONTROLLER_URI = Property.named("controllerUri", "tcp://localhost:9090");
 
-    private static final String COMPONENT_CODE = "autoScale";
+    public static final String COMPONENT_CODE = "autoScale";
 
     /**
      * Uri for controller.

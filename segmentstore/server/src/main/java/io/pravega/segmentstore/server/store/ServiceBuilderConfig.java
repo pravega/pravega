@@ -9,13 +9,16 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.common.util.ConfigBuilder;
 import com.google.common.base.Preconditions;
+import io.pravega.common.util.ConfigBuilder;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Configuration for ServiceBuilder.
@@ -24,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ServiceBuilderConfig {
     //region Members
 
+    public static final String CONFIG_FILE_PROPERTY_NAME = "pravega.configurationFile";
     private final Properties properties;
 
     //endregion
@@ -61,6 +65,18 @@ public class ServiceBuilderConfig {
         return constructor.get()
                           .rebase(this.properties)
                           .build();
+    }
+
+    /**
+     * Stores the contents of the ServiceBuilderConfig into the given File.
+     *
+     * @param file The file to store the contents in.
+     * @throws IOException If an exception occurred.
+     */
+    public void store(File file) throws IOException {
+        try (val s = new FileOutputStream(file, false)) {
+            this.properties.store(s, "");
+        }
     }
 
     //region Default Configuration

@@ -125,6 +125,7 @@ public class ControllerServiceTest {
         scaleTs = System.currentTimeMillis();
         StartScaleResponse startScaleResponse = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs + 20, false, null, executor).get();
         List<Segment> segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
 
@@ -134,6 +135,7 @@ public class ControllerServiceTest {
         sealedSegments = Arrays.asList(0, 1, 2);
         startScaleResponse = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5), startTs + 20, false, null, executor).get();
         segmentCreated = startScaleResponse.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments, segmentCreated, startScaleResponse.getActiveEpoch(), scaleTs, null, executor).get();
         // endregion

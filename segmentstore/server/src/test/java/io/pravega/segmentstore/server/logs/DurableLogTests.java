@@ -1409,7 +1409,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //endregion
 
-    // CorruptedDurableLog
+    //region CorruptedDurableLog
 
     private static class CorruptedDurableLog extends DurableLog {
         private static final AtomicInteger FAIL_AT_INDEX = new AtomicInteger();
