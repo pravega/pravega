@@ -141,7 +141,7 @@ public class StreamTest {
     }
 
     @Test
-    public void testNoValuePresent()  throws Exception {
+    public void testNoValuePresent() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -186,7 +186,7 @@ public class StreamTest {
         AtomicBoolean segmentCalled = new AtomicBoolean(false);
         // mock.. If segment table is fetched before history table, throw runtime exception so that the test fails
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
-            if (segmentCalled.get()) {
+            if (!historyCalled.get() && segmentCalled.get()) {
                 throw new RuntimeException();
             }
             historyCalled.set(true);
@@ -217,7 +217,7 @@ public class StreamTest {
         segmentCalled.set(false);
         historyCalled.set(false);
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
-            if (segmentCalled.get()) {
+            if (!historyCalled.get() && segmentCalled.get()) {
                 throw new RuntimeException();
             }
             historyCalled.set(true);
