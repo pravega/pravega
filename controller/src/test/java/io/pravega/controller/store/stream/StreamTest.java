@@ -193,7 +193,7 @@ public class StreamTest {
             return historyTable;
         }).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
-            if (!historyCalled.get()){
+            if (!historyCalled.get()) {
                 throw new RuntimeException();
             }
             segmentCalled.set(true);
@@ -224,7 +224,7 @@ public class StreamTest {
             return historyTable;
         }).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
-            if (!historyCalled.get()){
+            if (!historyCalled.get()) {
                 throw new RuntimeException();
             }
             segmentCalled.set(true);
