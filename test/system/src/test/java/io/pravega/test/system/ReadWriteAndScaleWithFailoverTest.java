@@ -120,13 +120,13 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
-        //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
+        //scale the controller and segmentStore back to 1 instance.
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
     }
 
     @Test
