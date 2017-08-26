@@ -117,19 +117,19 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        //scale the controller and segmentStore back to 1 instance.
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
     }
 
-    @Test(timeout = 12 * 60 * 1000)
+    @Test
     public void readWriteAndScaleWithFailoverTest() throws Exception {
 
         createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
@@ -144,7 +144,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //scale manually
-        log.debug("Number of Segments before manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
+        log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
                 .get().getSegments().size());
 
         Map<Double, Double> keyRanges = new HashMap<>();
@@ -171,7 +171,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             Assert.fail("Scale operation threw an exception");
         }
 
-        log.debug("Number of Segments post manual scale:" + controller.getCurrentSegments(scope, SCALE_STREAM)
+        log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
                 .get().getSegments().size());
 
         //bring the instances back to 3 before performing failover after scaling

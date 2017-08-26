@@ -116,12 +116,12 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        //scale the controller and segmentStore back to 1 instance.
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
         clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
@@ -129,7 +129,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     }
 
 
-    @Test(timeout = 12 * 60 * 1000)
+    @Test
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
 
         createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
