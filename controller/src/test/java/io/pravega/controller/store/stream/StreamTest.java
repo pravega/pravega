@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.State;
@@ -21,9 +22,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -124,6 +131,52 @@ public class StreamTest {
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
+    }
+
+    @Test
+    public void testNoValuePresent()  throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String streamName = "test";
+        String scopeName = "test";
+        store.createScope(scopeName).get();
+
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
+
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+
+        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper);
+
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+
+        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
+
+        long scale = System.currentTimeMillis();
+        ArrayList<Integer> sealedSegments = Lists.newArrayList(0);
+
+        StartScaleResponse response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
+        List<Segment> newSegments = response.getSegmentsCreated();
+        zkStream.updateState(State.SCALING).join();
+
+        List<Integer> newSegmentInt = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        zkStream.scaleNewSegmentsCreated(sealedSegments, newSegmentInt,
+                response.getActiveEpoch(), scale).get();
+        // history table has a partial record at this point.
+        // now we could have sealed the segments so get successors could be called.
+        Map<Integer, List<Integer>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
+
+        zkStream.scaleOldSegmentsSealed(sealedSegments, newSegmentInt, response.getActiveEpoch(), scale).get();
+        // scale is completed, history table also has completed record now.
+
+        successors = zkStream.getSuccessorsWithPredecessors(0).get();
     }
 
 }

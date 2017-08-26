@@ -241,8 +241,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private CompletableFuture<List<Segment>> getSuccessorsForSegment(final int number) {
         return getHistoryTable()
                 .thenApply(historyTable -> {
-                    val segmentFuture = getSegment(number);
-                    val indexTableFuture = getIndexTable();
+                    CompletableFuture<Segment> segmentFuture = getSegment(number);
+                    CompletableFuture<Data<T>> indexTableFuture = getIndexTable();
                     return new ImmutableTriple<>(historyTable, segmentFuture, indexTableFuture);
                 })
                 .thenCompose(triple -> CompletableFuture.allOf(triple.getMiddle(), triple.getRight())
