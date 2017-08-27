@@ -25,6 +25,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -82,7 +83,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  * RPC based client implementation of Stream Controller V1 API.
  */
 @Slf4j
-public class ControllerImpl implements Controller {
+public class ControllerImpl implements Controller, AutoCloseable {
 
     // The default keepalive interval for the gRPC transport to ensure long running RPCs are tested for connectivity.
     // This value should be greater than the permissible value configured at the server which is by default 5 minutes.
@@ -127,7 +128,7 @@ public class ControllerImpl implements Controller {
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
-        this.executor = Executors.newScheduledThreadPool(config.getThreadpoolSize());
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(config.getThreadpoolSize(), "controller-client-grpc");
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
                 .retryingOn(StatusRuntimeException.class)
@@ -805,6 +806,11 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
+    }
+
+    @Override
+    public void close() throws Exception {
+        executor.shutdown();
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
