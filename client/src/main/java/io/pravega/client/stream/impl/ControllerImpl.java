@@ -808,7 +808,7 @@ public class ControllerImpl implements Controller, AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         executor.shutdown();
     }
 
