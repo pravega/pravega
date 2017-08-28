@@ -173,10 +173,10 @@ public class AutoScaleProcessor {
                         segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
+                        // mute only scale downs
                         cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
                     }
                 });
-                // mute only scale downs
             }
         }
     }
@@ -241,5 +241,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 
