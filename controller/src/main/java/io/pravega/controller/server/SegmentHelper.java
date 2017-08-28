@@ -221,6 +221,11 @@ public class SegmentHelper {
             }
 
             @Override
+            public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                result.complete(txId);
+            }
+
+            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
