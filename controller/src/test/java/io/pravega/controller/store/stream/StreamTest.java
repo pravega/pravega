@@ -140,8 +140,8 @@ public class StreamTest {
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
     }
 
-    @Test
-    public void testNoValuePresent() throws Exception {
+    @Test(timeout = 10000)
+    public void testConcurrentGetSuccessorScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
         final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
@@ -221,14 +221,14 @@ public class StreamTest {
                 throw new RuntimeException();
             }
             historyCalled.set(true);
-            return historyTable;
+            return historyTable2;
         }).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
             if (!historyCalled.get()) {
                 throw new RuntimeException();
             }
             segmentCalled.set(true);
-            return segmentTable;
+            return segmentTable2;
         }).when(zkStream).getSegmentTable();
 
         successors = zkStream.getSuccessorsWithPredecessors(0).get();

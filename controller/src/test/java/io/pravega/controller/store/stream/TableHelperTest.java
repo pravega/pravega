@@ -172,7 +172,7 @@ public class TableHelperTest {
         assertEquals(successors, Lists.newArrayList(6));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSegmentCreationBeforePreviousScale() throws ParseException {
         // no value present error comes because:
         // - Index is not yet updated.
