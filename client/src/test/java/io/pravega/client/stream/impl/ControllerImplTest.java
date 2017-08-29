@@ -583,7 +583,7 @@ public class ControllerImplTest {
                 .start();
         executor = Executors.newSingleThreadScheduledExecutor();
         controllerClient = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(1).build(), executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
     }
 
     @After
@@ -598,7 +598,7 @@ public class ControllerImplTest {
         // Verify that keep-alive timeout less than permissible by the server results in a failure.
         final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
-                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
@@ -616,7 +616,7 @@ public class ControllerImplTest {
                 .start();
         final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
-                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+                ControllerImplConfig.builder().retryAttempts(1).build());
         createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamdelayed")
                 .scope("scope1")
@@ -631,7 +631,7 @@ public class ControllerImplTest {
 
         // Verify retries exhausted error after multiple attempts.
         final ControllerImpl controller1 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(3).build(), this.executor);
+                ControllerImplConfig.builder().retryAttempts(3).build());
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
                 .streamName("streamretryfailure")
                 .scope("scope1")
@@ -653,7 +653,7 @@ public class ControllerImplTest {
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
         this.retryAttempts.set(0);
         final ControllerImpl controller2 = new ControllerImpl(URI.create("tcp://localhost:" + serverPort),
-                ControllerImplConfig.builder().retryAttempts(4).build(), this.executor);
+                ControllerImplConfig.builder().retryAttempts(4).build());
         createStreamStatus = controller2.createStream(StreamConfiguration.builder()
                 .streamName("streamretrysuccess")
                 .scope("scope1")

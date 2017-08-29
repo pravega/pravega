@@ -135,7 +135,7 @@ public class ControllerFailoverTest {
         // Connect with first controller instance.
         URI controllerUri = getTestControllerServiceURI();
         final Controller controller1 = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
+                ControllerImplConfig.builder().retryAttempts(1).build());
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -164,7 +164,7 @@ public class ControllerFailoverTest {
         // Connect to another controller instance.
         controllerUri = getControllerURI();
         final Controller controller2 = new ControllerImpl(controllerUri,
-                ControllerImplConfig.builder().retryAttempts(1).build(), EXECUTOR_SERVICE);
+                ControllerImplConfig.builder().retryAttempts(1).build());
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

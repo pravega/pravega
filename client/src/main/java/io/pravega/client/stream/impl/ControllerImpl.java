@@ -25,6 +25,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -81,7 +82,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
  * RPC based client implementation of Stream Controller V1 API.
  */
 @Slf4j
-public class ControllerImpl implements Controller {
+public class ControllerImpl implements Controller, AutoCloseable {
 
     // The default keepalive interval for the gRPC transport to ensure long running RPCs are tested for connectivity.
     // This value should be greater than the permissible value configured at the server which is by default 5 minutes.
@@ -107,15 +108,13 @@ public class ControllerImpl implements Controller {
      *                      2. pravega://ip1:port1,ip2:port2,...
      *                          This is used to autodiscovery the controller endpoints from an initial controller list.
      * @param config        The configuration for this client implementation.
-     * @param executor      The executor service to be used for handling retries.
      */
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                 .nameResolverFactory(new ControllerResolverFactory())
                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true), config, executor);
+                .usePlaintext(true), config);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -124,13 +123,11 @@ public class ControllerImpl implements Controller {
      *
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
-     * @param executor       The executor service to be used internally.
      */
     @VisibleForTesting
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
-        this.executor = executor;
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(config.getThreadpoolSize(), "controller-client-grpc");
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
                 .retryingOn(StatusRuntimeException.class)
@@ -808,6 +805,11 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
+    }
+
+    @Override
+    public void close() {
+        executor.shutdown();
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

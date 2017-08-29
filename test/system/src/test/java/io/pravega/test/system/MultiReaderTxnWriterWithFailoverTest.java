@@ -178,7 +178,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
                                                                         "MultiReaderTxnWriterWithFailoverTest");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build());
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
