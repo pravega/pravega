@@ -383,7 +383,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         // fresh run
                         // Ensure that segment.creation time is monotonically increasing after each new scale
                         long lastScaleTime = HistoryRecord.readLatestRecord(historyTable.getData(), true).map(HistoryRecord::getScaleTime).orElse(0L);
-                        long segmentCreationTimestamp = Math.max(scaleTimestamp, lastScaleTime + 1);
+
+                        long scaleEventTime = Math.max(System.currentTimeMillis(), scaleTimestamp);
+
+                        long segmentCreationTimestamp = Math.max(scaleEventTime, lastScaleTime + 1);
+
                         return scaleCreateNewSegments(newRanges, segmentCreationTimestamp, segmentTable, activeEpoch);
                     }
                 })
