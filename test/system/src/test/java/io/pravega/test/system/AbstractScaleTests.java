@@ -37,10 +37,12 @@ abstract class AbstractScaleTests {
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
     @Getter(lazy = true)
     private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(getControllerURI(),
-            ControllerImplConfig.builder().retryAttempts(1).build(), getConnectionFactory().getInternalExecutor()));
+            ControllerImplConfig.builder().retryAttempts(12).maxBackoffMillis(5000).build(), getConnectionFactory()
+            .getInternalExecutor()));
     @Getter(lazy = true)
     private final ControllerImpl controller = new ControllerImpl(getControllerURI(),
-            ControllerImplConfig.builder().retryAttempts(1).build(), getConnectionFactory().getInternalExecutor());
+            ControllerImplConfig.builder().retryAttempts(12).maxBackoffMillis(5000).build(), getConnectionFactory()
+            .getInternalExecutor());
 
     private URI createControllerURI() {
         Service conService = new PravegaControllerService("controller", null);
