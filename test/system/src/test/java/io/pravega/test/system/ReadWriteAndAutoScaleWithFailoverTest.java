@@ -45,8 +45,9 @@ import static org.junit.Assert.assertTrue;
 public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int INIT_NUM_WRITERS = 2;
+    private static final int ADD_NUM_WRITERS = 2;
     private static final int NUM_READERS = 2;
-    private static final int TOTAL_NUM_WRITERS = 4;
+    private static final int TOTAL_NUM_WRITERS = INIT_NUM_WRITERS + ADD_NUM_WRITERS;
     private final String scope = "testReadWriteAndAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
