@@ -290,8 +290,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     "Count: {}", eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
-            assertNull(writerErrorRef.get().getMessage(), writerErrorRef.get());
-            assertNull(readerErrorRef.get().getMessage(), writerErrorRef.get());
+            assertNull(writerErrorRef.get() == null ? "" : writerErrorRef.get().getMessage(), writerErrorRef.get());
+            assertNull(readerErrorRef.get() == null ? "" : readerErrorRef.get().getMessage(), writerErrorRef.get());
 
             closeReadersAndWriters();
 
