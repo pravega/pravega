@@ -164,15 +164,16 @@ public class TableHelper {
         final Optional<IndexRecord> recordOpt = search.getValue();
         final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
 
-        final Optional<HistoryRecord> historyRecordOpt = findSegmentCreatedEvent(startingOffset,
+        final Optional<HistoryRecord> segmentCreatedHistoryRecordOpt = findSegmentCreatedEvent(startingOffset,
                 segment, historyTable);
 
         // segment information not in history table
-        if (!historyRecordOpt.isPresent()) {
+        if (!segmentCreatedHistoryRecordOpt.isPresent()) {
             return new ArrayList<>();
         }
 
-        final int lower = search.getKey() / IndexRecord.INDEX_RECORD_SIZE;
+        // take index of segment created event instead of searched index based on segment.startTime.
+        final int lower = IndexRecord.search(segmentCreatedHistoryRecordOpt.get().getScaleTime(), indexTable).getKey() / IndexRecord.INDEX_RECORD_SIZE;
 
         final int upper = (indexTable.length - IndexRecord.INDEX_RECORD_SIZE) / IndexRecord.INDEX_RECORD_SIZE;
 
@@ -187,11 +188,12 @@ public class TableHelper {
         // we cant do anything on index table, fall through. OR
         // if segment exists at the last indexed record in history table, fall through,
         // no binary search possible on index
-        if (lastIndexedRecord.get().getScaleTime() < historyRecordOpt.get().getScaleTime() ||
+        // Note: lower will always be lessThanEq upper. So if upper.getScaleTime < segmentCreatedRecord.ScaleTime then lower < segmentCreatedRecord.ScaleTime.
+        if (lastIndexedRecord.get().getScaleTime() < segmentCreatedHistoryRecordOpt.get().getScaleTime() ||
                 lastIndexedRecord.get().getSegments().contains(segment.getNumber())) {
             // segment was sealed after the last index entry
-            HistoryRecord startPoint = lastIndexedRecord.get().getScaleTime() < historyRecordOpt.get().getScaleTime() ?
-                    historyRecordOpt.get() : lastIndexedRecord.get();
+            HistoryRecord startPoint = lastIndexedRecord.get().getScaleTime() < segmentCreatedHistoryRecordOpt.get().getScaleTime() ?
+                    segmentCreatedHistoryRecordOpt.get() : lastIndexedRecord.get();
             Optional<HistoryRecord> next = HistoryRecord.fetchNext(startPoint, historyTable, false);
 
             while (next.isPresent() && next.get().getSegments().contains(segment.getNumber())) {
@@ -572,7 +574,15 @@ public class TableHelper {
         return Optional.of(record);
     }
 
-
+    /**
+     * It finds the segment sealed event between lower and upper where 'lower' offset is guaranteed to be greater than or equal to segmentCreatedEvent
+     * @param lower starting record number in index table from where to search
+     * @param upper last record number in index table till where to search
+     * @param segmentNumber segment number to find sealed event
+     * @param indexTable index table
+     * @param historyTable history table
+     * @return returns history record where segment was sealed
+     */
     private static Optional<HistoryRecord> findSegmentSealedEvent(final int lower,
                                                                   final int upper,
                                                                   final int segmentNumber,

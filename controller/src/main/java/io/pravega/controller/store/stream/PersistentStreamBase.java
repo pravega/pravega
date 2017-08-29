@@ -381,7 +381,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                         log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}", scope, name, sealedSegments);
                         // fresh run
-                        return scaleCreateNewSegments(newRanges, scaleTimestamp, segmentTable, activeEpoch);
+                        // Ensure that segment.creation time is monotonically increasing after each new scale
+                        long lastScaleTime = HistoryRecord.readLatestRecord(historyTable.getData(), true).map(HistoryRecord::getScaleTime).orElse(0L);
+                        long segmentCreationTimestamp = Math.max(scaleTimestamp, lastScaleTime + 1);
+                        return scaleCreateNewSegments(newRanges, segmentCreationTimestamp, segmentTable, activeEpoch);
                     }
                 })
                 .thenCompose(epochStartSegmentpair -> getSegments(IntStream.range(epochStartSegmentpair.getRight(),

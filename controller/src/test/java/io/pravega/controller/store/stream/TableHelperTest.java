@@ -16,8 +16,10 @@ import io.pravega.controller.store.stream.tables.TableHelper;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.text.ParseException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -168,6 +170,162 @@ public class TableHelperTest {
                         .collect(Collectors.toList()));
         assertEquals(predecessors, Lists.newArrayList(2, 3, 4));
         assertEquals(successors, Lists.newArrayList(6));
+    }
+
+    @Test
+    public void testSegmentCreationBeforePreviousScale() throws ParseException {
+        // no value present error comes because:
+        // - Index is not yet updated.
+        // - And segment creation time is before history record's time.
+        // While trying to find successor we look for record in history table with
+        // segment creation and get an old record. We search for segment sealed event
+        // between history record and last indexed entry both of which preceed segment creation entry.
+        List<Segment> segments = new ArrayList<>();
+        List<Integer> newSegments = Lists.newArrayList(0, 1);
+        // create stream
+        long timestamp = 1503933145366L;
+        Segment zero = new Segment(0, timestamp, 0, 0.5);
+        segments.add(zero);
+        Segment one = new Segment(1, timestamp, 0.5, 1.0);
+        segments.add(one);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, newSegments);
+        byte[] indexTable = TableHelper.createIndexTable(timestamp, 0);
+
+        // scale up 1... 0 -> 2, 3
+        int numOfSplits = 2;
+        double delta = (zero.getKeyEnd() - zero.getKeyStart()) / numOfSplits;
+
+        ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+        for (int i = 0; i < numOfSplits; i++) {
+            simpleEntries.add(new AbstractMap.SimpleEntry<>(zero.getKeyStart() + delta * i,
+                    zero.getKeyStart() + (delta * (i + 1))));
+        }
+
+        Segment two = new Segment(2, 1503933266113L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
+        segments.add(two);
+        Segment three = new Segment(3, 1503933266113L, simpleEntries.get(1).getKey(), simpleEntries.get(1).getValue());
+        segments.add(three);
+
+        newSegments = Lists.newArrayList(1, 2, 3);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
+        timestamp = 1503933266862L;
+
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+        HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        indexTable = TableHelper.updateIndexTable(indexTable,
+                historyRecord.getScaleTime(),
+                historyRecord.getOffset());
+
+        // scale up 2.. 1 -> 4, 5
+        delta = (one.getKeyEnd() - one.getKeyStart()) / numOfSplits;
+
+        simpleEntries = new ArrayList<>();
+        for (int i = 0; i < numOfSplits; i++) {
+            simpleEntries.add(new AbstractMap.SimpleEntry<>(one.getKeyStart() + delta * i,
+                    one.getKeyStart() + (delta * (i + 1))));
+        }
+
+        Segment four = new Segment(4, 1503933266188L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
+        segments.add(four);
+
+        Segment five = new Segment(5, 1503933266188L, simpleEntries.get(1).getKey(), simpleEntries.get(1).getValue());
+        segments.add(five);
+
+        newSegments = Lists.newArrayList(2, 3, 4, 5);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
+        timestamp = 1503933288726L;
+
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+        historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        indexTable = TableHelper.updateIndexTable(indexTable,
+                historyRecord.getScaleTime(),
+                historyRecord.getOffset());
+
+        // scale up 3.. 5 -> 6, 7
+        delta = (five.getKeyEnd() - five.getKeyStart()) / numOfSplits;
+
+        simpleEntries = new ArrayList<>();
+        for (int i = 0; i < numOfSplits; i++) {
+            simpleEntries.add(new AbstractMap.SimpleEntry<>(five.getKeyStart() + delta * i,
+                    five.getKeyStart() + (delta * (i + 1))));
+        }
+
+        Segment six = new Segment(6, 1503933409076L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
+        segments.add(six);
+
+        Segment seven = new Segment(7, 1503933409076L, simpleEntries.get(1).getKey(), simpleEntries.get(1).getValue());
+        segments.add(seven);
+
+        newSegments = Lists.newArrayList(2, 3, 4, 6, 7);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        timestamp = 1503933409806L;
+
+        List<Integer> candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
+                indexTable,
+                historyTable);
+
+        assertTrue(candidates5.containsAll(Arrays.asList(2, 3, 4, 6, 7)));
+
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+        historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
+                indexTable,
+                historyTable);
+        assertTrue(candidates5.containsAll(Arrays.asList(2, 3, 4, 6, 7)));
+
+        indexTable = TableHelper.updateIndexTable(indexTable,
+                historyRecord.getScaleTime(),
+                historyRecord.getOffset());
+
+        candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
+                indexTable,
+                historyTable);
+        assertTrue(candidates5.containsAll(Arrays.asList(2, 3, 4, 6, 7)));
+
+        // scale down 6, 7 -> 8
+
+        // scale down
+        timestamp = 1503933560447L;
+
+        Segment eight = new Segment(8, timestamp, six.keyStart, seven.keyEnd);
+        segments.add(eight);
+
+        newSegments = Lists.newArrayList(2, 3, 4, 8);
+
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
+
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
+        timestamp = 1503933560448L;
+
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
+        historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
+
+        indexTable = TableHelper.updateIndexTable(indexTable,
+                historyRecord.getScaleTime(),
+                historyRecord.getOffset());
+
+        candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
+                indexTable,
+                historyTable);
+
+        assertTrue(candidates5.containsAll(Arrays.asList(2, 3, 4, 6, 7)));
     }
 
     @Test
