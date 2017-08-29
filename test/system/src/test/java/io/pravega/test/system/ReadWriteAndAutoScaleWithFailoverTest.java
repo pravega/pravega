@@ -100,8 +100,9 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
-        //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
+        // total retry duration is around 32+ seconds.
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(12)
+                .maxBackoffMillis(5000).build(), executorService);
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
