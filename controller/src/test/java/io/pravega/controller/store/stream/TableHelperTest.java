@@ -202,6 +202,7 @@ public class TableHelperTest {
                     zero.getKeyStart() + (delta * (i + 1))));
         }
 
+        // create segments before scale
         Segment two = new Segment(2, 1503933266113L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
         segments.add(two);
         Segment three = new Segment(3, 1503933266113L, simpleEntries.get(1).getKey(), simpleEntries.get(1).getValue());
@@ -209,12 +210,14 @@ public class TableHelperTest {
 
         newSegments = Lists.newArrayList(1, 2, 3);
 
+        // add partial record to history table
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
-        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
+
         timestamp = 1503933266862L;
 
+        // complete record in history table by adding time
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
         HistoryRecord historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
 
@@ -230,7 +233,7 @@ public class TableHelperTest {
             simpleEntries.add(new AbstractMap.SimpleEntry<>(one.getKeyStart() + delta * i,
                     one.getKeyStart() + (delta * (i + 1))));
         }
-
+        // create segments before scale
         Segment four = new Segment(4, 1503933266188L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
         segments.add(four);
 
@@ -239,12 +242,14 @@ public class TableHelperTest {
 
         newSegments = Lists.newArrayList(2, 3, 4, 5);
 
+        // add partial record to history table
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         partial = HistoryRecord.readLatestRecord(historyTable, false).get();
         // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
         timestamp = 1503933288726L;
 
+        // complete record in history table by adding time
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
         historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
 
@@ -261,6 +266,7 @@ public class TableHelperTest {
                     five.getKeyStart() + (delta * (i + 1))));
         }
 
+        // create new segments
         Segment six = new Segment(6, 1503933409076L, simpleEntries.get(0).getKey(), simpleEntries.get(0).getValue());
         segments.add(six);
 
@@ -268,22 +274,23 @@ public class TableHelperTest {
         segments.add(seven);
 
         newSegments = Lists.newArrayList(2, 3, 4, 6, 7);
-
+        // create partial record in history table
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         partial = HistoryRecord.readLatestRecord(historyTable, false).get();
 
         timestamp = 1503933409806L;
-
+        // find successor candidates before completing scale.
         List<Integer> candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
                 indexTable,
                 historyTable);
 
         assertTrue(candidates5.containsAll(Arrays.asList(2, 3, 4, 6, 7)));
-
+        // complete record in history table by adding time
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
         historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
 
+        // verify successor candidates after completing history record but before adding index entry
         candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
                 indexTable,
                 historyTable);
@@ -293,6 +300,7 @@ public class TableHelperTest {
                 historyRecord.getScaleTime(),
                 historyRecord.getOffset());
 
+        // verify successor candidates after index is updated
         candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
                 indexTable,
                 historyTable);
@@ -302,7 +310,7 @@ public class TableHelperTest {
 
         // scale down
         timestamp = 1503933560447L;
-
+        // add another scale
         Segment eight = new Segment(8, timestamp, six.keyStart, seven.keyEnd);
         segments.add(eight);
 
@@ -311,16 +319,16 @@ public class TableHelperTest {
         historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments);
 
         partial = HistoryRecord.readLatestRecord(historyTable, false).get();
-        // Notice: segment was created at timestamp but we are recording its entry in history table at timestamp + 10000
         timestamp = 1503933560448L;
-
+        // complete scale
         historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp);
         historyRecord = HistoryRecord.readLatestRecord(historyTable, false).get();
-
+        // add index
         indexTable = TableHelper.updateIndexTable(indexTable,
                 historyRecord.getScaleTime(),
                 historyRecord.getOffset());
 
+        // verify successors again after a new scale entry comes in
         candidates5 = TableHelper.findSegmentSuccessorCandidates(five,
                 indexTable,
                 historyTable);

@@ -381,7 +381,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                         log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}", scope, name, sealedSegments);
                         // fresh run
-                        // Ensure that segment.creation time is monotonically increasing after each new scale
+                        // Ensure that segment.creation time is monotonically increasing after each new scale.
+                        // because scale time could be supplied by a controller with a skewed clock, we should:
+                        // take max(scaleTime, lastScaleTime + 1, System.currentTimeMillis)
                         long lastScaleTime = HistoryRecord.readLatestRecord(historyTable.getData(), true).map(HistoryRecord::getScaleTime).orElse(0L);
 
                         long scaleEventTime = Math.max(System.currentTimeMillis(), scaleTimestamp);
