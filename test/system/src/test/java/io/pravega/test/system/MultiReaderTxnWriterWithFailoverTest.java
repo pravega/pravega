@@ -83,6 +83,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private final List<EventStreamWriter<Long>> writerList = synchronizedList(new ArrayList<>());
     private final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
     private ScheduledExecutorService executorService;
+    private ScheduledExecutorService controllerExecutorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
@@ -182,9 +183,13 @@ public class MultiReaderTxnWriterWithFailoverTest {
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
-                                                                        "MultiReaderTxnWriterWithFailoverTest");
+                                                                        "MultiReaderTxnWriterWithFailoverTest-main");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
+                                                                                  "MultiReaderTxnWriterWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().build(), executorService);
+        controller = new ControllerImpl(controllerURIDirect,
+                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                                        controllerExecutorService);
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -199,6 +204,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
+        controllerExecutorService.shutdownNow();
         eventsReadFromPravega.clear();
     }
 
