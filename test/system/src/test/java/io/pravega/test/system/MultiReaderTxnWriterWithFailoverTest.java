@@ -403,7 +403,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
                     // Sets a recurrent delayed task to ping the txn. It exits when the
                     // txn completes and no longer needs pinging
-                    FutureHelpers.loop(txnIsDone::get, () -> {
+                    FutureHelpers.loop(() -> !txnIsDone.get(), () -> {
                         return FutureHelpers.delayedTask(() -> {
                             if (transaction.checkStatus() == Transaction.Status.OPEN) {
                                 FutureHelpers.runOrFail(() -> {
