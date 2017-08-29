@@ -17,8 +17,8 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
@@ -346,20 +346,17 @@ class MockFileSystem extends FileSystem {
         }
     }
 
-    class FailAction extends CustomAction {
-        private final Supplier<IOException> exceptionSupplier;
+    class WaitAction extends MockFileSystem.CustomAction {
+        private final CompletableFuture<Void> waitOn;
 
-        FailAction(Path target, Supplier<IOException> exceptionSupplier) {
+        WaitAction(Path target, CompletableFuture<Void> waitOn) {
             super(target);
-            this.exceptionSupplier = exceptionSupplier;
+            this.waitOn = waitOn;
         }
 
         @Override
         void execute() throws IOException {
-            IOException ex = this.exceptionSupplier.get();
-            if (ex != null) {
-                throw ex;
-            }
+            this.waitOn.join();
         }
     }
 
