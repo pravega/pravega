@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 
+import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -81,6 +82,10 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
+        //list of all writer's futures
+        final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        //list of all reader's futures
+        final List<CompletableFuture<Void>> readers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
         final List<CompletableFuture<Void>> writersListComplete = new ArrayList<>();
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
@@ -256,6 +261,7 @@ abstract class AbstractFailoverTests {
                 writerFutureList.add(writerFuture);
             }
         }).thenRun(() -> {
+            testState.writers.addAll(writerFutureList);
             FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
                     testState.writersListComplete.get(0));
             FutureHelpers.exceptionListener(testState.writersListComplete.get(0),
@@ -290,6 +296,7 @@ abstract class AbstractFailoverTests {
                 readerFutureList.add(readerFuture);
             }
         }).thenRun(() -> {
+            testState.readers.addAll(readerFutureList);
             FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
             FutureHelpers.exceptionListener(testState.readersComplete,
                     t -> log.error("Exception while waiting for all readers to complete", t));
@@ -316,6 +323,7 @@ abstract class AbstractFailoverTests {
                 newWritersFutureList.add(writerFuture);
             }
         }).thenRun(() -> {
+            testState.writers.addAll(newWritersFutureList);
             FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
             FutureHelpers.exceptionListener(testState.writersListComplete.get(1),
                     t -> log.error("Exception while waiting for writers to complete", t));
