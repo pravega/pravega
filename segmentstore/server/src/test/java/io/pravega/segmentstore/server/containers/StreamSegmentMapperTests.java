@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -34,6 +33,7 @@ import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;

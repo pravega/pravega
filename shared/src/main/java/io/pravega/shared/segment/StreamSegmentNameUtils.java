@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.segment;
+package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import java.util.UUID;

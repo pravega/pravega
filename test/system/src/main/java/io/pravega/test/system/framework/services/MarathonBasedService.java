@@ -71,12 +71,12 @@ public abstract class MarathonBasedService implements Service {
         try {
             GetAppResponse app = marathonClient.getApp(this.id);
             log.debug("App Details: {}", app);
-
-            if (app.getApp().getTasksStaged() == 0 && app.getApp().getTasksRunning() != 0) {
+            //app is not running until the desired instance count is equal to the number of task/docker containers
+            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
-                log.info("App {} is getting staged or no tasks are running", this.id);
+                log.info("App {} is not running", this.id);
                 return false;
             }
         } catch (MarathonException ex) {
@@ -84,8 +84,7 @@ public abstract class MarathonBasedService implements Service {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
-            throw new TestFrameworkException(RequestFailed, "Marathon Exception while " +
-                    "fetching service details", ex);
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching service details", ex);
         }
     }
 
