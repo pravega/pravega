@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.segment;
+package io.pravega.shared.segment;
 
 import java.util.Stack;
 import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
-
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 
 /**
