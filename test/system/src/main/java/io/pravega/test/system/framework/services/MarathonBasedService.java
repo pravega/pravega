@@ -214,7 +214,7 @@ public abstract class MarathonBasedService implements Service {
         }
     }
 
-    private void waitUntilStagingComplete() throws MarathonException {
+    private void waitUntilStagingComplete() {
         final CompletableFuture<Void> status = FutureHelpers.loop(() -> isAppBeingStaged(this.id), //condition
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
