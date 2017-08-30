@@ -306,9 +306,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             if (connection != null) {
                 connection.close();
             }
+            NoSuchSegmentException exception = new NoSuchSegmentException(segment);
             for (PendingEvent toAck : state.removeInflightBelow(Long.MAX_VALUE)) {
                 if (toAck != null) {
-                    toAck.getAckFuture().completeExceptionally(new NoSuchSegmentException(segment));
+                    toAck.getAckFuture().completeExceptionally(exception);
                 }
             }
             
