@@ -67,6 +67,7 @@ abstract class AbstractFailoverTests {
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
     ScheduledExecutorService executorService;
+    ScheduledExecutorService controllerExecutorService;
     Controller controller;
     TestState testState;
 
