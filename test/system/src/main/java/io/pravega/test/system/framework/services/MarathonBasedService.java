@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
+import static com.google.common.base.Preconditions.checkState;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -69,14 +70,15 @@ public abstract class MarathonBasedService implements Service {
     @Override
     public boolean isRunning() {
         try {
+            waitUntilStagingComplete();
             GetAppResponse app = marathonClient.getApp(this.id);
             log.debug("App Details: {}", app);
-
-            if (app.getApp().getTasksStaged() == 0 && app.getApp().getTasksRunning() != 0) {
+            checkState(app.getApp().getTasksStaged() == 0, "Tasks staged count is not zero for App {}", this.id);
+            if (app.getApp().getTasksRunning() != 0) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
-                log.info("App {} is getting staged or no tasks are running", this.id);
+                log.info("App {} is not running", this.id);
                 return false;
             }
         } catch (MarathonException ex) {
@@ -84,8 +86,7 @@ public abstract class MarathonBasedService implements Service {
                 log.info("App is not running : {}", this.id);
                 return false;
             }
-            throw new TestFrameworkException(RequestFailed, "Marathon Exception while " +
-                    "fetching service details", ex);
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching service details", ex);
         }
     }
 
@@ -196,5 +197,28 @@ public abstract class MarathonBasedService implements Service {
         return FutureHelpers.loop(() -> isDeploymentPresent(deploymentID), //condition
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
+    }
+
+    private boolean isAppBeingStaged(final String appID) {
+        try {
+            GetAppResponse app = marathonClient.getApp(this.id);
+            int stagedTaskCount = app.getApp().getTasksStaged();
+            log.debug("Number of tasks being staged for app {} is {}", appID, stagedTaskCount);
+            return stagedTaskCount != 0;
+        } catch (MarathonException ex) {
+            if (ex.getStatus() == NOT_FOUND.code()) {
+                log.info("App is not present : {}", this.id);
+                return false;
+            }
+            throw new TestFrameworkException(RequestFailed, "Marathon Exception while fetching app details", ex);
+        }
+    }
+
+    private void waitUntilStagingComplete() throws MarathonException {
+        final CompletableFuture<Void> status = FutureHelpers.loop(() -> isAppBeingStaged(this.id), //condition
+                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+                executorService);
+        FutureHelpers.getAndHandleExceptions(status, ex -> new TestFrameworkException(InternalError,
+                        "Exception while waiting for staging to complete ", ex));
     }
 }
