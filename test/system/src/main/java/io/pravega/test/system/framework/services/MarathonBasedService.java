@@ -72,7 +72,7 @@ public abstract class MarathonBasedService implements Service {
             GetAppResponse app = marathonClient.getApp(this.id);
             log.debug("App Details: {}", app);
             //app is not running until the desired instance count is equal to the number of task/docker containers
-            if (app.getApp().getTasksRunning() == app.getApp().getInstances()) {
+            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
