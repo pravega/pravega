@@ -460,13 +460,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<Boolean> scaleTryDeleteEpoch(final int epoch) {
         return getHistoryTableFromStore()
-                .thenCompose(historyTable -> getSegmentTableFromStore().thenApply(segmentTable -> new ImmutablePair<>(historyTable, segmentTable)))
-                .thenCompose(pair -> {
-                    Data<T> segmentTable = pair.getRight();
-                    Data<T> historyTable = pair.getLeft();
+                .thenCompose(historyTable -> {
                     CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-                    if (TableHelper.isScaleOngoing(historyTable.getData(), segmentTable.getData())) {
+                    if (TableHelper.isNewEpochCreated(historyTable.getData())) {
                         deleteEpochNode(epoch)
                                 .whenComplete((r, e) -> {
                                     if (e != null) {
