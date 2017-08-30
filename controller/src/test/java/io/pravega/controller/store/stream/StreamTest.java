@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -20,12 +22,24 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.stubbing.Answer;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class StreamTest {
     private TestingServer zkTestServer;
@@ -126,4 +140,99 @@ public class StreamTest {
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, response.getStatus());
     }
 
+    @Test(timeout = 10000)
+    public void testConcurrentGetSuccessorScale() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
+        final String streamName = "test";
+        String scopeName = "test";
+        store.createScope(scopeName).get();
+
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                .scope(streamName)
+                .streamName(streamName)
+                .scalingPolicy(policy)
+                .build();
+
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+
+        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
+
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+
+        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
+
+        long scale = System.currentTimeMillis();
+        ArrayList<Integer> sealedSegments = Lists.newArrayList(0);
+
+        StartScaleResponse response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
+        List<Segment> newSegments = response.getSegmentsCreated();
+        zkStream.updateState(State.SCALING).join();
+
+        List<Integer> newSegmentInt = newSegments.stream().map(Segment::getNumber).collect(Collectors.toList());
+        zkStream.scaleNewSegmentsCreated(sealedSegments, newSegmentInt,
+                response.getActiveEpoch(), scale).get();
+        // history table has a partial record at this point.
+        // now we could have sealed the segments so get successors could be called.
+
+        final CompletableFuture<Data<Integer>> segmentTable = zkStream.getSegmentTable();
+        final CompletableFuture<Data<Integer>> historyTable = zkStream.getHistoryTable();
+
+        AtomicBoolean historyCalled = new AtomicBoolean(false);
+        AtomicBoolean segmentCalled = new AtomicBoolean(false);
+        // mock.. If segment table is fetched before history table, throw runtime exception so that the test fails
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+            if (!historyCalled.get() && segmentCalled.get()) {
+                throw new RuntimeException();
+            }
+            historyCalled.set(true);
+            return historyTable;
+        }).when(zkStream).getHistoryTable();
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+            if (!historyCalled.get()) {
+                throw new RuntimeException();
+            }
+            segmentCalled.set(true);
+            return segmentTable;
+        }).when(zkStream).getSegmentTable();
+
+        Map<Integer, List<Integer>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
+
+        assertTrue(successors.containsKey(1) && successors.containsKey(2));
+
+        // reset mock so that we can resume scale operation
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
+
+        zkStream.scaleOldSegmentsSealed(sealedSegments, newSegmentInt, response.getActiveEpoch(), scale).get();
+        // scale is completed, history table also has completed record now.
+        final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
+        final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();
+
+        // mock such that if segment table is fetched before history table, throw runtime exception so that the test fails
+        segmentCalled.set(false);
+        historyCalled.set(false);
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+            if (!historyCalled.get() && segmentCalled.get()) {
+                throw new RuntimeException();
+            }
+            historyCalled.set(true);
+            return historyTable2;
+        }).when(zkStream).getHistoryTable();
+        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+            if (!historyCalled.get()) {
+                throw new RuntimeException();
+            }
+            segmentCalled.set(true);
+            return segmentTable2;
+        }).when(zkStream).getSegmentTable();
+
+        successors = zkStream.getSuccessorsWithPredecessors(0).get();
+
+        assertTrue(successors.containsKey(1) && successors.containsKey(2));
+    }
 }

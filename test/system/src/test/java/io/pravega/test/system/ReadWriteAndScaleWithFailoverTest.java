@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -42,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 
@@ -101,10 +101,14 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
         //num. of readers + num. of writers + 1 to run checkScale operation
-        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1);
-        // total retry duration is around 32+ seconds.
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(12)
-                .maxBackoffMillis(5000).build(), executorService);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
+                                                                        "ReadWriteAndScaleWithFailoverTest-main");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
+                                                                                  "ReadWriteAndScaleWithFailoverTest-controller");
+        //get Controller Uri
+        controller = new ControllerImpl(controllerURIDirect,
+                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                                        controllerExecutorService);
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
 
@@ -124,6 +128,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
+        controllerExecutorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
