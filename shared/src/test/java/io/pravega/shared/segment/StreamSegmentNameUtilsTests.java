@@ -9,13 +9,11 @@
  */
 package io.pravega.shared.segment;
 
+import io.pravega.test.common.AssertExtensions;
 import java.util.Stack;
 import java.util.UUID;
-
 import org.junit.Assert;
 import org.junit.Test;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.test.common.AssertExtensions;
 
 /**
  * Unit tests for StreamSegmentNameUtils class.

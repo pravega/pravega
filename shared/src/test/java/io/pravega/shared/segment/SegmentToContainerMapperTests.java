@@ -9,19 +9,16 @@
  */
 package io.pravega.shared.segment;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
+import io.pravega.test.common.AssertExtensions;
 import java.nio.CharBuffer;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.function.Function;
-
 import org.junit.Assert;
 import org.junit.Test;
-import io.pravega.shared.segment.SegmentToContainerMapper;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.test.common.AssertExtensions;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for SegmentToContainerMapper.
