@@ -13,9 +13,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -225,6 +225,10 @@ public final class ServiceStarter {
                     .include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"))
                     .include(System.getProperties())
                     .build();
+
+            // For debugging purposes, it may be useful to know the non-default values for configurations being used.
+            // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
+            config.forEach((key, value) -> log.debug("Config:{}={}.", key, value));
             serviceStarter.set(new ServiceStarter(config, Options.builder()
                     .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {

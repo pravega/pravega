@@ -29,7 +29,9 @@ import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -45,14 +47,21 @@ import static org.junit.Assert.assertTrue;
 public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int INIT_NUM_WRITERS = 2;
+    private static final int ADD_NUM_WRITERS = 2;
     private static final int NUM_READERS = 2;
-    private static final int TOTAL_NUM_WRITERS = 8;
+    private static final int TOTAL_NUM_WRITERS = INIT_NUM_WRITERS + ADD_NUM_WRITERS;
+
+    //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(15 * 60);
+
     private final String scope = "testReadWriteAndAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
-
+    private ClientFactory clientFactory;
+    private ReaderGroupManager readerGroupManager;
 
     @Environment
     public static void initialize() throws MarathonException, URISyntaxException {
@@ -61,7 +70,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         URI controllerUri = startPravegaControllerInstances(zkUri);
         startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
-
 
     @Before
     public void setup() {
@@ -92,63 +100,71 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         //executor service
         executorService = Executors.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS);
-        //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(1).build(), executorService);
+        // total retry duration is around 32+ seconds.
+        controller = new ControllerImpl(controllerURIDirect, ControllerImplConfig.builder().retryAttempts(12)
+                .maxBackoffMillis(5000).build(), executorService);
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
+
+        createScopeAndStream(scope, AUTO_SCALE_STREAM, config, controllerURIDirect);
+        log.info("Scope passed to client factory {}", scope);
+
+        clientFactory = new ClientFactoryImpl(scope, controller);
+        readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
     }
 
     @After
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
+        //interrupt writers and readers threads if they are still running.
+        testState.writers.forEach(future -> future.cancel(true));
+        testState.readers.forEach(future -> future.cancel(true));
+        clientFactory.close();
+        readerGroupManager.close();
         executorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
+        //scale the controller and segmentStore back to 1 instance.
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
     }
 
 
-    @Test(timeout = 12 * 60 * 1000)
+    @Test
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
-        createScopeAndStream(scope, AUTO_SCALE_STREAM, config, controllerURIDirect);
-        log.info("Scope passed to client factory {}", scope);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(scope, controller);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect)) {
 
-            createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
+        createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverTest();
+        //run the failover test before scaling
+        performFailoverTest();
 
-            //bring the instances back to 3 before performing failover during scaling
-            controllerInstance.scaleService(3, true);
-            segmentStoreInstance.scaleService(3, true);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover during scaling
+        controllerInstance.scaleService(3, true);
+        segmentStoreInstance.scaleService(3, true);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
-            //run the failover test while scaling
-            performFailoverTest();
+        //run the failover test while scaling
+        performFailoverTest();
 
-            waitForScaling();
+        waitForScaling();
 
-            //bring the instances back to 3 before performing failover
-            controllerInstance.scaleService(3, true);
-            segmentStoreInstance.scaleService(3, true);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover
+        controllerInstance.scaleService(3, true);
+        segmentStoreInstance.scaleService(3, true);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //run the failover test after scaling
-            performFailoverTest();
+        //run the failover test after scaling
+        performFailoverTest();
 
-            stopWriters();
-            stopReaders();
-            validateResults(readerGroupManager, readerGroupName);
+        stopWriters();
+        stopReaders();
+        validateResults(readerGroupManager, readerGroupName);
 
-        }
-        cleanUp(scope, AUTO_SCALE_STREAM);
+        cleanUp(scope, AUTO_SCALE_STREAM); //cleanup if validation is successful.
     }
 
     private void waitForScaling() throws InterruptedException, ExecutionException {
