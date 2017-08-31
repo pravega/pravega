@@ -220,7 +220,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         final TxnData txnData = map.get(key);
 
         if (txnData == null) {
-            return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.UNRECOGNIZED).build();
+            throw new IllegalStateException(String.format("Transaction %s not added to timerWheelTimeoutService", txnId));
         }
 
         if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
