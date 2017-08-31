@@ -171,7 +171,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks, controllerExecutor);
+                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, controllerExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");

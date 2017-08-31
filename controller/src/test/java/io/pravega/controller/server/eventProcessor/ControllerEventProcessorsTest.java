@@ -21,7 +21,6 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
@@ -64,7 +63,6 @@ public class ControllerEventProcessorsTest {
         HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
-        StreamTransactionMetadataTasks streamTxnMetadataTaks = mock(StreamTransactionMetadataTasks.class);
         executor = Executors.newSingleThreadScheduledExecutor();
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
@@ -148,7 +146,7 @@ public class ControllerEventProcessorsTest {
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
                 config, localController, checkpointStore, streamStore,
-                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, streamTxnMetadataTaks, system, executor);
+                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, system, executor);
         processors.startAsync();
         processors.awaitRunning();
         assertTrue(FutureHelpers.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));

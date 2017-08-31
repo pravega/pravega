@@ -11,16 +11,17 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.Position;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,11 +39,10 @@ import java.util.stream.Collectors;
  * 2. Change txn state from committing to committed.
  */
 @Slf4j
-public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> {
+public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTxnMetadataTasks;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
@@ -50,18 +50,15 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
     private final BlockingQueue<CommitEvent> processedEvents;
 
     @VisibleForTesting
-    public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
+    public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
                                 final StreamMetadataTasks streamMetadataTasks,
-                                final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                 final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory,
                                 final BlockingQueue<CommitEvent> queue) {
-        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
-        this.streamTxnMetadataTasks = streamTxnMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -69,17 +66,14 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         this.processedEvents = queue;
     }
 
-    public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
+    public CommitEventProcessor(final StreamMetadataStore streamMetadataStore,
                                 final StreamMetadataTasks streamMetadataTasks,
-                                final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                 final HostControllerStore hostControllerStore,
                                 final ScheduledExecutorService executor,
                                 final SegmentHelper segmentHelper,
                                 final ConnectionFactory connectionFactory) {
-        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
-        this.streamTxnMetadataTasks = streamTxnMetadataTasks;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -88,7 +82,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
     }
 
     @Override
-    protected CompletableFuture<Void> processEvent(final CommitEvent event) {
+    protected void process(CommitEvent event, Position position) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
@@ -96,7 +90,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        return streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
+        streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
             // Note, transaction's epoch either equals stream's current epoch or is one more than it,
             // because stream scale operation ensures that all transactions in current epoch are
             // complete before transitioning the stream to new epoch.
@@ -104,8 +98,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                 return CompletableFuture.completedFuture(null);
             } else if (epoch == pair.getKey()) {
                 // If the transaction's epoch is same as the stream's current epoch, commit it.
-                return Retry.indefinitelyWithExpBackoff(String.format("Error committing txn %s", txnId))
-                        .runAsync(() -> completeCommit(scope, stream, epoch, txnId, context), executor);
+                return completeCommit(scope, stream, epoch, txnId, context);
             } else {
                 // Otherwise, postpone commit operation until the stream transitions to next epoch.
                 return postponeCommitEvent(event);
@@ -119,7 +112,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
                     processedEvents.offer(event);
                 }
             }
-        }, executor);
+        }, executor).join();
     }
 
     private CompletableFuture<Void> completeCommit(final String scope,
@@ -142,7 +135,7 @@ public class CommitRequestHandler extends SerializedRequestHandler<CommitEvent> 
     private CompletableFuture<Void> writeEvent(CommitEvent event) {
         UUID txnId = event.getTxid();
         log.debug("Transaction {}, pushing back CommitEvent to commitStream", txnId);
-        return streamTxnMetadataTasks.writeCommitEvent(event).handleAsync((v, e) -> {
+        return this.getSelfWriter().write(event).handleAsync((v, e) -> {
             if (e != null) {
                 log.debug("Transaction {}, sent request to commitStream", txnId);
                 return null;

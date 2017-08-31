@@ -24,7 +24,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -52,7 +51,6 @@ public class ControllerEventProcessorTest {
     private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
-    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
@@ -73,10 +71,6 @@ public class ControllerEventProcessorTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", mock(ConnectionFactory.class));
-
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
-                executor, "1", mock(ConnectionFactory.class));
-
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
@@ -105,9 +99,9 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, hostStore, executor,
+        CommitEventProcessor commitEventProcessor = new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
                 segmentHelperMock, null);
-        commitRequestHandler.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
+        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 

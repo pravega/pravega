@@ -84,7 +84,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
     private final RequestHandlerMultiplexer requestHandlerMultiplexer;
-    private final CommitRequestHandler commitRequestHandler;
+    private final CommitEventProcessor commitEventProcessor;
     private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
@@ -96,10 +96,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this(host, config, controller, checkpointStore, streamMetadataStore, hostControllerStore, segmentHelper, connectionFactory,
-                streamMetadataTasks, streamTxnMetadataTasks, null, executor);
+                streamMetadataTasks, null, executor);
     }
 
     @VisibleForTesting
@@ -112,7 +111,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
-                                     final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                      final EventProcessorSystem system,
                                      final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
@@ -130,7 +128,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.requestHandlerMultiplexer = new RequestHandlerMultiplexer(
                 new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor), executor);
-        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTxnMetadataTasks, hostControllerStore,
+        this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);
@@ -336,7 +334,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new ConcurrentEventProcessor<>(commitRequestHandler, executor))
+                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
                         .build();
 
         log.info("Creating commit event processors");

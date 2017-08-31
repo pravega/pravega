@@ -30,7 +30,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
 import io.pravega.controller.server.eventProcessor.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
-import io.pravega.controller.server.eventProcessor.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
 import io.pravega.controller.server.eventProcessor.ConcurrentEventProcessor;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
@@ -312,8 +312,8 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents), executor));
+                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedAbortEvents), executor));
@@ -400,8 +400,8 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedCommitEvents), executor));
+                () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedAbortEvents), executor));
