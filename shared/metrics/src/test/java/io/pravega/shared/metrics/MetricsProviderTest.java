@@ -73,6 +73,8 @@ public class MetricsProviderTest {
             dynamicLogger.incCounterValue("dynamicCounter", i);
             assertEquals(sum, MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.dynamicCounter.Counter").getCount());
         }
+        dynamicLogger.freezeCounter("dynamicCounter");
+        assertEquals(null, MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.dynamicCounter.Counter"));
     }
 
     /**
@@ -110,6 +112,8 @@ public class MetricsProviderTest {
             assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
             assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge").getValue());
         }
+        dynamicLogger.freezeGaugeValue("dynamicGauge");
+        assertEquals(null, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge"));
     }
 
     /**
