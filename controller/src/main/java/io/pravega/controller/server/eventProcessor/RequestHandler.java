@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
 
 import java.util.concurrent.CompletableFuture;
@@ -21,5 +20,5 @@ import java.util.concurrent.CompletableFuture;
  */
 @FunctionalInterface
 interface RequestHandler<Request extends ControllerEvent> {
-    CompletableFuture<Void> process(Request request, final EventProcessor.Writer<Request> writer);
+    CompletableFuture<Void> process(Request request);
 }

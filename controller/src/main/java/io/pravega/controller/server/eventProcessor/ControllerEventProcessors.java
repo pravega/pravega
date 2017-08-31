@@ -96,9 +96,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                      final ScheduledExecutorService executor) {
         this(host, config, controller, checkpointStore, streamMetadataStore, hostControllerStore, segmentHelper, connectionFactory,
-                streamMetadataTasks, null, executor);
+                streamMetadataTasks, streamTxnMetadataTasks, null, executor);
     }
 
     @VisibleForTesting
@@ -111,6 +112,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
+                                     final StreamTransactionMetadataTasks streamTxnMetadataTasks,
                                      final EventProcessorSystem system,
                                      final ScheduledExecutorService executor) {
         this.objectId = "ControllerEventProcessors";
@@ -128,7 +130,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.requestHandlerMultiplexer = new RequestHandlerMultiplexer(
                 new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor), executor);
-        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTxnMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);

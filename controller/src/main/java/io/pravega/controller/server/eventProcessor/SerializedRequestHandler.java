@@ -11,7 +11,6 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -45,9 +44,9 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     private final ExecutorService executor;
 
     @Override
-    public CompletableFuture<Void> process(final T streamEvent, final EventProcessor.Writer<T> writer) {
+    public CompletableFuture<Void> process(final T streamEvent) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Work work = new Work(streamEvent, writer, result);
+        Work work = new Work(streamEvent, result);
         String key = streamEvent.getKey();
 
         synchronized (lock) {
@@ -64,7 +63,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         return result;
     }
 
-    abstract CompletableFuture<Void> processEvent(final T event, final EventProcessor.Writer<T> writer);
+    abstract CompletableFuture<Void> processEvent(final T event);
 
     /**
      * Run method is called only if work queue is not empty. So we can safely do a workQueue.poll.
@@ -75,7 +74,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        FutureHelpers.completeAfter(() -> processEvent(work.getEvent(), work.getWriter()), work.getResult());
+        FutureHelpers.completeAfter(() -> processEvent(work.getEvent()), work.getResult());
         work.getResult().whenComplete((r, e) -> {
             boolean toExecute = false;
             synchronized (lock) {
@@ -108,7 +107,6 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     @Data
     private class Work {
         private final T event;
-        private final EventProcessor.Writer<T> writer;
         private final CompletableFuture<Void> result;
     }
 }

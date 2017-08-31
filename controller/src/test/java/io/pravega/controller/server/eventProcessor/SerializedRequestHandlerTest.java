@@ -37,7 +37,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
             @Override
-            CompletableFuture<Void> processEvent(TestEvent event, EventProcessor.Writer<TestEvent> writer) {
+            CompletableFuture<Void> processEvent(TestEvent event) {
                 orderOfProcessing.compute(event.getKey(), (x, y) -> {
                     if (y == null) {
                         y = new ArrayList<>();
@@ -53,11 +53,11 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         assertNull(stream1Queue);
         // post 3 work for stream1
         TestEvent s1e1 = new TestEvent("scope", "stream1", 1);
-        CompletableFuture<Void> s1p1 = requestHandler.process(s1e1, writer);
+        CompletableFuture<Void> s1p1 = requestHandler.process(s1e1);
         TestEvent s1e2 = new TestEvent("scope", "stream1", 2);
-        CompletableFuture<Void> s1p2 = requestHandler.process(s1e2, writer);
+        CompletableFuture<Void> s1p2 = requestHandler.process(s1e2);
         TestEvent s1e3 = new TestEvent("scope", "stream1", 3);
-        CompletableFuture<Void> s1p3 = requestHandler.process(s1e3, writer);
+        CompletableFuture<Void> s1p3 = requestHandler.process(s1e3);
 
         stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream1Queue.size() >= 2);
@@ -77,11 +77,11 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         // post 3 work for stream2
         TestEvent s2e1 = new TestEvent("scope", "stream2", 1);
-        CompletableFuture<Void> s2p1 = requestHandler.process(s2e1, writer);
+        CompletableFuture<Void> s2p1 = requestHandler.process(s2e1);
         TestEvent s2e2 = new TestEvent("scope", "stream2", 2);
-        CompletableFuture<Void> s2p2 = requestHandler.process(s2e2, writer);
+        CompletableFuture<Void> s2p2 = requestHandler.process(s2e2);
         TestEvent s2e3 = new TestEvent("scope", "stream2", 3);
-        CompletableFuture<Void> s2p3 = requestHandler.process(s2e3, writer);
+        CompletableFuture<Void> s2p3 = requestHandler.process(s2e3);
 
         List<Pair<TestEvent, CompletableFuture<Void>>> stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream2Queue.size() >= 2);
@@ -135,7 +135,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         // now that we have drained all the work from the processor.
         // let's post new work for stream 1
         TestEvent s1e4 = new TestEvent("scope", "stream1", 4);
-        CompletableFuture<Void> s1p4 = requestHandler.process(s1e4, writer);
+        CompletableFuture<Void> s1p4 = requestHandler.process(s1e4);
 
         stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertNotNull(stream1Queue);

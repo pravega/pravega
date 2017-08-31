@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -43,7 +42,7 @@ public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent
     }
 
     @Override
-    public CompletableFuture<Void> process(final ScaleOpEvent request, final EventProcessor.Writer<ScaleOpEvent> writer) {
+    public CompletableFuture<Void> process(final ScaleOpEvent request) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 

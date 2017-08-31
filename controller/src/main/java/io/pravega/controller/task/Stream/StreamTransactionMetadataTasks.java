@@ -566,6 +566,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor);
     }
 
+    public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
+        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
+    }
+
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
         CommitEvent event = new CommitEvent(scope, stream, epoch, txnId);

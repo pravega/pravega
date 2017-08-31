@@ -165,9 +165,9 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request, writer::writeEvent)));
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
         assertTrue(FutureHelpers.await(request1));
-        assertTrue(FutureHelpers.await(multiplexer.process(request1.get(), writer::writeEvent)));
+        assertTrue(FutureHelpers.await(multiplexer.process(request1.get())));
 
         // verify that the event is posted successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -180,7 +180,7 @@ public class ScaleRequestHandlerTest {
 
         request = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request, e -> CompletableFuture.completedFuture(null))));
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
@@ -188,9 +188,9 @@ public class ScaleRequestHandlerTest {
 
         request = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request, e -> CompletableFuture.completedFuture(null))));
+        assertTrue(FutureHelpers.await(multiplexer.process(request)));
         assertTrue(FutureHelpers.await(request2));
-        assertTrue(FutureHelpers.await(multiplexer.process(request2.get(), e -> CompletableFuture.completedFuture(null))));
+        assertTrue(FutureHelpers.await(multiplexer.process(request2.get())));
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
@@ -204,15 +204,13 @@ public class ScaleRequestHandlerTest {
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()),
-                e -> CompletableFuture.completedFuture(null))));
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(FutureHelpers.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()),
-                e -> CompletableFuture.completedFuture(null))));
+        assertFalse(FutureHelpers.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
     private void checkRequest(CompletableFuture<ScaleOpEvent> request, ControllerEvent in, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> expected) {

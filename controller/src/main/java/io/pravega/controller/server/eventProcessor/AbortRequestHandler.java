@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -80,7 +79,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     }
 
     @Override
-    protected CompletableFuture<Void> processEvent(AbortEvent event, EventProcessor.Writer<AbortEvent> writer) {
+    protected CompletableFuture<Void> processEvent(AbortEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();

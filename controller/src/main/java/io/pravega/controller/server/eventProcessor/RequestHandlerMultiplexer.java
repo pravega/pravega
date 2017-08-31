@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -32,12 +31,12 @@ public class RequestHandlerMultiplexer extends SerializedRequestHandler<Controll
     }
 
     @Override
-    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent, EventProcessor.Writer<ControllerEvent> writer) {
+    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
         if (controllerEvent instanceof AutoScaleEvent) {
-            return autoScaleRequestHandler.process((AutoScaleEvent) controllerEvent, writer::write);
+            return autoScaleRequestHandler.process((AutoScaleEvent) controllerEvent);
         }
         if (controllerEvent instanceof ScaleOpEvent) {
-            return scaleOperationRequestHandler.process((ScaleOpEvent) controllerEvent, writer::write);
+            return scaleOperationRequestHandler.process((ScaleOpEvent) controllerEvent);
         }
         String errorMessage = "RequestHandlerMultiplexer: Unknown event received";
         log.error(errorMessage);
