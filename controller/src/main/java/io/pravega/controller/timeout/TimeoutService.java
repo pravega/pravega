@@ -87,10 +87,10 @@ public interface TimeoutService extends Service {
      * @param scope  Scope name.
      * @param stream Stream name.
      * @param txnId  Transaction id.
-     * @param lease  Additional amount of time for the transaction to be in open state.
-     * @return Ping status
+     * @param version Transaction version.
+     *@param lease  Additional amount of time for the transaction to be in open state.  @return Ping status
      */
-    PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease);
+    PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease);
 
     /**
      * This method returns a boolean indicating whether it manages timeout for the specified transaction.

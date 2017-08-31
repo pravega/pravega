@@ -462,7 +462,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         if (timeoutService.containsTxn(scope, stream, txnId)) {
                             // If timeout service knows about this transaction, attempt to increase its lease.
                             log.debug("Txn={}, extending lease in timeout service", txnId);
-                            timeoutService.pingTxn(scope, stream, txnId, lease);
+                            timeoutService.pingTxn(scope, stream, txnId, version, lease);
                         } else {
                             timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
                         }
