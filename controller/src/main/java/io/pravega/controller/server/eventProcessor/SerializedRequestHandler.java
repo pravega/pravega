@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.server.eventProcessor;
 
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * Any new request received for the key is queued up if queue is not empty. If a worker queue for the key is not found in map,
  * a new queue is created and the event is put in the queue and this is added to the worker map.
  * The processing is then scheduled asynchronously for the key.
- * <p>
+ *
  * Once all pending processing for a key ends, the key is removed from the work map the moment its queue becomes empty.
  */
 @AllArgsConstructor
@@ -42,7 +42,6 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
-
     private final ExecutorService executor;
 
     @Override
@@ -68,7 +67,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     abstract CompletableFuture<Void> processEvent(final T event, final EventProcessor.Writer<T> writer);
 
     /**
-     * Run method is called only if work queue is non empty. So we can safely do a workQueue.poll.
+     * Run method is called only if work queue is not empty. So we can safely do a workQueue.poll.
      * WorkQueue.poll should only happen in the run method and no where else.
      *
      * @param key       key for which we want to process the next event

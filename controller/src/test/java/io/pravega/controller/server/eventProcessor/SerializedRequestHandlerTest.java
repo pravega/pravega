@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.server.eventProcessor;
 
@@ -102,7 +102,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         s2e1.complete();
         FutureHelpers.await(s2p1);
 
-        stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
+        stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream2"));
         assertTrue(stream2Queue.size() >= 1);
         assertTrue(stream2Queue.stream().noneMatch(x -> x.getRight().isDone()));
         collect = stream2Queue.stream().map(x -> x.getLeft().getNumber()).collect(Collectors.toList());
@@ -124,16 +124,16 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
                 orderOfProcessing.get(s1e1.getKey()).get(1) == 2 &&
                 orderOfProcessing.get(s1e1.getKey()).get(2) == 3);
         assertTrue(orderOfProcessing.get(s2e1.getKey()).get(0) == 1 &&
-                orderOfProcessing.get(s1e1.getKey()).get(1) == 2 &&
-                orderOfProcessing.get(s1e1.getKey()).get(2) == 3);
+                orderOfProcessing.get(s2e1.getKey()).get(1) == 2 &&
+                orderOfProcessing.get(s2e1.getKey()).get(2) == 3);
 
         FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
                 () -> CompletableFuture.completedFuture(null), executorService());
-        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
+        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream2")) == null,
                 () -> CompletableFuture.completedFuture(null), executorService());
 
         // now that we have drained all the work from the processor.
-        // lets post new work for stream 1
+        // let's post new work for stream 1
         TestEvent s1e4 = new TestEvent("scope", "stream1", 4);
         CompletableFuture<Void> s1p4 = requestHandler.process(s1e4, writer);
 
