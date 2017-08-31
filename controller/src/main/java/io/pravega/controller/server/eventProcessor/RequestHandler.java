@@ -19,6 +19,6 @@ import java.util.concurrent.CompletableFuture;
  * @param <Request> Type of request this handler will process.
  */
 @FunctionalInterface
-interface RequestHandler<Request extends ControllerEvent> {
+public interface RequestHandler<Request extends ControllerEvent> {
     CompletableFuture<Void> process(Request request);
 }
