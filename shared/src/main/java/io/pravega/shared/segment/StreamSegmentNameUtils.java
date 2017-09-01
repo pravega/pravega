@@ -21,7 +21,12 @@ public final class StreamSegmentNameUtils {
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its custom attributes.
      */
-    private static final String STATE_SUFFIX = "$state";
+    private static final String STATE_SUFFIX_FIRST = "$state1";
+
+    /**
+     * This is appended to the end of the Segment/Transaction name to indicate it stores its custom attributes.
+     */
+    private static final String STATE_SUFFIX_SECOND = "$state2";
 
     /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
@@ -84,8 +89,19 @@ public final class StreamSegmentNameUtils {
      * @param segmentName The name of the Segment to get the State segment name for.
      * @return The result.
      */
-    public static String getStateSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX), "segmentName is already a state segment name");
-        return segmentName + STATE_SUFFIX;
+    public static String getFirstStateSegmentName(String segmentName) {
+        Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX_FIRST), "segmentName is already a state segment name");
+        return segmentName + STATE_SUFFIX_FIRST;
+    }
+
+    /**
+     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing Segment State.
+     *
+     * @param segmentName The name of the Segment to get the State segment name for.
+     * @return The result.
+     */
+    public static String getSecondStateSegmentName(String segmentName) {
+        Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX_SECOND), "segmentName is already a state segment name");
+        return segmentName + STATE_SUFFIX_SECOND;
     }
 }
