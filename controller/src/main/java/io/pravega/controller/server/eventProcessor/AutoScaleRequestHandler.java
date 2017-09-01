@@ -85,14 +85,14 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
     }
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
                 .thenComposeAsync(segment -> {
                     // do not go above scale factor. Minimum scale factor is 2 though.
-                    int numOfSplits = Math.min(request.getNumOfSplits(), Math.max(2, policy.getScaleFactor()));
+                    int numOfSplits = Math.min(Math.max(2, request.getNumOfSplits()), Math.max(2, policy.getScaleFactor()));
                     double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
@@ -105,7 +105,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }

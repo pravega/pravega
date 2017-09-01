@@ -23,10 +23,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
-import lombok.ToString;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,11 +30,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.ToString;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -79,9 +79,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @GuardedBy("writeFlushLock")
     private final SegmentSelector selector;
     private final Consumer<Segment> segmentSealedCallBack;
-
+    private final ExecutorService retransmitPool;
+    
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config) {
+            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -93,6 +94,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
         this.serializer = serializer;
         this.config = config;
+        this.retransmitPool = retransmitPool;
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
@@ -151,24 +153,25 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     /**
      * If a log sealed is encountered, we need to 1. Find the new segments to write to. 2. For each outstanding
-     * message find which new segment it should go to and send it there. This can happen recursively if segments turn
-     * over very quickly.
+     * message find which new segment it should go to and send it there. 
      */
     private void handleLogSealed(Segment segment) {
-        writeFlushLock.readLock().lock();
-        /* Using segmentSealedLock the following behaviour is enforced
-            - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
-            - Ensure waiting segmentSealedCallbacks are invoked before the next write is invoked.
-            This ensures that resend() would be invoked again if we observe a segment sealed exception.
-         */
-        segmentSealedLock.lock();
-        try {
-            List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
-            resend(toResend);
-        } finally {
-            segmentSealedLock.unlock();
-            writeFlushLock.readLock().unlock();
-        }
+        retransmitPool.submit(() -> {
+            writeFlushLock.readLock().lock();
+            /* Using segmentSealedLock the following behaviour is enforced
+               - Prevent concurrent segmentSealedCallback for different segments from being invoked concurrently.
+               - Ensure waiting segmentSealedCallbacks are invoked before the next write is invoked.
+               This ensures that resend() would be invoked again if we observe a segment sealed exception.
+             */
+            segmentSealedLock.lock();
+            try {
+                List<PendingEvent> toResend = selector.refreshSegmentEventWritersUponSealed(segment, segmentSealedCallBack);
+                resend(toResend);
+            } finally {
+                segmentSealedLock.unlock();
+                writeFlushLock.readLock().unlock();
+            }
+        });
     }
 
     @GuardedBy("writeFlushLock")
@@ -381,6 +384,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         } finally {
             writeFlushLock.readLock().unlock();
         }
+        retransmitPool.shutdown();
     }
 
     @Override

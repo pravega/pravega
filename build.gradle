@@ -78,9 +78,11 @@ def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
 
 project ('shared') {
     dependencies {
+        compile project(':common')
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(':test:testcommon')
     }
     javadoc {
         exclude 'io/pravega/shared/*'
@@ -197,6 +199,7 @@ project('segmentstore:storage:impl') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -256,6 +259,18 @@ project('segmentstore:server:host') {
 }
 
 project('test:integration') {
+    apply plugin: 'application'
+    applicationName = "pravega-selftest"
+    mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
+
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+
+    applicationDistribution.from('src/config') {
+        into "conf"
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -279,12 +294,6 @@ project('test:integration') {
 
     task startServer(type: JavaExec) {
         main = "io.pravega.segmentstore.server.host.ServiceStarter"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -335,6 +344,12 @@ project('test:integration') {
         main = "io.pravega.test.integration.demo.EventProcessorTest"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
+    }
+
+    task selftest(type: JavaExec) {
+        main = "io.pravega.test.integration.selftest.SelfTestRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        systemProperties System.getProperties()
     }
 }
 

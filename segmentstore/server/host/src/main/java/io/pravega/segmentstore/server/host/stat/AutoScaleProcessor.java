@@ -171,9 +171,12 @@ public class AutoScaleProcessor {
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
                         segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
-                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
-                        new ImmutablePair<>(0L, timestamp)));
-                // mute only scale downs
+                writeRequest(event).thenAccept(x -> {
+                    if (!silent) {
+                        // mute only scale downs
+                        cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
+                    }
+                });
             }
         }
     }
@@ -203,8 +206,8 @@ public class AutoScaleProcessor {
                     if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
-                        int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
-                        log.debug("triggering scale up for {}", streamSegmentName);
+                        int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
+                        log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
 
                         triggerScaleUp(streamSegmentName, numOfSplits);
                     }
@@ -238,5 +241,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.common.segment.StreamSegmentNameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;

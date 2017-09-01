@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AutoScaleProcessorTest {
@@ -36,6 +37,7 @@ public class AutoScaleProcessorTest {
     private static final String STREAM1 = "stream1";
     private static final String STREAM2 = "stream2";
     private static final String STREAM3 = "stream3";
+    private static final String STREAM4 = "stream4";
     ExecutorService executor;
     ScheduledExecutorService maintenanceExecutor;
 
@@ -56,6 +58,7 @@ public class AutoScaleProcessorTest {
         CompletableFuture<Void> result = new CompletableFuture<>();
         CompletableFuture<Void> result2 = new CompletableFuture<>();
         CompletableFuture<Void> result3 = new CompletableFuture<>();
+        CompletableFuture<Void> result4 = new CompletableFuture<>();
         EventStreamWriter<AutoScaleEvent> writer = createWriter(event -> {
             if (event.getScope().equals(SCOPE) &&
                     event.getStream().equals(STREAM1) &&
@@ -74,6 +77,13 @@ public class AutoScaleProcessorTest {
                     event.getDirection() == AutoScaleEvent.DOWN) {
                 result3.complete(null);
             }
+
+            if (event.getScope().equals(SCOPE) &&
+                    event.getStream().equals(STREAM4) &&
+                    event.getDirection() == AutoScaleEvent.UP &&
+                    event.getNumOfSplits() == 2) {
+                result4.complete(null);
+            }
         });
 
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
@@ -86,9 +96,11 @@ public class AutoScaleProcessorTest {
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         String streamSegmentName2 = Segment.getScopedName(SCOPE, STREAM2, 0);
         String streamSegmentName3 = Segment.getScopedName(SCOPE, STREAM3, 0);
+        String streamSegmentName4 = Segment.getScopedName(SCOPE, STREAM4, 0);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
         monitor.notifyCreated(streamSegmentName2, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
         monitor.notifyCreated(streamSegmentName3, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+        monitor.notifyCreated(streamSegmentName4, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
         long twentyminutesback = System.currentTimeMillis() - Duration.ofMinutes(20).toMillis();
         monitor.put(streamSegmentName1, new ImmutablePair<>(twentyminutesback, twentyminutesback));
@@ -102,10 +114,38 @@ public class AutoScaleProcessorTest {
                 twentyminutesback,
                 0.0, 0.0, 0.0, 0.0);
 
+        monitor.report(streamSegmentName4, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
+                twentyminutesback,
+                0.0, 0.0, 10.10, 0.0);
+
         monitor.notifySealed(streamSegmentName1);
         assertTrue(FutureHelpers.await(result));
-        assertTrue(FutureHelpers.await(result));
+        assertTrue(FutureHelpers.await(result2));
         assertTrue(FutureHelpers.await(result3));
+        assertTrue(FutureHelpers.await(result4));
+    }
+
+    @Test(timeout = 10000)
+    public void testCacheExpiry() {
+        CompletableFuture<Void> scaleDownFuture = new CompletableFuture<>();
+
+        AutoScaleProcessor monitor = new AutoScaleProcessor(createWriter(event -> {
+            if (event.getDirection() == AutoScaleEvent.DOWN) {
+                scaleDownFuture.complete(null);
+            } else {
+                scaleDownFuture.completeExceptionally(new RuntimeException());
+            }
+        }), AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
+                .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
+                executor, maintenanceExecutor);
+        String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
+        monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+
+        assertTrue(FutureHelpers.await(scaleDownFuture));
+
+        assertNull(monitor.get(streamSegmentName1));
     }
 
     private EventStreamWriter<AutoScaleEvent> createWriter(Consumer<AutoScaleEvent> consumer) {

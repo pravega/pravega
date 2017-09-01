@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -36,6 +35,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
@@ -443,7 +443,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     @RequiredArgsConstructor
     static class OperationWithCompletion {
         final Operation operation;
-        final CompletableFuture<Long> completion;
+        final CompletableFuture<Void> completion;
 
         @Override
         public String toString() {
@@ -454,7 +454,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         }
 
         static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
-            List<CompletableFuture<Long>> futures = new ArrayList<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
             operations.forEach(oc -> futures.add(oc.completion));
             return FutureHelpers.allOf(futures);
         }

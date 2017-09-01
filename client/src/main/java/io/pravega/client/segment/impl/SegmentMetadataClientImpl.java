@@ -42,7 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 class SegmentMetadataClientImpl implements SegmentMetadataClient {
-    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 6);
+    private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 9, 30000);
 
     private final Segment segmentId;
     private final Controller controller;

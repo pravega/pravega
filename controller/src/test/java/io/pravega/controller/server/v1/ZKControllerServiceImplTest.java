@@ -9,13 +9,16 @@
  */
 package io.pravega.controller.server.v1;
 
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
-import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -32,20 +35,15 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.impl.ModelHelper;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 
@@ -76,8 +74,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         zkClient.start();
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
-        executorService = Executors.newScheduledThreadPool(20,
-                new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);

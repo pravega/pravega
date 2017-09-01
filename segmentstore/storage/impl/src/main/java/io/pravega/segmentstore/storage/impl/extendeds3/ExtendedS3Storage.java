@@ -280,7 +280,7 @@ public class ExtendedS3Storage implements Storage {
         });
         request.setAcl(acl);
 
-        /* TODO: Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
+        /* Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
          * Here is one of the scenarios in which data loss is observed:
          * 1. Host A owns the container and gets a create operation. It has not executed the putObject operation yet.
          * 2. Ownership changes and host B becomes the owner of the container. It picks up putObject from the queue, executes it.
@@ -292,7 +292,13 @@ public class ExtendedS3Storage implements Storage {
          * But this does not work. Currently all the calls to putObject API fail if made with reqest.setIfNoneMatch("*").
          * once the issue with extended S3 API is fixed, addition of this one line will ensure put-if-absent semantics.
          * See: https://github.com/pravega/pravega/issues/1564
+         *
+         * This issue is fixed in some versions of extended S3 implementation. The following code sets the IfNoneMatch
+         * flag based on configuration.
          */
+        if (config.isUseNoneMatch()) {
+            request.setIfNoneMatch("*");
+        }
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);

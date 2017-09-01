@@ -45,7 +45,7 @@ public class ZookeeperTest {
      * The test fails incase zookeeper cannot be accessed
      *
      */
-    @Test
+    @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
         Service zk = new ZookeeperService("zookeeper", 0, 0.0, 0.0);

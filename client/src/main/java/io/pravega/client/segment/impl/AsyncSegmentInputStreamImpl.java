@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
-    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 6);
+    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
     private final ConnectionFactory connectionFactory;
 
     private final Object lock = new Object();
@@ -123,9 +123,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     @Override
     public void close() {
+        log.info("Closing reader for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed.get();
     }
 
     @Override
@@ -162,7 +168,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests);
+        if (closed.get()) {
+            log.info("Closing connection to segment: {}", segmentId);
+        } else {            
+            log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests);
+        }
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;

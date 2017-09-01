@@ -22,6 +22,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -128,7 +129,8 @@ public class PravegaTest {
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        ControllerImpl controller = new ControllerImpl(controllerUri);
+        ControllerImpl controller = new ControllerImpl(controllerUri,
+                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
         assertTrue(controller.createStream(config).get());
@@ -141,7 +143,7 @@ public class PravegaTest {
      * @throws InterruptedException if interrupted
      * @throws URISyntaxException   If URI is invalid
      */
-    @Test
+    @Test(timeout = 10 * 60 * 1000)
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
