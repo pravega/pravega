@@ -29,24 +29,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Stores and Retrieves Segment Attribute values.
  *
- * Each state is represented by two files. At least one of these will always be carrying valid data.
+ * Each state is represented by at most two files. At least one of these will always be carrying valid data.
  *
  * A call to put() will:
  *  1. If more than one statefiles exist:
  *      a. Validate that the latest one has correct data.
  *      b. Delete the older statefile if the latest one has valid data.
- *  2. Create non-existing statefile write state to it.
+ *  2. Create a statefile with the same name as the one deleted and write state to it.
  *  3. Delete the existing statefile.
  *
  *  A call to get() will:
- *  1. Get the latest statefile if more than one statefile exist.
+ *  1. Get the latest statefile.
  *  2. Try to read from it, if this read fails, read from the older statefile.
- *  3. Delete older statefile if more than one statefile exist.
- *  4.
  *
  * <p>
  * Expected concurrency behavior:
@@ -60,6 +59,7 @@ import lombok.SneakyThrows;
  * call to put() has been neutered by the call to remove()).
  * </ul>
  */
+@Slf4j
 class SegmentStateStore implements AsyncMap<String, SegmentState> {
     //region Members
 
@@ -185,24 +185,43 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
 
     @Override
     public CompletableFuture<Void> put(String segmentName, SegmentState state, Duration timeout) {
+        String stateSegment1 = StreamSegmentNameUtils.getFirstStateSegmentName(segmentName);
+        String stateSegment2 = StreamSegmentNameUtils.getSecondStateSegmentName(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         ByteArraySegment toWrite = serialize(state);
 
-        // We need to replace the contents of the Segment. The only way to do that with the Storage API is to
+        // We need to replace the contents of the current statefile Segment.
+        // The only way to do that with the Storage API is to
         // delete the existing segment (if any), then create a new one and write the contents to it.
+        // In case a failover happens and this process is aborted with either no statefile or corrupt data,
+        // we have a backup file with slightly older data.
+
         final String[] stateSegment = new String[1];
-        return this.findInvalidOrOlderState(segmentName, timeout)
-                   .thenComposeAsync( name -> {
-                       stateSegment[0] = name;
-                       return this.storage.openWrite(name);
-                   }, this.executor)
-                   .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                   .exceptionally(this::handleSegmentNotExistsException)
-                   .thenComposeAsync(v -> this.storage.create(stateSegment[0], timer.getRemaining()), this.executor)
-                   .thenComposeAsync(v -> this.storage.openWrite(stateSegment[0]), this.executor)
-                   .thenComposeAsync(
-                        handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
-                        this.executor);
+        CompletableFuture<Void> retVal = this.findInvalidOrOlderState(segmentName, timeout)
+                                             .thenComposeAsync(name -> {
+                                                 stateSegment[0] = name;
+                                                 return this.storage.openWrite(name);
+                                             }, this.executor)
+                                             .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
+                                             .exceptionally(this::handleSegmentNotExistsException)
+                                             .thenComposeAsync(v -> this.storage.create(stateSegment[0], timer.getRemaining()), this.executor)
+                                             .thenComposeAsync(v -> this.storage.openWrite(stateSegment[0]), this.executor)
+                                             .thenComposeAsync(
+                                                     handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
+                                                     this.executor);
+
+        //Schedule the delete of older segment.
+        retVal.thenComposeAsync(v -> {
+                        String toBeDeleted = (stateSegment[0].equals(stateSegment1)) ? stateSegment2 : stateSegment1;
+                        return this.storage.openWrite(toBeDeleted);
+                        }, this.executor)
+                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
+                .exceptionally(e -> {
+                        log.info("Exception while deleting old segment");
+                        return null;
+                });
+
+        return retVal;
     }
 
     @Override
