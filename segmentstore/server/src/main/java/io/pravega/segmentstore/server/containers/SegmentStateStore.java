@@ -22,6 +22,7 @@ import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -143,7 +144,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     @SneakyThrows(Throwable.class)
     private <T> T handleSegmentNotExistsException(Throwable ex) {
         ex = ExceptionHelpers.getRealException(ex);
-        if (ex instanceof StreamSegmentNotExistsException) {
+        if (ex instanceof StreamSegmentNotExistsException || ex instanceof EOFException) {
             // It's ok if the state segment does not exist.
             return null;
         }
