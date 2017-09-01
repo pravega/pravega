@@ -120,20 +120,19 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .exceptionally(this::handleSegmentNotExistsException);
 
         return CompletableFuture.allOf(retVal1, retVal2).thenApplyAsync((v) -> {
-            SegmentState s1 = states[0].join();
-            SegmentState s2 = states[1].join();
+            SegmentState s1 = states[0] == null ? null : states[0].join();
+            SegmentState s2 = states[1] == null ? null : states[1].join();
 
-            assert s1 != null || s2 != null : "No valid segmentstate exists";
             if (s1 == null) {
                 return s2;
             }
             if (s2 == null) {
                 return s1;
             }
-            if (props[0].getLastModified().asDate().compareTo(props[1].getLastModified().asDate()) < 0) {
-                return s2;
-            } else {
+            if (props[0].getLastModified().asDate().compareTo(props[1].getLastModified().asDate()) > 0) {
                 return s1;
+            } else {
+                return s2;
             }
         }, this.executor);
     }
@@ -166,10 +165,9 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .exceptionally(this::handleSegmentNotExistsException);
 
         return CompletableFuture.allOf(retVal1, retVal2).thenApplyAsync((v) -> {
-            SegmentState s1 = states[0].join();
-            SegmentState s2 = states[1].join();
+            SegmentState s1 = states[0] == null ? null : states[0].join();
+            SegmentState s2 = states[1] == null ? null : states[1].join();
 
-            assert s1 != null || s2 != null : "No valid segmentstate exists";
             if (s1 == null) {
                 return stateSegment1;
             }
