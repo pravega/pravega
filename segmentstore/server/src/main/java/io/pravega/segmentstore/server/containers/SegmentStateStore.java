@@ -105,7 +105,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .getStreamSegmentInfo(stateSegment1, timer.getRemaining())
                 .thenComposeAsync(sp -> {
                     props[0] = sp;
-                    states[0] = readSegmentState(sp, timer.getRemaining());
+                    states[0] = readSegmentState(sp, timer.getRemaining())
+                            .exceptionally(this::handleSegmentNotExistsException);
                     return states[0];
                 }, this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
@@ -114,7 +115,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .getStreamSegmentInfo(stateSegment2, timer.getRemaining())
                 .thenComposeAsync(sp -> {
                     props[1] = sp;
-                    states[1] = readSegmentState(sp, timer.getRemaining());
+                    states[1] = readSegmentState(sp, timer.getRemaining())
+                            .exceptionally(this::handleSegmentNotExistsException);
                     return states[1];
                 }, this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
@@ -150,7 +152,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .getStreamSegmentInfo(stateSegment1, timer.getRemaining())
                 .thenComposeAsync(sp -> {
                     props[0] = sp;
-                    states[0] = readSegmentState(sp, timer.getRemaining());
+                    states[0] = readSegmentState(sp, timer.getRemaining())
+                            .exceptionally(this::handleSegmentNotExistsException);
                     return states[0];
                 }, this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
@@ -159,7 +162,8 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .getStreamSegmentInfo(stateSegment2, timer.getRemaining())
                 .thenComposeAsync(sp -> {
                     props[1] = sp;
-                    states[1] = readSegmentState(sp, timer.getRemaining());
+                    states[1] = readSegmentState(sp, timer.getRemaining())
+                            .exceptionally(this::handleSegmentNotExistsException);
                     return states[1];
                 }, this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
