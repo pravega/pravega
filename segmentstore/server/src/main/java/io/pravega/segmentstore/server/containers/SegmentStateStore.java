@@ -163,22 +163,18 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         // we have a backup file with slightly older data.
 
         CompletableFuture<String> currentSegment = this.findInvalidOrOlderState(segmentName, timeout);
-        CompletableFuture<Void> retVal = currentSegment
-                                             .thenApplyAsync(name -> this.removeStateSegment(name, timeout), this.executor)
-                                             .thenComposeAsync(v -> this.storage.create(currentSegment.join(), timer.getRemaining()), this.executor)
-                                             .thenComposeAsync(info -> this.storage.openWrite(info.getName()), this.executor)
-                                             .thenComposeAsync(
-                                                     handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
-                                                     this.executor);
-
-        //Schedule the delete of older segment.
-        retVal.thenComposeAsync(v -> {
-                        String toBeDeleted = (currentSegment.join().equals(stateSegment1)) ? stateSegment2 : stateSegment1;
-                        this.removeStateSegment(toBeDeleted, timeout);
-                        return null;
-                        }, this.executor);
-
-        return retVal;
+        return currentSegment
+                .thenApplyAsync(name -> this.removeStateSegment(name, timeout), this.executor)
+                .thenComposeAsync(v -> this.storage.create(currentSegment.join(), timer.getRemaining()), this.executor)
+                .thenComposeAsync(info -> this.storage.openWrite(info.getName()), this.executor)
+                .thenComposeAsync(
+                        handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
+                        this.executor)
+                .thenComposeAsync(v -> {
+                    //Try to delete the older statefile
+                    String toBeDeleted = (currentSegment.join().equals(stateSegment1)) ? stateSegment2 : stateSegment1;
+                    return this.removeStateSegment(toBeDeleted, timeout);
+                }, this.executor);
     }
 
     @Override
