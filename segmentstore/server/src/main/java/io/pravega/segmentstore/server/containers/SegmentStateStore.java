@@ -28,6 +28,8 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -89,102 +91,62 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
 
     @Override
     public CompletableFuture<SegmentState> get(String segmentName, Duration timeout) {
-        return findLatestValidState(segmentName, timeout);
+        return findLatestValidState(segmentName, timeout)
+                .thenApply( pair -> pair.getRight());
     }
 
-    private CompletableFuture<SegmentState> findLatestValidState(String segmentName, Duration timeout) {
+    private CompletableFuture<Pair<SegmentProperties, SegmentState>> findLatestValidState(String segmentName, Duration timeout) {
         String stateSegment1 = StreamSegmentNameUtils.getFirstStateSegmentName(segmentName);
         String stateSegment2 = StreamSegmentNameUtils.getSecondStateSegmentName(segmentName);
 
-        final CompletableFuture<SegmentState>[] states = new CompletableFuture[2];
-        final SegmentProperties[] props = new SegmentProperties[2];
+        CompletableFuture<Pair<SegmentProperties, CompletableFuture<SegmentState>>> first =  getPropertiesAndState(stateSegment1, timeout);
+        CompletableFuture<Pair<SegmentProperties, CompletableFuture<SegmentState>>> second =  getPropertiesAndState(stateSegment2, timeout);
+        return CompletableFuture.allOf(first, second)
+                .thenApplyAsync( v -> {
+                    SegmentProperties property1 = first.join().getLeft();
+                    SegmentState state1 = first.join().getRight() == null ? null : first.join().getRight().join();
+                    SegmentProperties property2 = second.join().getLeft();
+                    SegmentState state2 = second.join().getRight() == null ? null : second.join().getRight().join();
 
-        TimeoutTimer timer = new TimeoutTimer(timeout);
+                    if (property1 == null) {
+                        return Pair.of(property2, state2);
+                    }
+                    if (property2 == null) {
+                        return Pair.of(property1, state1);
+                    }
+                    if (property1.getLastModified().asDate().compareTo(property2.getLastModified().asDate()) > 0) {
+                        return Pair.of(property1, state1);
+                    } else {
+                        return Pair.of(property2, state2);
+                    }
+                }, this.executor);
+    }
 
-        CompletableFuture<SegmentState> retVal1 = this.storage
-                .getStreamSegmentInfo(stateSegment1, timer.getRemaining())
-                .thenComposeAsync(sp -> {
-                    props[0] = sp;
-                    states[0] = readSegmentState(sp, timer.getRemaining())
-                            .exceptionally(this::handleSegmentNotExistsException);
-                    return states[0];
-                }, this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
-
-        CompletableFuture<SegmentState> retVal2 = this.storage
-                .getStreamSegmentInfo(stateSegment2, timer.getRemaining())
-                .thenComposeAsync(sp -> {
-                    props[1] = sp;
-                    states[1] = readSegmentState(sp, timer.getRemaining())
-                            .exceptionally(this::handleSegmentNotExistsException);
-                    return states[1];
-                }, this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
-
-        return CompletableFuture.allOf(retVal1, retVal2).thenApplyAsync((v) -> {
-            SegmentState s1 = states[0] == null ? null : states[0].join();
-            SegmentState s2 = states[1] == null ? null : states[1].join();
-
-            if (s1 == null) {
-                return s2;
-            }
-            if (s2 == null) {
-                return s1;
-            }
-            if (props[0].getLastModified().asDate().compareTo(props[1].getLastModified().asDate()) > 0) {
-                return s1;
-            } else {
-                return s2;
-            }
-        }, this.executor);
+    private CompletableFuture<Pair<SegmentProperties, CompletableFuture<SegmentState>>> getPropertiesAndState(String stateSegment, Duration timeout) {
+        return this.storage
+                .getStreamSegmentInfo(stateSegment, timeout)
+                .exceptionally(this::handleSegmentNotExistsException)
+                .thenApplyAsync(sp -> {
+                    CompletableFuture<SegmentState> state = null;
+                    if (sp != null) {
+                        state = readSegmentState(sp, timeout)
+                                .exceptionally(this::handleSegmentNotExistsException);
+                    }
+                    return Pair.of(sp, state);
+                }, this.executor);
     }
 
     private CompletableFuture<String> findInvalidOrOlderState(String segmentName, Duration timeout) {
         String stateSegment1 = StreamSegmentNameUtils.getFirstStateSegmentName(segmentName);
         String stateSegment2 = StreamSegmentNameUtils.getSecondStateSegmentName(segmentName);
 
-        final CompletableFuture<SegmentState>[] states = new CompletableFuture[2];
-        final SegmentProperties[] props = new SegmentProperties[2];
-
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        CompletableFuture<SegmentState> retVal1 = this.storage
-                .getStreamSegmentInfo(stateSegment1, timer.getRemaining())
-                .thenComposeAsync(sp -> {
-                    props[0] = sp;
-                    states[0] = readSegmentState(sp, timer.getRemaining())
-                            .exceptionally(this::handleSegmentNotExistsException);
-                    return states[0];
-                }, this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
-
-        CompletableFuture<SegmentState> retVal2 = this.storage
-                .getStreamSegmentInfo(stateSegment2, timer.getRemaining())
-                .thenComposeAsync(sp -> {
-                    props[1] = sp;
-                    states[1] = readSegmentState(sp, timer.getRemaining())
-                            .exceptionally(this::handleSegmentNotExistsException);
-                    return states[1];
-                }, this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
-
-        return CompletableFuture.allOf(retVal1, retVal2).thenApplyAsync((v) -> {
-            SegmentState s1 = states[0] == null ? null : states[0].join();
-            SegmentState s2 = states[1] == null ? null : states[1].join();
-
-            if (s1 == null) {
-                return stateSegment1;
-            }
-            if (s2 == null) {
-                return stateSegment2;
-            }
-            if (props[0].getLastModified().asDate().compareTo(props[1].getLastModified().asDate()) < 0) {
+        return this.findLatestValidState(segmentName, timeout).thenApplyAsync( pair -> {
+            if (pair.getLeft() == null || pair.getLeft().getName().equals(stateSegment2)) {
                 return stateSegment1;
             } else {
                 return stateSegment2;
             }
-        }, this.executor);
-
+        });
     }
 
     @Override
@@ -200,30 +162,21 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         // In case a failover happens and this process is aborted with either no statefile or corrupt data,
         // we have a backup file with slightly older data.
 
-        final String[] stateSegment = new String[1];
-        CompletableFuture<Void> retVal = this.findInvalidOrOlderState(segmentName, timeout)
-                                             .thenComposeAsync(name -> {
-                                                 stateSegment[0] = name;
-                                                 return this.storage.openWrite(name);
-                                             }, this.executor)
-                                             .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                                             .exceptionally(this::handleSegmentNotExistsException)
-                                             .thenComposeAsync(v -> this.storage.create(stateSegment[0], timer.getRemaining()), this.executor)
-                                             .thenComposeAsync(v -> this.storage.openWrite(stateSegment[0]), this.executor)
+        CompletableFuture<String> currentSegment = this.findInvalidOrOlderState(segmentName, timeout);
+        CompletableFuture<Void> retVal = currentSegment
+                                             .thenApplyAsync(name -> this.removeStateSegment(name, timeout), this.executor)
+                                             .thenComposeAsync(v -> this.storage.create(currentSegment.join(), timer.getRemaining()), this.executor)
+                                             .thenComposeAsync(info -> this.storage.openWrite(info.getName()), this.executor)
                                              .thenComposeAsync(
                                                      handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
                                                      this.executor);
 
         //Schedule the delete of older segment.
         retVal.thenComposeAsync(v -> {
-                        String toBeDeleted = (stateSegment[0].equals(stateSegment1)) ? stateSegment2 : stateSegment1;
-                        return this.storage.openWrite(toBeDeleted);
-                        }, this.executor)
-                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
-                .exceptionally(e -> {
-                        log.info("Exception while deleting old segment");
+                        String toBeDeleted = (currentSegment.join().equals(stateSegment1)) ? stateSegment2 : stateSegment1;
+                        this.removeStateSegment(toBeDeleted, timeout);
                         return null;
-                });
+                        }, this.executor);
 
         return retVal;
     }
@@ -232,16 +185,16 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
     public CompletableFuture<Void> remove(String segmentName, Duration timeout) {
         String stateSegment1 = StreamSegmentNameUtils.getFirstStateSegmentName(segmentName);
         String stateSegment2 = StreamSegmentNameUtils.getSecondStateSegmentName(segmentName);
-        CompletableFuture<Void> firstDelete = this.storage
-                .openWrite(stateSegment1)
-                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
-        CompletableFuture<Void> secondDelete = this.storage
-                .openWrite(stateSegment2)
-                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
 
-        return CompletableFuture.allOf(firstDelete, secondDelete);
+        return CompletableFuture.allOf(removeStateSegment(stateSegment1, timeout),
+                removeStateSegment(stateSegment2, timeout));
+    }
+
+    private CompletableFuture<Void> removeStateSegment(String stateSegment, Duration timeout) {
+        return this.storage
+                .openWrite(stateSegment)
+                .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
+                .exceptionally(this::handleSegmentNotExistsException);
     }
 
     //endregion

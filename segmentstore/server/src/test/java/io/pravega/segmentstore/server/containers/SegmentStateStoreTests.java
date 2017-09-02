@@ -17,6 +17,8 @@ import lombok.val;
  * Unit tests for the SegmentStateStore class.
  */
 public class SegmentStateStoreTests extends StateStoreTests {
+    private InMemoryStorage storage;
+
     @Override
     public int getThreadPoolSize() {
         return 5;
@@ -24,8 +26,17 @@ public class SegmentStateStoreTests extends StateStoreTests {
 
     @Override
     protected AsyncMap<String, SegmentState> createStateStore() {
-        val storage = new InMemoryStorage(executorService());
+        storage = new InMemoryStorage(executorService());
         storage.initialize(1);
         return new SegmentStateStore(storage, executorService());
+    }
+
+    @Override
+    public void emptySegment(String segmentName) {
+        String firstStateSegment = segmentName + "$state1";
+        storage.openWrite(firstStateSegment)
+               .thenApply(handle -> storage.delete(handle,null))
+                .thenApply(v -> storage.create(firstStateSegment, null)).join();
+
     }
 }
