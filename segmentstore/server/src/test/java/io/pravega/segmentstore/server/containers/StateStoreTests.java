@@ -137,14 +137,17 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
      * Unit tests for the InMemoryStateStore class.
      */
     public static class InMemoryStateStoreTests extends StateStoreTests {
+        private InMemoryStateStore stateStore = null;
+
         @Override
         protected AsyncMap<String, SegmentState> createStateStore() {
-            return new InMemoryStateStore();
+            stateStore = new InMemoryStateStore();
+            return stateStore;
         }
 
         @Override
         public void emptySegment(String segmentName) {
-           //TODO: implement this.
+            stateStore.remove(segmentName, null);
         }
     }
 
