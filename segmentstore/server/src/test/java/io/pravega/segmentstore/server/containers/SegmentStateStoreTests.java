@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
-import lombok.val;
 
 /**
  * Unit tests for the SegmentStateStore class.
@@ -35,7 +34,7 @@ public class SegmentStateStoreTests extends StateStoreTests {
     public void emptySegment(String segmentName) {
         String firstStateSegment = segmentName + "$state1";
         storage.openWrite(firstStateSegment)
-               .thenApply(handle -> storage.delete(handle,null))
+               .thenApply(handle -> storage.delete(handle, null))
                 .thenApply(v -> storage.create(firstStateSegment, null)).join();
 
     }
