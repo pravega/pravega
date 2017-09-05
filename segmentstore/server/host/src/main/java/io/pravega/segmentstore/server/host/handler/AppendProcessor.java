@@ -270,24 +270,24 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         if (u instanceof StreamSegmentExistsException) {
-            log.info("Segment '{}' already exists and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.warn("Segment '{}' already exists and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.info("Segment '{}' does not exist and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info("Segment '{}' does not exist and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new SegmentIsSealed(requestId, segment));
-            log.info("Segment '{}' is sealed and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.info("Segment '{}' is sealed and {} cannot perform operation '{}'", segment, writerId, doingWhat);
         } else if (u instanceof WrongHostException) {
-            log.info("Wrong host. Segment '{}' is not owned and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         } else if (u instanceof ContainerNotFoundException) {
-            log.info("Wrong host. Segment '{}' is not owned and {} cannot perfrom operation '{}'", segment, writerId, doingWhat);
+            log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof BadAttributeUpdateException) {
-            log.info("Bad attribute update by {} on segment {} ", writerId, segment);
+            log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
         } else {

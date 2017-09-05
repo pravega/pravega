@@ -358,20 +358,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         if (u instanceof StreamSegmentExistsException) {
-            log.info("Segment '{}' already exists and cannot perfrom operation '{}'", segment, operation);
+            log.info("Segment '{}' already exists and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.info("Segment '{}' does not exist and cannot perfrom operation '{}'", segment, operation);
+            log.warn("Segment '{}' does not exist and cannot perform operation '{}'", segment, operation);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info("Segment '{}' is sealed and cannot perfrom operation '{}'", segment, operation);
+            log.info("Segment '{}' is sealed and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
-            log.info("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         }  else if (u instanceof ContainerNotFoundException) {
-            log.info("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
             log.info("Closing connection {} while perfroming {} due to {} ", connection, operation, u.getMessage());
