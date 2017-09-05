@@ -58,7 +58,6 @@ project('common') {
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
@@ -82,6 +81,7 @@ project ('shared') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         testCompile project(':test:testcommon')
     }
     javadoc {
