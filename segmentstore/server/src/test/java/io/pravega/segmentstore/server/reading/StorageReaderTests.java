@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -247,13 +247,13 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            throw new NotImplementedException();
+            throw new NotImplementedException("getStreamSegmentInfo");
         }
 
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
             // This method is not needed.
-            throw new NotImplementedException();
+            throw new NotImplementedException("exists");
         }
     }
 }

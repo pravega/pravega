@@ -62,7 +62,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -727,37 +726,37 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public void initialize(long epoch) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
