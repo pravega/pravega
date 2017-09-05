@@ -302,7 +302,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             String segment = noSuchSegment.getSegment();
             checkArgument(segmentName.equals(segment), "Wrong segment name %s, %s", segmentName, segment);
-            log.info("Segment being written to {} no longer exists failing all writes", segment);
+            log.info("Segment being written to {} no longer exists. Failing all writes", segment);
             state.setClosed(true);
             ClientConnection connection = state.getConnection();
             if (connection != null) {
