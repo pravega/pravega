@@ -24,13 +24,13 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
     }
 
     @Override
-    public final void ProcessHealthRequest(OutputStream writer, String target, String cmd) throws IOException {
+    public final void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException {
             findProcessor(target).executeHealthRequest(cmd, new DataOutputStream(writer));
     }
 
     private HealthReporter findProcessor(String target) throws NoSuchHealthProcessor {
         HealthReporter looper = root;
-        int separatorIndex = -1;
+        int separatorIndex;
         do {
             separatorIndex = target.indexOf(PROCESSOR_SEPARATOR);
             if (separatorIndex == -1) {
@@ -43,7 +43,6 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
                 looper = looper.getChild(target.substring(0, separatorIndex));
                 target = target.substring(separatorIndex);
             }
-        } while (separatorIndex != -1);
-        throw new NoSuchHealthProcessor(target);
+        } while (true);
     }
 }

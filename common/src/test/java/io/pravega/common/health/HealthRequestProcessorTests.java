@@ -24,15 +24,15 @@ public class HealthRequestProcessorTests {
         HealthReporterImpl root = new TestHealthReporterImpl("root", new String[]{"hi"});
         HealthRequestProcessorImpl processor = new HealthRequestProcessorImpl(root);
         ByteArrayOutputStream writer = new ByteArrayOutputStream();
-        processor.ProcessHealthRequest(writer, "root", "hi");
+        processor.processHealthRequest(writer, "root", "hi");
         Assert.assertEquals("A simple command not returned properly", writer.toString(), "hello");
 
         AssertExtensions.assertThrows("Should throw exception on non-existent command",
-                () -> processor.ProcessHealthRequest(writer, "root", "wrong"),
+                () -> processor.processHealthRequest(writer, "root", "wrong"),
                 ex -> ex instanceof NoSuchHealthCommand);
 
         AssertExtensions.assertThrows("Should throw exception on non-existent processor",
-                () -> processor.ProcessHealthRequest(writer, "wrong", "wrong"),
+                () -> processor.processHealthRequest(writer, "wrong", "wrong"),
                 ex -> ex instanceof NoSuchHealthProcessor);
     }
 

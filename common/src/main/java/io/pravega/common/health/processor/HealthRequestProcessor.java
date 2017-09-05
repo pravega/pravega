@@ -25,5 +25,5 @@ public abstract class HealthRequestProcessor {
         this.root = root;
     }
 
-    public abstract void ProcessHealthRequest(OutputStream writer, String target, String cmd) throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand;
+    public abstract void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand;
 }

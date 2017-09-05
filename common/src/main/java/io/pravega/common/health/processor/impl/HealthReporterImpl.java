@@ -15,6 +15,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -60,10 +61,9 @@ public abstract class HealthReporterImpl extends HealthReporter {
         }
     }
 
-
     @Override
-    public String[] listChildren() {
-        return (String[]) children.keySet().toArray();
+    public Set<String> listChildren() {
+        return children.keySet();
     }
 
     @Override

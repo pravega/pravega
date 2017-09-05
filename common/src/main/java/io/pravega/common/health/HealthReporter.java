@@ -11,6 +11,7 @@ package io.pravega.common.health;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Represents an hierarchical entity which can report its health.
@@ -34,7 +35,7 @@ public abstract class HealthReporter {
      * Gets a list of children.
      * @return
      */
-    public abstract String[] listChildren();
+    public abstract Set<String> listChildren();
 
     /**
      * Returns a reporter with a given id.
