@@ -49,17 +49,23 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         Work work = new Work(streamEvent, result);
         String key = streamEvent.getKey();
 
+        final ConcurrentLinkedQueue<Work> queue;
+
         synchronized (lock) {
             if (workers.containsKey(key)) {
                 workers.get(key).add(work);
+                queue = null;
             } else {
-                ConcurrentLinkedQueue<Work> queue = new ConcurrentLinkedQueue<>();
+                queue = new ConcurrentLinkedQueue<>();
                 queue.add(work);
                 workers.put(key, queue);
-                // Start work processing asynchronously and release the lock.
-                executor.execute(() -> run(key, queue));
             }
         }
+
+        if (queue != null) {
+            executor.execute(() -> run(key, queue));
+        }
+
         return result;
     }
 
