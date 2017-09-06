@@ -62,7 +62,8 @@ class GetInfoOperation extends FileSystemOperation<String> implements Callable<S
                 throw fnf;
             }
 
-            result = new StreamSegmentInformation(segmentName, length, isSealed, false, new ImmutableDate());
+            result = new StreamSegmentInformation(segmentName, length, isSealed, false,
+                    new ImmutableDate(findAllRaw(segmentName)[0].getModificationTime()));
         } while (result == null);
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, segmentName, result);
         return result;

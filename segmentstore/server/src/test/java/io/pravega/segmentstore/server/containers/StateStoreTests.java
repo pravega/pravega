@@ -30,7 +30,7 @@ import org.junit.rules.Timeout;
  * Defines tests for a generic State Store (AsyncMap(String, SegmentState))
  */
 public abstract class StateStoreTests extends ThreadPooledTestSuite {
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration TIMEOUT = Duration.ofSeconds(10000);
     private static final int ATTRIBUTE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -99,6 +99,22 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the get() after a corrupt put().
+     */
+    @Test
+    public void testGetAfterCorruptPut() throws Exception {
+        final String segmentName = "foo";
+        final SegmentState state1 = createState(segmentName);
+        val ss = createStateStore();
+
+        ss.put(segmentName, state1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        this.emptySegment(segmentName);
+
+        val deserialized = ss.get(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        Assert.assertNull("Corrupt state should be discarded", deserialized);
+    }
     //endregion
 
     protected abstract AsyncMap<String, SegmentState> createStateStore();
@@ -113,15 +129,25 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
                 new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate()));
     }
 
+    public abstract void emptySegment(String segmentName);
+
     //region InMemoryStateStoreTests
 
     /**
      * Unit tests for the InMemoryStateStore class.
      */
     public static class InMemoryStateStoreTests extends StateStoreTests {
+        private InMemoryStateStore stateStore = null;
+
         @Override
         protected AsyncMap<String, SegmentState> createStateStore() {
-            return new InMemoryStateStore();
+            stateStore = new InMemoryStateStore();
+            return stateStore;
+        }
+
+        @Override
+        public void emptySegment(String segmentName) {
+            stateStore.remove(segmentName, null);
         }
     }
 

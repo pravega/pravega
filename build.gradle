@@ -203,6 +203,7 @@ project('segmentstore:server') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3ControllerContractVersion
         testCompile project(':test:testcommon')
     }
 }
