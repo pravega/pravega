@@ -184,7 +184,7 @@ public class ControllerFailoverTest {
         // Scale operation should now complete on the second controller instance.
         // Note: if scale does not complete within desired time, test will timeout. 
         while (!scaleStatus) {
-            scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
+            scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
             Thread.sleep(30000);
         }
 
