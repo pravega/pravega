@@ -83,7 +83,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
-    private final RequestHandlerMultiplexer requestHandler;
+    private final RequestHandlerMultiplexer requestHandlerMultiplexer;
+    private final CommitEventProcessor commitEventProcessor;
+    private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -123,9 +125,13 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
-        this.requestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
-                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
-
+        this.requestHandlerMultiplexer = new RequestHandlerMultiplexer(
+                new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
+                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor), executor);
+        this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
+        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
         this.executor = executor;
     }
 
@@ -356,7 +362,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new ConcurrentEventProcessor<>(abortRequestHandler, executor))
                         .build();
 
         log.info("Creating abort event processors");
@@ -384,9 +390,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(requestReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(CONTROLLER_EVENT_SERIALIZER)
-                        .supplier(() -> new ConcurrentEventProcessor<>(
-                                requestHandler,
-                                executor))
+                        .supplier(() -> new ConcurrentEventProcessor<>(requestHandlerMultiplexer, executor))
                         .build();
 
         log.info("Creating request event processors");

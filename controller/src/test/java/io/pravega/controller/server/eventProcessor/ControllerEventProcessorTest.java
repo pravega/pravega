@@ -148,9 +148,9 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
-        AbortEventProcessor abortEventProcessor = new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
+        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor,
                 segmentHelperMock, null);
-        abortEventProcessor.process(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
+        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 
