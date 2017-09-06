@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -20,7 +19,6 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.stream.Position;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +35,7 @@ import java.util.stream.Collectors;
  * 2. Change txn state from aborting to aborted.
  */
 @Slf4j
-public class AbortEventProcessor extends EventProcessor<AbortEvent> {
+public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final HostControllerStore hostControllerStore;
@@ -47,13 +45,14 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     private final BlockingQueue<AbortEvent> processedEvents;
 
     @VisibleForTesting
-    public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+    public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
                                final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory,
                                final BlockingQueue<AbortEvent> queue) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
@@ -63,12 +62,13 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         this.processedEvents = queue;
     }
 
-    public AbortEventProcessor(final StreamMetadataStore streamMetadataStore,
+    public AbortRequestHandler(final StreamMetadataStore streamMetadataStore,
                                final StreamMetadataTasks streamMetadataTasks,
                                final HostControllerStore hostControllerStore,
                                final ScheduledExecutorService executor,
                                final SegmentHelper segmentHelper,
                                final ConnectionFactory connectionFactory) {
+        super(executor);
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.hostControllerStore = hostControllerStore;
@@ -79,7 +79,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
     }
 
     @Override
-    protected void process(AbortEvent event, Position position) {
+    protected CompletableFuture<Void> processEvent(AbortEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();
@@ -87,7 +87,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
+        return streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
                 .thenCompose(segments ->
                         FutureHelpers.allOfWithResults(
                                 segments.stream()
@@ -107,7 +107,7 @@ public class AbortEventProcessor extends EventProcessor<AbortEvent> {
                             processedEvents.offer(event);
                         }
                     }
-                }).join();
+                });
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyAbortToHost(final String scope, final String stream, final int segmentNumber, final UUID txId) {

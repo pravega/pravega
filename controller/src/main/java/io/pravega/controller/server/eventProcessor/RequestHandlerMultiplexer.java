@@ -12,19 +12,26 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 @Slf4j
-@Data
-public class RequestHandlerMultiplexer implements RequestHandler<ControllerEvent> {
+public class RequestHandlerMultiplexer extends SerializedRequestHandler<ControllerEvent> {
     private final AutoScaleRequestHandler autoScaleRequestHandler;
     private final ScaleOperationRequestHandler scaleOperationRequestHandler;
 
+    public RequestHandlerMultiplexer(final AutoScaleRequestHandler autoScaleRequestHandler,
+                                     final ScaleOperationRequestHandler scaleOperationRequestHandler,
+                                     ExecutorService executor) {
+        super(executor);
+        this.autoScaleRequestHandler = autoScaleRequestHandler;
+        this.scaleOperationRequestHandler = scaleOperationRequestHandler;
+    }
+
     @Override
-    public CompletableFuture<Void> process(ControllerEvent controllerEvent) {
+    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
         if (controllerEvent instanceof AutoScaleEvent) {
             return autoScaleRequestHandler.process((AutoScaleEvent) controllerEvent);
         }
