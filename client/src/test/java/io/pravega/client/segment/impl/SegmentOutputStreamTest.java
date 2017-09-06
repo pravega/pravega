@@ -680,7 +680,7 @@ public class SegmentOutputStreamTest {
         output.reconnect();
         verify(connection).send(new SetupAppend(1, cid, SEGMENT));
 
-        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate a connection dropped
+        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate segment does not exist
         verify(connection).close();
         
         //With an inflight event.
@@ -694,7 +694,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent("RoutingKey", ByteBuffer.wrap(new byte[] { 1, 2, 3 }), ack));
         assertFalse(ack.isDone());
 
-        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate a connection dropped
+        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate segment does not exist
         verify(connection).close();
         assertTrue(ack.isCompletedExceptionally());
         assertTrue(FutureHelpers.getException(ack) instanceof NoSuchSegmentException);
