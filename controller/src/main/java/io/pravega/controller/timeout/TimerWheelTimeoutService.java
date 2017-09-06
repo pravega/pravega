@@ -141,9 +141,8 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             this.timeout = hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
         }
 
-        public TxnData updateLease(final String scope, final String stream, final UUID txnId, final long lease) {
-            return new TxnData(scope, stream, txnId, this.version, lease,
-                    this.maxExecutionTimeExpiry, this.scaleGracePeriod);
+        public TxnData updateLease(final String scope, final String stream, final UUID txnId, int version, final long lease) {
+            return new TxnData(scope, stream, txnId, version, lease, this.maxExecutionTimeExpiry, this.scaleGracePeriod);
         }
     }
 
@@ -209,7 +208,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease) {
+    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease) {
 
         if (!this.isRunning()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build();
@@ -219,6 +218,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         Preconditions.checkState(map.containsKey(key), "Stream not found in the map");
 
         final TxnData txnData = map.get(key);
+
+        if (txnData == null) {
+            throw new IllegalStateException(String.format("Transaction %s not added to timerWheelTimeoutService", txnId));
+        }
 
         if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build();
@@ -230,7 +233,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             Timeout timeout = txnData.getTimeout();
             boolean cancelSucceeded = timeout.cancel();
             if (cancelSucceeded) {
-                TxnData newTxnData = txnData.updateLease(scope, stream, txnId, lease);
+                TxnData newTxnData = txnData.updateLease(scope, stream, txnId, version, lease);
                 map.replace(key, txnData, newTxnData);
                 return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
             } else {
