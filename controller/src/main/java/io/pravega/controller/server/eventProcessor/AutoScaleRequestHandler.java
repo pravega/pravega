@@ -57,6 +57,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
         this.executor = executor;
     }
 
+    @Override
     public CompletableFuture<Void> process(final AutoScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
