@@ -128,10 +128,7 @@ public class StreamSegmentMapper {
             return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
         }
 
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        CompletableFuture<Void> result = this.storage
-                .create(streamSegmentName, timer.getRemaining())
-                .thenComposeAsync(si -> this.stateStore.put(streamSegmentName, getState(si, attributes), timer.getRemaining()), this.executor);
+        CompletableFuture<Void> result = createSegmentInStorageWithRecovery(streamSegmentName, attributes, new TimeoutTimer(timeout));
         if (log.isTraceEnabled()) {
             result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "createNewStreamSegment", traceId, streamSegmentName));
         }
@@ -180,12 +177,86 @@ public class StreamSegmentMapper {
 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentStreamSegmentName, transactionId);
         return parentCheck
-                .thenComposeAsync(parentId -> this.storage.create(transactionName, timer.getRemaining()), this.executor)
-                .thenComposeAsync(transInfo -> this.stateStore.put(transInfo.getName(), getState(transInfo, attributes), timer.getRemaining()), this.executor)
+                .thenComposeAsync(parentId -> createSegmentInStorageWithRecovery(transactionName, attributes, timer), this.executor)
                 .thenApply(v -> {
                     LoggerHelpers.traceLeave(log, traceObjectId, "createNewTransactionStreamSegment", traceId, parentStreamSegmentName, transactionName);
                     return transactionName;
                 });
+    }
+
+    /**
+     * Attempts to create the given Segment (or Transaction) in Storage, with possible recovery from a previous incomplete
+     * attempt. When this method completes successfully, the Storage will have the Segment created, as well as a State File
+     * with the appropriate contents.
+     * <p>
+     * The recovery part handles these three major cases:
+     * <ul>
+     * <li>Segment exists and has a valid State File: the operation will fail with StreamSegmentExistsException.
+     * <li>Segment exists, has a length of zero, and a missing or invalid State File: the state file will be recreated using
+     * the given attributes and the operation will complete successfully (pending a successful State File creation).
+     * <li>Segment exists, has a non-zero length, and either a valid or invalid/missing State File: the state file will be
+     * recreated (if needed) using the given attributes and the operation will fail with StreamSegmentExistsException.
+     * </ul>
+     *
+     * @param segmentName The name of the Segment/Transaction to create.
+     * @param attributes  The initial Attributes for the Segment, if any.
+     * @param timer       A TimeoutTimer to determine how much time is left to complete the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
+     */
+    private CompletableFuture<Void> createSegmentInStorageWithRecovery(String segmentName, Collection<AttributeUpdate> attributes, TimeoutTimer timer) {
+        return FutureHelpers
+                .exceptionallyCompose(
+                        this.storage.create(segmentName, timer.getRemaining()),
+                        ex -> handleStorageCreateException(segmentName, ExceptionHelpers.getRealException(ex), timer))
+                .thenComposeAsync(si ->
+                                // Need to create the state file before we throw any further exceptions in order to recover from
+                                // previous partial executions (where we created a segment but no or empty state file).
+                                this.stateStore.put(segmentName, getState(si, attributes), timer.getRemaining())
+                                               .thenRun(() -> {
+                                                   if (si.getLength() > 0) {
+                                                       throw new CompletionException(new StreamSegmentExistsException(segmentName));
+                                                   }
+                                               }),
+                        this.executor);
+    }
+
+    /**
+     * Exception handler in the case when a Segment/Transaction fails to be created in Storage. This only handles
+     * StreamSegmentExistsException; all other exceptions are "bubbled" up automatically.
+     * <p>
+     * This method simply checks the integrity of the State File; if it exists and is valid, then the Segment is considered
+     * fully created and the original exception is bubbled up. If the State File does not exist or it is not valid, then
+     * the most up-to-date information about the segment is returned (as it exists in Storage).
+     *
+     * @param segmentName       The name of the Segment/Transaction involved.
+     * @param originalException The exception that triggered this.
+     * @param timer             A TimeoutTimer to determine how much time is left to complete the operation.
+     * @return A CompletableFuture that, when completed normally, will contain information about the Segment. If the Segment
+     * already exists or another error happened, this will be completed with the appropriate exception.
+     */
+    private CompletableFuture<SegmentProperties> handleStorageCreateException(String segmentName, Throwable originalException, TimeoutTimer timer) {
+        if (!(originalException instanceof StreamSegmentExistsException)) {
+            // Some other kind of exception that we can't handle here.
+            return FutureHelpers.failedFuture(originalException);
+        }
+
+        return this.stateStore
+                .get(segmentName, timer.getRemaining())
+                .exceptionally(ex -> {
+                    // Segment exists, but the State File is missing or corrupt. We have the data needed to rebuild it,
+                    // so ignore any exceptions coming this way.
+                    log.warn("{}: Missing or corrupt State File for existing Segment '{}'; recreating.", this.traceObjectId, segmentName, ex);
+                    return null;
+                })
+                .thenComposeAsync(s -> {
+                    if (s == null) {
+                        // Segment exists, but no (or corrupted) State File - move on.
+                        return this.storage.getStreamSegmentInfo(segmentName, timer.getRemaining());
+                    } else {
+                        // Both Segment and State File exist; nothing to rebuild, so re-throw original exception.
+                        return FutureHelpers.failedFuture(originalException);
+                    }
+                }, this.executor);
     }
 
     //endregion

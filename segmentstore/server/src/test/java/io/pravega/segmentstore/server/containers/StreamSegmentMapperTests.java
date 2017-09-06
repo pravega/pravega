@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.ImmutableDate;
@@ -37,6 +38,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -50,12 +52,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -113,43 +117,62 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if there are Storage and/or OperationLog Failures.
+     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if the Segment already exists (partially
+     * or fully).
      */
     @Test
-    public void testCreateNewStreamSegmentWithFailures() {
+    public void testCreateSegmentAlreadyExists() {
+        final String segmentName = "NewSegment";
+        testCreateAlreadyExists(segmentName, (mapper, attributes) -> mapper.createNewStreamSegment(segmentName, attributes, TIMEOUT));
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentMapper to create a new Transaction if the Transaction already exists (partially
+     * or fully).
+     */
+    @Test
+    public void testCreateTransactionAlreadyExists() {
+        final String parentSegmentName = "NewSegment";
+        final UUID txnId = UUID.randomUUID();
+        final String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentSegmentName, txnId);
+        testCreateAlreadyExists(
+                txnName,
+                (mapper, attributes) ->
+                        // Create Parent if not exists.
+                        mapper.createNewStreamSegment(parentSegmentName, null, TIMEOUT)
+                              .exceptionally(ex -> {
+                                  if (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentExistsException) {
+                                      return null;
+                                  }
+                                  throw new CompletionException(ex);
+                              })
+                              .thenCompose(v -> mapper.createNewTransactionStreamSegment(parentSegmentName, txnId, attributes, TIMEOUT))
+        );
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if there are Storage and/or OperationLog Failures.
+     * This tests failures other than StreamSegmentExistsException, which is handled in a different test.
+     */
+    @Test
+    public void testCreateSegmentWithFailures() {
         final String segmentName = "NewSegment";
 
         @Cleanup
         TestContext context = new TestContext();
 
-        // 1. Create fails with StreamSegmentExistsException.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
-        AssertExtensions.assertThrows(
-                "createNewStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
-                ex -> ex instanceof StreamSegmentExistsException);
-
-        // 2. Create fails with random exception.
+        // 1. Segment.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
-        // Manually create the StreamSegment and test the Transaction creation.
-
-        // 3. Create-Transaction fails with StreamSegmentExistsException.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
+        // 2. Transaction.
+        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         setupStorageGetHandler(context,
                 Collections.singleton(segmentName),
                 name -> new StreamSegmentInformation(name, 0, false, false, new ImmutableDate()));
-        AssertExtensions.assertThrows(
-                "createNewTransactionStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
-                ex -> ex instanceof StreamSegmentExistsException);
-
-        // 4. Create-Transaction fails with random exception.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
@@ -477,6 +500,71 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected result from thirdCall.", thirdResult, thirdCall.join());
         val expectedOrder = Arrays.asList(1, 2, 3);
         AssertExtensions.assertListEquals("", expectedOrder, invocationOrder, Integer::equals);
+    }
+
+    /**
+     * General test for verifying behavior when a Segment/Transaction is attempted to be created but it already exists.
+     *
+     * @param segmentName   The name of the segment/transaction to create.
+     * @param createSegment A BiFunction that is given an instance of a StreamSegmentMapper and a Collection of AttributeUpdates
+     *                      that, when invoked, will create the given segment.
+     */
+    private void testCreateAlreadyExists(String segmentName, BiFunction<StreamSegmentMapper, Collection<AttributeUpdate>, CompletableFuture<?>> createSegment) {
+        final String stateSegmentName = StreamSegmentNameUtils.getStateSegmentName(segmentName);
+        final Map<UUID, Long> correctAttributes = Collections.singletonMap(UUID.randomUUID(), 123L);
+        final Collection<AttributeUpdate> correctAttributeUpdates =
+                correctAttributes.entrySet().stream()
+                                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                                 .collect(Collectors.toList());
+        final Map<UUID, Long> badAttributes = Collections.singletonMap(UUID.randomUUID(), 456L);
+        final Collection<AttributeUpdate> badAttributeUpdates =
+                badAttributes.entrySet().stream()
+                             .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                             .collect(Collectors.toList());
+
+        @Cleanup
+        TestContext context = new TestContext();
+        @Cleanup
+        val storage = new InMemoryStorage();
+        storage.initialize(1);
+        val store = new SegmentStateStore(storage, executorService());
+        val mapper = new StreamSegmentMapper(context.metadata, context.operationLog, store, context.noOpMetadataCleanup, storage, executorService());
+
+        // 1. Segment Exists, and so does State File (and it's not corrupted) -> Exception must be bubbled up.
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        AssertExtensions.assertThrows(
+                "createNewStreamSegment did not fail when Segment already exists.",
+                () -> createSegment.apply(mapper, badAttributeUpdates),
+                ex -> ex instanceof StreamSegmentExistsException);
+        val state1 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate correctly created segment",
+                correctAttributes, state1.getAttributes());
+
+        // 2. Segment Exists, but with empty/corrupted State File: State file re-created & no exception bubbled up.
+        storage.openWrite(stateSegmentName)
+               .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+               .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+               .join();
+        Assert.assertNull("Expected a null SegmentState.", store.get(segmentName, TIMEOUT).join());
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        val state2 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (missing state file)",
+                correctAttributes, state2.getAttributes());
+
+        // 3. Segment Exists with non-zero length, but with empty/corrupted State File: State File re-created and exception thrown.
+        storage.openWrite(stateSegmentName)
+               .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+               .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+               .thenCompose(v -> storage.openWrite(segmentName))
+               .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
+               .join();
+        AssertExtensions.assertThrows(
+                "createNewStreamSegment did not fail when Segment already exists (non-zero length, missing state file).",
+                () -> createSegment.apply(mapper, correctAttributeUpdates),
+                ex -> ex instanceof StreamSegmentExistsException);
+        val state3 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate segment with non-zero length",
+                correctAttributes, state3.getAttributes());
     }
 
     private String getName(long segmentId) {

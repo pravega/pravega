@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -67,6 +66,33 @@ public class FutureHelpersTests {
         cf.completeExceptionally(ex);
         Assert.assertNotNull("exceptionListener did not invoke the callback when the future was completed exceptionally.", thrownException.get());
         Assert.assertEquals("Unexpected exception was passed to the callback from exceptionListener when the future was completed exceptionally.", ex, thrownException.get());
+    }
+
+    /**
+     * Tests the exceptionallyCompose method.
+     */
+    @Test
+    public void testExceptionallyCompose() {
+        // When applied to a CompletableFuture that completes normally.
+        val successfulFuture = new CompletableFuture<Integer>();
+        val f1 = FutureHelpers.exceptionallyCompose(successfulFuture, ex -> CompletableFuture.completedFuture(2));
+        successfulFuture.complete(1);
+        Assert.assertEquals("Unexpected completion value for successful future.", 1, (int) f1.join());
+
+        // When applied to a CompletableFuture that completes exceptionally.
+        val failedFuture = new CompletableFuture<Integer>();
+        val f2 = FutureHelpers.exceptionallyCompose(failedFuture, ex -> CompletableFuture.completedFuture(2));
+        failedFuture.completeExceptionally(new IntentionalException());
+        Assert.assertEquals("Unexpected completion value for failed future that handled the exception.", 2, (int) f2.join());
+
+        // When applied to a CompletableFuture that completes exceptionally and the handler also throws.
+        val f3 = FutureHelpers.exceptionallyCompose(failedFuture, ex -> {
+            throw new IntentionalException();
+        });
+        AssertExtensions.assertThrows(
+                "Unexpected completion for failed future whose handler also threw an exception.",
+                () -> f3,
+                ex -> ex instanceof IntentionalException);
     }
 
     /**
