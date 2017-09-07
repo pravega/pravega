@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.stream.Collectors;
@@ -27,6 +28,8 @@ import org.junit.Test;
  * Unit tests for the ProcessStarter class.
  */
 public class ProcessStarterTests {
+    private static final String PREFIX_OUT = "out";
+    private static final String PREFIX_ERR = "err";
     private static final Object[] ARGS = new Object[]{ 1, true, "hello" };
     private static final Map.Entry<String, String> SYS_PROP = new AbstractMap.SimpleImmutableEntry<>("sp", "spv");
     private static final Map.Entry<String, String> ENV_VAR = new AbstractMap.SimpleImmutableEntry<>("ev", "evvv");
@@ -69,19 +72,21 @@ public class ProcessStarterTests {
         int r = Exceptions.<Exception, Integer>handleInterrupted(p::waitFor);
         Assert.assertEquals("Unexpected response code.", 0, r);
 
-        String[] stdOut = readFile(this.stdOutFile);
-        Assert.assertEquals("Unexpected args output to StdOut.", formatArgs("out", ARGS), stdOut[0]);
-        Assert.assertEquals("Unexpected sysProp output to StdOut.", formatSysProp("out", SYS_PROP.getKey(), SYS_PROP.getValue()), stdOut[1]);
-        Assert.assertEquals("Unexpected envVar output to StdOut.", formatEnvVar("out", ENV_VAR.getKey(), ENV_VAR.getValue()), stdOut[2]);
+        List<String> stdOut = readFile(this.stdOutFile);
+        Assert.assertEquals("Unexpected args output to StdOut.", formatArgs(PREFIX_OUT, ARGS), stdOut.get(0));
+        Assert.assertEquals("Unexpected sysProp output to StdOut.", formatSysProp(PREFIX_OUT, SYS_PROP.getKey(), SYS_PROP.getValue()), stdOut.get(1));
+        Assert.assertEquals("Unexpected envVar output to StdOut.", formatEnvVar(PREFIX_OUT, ENV_VAR.getKey(), ENV_VAR.getValue()), stdOut.get(2));
 
-        String[] stdErr = readFile(this.stdErrFile);
-        Assert.assertEquals("Unexpected args output to StdErr.", formatArgs("err", ARGS), stdErr[0]);
-        Assert.assertEquals("Unexpected sysProp output to StdErr.", formatSysProp("err", SYS_PROP.getKey(), SYS_PROP.getValue()), stdErr[1]);
-        Assert.assertEquals("Unexpected envVar output to StdErr.", formatEnvVar("err", ENV_VAR.getKey(), ENV_VAR.getValue()), stdErr[2]);
+        List<String> stdErr = readFile(this.stdErrFile);
+        Assert.assertEquals("Unexpected args output to StdErr.", formatArgs(PREFIX_ERR, ARGS), stdErr.get(0));
+        Assert.assertEquals("Unexpected sysProp output to StdErr.", formatSysProp(PREFIX_ERR, SYS_PROP.getKey(), SYS_PROP.getValue()), stdErr.get(1));
+        Assert.assertEquals("Unexpected envVar output to StdErr.", formatEnvVar(PREFIX_ERR, ENV_VAR.getKey(), ENV_VAR.getValue()), stdErr.get(2));
     }
 
-    private String[] readFile(File f) throws IOException {
-        return new Scanner(f).useDelimiter("\\Z'").next().split(System.lineSeparator());
+    private List<String> readFile(File f) throws IOException {
+        return Arrays.stream(new Scanner(f).useDelimiter("\\Z'").next().split(System.lineSeparator()))
+                .filter(s -> s.startsWith(PREFIX_OUT) || s.startsWith(PREFIX_ERR))
+                .collect(Collectors.toList());
     }
 
     private static String formatSysProp(String prefix, String key, String value) {
@@ -102,13 +107,17 @@ public class ProcessStarterTests {
      * Main method is required for proper testing in this class. Do not delete.
      */
     public static void main(String[] args) {
-        System.out.println(formatArgs("out", args));
-        System.err.println(formatArgs("err", args));
+        // Print out some dummy text. This ensures that our testing code ignores whatever else the environment throws at us.
+        System.out.println("This line to be ignored");
+        System.err.println("This line to be ignored");
 
-        System.out.println(formatSysProp("out", SYS_PROP.getKey(), System.getProperty(SYS_PROP.getKey())));
-        System.err.println(formatSysProp("err", SYS_PROP.getKey(), System.getProperty(SYS_PROP.getKey())));
+        System.out.println(formatArgs(PREFIX_OUT, args));
+        System.err.println(formatArgs(PREFIX_ERR, args));
 
-        System.out.println(formatEnvVar("out", ENV_VAR.getKey(), System.getenv(ENV_VAR.getKey())));
-        System.err.println(formatEnvVar("err", ENV_VAR.getKey(), System.getenv(ENV_VAR.getKey())));
+        System.out.println(formatSysProp(PREFIX_OUT, SYS_PROP.getKey(), System.getProperty(SYS_PROP.getKey())));
+        System.err.println(formatSysProp(PREFIX_ERR, SYS_PROP.getKey(), System.getProperty(SYS_PROP.getKey())));
+
+        System.out.println(formatEnvVar(PREFIX_OUT, ENV_VAR.getKey(), System.getenv(ENV_VAR.getKey())));
+        System.err.println(formatEnvVar(PREFIX_ERR, ENV_VAR.getKey(), System.getenv(ENV_VAR.getKey())));
     }
 }

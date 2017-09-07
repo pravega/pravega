@@ -84,10 +84,10 @@ public final class FutureHelpers {
      *                       of the Future from futureSupplier.
      * @param <T>            Return type of Future.
      */
-    public static <T> void completeAfter(Supplier<CompletableFuture<T>> futureSupplier, CompletableFuture<T> toComplete) {
+    public static <T> void completeAfter(Supplier<CompletableFuture<? extends T>> futureSupplier, CompletableFuture<T> toComplete) {
         Preconditions.checkArgument(!toComplete.isDone(), "toComplete is already completed.");
         try {
-            CompletableFuture<T> f = futureSupplier.get();
+            CompletableFuture<? extends T> f = futureSupplier.get();
 
             // Async termination.
             f.thenAccept(toComplete::complete);
@@ -260,6 +260,25 @@ public final class FutureHelpers {
                 CallbackHelpers.invokeSafely(exceptionListener, (E) ex, null);
             }
         });
+    }
+
+    /**
+     * Same as CompletableFuture.exceptionally(), except that it allows returning a CompletableFuture instead of a single value.
+     *
+     * @param future  The original CompletableFuture to attach an Exception Listener.
+     * @param handler A Function that consumes a Throwable and returns a CompletableFuture of the same type as the original one.
+     *                This Function will be invoked if the original Future completed exceptionally.
+     * @param <T>     Type of the value of the original Future.
+     * @return A new CompletableFuture that will be completed either with the result of future (if it completed normally),
+     * or with the result of handler when applied to the exception of future, should future complete exceptionally.
+     */
+    public static <T> CompletableFuture<? extends T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
+        return future.handle((r, ex) -> {
+            if (ex == null) {
+                return CompletableFuture.completedFuture(r);
+            }
+            return handler.apply(ex);
+        }).thenCompose(f -> f);
     }
 
     /**
