@@ -144,7 +144,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
-        throw new NotImplementedException();
+        return FutureHelpers.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
     }
 
     @Override
