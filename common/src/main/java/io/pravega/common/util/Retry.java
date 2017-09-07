@@ -225,7 +225,7 @@ public final class Retry {
                     () -> !isDone.get(),
                     () -> FutureHelpers.delayedFuture(Duration.ofMillis(delay.get()), executorService)
                             .thenRunAsync(task, executorService)
-                            .thenAccept(v -> isDone.set(true)) // We are done.
+                            .thenRun(() -> isDone.set(true)) // We are done.
                             .exceptionally(ex -> {
                                 if (!canRetry(ex)) {
                                     // Cannot retry this exception. Fail now.
