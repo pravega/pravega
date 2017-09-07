@@ -243,10 +243,16 @@ public class StreamSegmentMapper {
         return this.stateStore
                 .get(segmentName, timer.getRemaining())
                 .exceptionally(ex -> {
-                    // Segment exists, but the State File is missing or corrupt. We have the data needed to rebuild it,
-                    // so ignore any exceptions coming this way.
-                    log.warn("{}: Missing or corrupt State File for existing Segment '{}'; recreating.", this.traceObjectId, segmentName, ex);
-                    return null;
+                    ex = ExceptionHelpers.getRealException(ex);
+                    if (ex instanceof StreamSegmentNotExistsException || ex instanceof DataCorruptionException) {
+                        // Segment exists, but the State File is missing or corrupt. We have the data needed to rebuild it,
+                        // so ignore any exceptions coming this way.
+                        log.warn("{}: Missing or corrupt State File for existing Segment '{}'; recreating.", this.traceObjectId, segmentName, ex);
+                        return null;
+                    }
+
+                    // All other exceptions need to be bubbled up.
+                    throw new CompletionException(ex);
                 })
                 .thenComposeAsync(s -> {
                     if (s == null) {

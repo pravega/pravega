@@ -272,21 +272,13 @@ public final class FutureHelpers {
      * @return A new CompletableFuture that will be completed either with the result of future (if it completed normally),
      * or with the result of handler when applied to the exception of future, should future complete exceptionally.
      */
-    public static <T> CompletableFuture<T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        future.thenAccept(result::complete);
-        future.exceptionally(ex -> {
-            try {
-                FutureHelpers.completeAfter(() -> handler.apply(ex), result);
-            } catch (Throwable innerException) {
-                if (innerException != ex) {
-                    innerException.addSuppressed(ex);
-                }
-                result.completeExceptionally(innerException);
+    public static <T> CompletableFuture<? extends T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
+        return future.handle((r, ex) -> {
+            if (ex == null) {
+                return CompletableFuture.completedFuture(r);
             }
-            return null;
-        });
-        return result;
+            return handler.apply(ex);
+        }).thenCompose(f -> f);
     }
 
     /**

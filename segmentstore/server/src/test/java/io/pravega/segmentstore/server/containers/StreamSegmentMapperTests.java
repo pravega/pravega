@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -540,7 +541,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate correctly created segment",
                 correctAttributes, state1.getAttributes());
 
-        // 2. Segment Exists, but with empty/corrupted State File: State file re-created & no exception bubbled up.
+        // 2. Segment Exists, but with empty State File: State file re-created & no exception bubbled up.
         storage.openWrite(stateSegmentName)
                .thenCompose(handle -> storage.delete(handle, TIMEOUT))
                .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
@@ -551,7 +552,23 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (missing state file)",
                 correctAttributes, state2.getAttributes());
 
-        // 3. Segment Exists with non-zero length, but with empty/corrupted State File: State File re-created and exception thrown.
+        // 3. Segment Exists, but with corrupted State File: State file re-created & no exception bubbled up.
+        storage.openWrite(stateSegmentName)
+                .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+                .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+                .thenCompose(v -> storage.openWrite(stateSegmentName))
+                .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
+                .join();
+        AssertExtensions.assertThrows(
+                "Expected a DataCorruptionException when reading a corrupted State File.",
+                () -> store.get(segmentName, TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        val state3 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (corrupted state file)",
+                correctAttributes, state3.getAttributes());
+
+        // 4. Segment Exists with non-zero length, but with empty/corrupted State File: State File re-created and exception thrown.
         storage.openWrite(stateSegmentName)
                .thenCompose(handle -> storage.delete(handle, TIMEOUT))
                .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
@@ -562,9 +579,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 "createNewStreamSegment did not fail when Segment already exists (non-zero length, missing state file).",
                 () -> createSegment.apply(mapper, correctAttributeUpdates),
                 ex -> ex instanceof StreamSegmentExistsException);
-        val state3 = store.get(segmentName, TIMEOUT).join();
+        val state4 = store.get(segmentName, TIMEOUT).join();
         AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate segment with non-zero length",
-                correctAttributes, state3.getAttributes());
+                correctAttributes, state4.getAttributes());
     }
 
     private String getName(long segmentId) {
