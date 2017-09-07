@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -312,6 +313,7 @@ public class MultiReaderWriterWithFailOverTest {
                 writer.close();
             } catch (Throwable e) {
                 log.error("Error closing reader", e);
+                Assert.fail("Error while closing writer. Test failure");
             }
         });
         log.info("Closing readers");
@@ -320,6 +322,7 @@ public class MultiReaderWriterWithFailOverTest {
                 reader.close();
             } catch (Throwable e) {
                 log.error("Error closing reader", e);
+                Assert.fail("Error while closing reader. Test failure");
             }
         });
     }
