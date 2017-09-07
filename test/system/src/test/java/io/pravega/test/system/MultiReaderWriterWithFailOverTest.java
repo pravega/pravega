@@ -312,7 +312,7 @@ public class MultiReaderWriterWithFailOverTest {
             try {
                 writer.close();
             } catch (Throwable e) {
-                log.error("Error closing reader", e);
+                log.error("Error closing writer", e);
                 Assert.fail("Error while closing writer. Test failure");
             }
         });
