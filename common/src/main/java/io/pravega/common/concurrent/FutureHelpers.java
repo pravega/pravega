@@ -278,11 +278,11 @@ public final class FutureHelpers {
         future.exceptionally(ex -> {
             try {
                 FutureHelpers.completeAfter(() -> handler.apply(ex), result);
-            } catch (Throwable ex2) {
-                if (ex2 != ex) {
-                    ex2.addSuppressed(ex);
+            } catch (Throwable innerException) {
+                if (innerException != ex) {
+                    innerException.addSuppressed(ex);
                 }
-                result.completeExceptionally(ex2);
+                result.completeExceptionally(innerException);
             }
             return null;
         });
