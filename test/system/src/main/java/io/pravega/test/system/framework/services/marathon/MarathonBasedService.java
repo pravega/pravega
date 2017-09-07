@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.TestFrameworkException;
@@ -37,6 +37,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import io.pravega.test.system.framework.services.Service;
 
 /**
  * Marathon based service implementations.

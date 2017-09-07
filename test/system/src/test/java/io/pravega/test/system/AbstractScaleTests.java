@@ -16,7 +16,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.test.system.framework.services.PravegaControllerService;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;

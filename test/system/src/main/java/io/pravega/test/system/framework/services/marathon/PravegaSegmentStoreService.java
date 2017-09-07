@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -19,6 +19,7 @@ import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,87 +30,76 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
-/**
- * Controller Service.
- */
 @Slf4j
-public class PravegaControllerService extends MarathonBasedService {
+public class PravegaSegmentStoreService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    private static final int SEGMENTSTORE_PORT = 12345;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
-    private double mem = 700;
+    private double mem = 1000.0;
+    private final URI conUri;
 
-    public PravegaControllerService(final String id, final URI zkUri) {
+    public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
         // if SkipserviceInstallation flag is enabled used the default id.
-        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
+        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/segmentstore" : id);
         this.zkUri = zkUri;
+        this.conUri = conUri;
     }
 
-    public PravegaControllerService(final String id, final URI zkUri, int instances, double cpu, double mem) {
+    public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri, int instances, double cpu, double mem) {
         // if SkipserviceInstallation flag is enabled used the default id.
-        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/controller" : id);
+        super(Utils.isSkipServiceInstallationEnabled() ? "/pravega/segmentstore" : id);
         this.zkUri = zkUri;
         this.instances = instances;
         this.cpu = cpu;
         this.mem = mem;
+        this.conUri = conUri;
     }
 
-    /**
-     * Start the controller service.
-     *
-     * @param wait boolean to wait until service is running
-     */
     @Override
     public void start(final boolean wait) {
-        deleteApp("/pravega/controller");
-        log.debug("Starting service: {}", getID());
+        deleteApp("/pravega/segmentstore");
+        log.info("Starting Pravega SegmentStore Service: {}", getID());
         try {
-            marathonClient.createApp(createPravegaControllerApp());
+            marathonClient.createApp(createPravegaSegmentStoreApp());
             if (wait) {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
-        } catch (InterruptedException | ExecutionException  | TimeoutException ex) {
+        } catch (InterruptedException | ExecutionException | TimeoutException ex) {
             throw new TestFrameworkException(InternalError, "Exception while " +
-                    "starting Pravega Controller Service", ex);
+                    "starting Pravega SegmentStore Service", ex);
         }
     }
 
-    /**
-     * Method to stop the service.
-     */
-    @Override
-    public void stop() {
-        log.debug("Stopping  pravega controller service: {}", getID());
-        deleteApp(getID());
-    }
+        /**
+         * Cleanup after service is stopped.
+         * This is a placeholder to perform clean up actions
+         */
+        @Override
+        public void clean() {
+        }
 
-    /**
-     * Cleanup after service is stopped.
-     * This is a placeholder to perform clean up actions
-     */
-    @Override
-    public void clean() {
-    }
+        @Override
+        public void stop() {
+            log.info("Stopping Pravega SegmentStore Service : {}", getID());
+            deleteApp(getID());
+        }
 
-    /**
-     * To configure the controller app.
-     *
-     * @return App instance of marathon app
-     */
-    private App createPravegaControllerApp() {
+    private App createPravegaSegmentStoreApp() {
         App app = new App();
         app.setId(this.id);
         app.setCpus(cpu);
         app.setMem(mem);
         app.setInstances(instances);
+        //set constraints
         app.setConstraints(setConstraint("hostname", "UNIQUE"));
+        //docker container
         app.setContainer(new Container());
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
@@ -117,33 +107,44 @@ public class PravegaControllerService extends MarathonBasedService {
         Collection<Volume> volumeCollection = new ArrayList<Volume>();
         volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
         app.getContainer().setVolumes(volumeCollection);
+        //set the image and network
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
-        //set docker container parameters
-        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx512m");
+        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx900m");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
+        app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
         app.setRequirePorts(true);
+        //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
         app.setHealthChecks(healthCheckList);
         //set env
-        String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
+
+        //Environment variables to configure SS service.
         Map<String, String> map = new HashMap<>();
-        map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
+        map.put("ZK_URL", zk);
+        map.put("BK_ZK_URL", zk);
+        map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+        map.put("CONTROLLER_URL", conUri.toString());
+        map.put("TIER2_STORAGE", "HDFS");
+
+        //Properties set to override defaults for system tests
+        String hostSystemProperties = setSystemProperty("autoScale.muteInSeconds", "120") +
+                setSystemProperty("autoScale.cooldownInSeconds", "120") +
+                setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
+                setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
+                setSystemProperty("log.level", "DEBUG") +
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
+                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+
+        map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
-        app.setArgs(Arrays.asList("controller"));
+        app.setArgs(Arrays.asList("segmentstore"));
 
         return app;
     }
