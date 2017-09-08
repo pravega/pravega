@@ -28,4 +28,10 @@ public class NettyOutputStream extends OutputStream {
     public void write(int b) throws IOException {
         channel.write(b);
     }
+
+    @Override
+    public void close() {
+        this.channel.flush();
+        this.channel.close();
+    }
 }

@@ -11,8 +11,8 @@ package io.pravega.common.health.processor.impl;
 
 import io.pravega.common.health.HealthReporter;
 import io.pravega.common.health.NoSuchHealthCommand;
+import io.pravega.common.health.NoSuchHealthProcessor;
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -53,11 +53,25 @@ public abstract class HealthReporterImpl extends HealthReporter {
     }
 
     @Override
-    public final void executeHealthRequest(String cmd, DataOutputStream out) throws IOException, NoSuchHealthCommand {
-        if (this.commands.contains(cmd)) {
-            this.execute(cmd, out);
+    public final void executeHealthRequest(String cmd, String target, DataOutputStream out) {
+        if (id.equals(target) || target == null) {
+            if (this.commands.contains(cmd)) {
+                this.execute(cmd, out);
+            } else {
+                throw new NoSuchHealthCommand(cmd);
+            }
+        } else if (target.startsWith(id + HealthRequestProcessorImpl.PROCESSOR_SEPARATOR)) {
+            target = target.substring((id + HealthRequestProcessorImpl.PROCESSOR_SEPARATOR).length());
+            String childId = target.indexOf(HealthRequestProcessorImpl.PROCESSOR_SEPARATOR) == -1 ? target :
+                    target.substring((id + HealthRequestProcessorImpl.PROCESSOR_SEPARATOR).length());
+            HealthReporter child = this.getChild(childId);
+            if (child == null) {
+                throw new NoSuchHealthProcessor(childId);
+            } else {
+                child.executeHealthRequest(cmd, target, out);
+            }
         } else {
-            throw new NoSuchHealthCommand(cmd);
+            throw new NoSuchHealthProcessor(target);
         }
     }
 
@@ -71,5 +85,5 @@ public abstract class HealthReporterImpl extends HealthReporter {
         return (String[]) this.commands.toArray();
     }
 
-    public abstract void execute(String cmd, DataOutputStream out) throws IOException;
+    public abstract void execute(String cmd, DataOutputStream out);
 }

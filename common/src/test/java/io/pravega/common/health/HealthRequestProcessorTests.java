@@ -15,36 +15,61 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.DataOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class HealthRequestProcessorTests {
     @Test
     public void testHealthReporter() throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand {
-        HealthReporterImpl root = new TestHealthReporterImpl("root", new String[]{"hi"});
+        HealthReporterImpl root = new TestHealthReporterImpl("root", new String[]{"hi", "hello"});
         HealthRequestProcessorImpl processor = new HealthRequestProcessorImpl(root);
-        ByteArrayOutputStream writer = new ByteArrayOutputStream();
-        processor.processHealthRequest(writer, "root", "hi");
+
+        AtomicReference<ByteArrayOutputStream> writer = new AtomicReference<>(new ByteArrayOutputStream());
+        processor.processHealthRequest(writer.get(), "root", "hi");
         Assert.assertEquals("A simple command not returned properly", writer.toString(), "hello");
 
+        writer.set(new ByteArrayOutputStream());
+        processor.processHealthRequest(writer.get(), "root", "hello");
+        Assert.assertEquals("A simple command not returned properly", writer.toString(), "hi");
         AssertExtensions.assertThrows("Should throw exception on non-existent command",
-                () -> processor.processHealthRequest(writer, "root", "wrong"),
+                () -> processor.processHealthRequest(writer.get(), "root", "wrong"),
                 ex -> ex instanceof NoSuchHealthCommand);
 
         AssertExtensions.assertThrows("Should throw exception on non-existent processor",
-                () -> processor.processHealthRequest(writer, "wrong", "wrong"),
+                () -> processor.processHealthRequest(writer.get(), "wrong", "wrong"),
+                ex -> ex instanceof NoSuchHealthProcessor);
+
+        writer.set(new ByteArrayOutputStream());
+        processor.processHealthRequest(writer.get(), "root/root", "hello");
+        Assert.assertEquals("A simple command on a child not returned properly", writer.toString(), "hi");
+        AssertExtensions.assertThrows("Should throw exception on non-existent command",
+                () -> processor.processHealthRequest(writer.get(), "root/root", "wrong"),
+                ex -> ex instanceof NoSuchHealthCommand);
+
+        AssertExtensions.assertThrows("Should throw exception on non-existent child processor",
+                () -> processor.processHealthRequest(writer.get(), "root/wrong", "wrong"),
                 ex -> ex instanceof NoSuchHealthProcessor);
     }
 
-    class TestHealthReporterImpl extends HealthReporterImpl {
+    static class TestHealthReporterImpl extends HealthReporterImpl {
 
         public TestHealthReporterImpl(String id, String[] commands) {
             super(id, commands);
+            this.addChild("root", this);
         }
 
         @Override
-        public void execute(String cmd, DataOutputStream out) throws IOException {
-            out.writeBytes("hello");
+        public void execute(String cmd, DataOutputStream out) {
+            try {
+            if (cmd.equals("hi")) {
+                    out.writeBytes("hello");
+            } else if (cmd.equals("hello")) {
+                out.writeBytes("hi");
+            }
+            } catch (IOException e) {
+                throw new HealthReporterException(e);
+            }
         }
     }
 }

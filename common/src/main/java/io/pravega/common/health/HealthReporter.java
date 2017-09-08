@@ -10,7 +10,6 @@
 package io.pravega.common.health;
 
 import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -33,7 +32,7 @@ public abstract class HealthReporter {
 
     /**
      * Gets a list of children.
-     * @return
+     * @return list of children.
      */
     public abstract Set<String> listChildren();
 
@@ -53,14 +52,14 @@ public abstract class HealthReporter {
     /**
      * Executes a given command on the childnode/self.
      * @param cmd   The cmd to be executed.
+     * @param target target for the cmd.
      * @param out The output of the command is written to this stream.
-     * @throws IOException exception while writing to the stream.
      */
-    public abstract void executeHealthRequest(String cmd, DataOutputStream out) throws IOException;
+    public abstract void executeHealthRequest(String cmd, String target, DataOutputStream out);
 
     /**
      * Lists all the commands supported by this processor.
-     * @return
+     * @return list of supported commands.
      */
     public abstract String[] listCommands();
 
@@ -68,8 +67,8 @@ public abstract class HealthReporter {
      * Executes a given healthcommand on this node.
      * @param cmd the command to be executed.
      * @param out output of the health command is written to this stream.
-     * @throws IOException exception while writing to the stream.
+     * @throws HealthReporterException exception while reporting health.
      */
-    public abstract void execute(String cmd, DataOutputStream out) throws IOException;
+    public abstract void execute(String cmd, DataOutputStream out);
 
 }

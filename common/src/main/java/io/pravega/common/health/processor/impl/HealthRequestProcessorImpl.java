@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class HealthRequestProcessorImpl extends HealthRequestProcessor {
-    private static final char PROCESSOR_SEPARATOR = '/';
+    public static final char PROCESSOR_SEPARATOR = '/';
 
     public HealthRequestProcessorImpl(HealthReporter root) {
         super(root);
@@ -25,24 +25,12 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
 
     @Override
     public final void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException {
-            findProcessor(target).executeHealthRequest(cmd, new DataOutputStream(writer));
+        if (root.getID().equals(target) || target.startsWith(root.getID() + PROCESSOR_SEPARATOR)) {
+            root.executeHealthRequest(cmd, target, new DataOutputStream(writer));
+        } else {
+            throw new NoSuchHealthProcessor(target);
+        }
     }
 
-    private HealthReporter findProcessor(String target) throws NoSuchHealthProcessor {
-        HealthReporter looper = root;
-        int separatorIndex;
-        do {
-            separatorIndex = target.indexOf(PROCESSOR_SEPARATOR);
-            if (separatorIndex == -1) {
-                if (looper.getID().equals(target)) {
-                    return looper;
-                } else {
-                    throw new NoSuchHealthProcessor(target);
-                }
-            } else {
-                looper = looper.getChild(target.substring(0, separatorIndex));
-                target = target.substring(separatorIndex);
-            }
-        } while (true);
-    }
+
 }

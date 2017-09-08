@@ -11,6 +11,10 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.health.HealthReporterException;
+import io.pravega.common.health.processor.impl.HealthReporterImpl;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
+import io.pravega.common.health.processor.impl.SocketStreamHealthRequestProcessorImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -33,6 +37,8 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
@@ -45,7 +51,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Starts the Pravega Service.
  */
 @Slf4j
-public final class ServiceStarter {
+public final class ServiceStarter extends HealthReporterImpl {
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -56,12 +62,14 @@ public final class ServiceStarter {
     private SegmentStatsFactory segmentStatsFactory;
     private CuratorFramework zkClient;
     private boolean closed;
+    private SocketStreamHealthRequestProcessorImpl requestProcessor;
 
     //endregion
 
     //region Constructor
 
     public ServiceStarter(ServiceBuilderConfig config, Options options) {
+        super("segmentstore", new String[]{"ruok", "conf"});
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
         this.serviceBuilder = createServiceBuilder(options);
@@ -116,6 +124,10 @@ public final class ServiceStarter {
                 this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
+
+        requestProcessor = new SocketStreamHealthRequestProcessorImpl(this,
+                "localhost", 7070);
+        requestProcessor.startListening();
         log.info("StreamSegmentService started.");
     }
 
@@ -231,6 +243,7 @@ public final class ServiceStarter {
             config.forEach((key, value) -> log.debug("Config:{}={}.", key, value));
             serviceStarter.set(new ServiceStarter(config, Options.builder()
                     .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
+
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -255,6 +268,21 @@ public final class ServiceStarter {
             log.info("Caught interrupt signal...");
         } finally {
             serviceStarter.get().shutdown();
+        }
+    }
+
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+        try {
+            switch (cmd) {
+                case "ruok":
+                    out.writeChars("imok");
+                    break;
+                case "conf":
+                    out.writeChars(this.builderConfig.toString());
+            }
+        } catch (IOException e) {
+            throw new HealthReporterException(e);
         }
     }
 
