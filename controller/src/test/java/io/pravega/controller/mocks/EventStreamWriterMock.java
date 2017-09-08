@@ -13,7 +13,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,22 +42,22 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
 
     @Override
     public Transaction<T> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod) {
-        throw new NotImplementedException();
+        throw new NotImplementedException("beginTxn");
     }
 
     @Override
     public Transaction<T> getTxn(UUID transactionId) {
-        throw new NotImplementedException();
+        throw new NotImplementedException("getTxn");
     }
 
     @Override
     public EventWriterConfig getConfig() {
-        throw new NotImplementedException();
+        throw new NotImplementedException("getConfig");
     }
 
     @Override
     public void flush() {
-        throw new NotImplementedException();
+        throw new NotImplementedException("flush");
     }
 
     @Override

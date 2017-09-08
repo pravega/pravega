@@ -1,4 +1,4 @@
-package io.pravega.controller.server.rest.generated;
+package io.pravega.controller.server.rest.generated.api;
 
 
 public class StringUtil {

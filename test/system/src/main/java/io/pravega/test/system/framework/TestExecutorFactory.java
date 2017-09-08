@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
     private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
