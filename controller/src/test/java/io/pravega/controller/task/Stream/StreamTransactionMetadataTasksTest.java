@@ -28,9 +28,10 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
-import io.pravega.controller.server.eventProcessor.AbortEventProcessor;
+import io.pravega.controller.server.eventProcessor.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
 import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
+import io.pravega.controller.server.eventProcessor.ConcurrentEventProcessor;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -314,8 +315,8 @@ public class StreamTransactionMetadataTasksTest {
                 () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -402,8 +403,8 @@ public class StreamTransactionMetadataTasksTest {
                 () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();

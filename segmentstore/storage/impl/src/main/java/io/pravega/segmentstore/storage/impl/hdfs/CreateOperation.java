@@ -51,7 +51,7 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
         // Create the first file in the segment.
         Path fullPath = getFilePath(segmentName, 0, this.context.epoch);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, fullPath);
-        createEmptyFile(fullPath);
+        atomicCreate(fullPath);
 
         // Determine if someone also created it at the same time, but with a different epoch.
         List<FileDescriptor> allFiles;

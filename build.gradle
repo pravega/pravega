@@ -78,6 +78,7 @@ def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
 
 project ('shared') {
     dependencies {
+        compile project(':common')
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -198,6 +199,7 @@ project('segmentstore:storage:impl') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
