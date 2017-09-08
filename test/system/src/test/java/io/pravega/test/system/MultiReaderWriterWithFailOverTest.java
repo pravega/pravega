@@ -53,7 +53,6 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -308,23 +307,9 @@ public class MultiReaderWriterWithFailOverTest {
 
     private void cleanUp() {
         log.info("Closing writers");
-        writerList.forEach(writer -> {
-            try {
-                writer.close();
-            } catch (Throwable e) {
-                log.error("Error closing writer", e);
-                Assert.fail("Error while closing writer. Test failure");
-            }
-        });
+        writerList.forEach(writer -> writer.close());
         log.info("Closing readers");
-        readerList.forEach(reader -> {
-            try {
-                reader.close();
-            } catch (Throwable e) {
-                log.error("Error closing reader", e);
-                Assert.fail("Error while closing reader. Test failure");
-            }
-        });
+        readerList.forEach(reader -> reader.close());
     }
 
     private void performFailoverTest() {
