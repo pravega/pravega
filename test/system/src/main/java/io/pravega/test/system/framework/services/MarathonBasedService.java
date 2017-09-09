@@ -15,12 +15,13 @@ import io.pravega.test.system.framework.marathon.AuthEnabledMarathonClient;
 import com.google.common.base.Preconditions;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.Marathon;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.LocalVolume;
 import mesosphere.marathon.client.model.v2.Result;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
 import java.time.Duration;
@@ -135,7 +136,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     Volume createVolume(final String containerPath, final String hostPath, final String mode) {
-        Volume v = new Volume();
+        LocalVolume v = new LocalVolume();
         v.setContainerPath(containerPath);
         v.setHostPath(hostPath);
         v.setMode(mode);
