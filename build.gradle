@@ -394,7 +394,7 @@ project('controller') {
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
