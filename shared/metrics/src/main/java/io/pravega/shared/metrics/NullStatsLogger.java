@@ -37,6 +37,11 @@ public class NullStatsLogger implements StatsLogger {
         public String getName() {
             return NULLNAME;
         }
+
+        @Override
+        public void close() {
+            // nop
+        }
     }
 
     @Override
@@ -86,6 +91,11 @@ public class NullStatsLogger implements StatsLogger {
         public void clear() {
             // nop
         }
+
+        @Override
+        public void close() {
+            // nop
+        }
     }
 
     private static class NullCounter implements Counter {
@@ -118,6 +128,11 @@ public class NullStatsLogger implements StatsLogger {
         public String getName() {
             return NULLNAME;
         }
+
+        @Override
+        public void close() {
+            // nop
+        }
     }
 
     private static class NullMeter implements Meter {
@@ -139,6 +154,11 @@ public class NullStatsLogger implements StatsLogger {
         @Override
         public String getName() {
             return NULLNAME;
+        }
+
+        @Override
+        public void close() {
+            // nop(DONE)
         }
     }
 }

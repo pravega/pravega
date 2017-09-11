@@ -51,4 +51,12 @@ public class CounterProxy implements Counter {
     public String getName() {
         return instance.get().getName();
     }
+
+    @Override
+    public void close() {
+        Counter c = instance.get();
+        if (c != null) {
+            c.close();
+        }
+    }
 }

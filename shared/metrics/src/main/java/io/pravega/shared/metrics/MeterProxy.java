@@ -41,4 +41,12 @@ public class MeterProxy implements Meter {
     public String getName() {
         return instance.get().getName();
     }
+
+    @Override
+    public void close() {
+        Meter m = instance.get();
+        if (m != null) {
+            m.close();
+        }
+    }
 }

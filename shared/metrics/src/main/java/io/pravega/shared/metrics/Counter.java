@@ -14,7 +14,7 @@ package io.pravega.shared.metrics;
  * functions on a Long. Metrics like the number of topics, persist queue size
  * etc. should use this.
  */
-public interface Counter {
+public interface Counter extends AutoCloseable {
     /**
      * Clear this stat.
      */
@@ -46,4 +46,7 @@ public interface Counter {
      * Gets name.
      */
     String getName();
+
+    @Override
+    void close();
 }

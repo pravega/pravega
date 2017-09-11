@@ -26,4 +26,12 @@ public class GaugeProxy implements Gauge {
     public String getName() {
         return instance.get().getName();
     }
+
+    @Override
+    public void close() {
+        Gauge g = instance.get();
+        if (g != null) {
+            g.close();
+        }
+    }
 }

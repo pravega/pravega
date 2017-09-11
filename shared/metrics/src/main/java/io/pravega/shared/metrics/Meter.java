@@ -12,7 +12,7 @@ package io.pravega.shared.metrics;
 /**
  * A meter metric which measures mean throughput and exponentially-weighted moving average throughput.
  */
-public interface Meter {
+public interface Meter extends AutoCloseable {
     /**
      * Record the occurrence of an event in Meter.
      */
@@ -38,4 +38,7 @@ public interface Meter {
      * @return the name of Gauge
      */
     String getName();
+
+    @Override
+    void close();
 }

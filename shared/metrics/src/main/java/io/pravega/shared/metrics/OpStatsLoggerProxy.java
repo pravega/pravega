@@ -52,4 +52,12 @@ public class OpStatsLoggerProxy implements OpStatsLogger {
     public void clear() {
         instance.get().clear();
     }
+
+    @Override
+    public void close() {
+        OpStatsLogger o = instance.get();
+        if (o != null) {
+            o.close();
+        }
+    }
 }

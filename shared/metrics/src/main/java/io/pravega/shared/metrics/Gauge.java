@@ -12,11 +12,14 @@ package io.pravega.shared.metrics;
 /**
  * Defines a Gauge, which will wrap a gauge instance and its name.
  */
-public interface Gauge {
+public interface Gauge extends AutoCloseable {
     /**
      * Gets name.
      *
      * @return the name of Gauge
      */
     String getName();
+
+    @Override
+    void close();
 }
