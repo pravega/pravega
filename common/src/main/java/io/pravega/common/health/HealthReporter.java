@@ -10,58 +10,33 @@
 package io.pravega.common.health;
 
 import java.io.DataOutputStream;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Represents an hierarchical entity which can report its health.
  * Each health reporter should have an unique id under its parents.
  */
 public abstract class HealthReporter {
-    /**
-     * Gets the id of the reporter.
-     * @return id
-     */
-    public abstract String getID();
+    private final String id;
+    private List<String> commands;
 
-    /**
-     * Adds a child with a given id to the list of reporters.
-     * @param childId id of the child to be inserted.
-     * @param child the reporter object.
-     */
-    public abstract void addChild(String childId, HealthReporter child);
+    public HealthReporter(String id, String[] commands) {
+        this.id = id;
+        this.commands = Arrays.asList(commands);
+    }
 
-    /**
-     * Gets a list of children.
-     * @return list of children.
-     */
-    public abstract Set<String> listChildren();
-
-    /**
-     * Returns a reporter with a given id.
-     * @param childId id of the reporter.
-     * @return reporter with the given id.
-     */
-    public abstract HealthReporter getChild(String childId);
-
-    /**
-     * Removed a reporter with a given id.
-     * @param childId id of the reporter to be removed.
-     */
-    public abstract void removeChild(String childId);
-
-    /**
-     * Executes a given command on the childnode/self.
-     * @param cmd   The cmd to be executed.
-     * @param target target for the cmd.
-     * @param out The output of the command is written to this stream.
-     */
-    public abstract void executeHealthRequest(String cmd, String target, DataOutputStream out);
+    public String getID() {
+        return this.id;
+    }
 
     /**
      * Lists all the commands supported by this processor.
      * @return list of supported commands.
      */
-    public abstract String[] listCommands();
+    public String[] listCommands() {
+        return (String[]) commands.toArray();
+    }
 
     /**
      * Executes a given healthcommand on this node.

@@ -11,12 +11,16 @@ package io.pravega.segmentstore.storage.impl.rocksdb;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.health.HealthReporter;
+import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.CacheException;
 import io.pravega.segmentstore.storage.Cache;
 import com.google.common.base.Preconditions;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,7 +37,7 @@ import org.rocksdb.WriteOptions;
  * RocksDB-backed Cache.
  */
 @Slf4j
-class RocksDBCache implements Cache {
+class RocksDBCache extends HealthReporter implements Cache {
     //region Members
 
     private static final String FILE_PREFIX = "cache_";
@@ -68,6 +72,7 @@ class RocksDBCache implements Cache {
      * @param closeCallback A callback to invoke when the cache is closed.
      */
     RocksDBCache(String id, RocksDBConfig config, Consumer<String> closeCallback) {
+        super("segmentstore/cache/" + id, new String[] {"ruok"});
         Exceptions.checkNotNullOrEmpty(id, "id");
         Preconditions.checkNotNull(config, "config");
 
@@ -242,6 +247,22 @@ class RocksDBCache implements Cache {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.database.get() != null, "%s has not been initialized.", this.logId);
     }
+    //endregion
 
+    //region
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+        switch (cmd) {
+            case "ruok":
+                try {
+                    out.writeChars("imok");
+                } catch (IOException e) {
+                    log.warn("Exception reporting health");
+                }
+                break;
+            default:
+                throw new NoSuchHealthCommand(cmd);
+        }
+    }
     //endregion
 }

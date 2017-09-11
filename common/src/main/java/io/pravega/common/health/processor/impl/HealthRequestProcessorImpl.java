@@ -15,18 +15,25 @@ import io.pravega.common.health.NoSuchHealthProcessor;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class HealthRequestProcessorImpl extends HealthRequestProcessor {
-    public static final char PROCESSOR_SEPARATOR = '/';
+    private final ConcurrentHashMap<String, HealthReporter> reporterMap = new ConcurrentHashMap<>();
 
-    public HealthRequestProcessorImpl(HealthReporter root) {
-        super(root);
+    public HealthRequestProcessorImpl() {
+        super();
+    }
+
+    @Override
+    public void registerHealthProcessor(String id, HealthReporter reporter) {
+        reporterMap.putIfAbsent(id, reporter);
     }
 
     @Override
     public final void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException {
-        if (root.getID().equals(target) || target.startsWith(root.getID() + PROCESSOR_SEPARATOR)) {
-            root.executeHealthRequest(cmd, target, new DataOutputStream(writer));
+        HealthReporter reporter = reporterMap.get(target);
+        if (reporter != null) {
+            reporter.execute(cmd, new DataOutputStream(writer));
         } else {
             throw new NoSuchHealthProcessor(target);
         }

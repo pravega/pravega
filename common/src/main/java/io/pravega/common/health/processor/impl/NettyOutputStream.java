@@ -9,6 +9,7 @@
  */
 package io.pravega.common.health.processor.impl;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -25,13 +26,26 @@ public class NettyOutputStream extends OutputStream {
     }
 
     @Override
-    public void write(int b) throws IOException {
-        channel.write(b);
+    public void close() throws IOException {
+        channel.close();
     }
 
     @Override
-    public void close() {
-        this.channel.flush();
-        this.channel.close();
+    public void flush() throws IOException {
+        channel.flush();
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        ByteBuf f = channel.alloc().buffer(len);
+        f.writeBytes(b, off, len);
+        channel.write(f);
+    }
+
+    @Override
+    public  void write(int b) throws IOException {
+        ByteBuf f = channel.alloc().buffer(1);
+        f.writeByte(b);
+        channel.write(f);
     }
 }

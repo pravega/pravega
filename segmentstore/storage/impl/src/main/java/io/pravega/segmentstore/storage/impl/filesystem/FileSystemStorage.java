@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.health.HealthReporter;
+import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -22,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import java.io.DataOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,7 +78,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
  */
 @Slf4j
-public class FileSystemStorage implements Storage {
+public class FileSystemStorage extends HealthReporter implements Storage {
     private static final int NUM_RETRIES = 3;
 
     //region members
@@ -95,6 +98,7 @@ public class FileSystemStorage implements Storage {
      * @param executor The executor to use for running async operations.
      */
     public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
+        super("segmentstore/storage/fs", new String[] {"ruok"});
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.closed = new AtomicBoolean(false);
@@ -419,6 +423,22 @@ public class FileSystemStorage implements Storage {
 
         return retVal;
     }
+    //endregion
 
+    //region
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+        switch (cmd) {
+            case "ruok":
+                try {
+                    out.writeChars("imok");
+                } catch (IOException e) {
+                    log.warn("Exception reporting health");
+                }
+                break;
+            default:
+                throw new NoSuchHealthCommand(cmd);
+        }
+    }
     //endregion
 }

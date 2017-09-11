@@ -11,9 +11,8 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.health.HealthReporterException;
-import io.pravega.common.health.processor.impl.HealthReporterImpl;
-import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.health.processor.impl.SocketStreamHealthRequestProcessorImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -51,7 +50,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Starts the Pravega Service.
  */
 @Slf4j
-public final class ServiceStarter extends HealthReporterImpl {
+public final class ServiceStarter extends HealthReporter {
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -77,6 +76,7 @@ public final class ServiceStarter extends HealthReporterImpl {
 
     private ServiceBuilder createServiceBuilder(Options options) {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
+
         if (options.bookKeeper) {
             attachBookKeeper(builder);
         }
@@ -125,8 +125,7 @@ public final class ServiceStarter extends HealthReporterImpl {
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
 
-        requestProcessor = new SocketStreamHealthRequestProcessorImpl(this,
-                "localhost", 7070);
+        requestProcessor = new SocketStreamHealthRequestProcessorImpl("localhost", 7070);
         requestProcessor.startListening();
         log.info("StreamSegmentService started.");
     }
@@ -162,12 +161,12 @@ public final class ServiceStarter extends HealthReporterImpl {
     }
 
     private void attachBookKeeper(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+        builder.withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor(), this.requestProcessor));
+
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), this.requestProcessor));
     }
 
     private void attachStorage(ServiceBuilder builder) {
@@ -178,15 +177,15 @@ public final class ServiceStarter extends HealthReporterImpl {
                 switch (storageChoice) {
                     case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor(), this.requestProcessor);
 
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor(), this.requestProcessor);
 
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), this.requestProcessor);
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());
@@ -279,7 +278,13 @@ public final class ServiceStarter extends HealthReporterImpl {
                     out.writeChars("imok");
                     break;
                 case "conf":
-                    out.writeChars(this.builderConfig.toString());
+                    this.builderConfig.forEach((prop, val) -> {
+                        try {
+                            out.writeChars(prop.toString() + " : " + val.toString() + "\n");
+                        } catch (IOException e) {
+                            log.warn("Error while writing the property");
+                        }
+                    });
             }
         } catch (IOException e) {
             throw new HealthReporterException(e);

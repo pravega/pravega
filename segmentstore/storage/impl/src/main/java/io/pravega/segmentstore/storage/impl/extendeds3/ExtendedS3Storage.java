@@ -28,6 +28,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.health.HealthReporter;
+import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -38,6 +40,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -78,7 +81,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtendedS3Storage implements Storage {
+public class ExtendedS3Storage extends HealthReporter implements Storage {
 
     //region members
 
@@ -92,6 +95,8 @@ public class ExtendedS3Storage implements Storage {
     //region constructor
 
     public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor) {
+        super("segmentstore/storage/s3", new String[] {"ruok"});
+
         Preconditions.checkNotNull(config, "config");
         this.config = config;
         this.client = client;
@@ -487,6 +492,25 @@ public class ExtendedS3Storage implements Storage {
     @Override
     public void close() {
         this.closed.set(true);
+    }
+
+    //endregion
+
+    //region
+
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+        switch (cmd) {
+            case "ruok":
+                try {
+                    out.writeChars("imok");
+                } catch (IOException e) {
+                    log.warn("Exception reporting health");
+                }
+                break;
+            default:
+                throw new NoSuchHealthCommand(cmd);
+        }
     }
 
     //endregion

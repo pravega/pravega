@@ -9,7 +9,6 @@
  */
 package io.pravega.common.health;
 
-import io.pravega.common.health.processor.impl.HealthReporterImpl;
 import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.test.common.AssertExtensions;
 import java.io.DataOutputStream;
@@ -22,9 +21,10 @@ import org.junit.Test;
 public class HealthRequestProcessorTests {
     @Test
     public void testHealthReporter() throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand {
-        HealthReporterImpl root = new TestHealthReporterImpl("root", new String[]{"hi", "hello"});
-        HealthRequestProcessorImpl processor = new HealthRequestProcessorImpl(root);
+        HealthReporter root = new TestHealthReporterImpl("root", new String[]{"hi", "hello"});
+        HealthRequestProcessorImpl processor = new HealthRequestProcessorImpl();
 
+        processor.registerHealthProcessor("root", root);
         AtomicReference<ByteArrayOutputStream> writer = new AtomicReference<>(new ByteArrayOutputStream());
         processor.processHealthRequest(writer.get(), "root", "hi");
         Assert.assertEquals("A simple command not returned properly", writer.toString(), "hello");
@@ -41,6 +41,7 @@ public class HealthRequestProcessorTests {
                 ex -> ex instanceof NoSuchHealthProcessor);
 
         writer.set(new ByteArrayOutputStream());
+        processor.registerHealthProcessor("root/root", root);
         processor.processHealthRequest(writer.get(), "root/root", "hello");
         Assert.assertEquals("A simple command on a child not returned properly", writer.toString(), "hi");
         AssertExtensions.assertThrows("Should throw exception on non-existent command",
@@ -52,21 +53,22 @@ public class HealthRequestProcessorTests {
                 ex -> ex instanceof NoSuchHealthProcessor);
     }
 
-    static class TestHealthReporterImpl extends HealthReporterImpl {
+    static class TestHealthReporterImpl extends HealthReporter {
 
         public TestHealthReporterImpl(String id, String[] commands) {
             super(id, commands);
-            this.addChild("root", this);
         }
 
         @Override
         public void execute(String cmd, DataOutputStream out) {
             try {
-            if (cmd.equals("hi")) {
+                if (cmd.equals("hi")) {
                     out.writeBytes("hello");
-            } else if (cmd.equals("hello")) {
-                out.writeBytes("hi");
-            }
+                } else if (cmd.equals("hello")) {
+                    out.writeBytes("hi");
+                } else {
+                    throw new NoSuchHealthCommand(cmd);
+                }
             } catch (IOException e) {
                 throw new HealthReporterException(e);
             }

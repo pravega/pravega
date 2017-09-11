@@ -13,7 +13,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -25,9 +24,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.pravega.common.health.HealthReporter;
 import java.io.DataOutputStream;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,8 +42,8 @@ public class SocketStreamHealthRequestProcessorImpl extends HealthRequestProcess
     private Channel serverChannel;
     private String host;
 
-    public SocketStreamHealthRequestProcessorImpl(HealthReporter root, String host, int port) {
-        super(root);
+    public SocketStreamHealthRequestProcessorImpl(String host, int port) {
+        super();
         this.host = host;
         this.port = port;
     }
@@ -68,6 +67,7 @@ public class SocketStreamHealthRequestProcessorImpl extends HealthRequestProcess
              @Override
              public void initChannel(SocketChannel ch) throws Exception {
                  ChannelPipeline p = ch.pipeline();
+                 p.addLast(new StringEncoder());
                  p.addLast(new StringDecoder());
                  HealthConnectionInboundHandler healthHandler = new HealthConnectionInboundHandler();
                  p.addLast( healthHandler);
@@ -83,6 +83,7 @@ public class SocketStreamHealthRequestProcessorImpl extends HealthRequestProcess
         public void channelActive(ChannelHandlerContext ctx) {
             ctx.writeAndFlush("HELLO: Type the path of the file to retrieve.\n");
         }
+
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, String msg) throws Exception {
             try (DataOutputStream nioStream = new DataOutputStream(new NettyOutputStream(ctx.channel()))) {
@@ -98,20 +99,16 @@ public class SocketStreamHealthRequestProcessorImpl extends HealthRequestProcess
                     cmd = parts[0];
                     target = parts[1];
                 }
-                root.executeHealthRequest(cmd, target, nioStream);
+                processHealthRequest(nioStream, target, cmd);
                 nioStream.flush();
             }
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            cause.printStackTrace();
-
-            if (ctx.channel().isActive()) {
-                ctx.writeAndFlush("ERR: " +
+                ctx.writeAndFlush("Error: " +
                         cause.getClass().getSimpleName() + ": " +
                         cause.getMessage() + '\n').addListener(ChannelFutureListener.CLOSE);
-            }
         }
     }
 }

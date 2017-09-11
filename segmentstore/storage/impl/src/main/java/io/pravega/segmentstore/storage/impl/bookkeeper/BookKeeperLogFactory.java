@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -32,6 +33,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
 
     private final String namespace;
     private final CuratorFramework zkClient;
+    private HealthRequestProcessor healthRequestProcessor;
     private final AtomicReference<BookKeeper> bookKeeper;
     private final BookKeeperConfig config;
     private final ScheduledExecutorService executor;
@@ -46,13 +48,16 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
      * @param config   The configuration to use for all instances created.
      * @param zkClient ZooKeeper Client to use.
      * @param executor An executor to use for async operations.
+     * @param healthRequestProcessor The requestprocessor to register health requests.
      */
-    public BookKeeperLogFactory(BookKeeperConfig config, CuratorFramework zkClient, ScheduledExecutorService executor) {
+    public BookKeeperLogFactory(BookKeeperConfig config, CuratorFramework zkClient, ScheduledExecutorService executor,
+                                HealthRequestProcessor healthRequestProcessor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.namespace = zkClient.getNamespace();
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
                                      .usingNamespace(this.namespace + this.config.getZkMetadataPath());
+        this.healthRequestProcessor = healthRequestProcessor;
         this.bookKeeper = new AtomicReference<>();
     }
 
@@ -99,7 +104,9 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
     @Override
     public DurableDataLog createDurableDataLog(int containerId) {
         Preconditions.checkState(this.bookKeeper.get() != null, "BookKeeperLogFactory is not initialized.");
-        return new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        BookKeeperLog bookKeeperLog = new BookKeeperLog(containerId, this.zkClient, this.bookKeeper.get(), this.config, this.executor);
+        this.healthRequestProcessor.registerHealthProcessor("segmentstore/bklog/" + containerId, bookKeeperLog);
+        return bookKeeperLog;
     }
 
     //endregion

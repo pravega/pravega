@@ -15,15 +15,9 @@ import io.pravega.common.health.NoSuchHealthProcessor;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * Created by kandha on 9/4/17.
- */
 public abstract class HealthRequestProcessor {
-    protected final HealthReporter root;
 
-    public HealthRequestProcessor(HealthReporter root) {
-        this.root = root;
-    }
+    public abstract void registerHealthProcessor(String id, HealthReporter reporter);
 
     public abstract void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand;
 }
