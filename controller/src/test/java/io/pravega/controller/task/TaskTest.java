@@ -127,6 +127,7 @@ public class TaskTest {
         List<Integer> sealedSegments = Collections.singletonList(1);
         StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         List<Segment> segmentsCreated = response.getSegmentsCreated();
+        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
 
@@ -135,8 +136,8 @@ public class TaskTest {
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
         response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
-
         segmentsCreated = response .getSegmentsCreated();
+        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
         streamStore.scaleNewSegmentsCreated(SCOPE, stream2, sealedSegments1, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1, segmentsCreated, response.getActiveEpoch(), start + 20, null, executor).get();
         // endregion
@@ -183,7 +184,7 @@ public class TaskTest {
         taskMetadataStore.lock(resource, taskData, deadHost, deadThreadId, null, null).join();
 
         TaskSweeper taskSweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
-        taskSweeper.sweepOrphanedTasks(deadHost).get();
+        taskSweeper.handleFailedProcess(deadHost).get();
 
         Optional<TaskData> data = taskMetadataStore.getTask(resource, deadHost, deadThreadId).get();
         assertFalse(data.isPresent());
@@ -239,7 +240,7 @@ public class TaskTest {
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
         AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
-        sweeper.sweepOrphanedTasks(hostId).join();
+        sweeper.handleFailedProcess(hostId).join();
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());
     }
@@ -339,7 +340,7 @@ public class TaskTest {
 
         @Override
         public void run() {
-            taskSweeper.sweepOrphanedTasks(() -> Collections.singleton(hostId))
+            taskSweeper.sweepFailedProcesses(() -> Collections.singleton(hostId))
                     .whenComplete((value, e) -> {
                         if (e != null) {
                             result.completeExceptionally(e);

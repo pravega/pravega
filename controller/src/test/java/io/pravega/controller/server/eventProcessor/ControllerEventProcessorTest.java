@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -36,10 +37,15 @@ import org.junit.Test;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Controller Event ProcessorTests.
@@ -106,6 +112,32 @@ public class ControllerEventProcessorTest {
     }
 
     @Test(timeout = 10000)
+    public void testCommitEventProcessorFailedWrite() {
+        UUID txnId = UUID.randomUUID();
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
+                null, executor).join();
+
+        CommitEventProcessor commitEventProcessor = spy(new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
+                segmentHelperMock, null));
+
+        EventProcessor.Writer<CommitEvent> successWriter = event -> CompletableFuture.completedFuture(null);
+
+        EventProcessor.Writer<CommitEvent> failedWriter = event -> {
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            future.completeExceptionally(new RuntimeException("Error"));
+            return future;
+        };
+        //Simulate a failed write
+        when(commitEventProcessor.getSelfWriter()).thenReturn(failedWriter).thenReturn(successWriter);
+        //invoke process with epoch > txnData.
+        commitEventProcessor.process(new CommitEvent(SCOPE, STREAM, txnData.getEpoch() + 1, txnData.getId()), null);
+
+        verify(commitEventProcessor, times(2)).getSelfWriter();
+
+    }
+
+
+    @Test(timeout = 10000)
     public void testAbortEventProcessor() {
         UUID txnId = UUID.randomUUID();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000, 10000,
@@ -116,9 +148,9 @@ public class ControllerEventProcessorTest {
         streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
-        AbortEventProcessor abortEventProcessor = new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor,
+        AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor,
                 segmentHelperMock, null);
-        abortEventProcessor.process(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId()), null);
+        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 

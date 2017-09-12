@@ -80,12 +80,14 @@ public final class Exceptions {
      *
      * @param arg     The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
+     * @return The arg.
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static void checkNotNullOrEmpty(String arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static String checkNotNullOrEmpty(String arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(arg.length() > 0, argName, "Cannot be an empty string.");
+        return arg;
     }
     
     /**
@@ -95,12 +97,14 @@ public final class Exceptions {
      * @param <T>     The type of elements in the provided collection.
      * @param arg     The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
+     * @return The arg.
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static <T> void checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static <T> Collection<T> checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
+        return arg;
     }
 
     /**

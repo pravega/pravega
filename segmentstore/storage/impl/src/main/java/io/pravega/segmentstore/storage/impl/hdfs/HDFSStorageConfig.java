@@ -27,6 +27,7 @@ public class HDFSStorageConfig {
     public static final Property<String> ROOT = Property.named("hdfsRoot", "");
     public static final Property<Integer> REPLICATION = Property.named("replication", 3);
     public static final Property<Integer> BLOCK_SIZE = Property.named("blockSize", 1024 * 1024);
+    public static final Property<Boolean> REPLACE_DATANODES_ON_FAILURE = Property.named("replaceDataNodesOnFailure", true);
     private static final String COMPONENT_CODE = "hdfs";
 
     //endregion
@@ -59,6 +60,13 @@ public class HDFSStorageConfig {
     @Getter
     private final long blockSize;
 
+    /**
+     * Whether to replace DataNodes on failure or not. This should be set to TRUE for deployments where sufficient data
+     * nodes are available(More than Max(3, replication)), otherwise set to FALSE.
+     */
+    @Getter
+    private final boolean replaceDataNodesOnFailure;
+
     //endregion
 
     //region Constructor
@@ -73,6 +81,7 @@ public class HDFSStorageConfig {
         this.hdfsRoot = properties.get(ROOT);
         this.replication = (short) properties.getInt(REPLICATION);
         this.blockSize = properties.getInt(BLOCK_SIZE);
+        this.replaceDataNodesOnFailure = properties.getBoolean(REPLACE_DATANODES_ON_FAILURE);
     }
 
     /**

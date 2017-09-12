@@ -90,7 +90,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
-        streamMetadataStore.getActiveEpoch(scope, stream, context, executor).thenComposeAsync(pair -> {
+        streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
             // Note, transaction's epoch either equals stream's current epoch or is one more than it,
             // because stream scale operation ensures that all transactions in current epoch are
             // complete before transitioning the stream to new epoch.
@@ -136,12 +136,13 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         UUID txnId = event.getTxid();
         log.debug("Transaction {}, pushing back CommitEvent to commitStream", txnId);
         return this.getSelfWriter().write(event).handleAsync((v, e) -> {
-            if (e != null) {
+            if (e == null) {
                 log.debug("Transaction {}, sent request to commitStream", txnId);
                 return null;
             } else {
                 Throwable realException = ExceptionHelpers.getRealException(e);
-                log.warn("Transaction {}, failed sending event to commitStream. Retrying...", txnId);
+                log.warn("Transaction {}, failed sending event to commitStream. Exception: {} Retrying...", txnId,
+                        realException.getClass().getSimpleName());
                 throw new WriteFailedException(realException);
             }
         }, executor);

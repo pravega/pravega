@@ -13,9 +13,9 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -216,14 +216,19 @@ public final class ServiceStarter {
     public static void main(String[] args) throws Exception {
         AtomicReference<ServiceStarter> serviceStarter = new AtomicReference<>();
         try {
-            // Load up the ServiceBuilderConfig, using this priority order:
-            // 1. Configuration file
+            System.err.println(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"));
+            // Load up the ServiceBuilderConfig, using this priority order (lowest to highest):
+            // 1. Configuration file (either default or specified via SystemProperties)
             // 2. System Properties overrides (these will be passed in via the command line or inherited from the JVM)
             ServiceBuilderConfig config = ServiceBuilderConfig
                     .builder()
-                    .include(System.getProperty("pravega.configurationFile", "config.properties"))
+                    .include(System.getProperty(ServiceBuilderConfig.CONFIG_FILE_PROPERTY_NAME, "config.properties"))
                     .include(System.getProperties())
                     .build();
+
+            // For debugging purposes, it may be useful to know the non-default values for configurations being used.
+            // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
+            config.forEach((key, value) -> log.debug("Config:{}={}.", key, value));
             serviceStarter.set(new ServiceStarter(config, Options.builder()
                     .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -25,7 +25,10 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -43,12 +46,10 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
@@ -66,19 +67,26 @@ public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-    private ExecutorService executorService;
+    private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
+    private List<EventStreamReader<Long>> readerList = new ArrayList<>();
+    private List<EventStreamWriter<Long>> writerList = new ArrayList<>();
+    private ScheduledExecutorService executorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
-    private AtomicLong eventWriteCount;
     private AtomicLong eventReadCount;
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
     private URI controllerURIDirect = null;
+    //zk session timeout to detect failure (30s) +
+    // rebalance time to update ownership change (10s) +
+    // time taken to start a segment container
+    private final int sleepTimeAfterFailover = 60000;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws MarathonException, URISyntaxException {
 
         //1. Start 1 instance of zookeeper
         Service zkService = new ZookeeperService("zookeeper");
@@ -153,7 +161,8 @@ public class MultiReaderWriterWithFailOverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
-        executorService = Executors.newFixedThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1, "MultiReaderWriterWithFailOverTest");
+
     }
 
     @After
@@ -173,9 +182,9 @@ public class MultiReaderWriterWithFailOverTest {
                 .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
-        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        Controller controller = new ControllerImpl(controllerUri);
+        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+                executorService);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -201,13 +210,13 @@ public class MultiReaderWriterWithFailOverTest {
             log.info("Client factory details {}", clientFactory.toString());
             //create writers
             log.info("Creating {} writers", NUM_WRITERS);
-            List<EventStreamWriter<Long>> writerList = new ArrayList<>();
             log.info("Writers writing in the scope {}", scope);
             for (int i = 0; i < NUM_WRITERS; i++) {
                 log.info("Starting writer{}", i);
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().retryAttempts(10).build());
+                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(writer);
             }
 
@@ -223,7 +232,6 @@ public class MultiReaderWriterWithFailOverTest {
 
             //create readers
             log.info("Creating {} readers", NUM_READERS);
-            List<EventStreamReader<Long>> readerList = new ArrayList<>();
             String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
             log.info("Scope that is seen by readers {}", scope);
             //start reading events
@@ -275,12 +283,8 @@ public class MultiReaderWriterWithFailOverTest {
             assertEquals(eventData.get(), eventsReadFromPravega.size());
             assertEquals(eventData.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
 
-            //close all the writers
-            log.info("Closing writers");
-            writerList.forEach(writer -> writer.close());
-            //close all readers
-            log.info("Closing readers");
-            readerList.forEach(reader -> reader.close());
+            cleanUp();
+
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);
             readerGroupManager.deleteReaderGroup(readerGroupName);
@@ -301,12 +305,31 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Test {} succeeds ", "MultiReaderWriterWithFailOver");
     }
 
-    private void performFailoverTest() throws InterruptedException {
+    private void cleanUp() {
+        log.info("Closing writers");
+        writerList.forEach(writer -> {
+            try {
+                writer.close();
+            } catch (Throwable e) {
+                log.error("Error closing reader", e);
+            }
+        });
+        log.info("Closing readers");
+        readerList.forEach(reader -> {
+            try {
+                reader.close();
+            } catch (Throwable e) {
+                log.error("Error closing reader", e);
+            }
+        });
+    }
+
+    private void performFailoverTest() {
 
         long currentWriteCount1;
         long currentReadCount1;
 
-        log.info("Test with 2 controller, SSS instances running and without a failover scenario");
+        log.info("Test with 3 controller, segmentstore instances running and without a failover scenario");
 
         currentWriteCount1 = eventData.get();
         currentReadCount1 = eventReadCount.get();
@@ -319,7 +342,7 @@ public class MultiReaderWriterWithFailOverTest {
         //check reads and writes after some random time
         sleepTime = new Random().nextInt(50000) + 3000;
         log.info("Sleeping for {} ", sleepTime);
-        Thread.sleep(sleepTime);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTime));
 
         long currentWriteCount2;
         long currentReadCount2;
@@ -337,8 +360,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down SSS instances to 2
         segmentStoreInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down SSS instances from 3 to 2");
 
         currentWriteCount1 = eventData.get();
@@ -354,8 +376,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //Scale down controller instances to 2
         controllerInstance.scaleService(2, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(60000);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down controller instances from 3 to 2");
 
         currentWriteCount2 = eventData.get();
@@ -372,8 +393,7 @@ public class MultiReaderWriterWithFailOverTest {
         //Scale down SSS, controller to 1 instance each.
         segmentStoreInstance.scaleService(1, true);
         controllerInstance.scaleService(1, true);
-        //zookeeper will take about 60 seconds to detect that the node has gone down
-        Thread.sleep(new Random().nextInt(50000) + 60000);
+        Exceptions.handleInterrupted(() -> Thread.sleep(sleepTimeAfterFailover));
         log.info("Scaling down  to 1 controller, 1 SSS instance");
 
         currentWriteCount1 = eventData.get();
@@ -393,7 +413,7 @@ public class MultiReaderWriterWithFailOverTest {
             while (!stopWriteFlag.get()) {
                 try {
                     long value = data.incrementAndGet();
-                    Thread.sleep(100);
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
                     log.debug("Event write count before write call {}", value);
                     writer.writeEvent(String.valueOf(value), value);
                     log.debug("Event write count before flush {}", value);
@@ -403,6 +423,7 @@ public class MultiReaderWriterWithFailOverTest {
                     log.error("Test exception writing events: ", e);
                 }
             }
+            log.info("Closing the writers.Stop write flag status: {}", stopWriteFlag.get());
         }, executorService);
     }
 
@@ -429,6 +450,7 @@ public class MultiReaderWriterWithFailOverTest {
                     log.error("Test Exception while reading from the stream: ", e);
                 }
             }
+            log.info("Closing the readers.Stop read flag status: {}", exitFlag.get());
         }, executorService);
     }
 }

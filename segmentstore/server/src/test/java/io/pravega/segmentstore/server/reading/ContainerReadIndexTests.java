@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -29,6 +28,7 @@ import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;

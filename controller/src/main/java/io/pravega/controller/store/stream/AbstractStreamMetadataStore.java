@@ -571,8 +571,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Pair<Integer, List<Integer>>>  getActiveEpoch(final String scope,
                                               final String stream,
                                               final OperationContext context,
+                                              final boolean ignoreCached,
                                               final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getActiveEpoch(), executor);
+        return withCompletion(getStream(scope, stream, context).getActiveEpoch(ignoreCached), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
@@ -604,7 +605,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.whenCompleteAsync((r, e) -> {
             if (e != null) {
-                log.error("AbstractStreamMetadataStore exception: {}", e);
                 result.completeExceptionally(e);
             } else {
                 result.complete(r);

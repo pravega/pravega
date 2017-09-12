@@ -163,7 +163,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
                     if (!x) {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND);
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
                     }
                 });
     }
@@ -263,7 +263,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
-        return getActiveEpoch()
+        return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
                         .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))
@@ -323,7 +323,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
             if (opt.isPresent()) {
                 return Integer.parseInt(opt.get().getKey());
             } else {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         });
     }

@@ -89,4 +89,14 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
         return ch;
     }
+    
+    @Override
+    public String toString() {
+        Channel c = channel.get();
+        if (c == null) {
+            return "NewServerConnection";
+        }
+        return c.toString();
+    }
+    
 }

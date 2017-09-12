@@ -840,7 +840,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(readItem.getLength());
+                            DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
                             ArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
@@ -1267,10 +1267,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
             Operation expectedOp = oc.operation;
-            long currentSeqNo = oc.completion.join();
-            Assert.assertEquals("Operation and its corresponding Completion Future have different Sequence Numbers.", currentSeqNo, expectedOp.getSequenceNumber());
-            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, currentSeqNo);
-            lastSeqNo = currentSeqNo;
+            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
+            lastSeqNo = expectedOp.getSequenceNumber();
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from DurableLog. Expected: " + expectedOp, logIterator.hasNext());
@@ -1304,7 +1302,7 @@ public class DurableLogTests extends OperationLogTestBase {
         int index = 0;
         for (Operation o : operations) {
             index++;
-            CompletableFuture<Long> completionFuture;
+            CompletableFuture<Void> completionFuture;
             try {
                 completionFuture = durableLog.add(o, TIMEOUT);
             } catch (Exception ex) {
@@ -1411,7 +1409,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //endregion
 
-    // CorruptedDurableLog
+    //region CorruptedDurableLog
 
     private static class CorruptedDurableLog extends DurableLog {
         private static final AtomicInteger FAIL_AT_INDEX = new AtomicInteger();

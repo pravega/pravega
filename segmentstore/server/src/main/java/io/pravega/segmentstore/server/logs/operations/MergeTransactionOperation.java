@@ -133,7 +133,7 @@ public class MergeTransactionOperation extends StorageOperation {
     @Override
     public String toString() {
         return String.format(
-                "%s, StreamSegmentId = %d, Length = %s, ParentOffset = %s",
+                "%s, TransactionSegmentId = %d, Length = %s, ParentOffset = %s",
                 super.toString(),
                 getTransactionSegmentId(),
                 toString(getLength(), -1),

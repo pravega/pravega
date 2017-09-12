@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.StreamHelpers;
@@ -60,18 +61,26 @@ public class DataFrame {
     //region Constructor
 
     /**
+     * Creates a new instance of a DataFrame.
+     *
+     * @param source The ByteArraySegment to wrap.
+     */
+    private DataFrame(ByteArraySegment source) {
+        this.data = source;
+        this.writeEntryStartIndex = -1;
+        this.sealed = source.isReadOnly();
+        this.writePosition = this.sealed ? -1 : 0;
+    }
+
+    /**
      * Creates a new instance of the DataFrame class with given maximum size.
      * @param maxSize               The maximum size of the frame, including Frame Header and other control structures
      *                              that the frame may use to organize records.
      * @throws IllegalArgumentException When the value for startMagic is invalid.
      */
-    public DataFrame(int maxSize) {
-        this.data = new ByteArraySegment(new byte[maxSize]);
-        this.writeEntryStartIndex = -1;
-        this.writePosition = 0;
-        this.sealed = false;
-
-        formatForWriting();
+    @VisibleForTesting
+    static DataFrame ofSize(int maxSize) {
+        return wrap(new ByteArraySegment(new byte[maxSize]));
     }
 
     /**
@@ -83,23 +92,25 @@ public class DataFrame {
      * @throws SerializationException If the source cannot be deserialized into a DataFrame.
      * @throws NullPointerException   If the source is null.
      */
-    public DataFrame(InputStream source, int length) throws IOException, SerializationException {
-        this(new ByteArraySegment(StreamHelpers.readAll(source, length)));
+    static DataFrame from(InputStream source, int length) throws IOException, SerializationException {
+        ByteArraySegment s = new ByteArraySegment(StreamHelpers.readAll(source, length), 0, length, true);
+        DataFrame f = new DataFrame(s);
+        f.parse();
+        return f;
     }
 
     /**
-     * Creates a new instance of the DataFrame class using the given byte array as serialization source.
+     * Creates a new instance of the DataFrame class using the given byte array as target. The target will be formatted
+     * to be writable.
      *
-     * @param source The source ByteArraySegment.
-     * @throws SerializationException If the source cannot be deserialized into a DataFrame.
-     * @throws NullPointerException   If the source is null.
+     * @param target The source ByteArraySegment.
+     * @throws NullPointerException If the source is null.
      */
-    public DataFrame(ByteArraySegment source) throws SerializationException {
-        this.data = source.asReadOnly();
-        this.writeEntryStartIndex = -1;
-        this.writePosition = -1;
-        this.sealed = true;
-        parse();
+    static DataFrame wrap(ByteArraySegment target) {
+        Preconditions.checkArgument(!target.isReadOnly(), "Cannot deserialize non-readonly source.");
+        DataFrame f = new DataFrame(target);
+        f.formatForWriting();
+        return f;
     }
 
     //endregion
@@ -125,7 +136,7 @@ public class DataFrame {
             return this.data;
         } else {
             // We have just created this frame. Only return the segment of the buffer that contains data.
-            return this.data.subSegment(0, this.header.getSerializationLength() + this.header.getContentLength());
+            return this.data.subSegment(0, getLength());
         }
     }
 

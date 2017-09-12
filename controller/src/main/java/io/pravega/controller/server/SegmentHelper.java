@@ -221,6 +221,11 @@ public class SegmentHelper {
             }
 
             @Override
+            public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                result.complete(txId);
+            }
+
+            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
@@ -268,6 +273,11 @@ public class SegmentHelper {
             }
 
             @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
+            }
+
+            @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
@@ -307,6 +317,11 @@ public class SegmentHelper {
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
+                result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 

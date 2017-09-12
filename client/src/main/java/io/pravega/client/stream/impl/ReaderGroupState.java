@@ -191,7 +191,7 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    String getCheckpointsForReader(String readerName) {
+    String getCheckpointForReader(String readerName) {
         return checkpointState.getCheckpointForReader(readerName);
     }
     
@@ -451,7 +451,7 @@ class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders());
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments());
         }
     }
     

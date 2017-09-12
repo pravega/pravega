@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Stream Controller APIs.
@@ -86,17 +87,41 @@ public interface Controller {
     CompletableFuture<Boolean> deleteStream(final String scope, final String streamName);
 
     /**
-     * API to merge or split stream segments.
-     * 
+     * API to request start of scale operation on controller. This method returns a future that will complete when
+     * controller service accepts the scale request.
+     *
      * @param stream Stream object.
      * @param sealedSegments List of segments to be sealed.
      * @param newKeyRanges Key ranges after scaling the stream.
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the stream was scaled or false if the segments to seal have already
-     *         been sealed.
+     *         indicate that the scaling was started or not.
      */
-    CompletableFuture<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
                                            final Map<Double, Double> newKeyRanges);
+
+    /**
+     * API to merge or split stream segments. This call returns a future that completes when either the scale
+     * operation is completed on controller service (succeeded or failed) or the specified timeout elapses.
+     * 
+     * @param stream Stream object.
+     * @param sealedSegments List of segments to be sealed.
+     * @param newKeyRanges Key ranges after scaling the stream.
+     * @param executorService executor to be used for busy waiting.
+     * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
+     */
+    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+                                           final Map<Double, Double> newKeyRanges,
+                                           final ScheduledExecutorService executorService);
+
+    /**
+     * API to check the status of scale for a given epoch.
+     *
+     * @param stream Stream object.
+     * @param scaleEpoch stream's epoch for which the scale was started.
+     * @return True if scale completed, false otherwise.
+     */
+    CompletableFuture<Boolean> checkScaleStatus(final Stream stream, int scaleEpoch);
+
 
     // Controller Apis called by pravega producers for getting stream specific information
 

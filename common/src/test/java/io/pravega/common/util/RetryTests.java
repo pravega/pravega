@@ -9,10 +9,7 @@
  */
 package io.pravega.common.util;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -20,6 +17,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -102,8 +101,7 @@ public class RetryTests {
 
     @Test
     public void retryFutureTests() {
-        ScheduledExecutorService executorService =
-                Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
         begin = Instant.now();

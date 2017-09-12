@@ -332,12 +332,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 log.debug("Txn={}, notified segments stores", txnId));
 
         // Step 5. Start tracking txn in timeout service
-        return notify.thenApplyAsync(y -> {
-            int version = txnFuture.join().getVersion();
-            long executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+        return notify.whenCompleteAsync((result, ex) -> {
+            int version = 0;
+            long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
+            if (!txnFuture.isCompletedExceptionally()) {
+                version = txnFuture.join().getVersion();
+                executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
+            }
             timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
             log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
-            return null;
         }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
     }
 
@@ -400,15 +403,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
         }
 
-        if (timeoutService.containsTxn(scope, stream, txnId)) {
-            // If timeout service knows about this transaction, attempt to increase its lease.
-            log.debug("Txn={}, extending lease in timeout service", txnId);
-            return CompletableFuture.completedFuture(timeoutService.pingTxn(scope, stream, txnId, lease));
-        } else {
-            // Otherwise, fence other potential processes managing timeout for this txn, and update its lease.
-            log.debug("Txn={}, updating txn node in store and extending lease", txnId);
-            return fenceTxnUpdateLease(scope, stream, txnId, lease, ctx);
-        }
+        log.debug("Txn={}, updating txn node in store and extending lease", txnId);
+        return fenceTxnUpdateLease(scope, stream, txnId, lease, ctx);
     }
 
     private PingTxnStatus createStatus(Status status) {
@@ -463,8 +459,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Even if timeout service has an active/executing timeout task for this txn, it is bound
                         // to fail, since version of txn node has changed because of the above store.pingTxn call.
                         // Hence explicitly add a new timeout task.
-                        log.debug("Txn={}, adding txn to host-txn index", txnId);
-                        timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
+                        if (timeoutService.containsTxn(scope, stream, txnId)) {
+                            // If timeout service knows about this transaction, attempt to increase its lease.
+                            log.debug("Txn={}, extending lease in timeout service", txnId);
+                            timeoutService.pingTxn(scope, stream, txnId, version, lease);
+                        } else {
+                            timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
+                        }
                         return createStatus(Status.OK);
                     }, executor);
                 }, executor);
@@ -516,7 +517,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             if (e != null) {
                 log.debug("Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
             } else {
-                log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
             }
         });
 
@@ -561,6 +562,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }
             }).thenApply(x -> status);
         }, executor);
+    }
+
+    public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
+        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
     }
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {

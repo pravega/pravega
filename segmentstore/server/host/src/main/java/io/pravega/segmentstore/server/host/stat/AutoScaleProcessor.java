@@ -27,9 +27,7 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -173,31 +171,24 @@ public class AutoScaleProcessor {
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
                         segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
-                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
-                        new ImmutablePair<>(0L, timestamp)));
-                // mute only scale downs
+                writeRequest(event).thenAccept(x -> {
+                    if (!silent) {
+                        // mute only scale downs
+                        cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
+                    }
+                });
             }
         }
     }
 
     private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        try {
-            CompletableFuture.runAsync(() -> {
-                try {
-                    writer.get().writeEvent(event.getKey(), event).get();
-                    result.complete(null);
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("error sending request to requeststream {}", e);
-                    result.completeExceptionally(e);
-                }
-            }, executor);
-        } catch (RejectedExecutionException e) {
-            log.error("our executor queue is full. failed to post scale event for {}/{}/{}", event.getScope(), event.getStream(), event.getSegmentNumber());
-            result.completeExceptionally(e);
-        }
-
-        return result;
+        return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
+            if (e != null) {
+                log.error("error sending request to requeststream {}", e);
+            } else {
+                log.debug("scale event posted successfully");
+            }
+        });
     }
 
     void report(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
@@ -215,8 +206,8 @@ public class AutoScaleProcessor {
                     if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
                             (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
                             (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
-                        int numOfSplits = (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate);
-                        log.debug("triggering scale up for {}", streamSegmentName);
+                        int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
+                        log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
 
                         triggerScaleUp(streamSegmentName, numOfSplits);
                     }
@@ -250,5 +241,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 

@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
-    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 6);
+    private final RetryWithBackoff backoffSchedule = Retry.withExpBackoff(1, 10, 9, 30000);
     private final ConnectionFactory connectionFactory;
 
     private final Object lock = new Object();
@@ -70,6 +70,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+            log.info("Received segmentSealed {}", segmentIsSealed);
             checkSegment(segmentIsSealed.getSegment());
             CompletableFuture<SegmentRead> future;
             synchronized (lock) {
@@ -122,9 +123,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     @Override
     public void close() {
+        log.info("Closing reader for {}", segmentId);
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed.get();
     }
 
     @Override
@@ -133,10 +140,17 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length);
 
         return backoffSchedule.retryingOn(Exception.class)
-                              .throwingOn(ConnectionClosedException.class)
-                              .runAsync(() -> {
-                                  return getConnection().thenCompose(c -> sendRequestOverConnection(request, c));
-                              }, connectionFactory.getInternalExecutor());
+                .throwingOn(ConnectionClosedException.class)
+                .runAsync(() -> {
+                    return getConnection()
+                            .whenComplete((connection, ex) -> {
+                                if (ex != null) {
+                                    log.warn("Exception while establishing connection with Pravega " +
+                                            "node", ex);
+                                    closeConnection(new ConnectionFailedException(ex));
+                                }
+                            }).thenCompose(c -> sendRequestOverConnection(request, c));
+                }, connectionFactory.getInternalExecutor());
     }
     
     @SneakyThrows(ConnectionFailedException.class)
@@ -154,7 +168,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     private void closeConnection(Exception exceptionToInflightRequests) {
-        log.trace("Closing connection with exception: {}", exceptionToInflightRequests.toString());
+        if (closed.get()) {
+            log.info("Closing connection to segment: {}", segmentId);
+        } else {            
+            log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests);
+        }
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
             c = connection;
@@ -182,8 +200,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 if (connection == null) {
                     connection = connectionFactory.establishConnection(uri, responseProcessor);
                 }
-                return connection; 
-            } 
+                return connection;
+            }
         });
     }
 

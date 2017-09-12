@@ -973,6 +973,72 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
     }
 
+    /**
+     * Tests the case when a Segment is deleted in the Metadata and ReadIndex.
+     * Note that we are not testing the case when the Segment is deleted only in Storage, since the SegmentContainer
+     * first deletes in the Metadata and then in Storage, and that would simply throw a StreamSegmentNotExistsException,
+     * which will subside as soon as the Metadata is updated and the StorageWriter cleans up the SegmentAggregator.
+     */
+    @Test
+    public void testDeletedSegmentInMetadata() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+
+        // Add one operation big enough to trigger a Flush.
+        byte[] appendData = new byte[config.getFlushThresholdBytes() + 1];
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(SEGMENT_ID, appendData, context);
+
+        context.segmentAggregator.add(appendOp);
+
+        Assert.assertTrue("Unexpected value returned by mustFlush() (size threshold).", context.segmentAggregator.mustFlush());
+
+        //Delete the segment in the Metadata & Read index. We want to make sure we do this while the flush() method is
+        //running, hence the callback (flush() has a check at the beginning that exits if the metadata indicates deleted).
+        context.dataSource.setOnGetAppendData(() -> {
+            context.containerMetadata.deleteStreamSegment(context.segmentAggregator.getMetadata().getName());
+            context.dataSource.clearAppendData();
+        });
+
+        // Call flush() and inspect the result.
+        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT, executorService()).join();
+        Assert.assertEquals("Not expecting any bytes to be flushed.", 0, flushResult.getFlushedBytes());
+        Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
+        Assert.assertFalse("Unexpected value returned by mustFlush() after flush.", context.segmentAggregator.mustFlush());
+    }
+
+    /**
+     * Tests the case when a Segment's data is missing from the ReadIndex (but the Segment itself is not deleted).
+     */
+    @Test
+    public void testSegmentMissingData() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        context.segmentAggregator.initialize(TIMEOUT, executorService()).join();
+
+        // Add one operation big enough to trigger a Flush.
+        byte[] appendData = new byte[config.getFlushThresholdBytes() + 1];
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(SEGMENT_ID, appendData, context);
+
+        context.segmentAggregator.add(appendOp);
+        Assert.assertTrue("Unexpected value returned by mustFlush() (size threshold).", context.segmentAggregator.mustFlush());
+
+        // Clear the append data.
+        context.dataSource.clearAppendData();
+
+        // Call flush() and verify it throws DataCorruptionException.
+        AssertExtensions.assertThrows(
+                "flush() did not throw when unable to read data from ReadIndex.",
+                () -> context.segmentAggregator.flush(TIMEOUT, executorService()),
+                ex -> ex instanceof DataCorruptionException);
+    }
+
     //endregion
 
     //region Unknown outcome operation reconciliation
