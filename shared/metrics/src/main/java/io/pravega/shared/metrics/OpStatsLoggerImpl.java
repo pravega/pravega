@@ -60,6 +60,11 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     //region OpStatsLogger Implementation
 
     @Override
+    public String getName() {
+        return this.successName;
+    }
+
+    @Override
     public void reportFailEvent(Duration duration) {
         fail.update(duration.toMillis(), TimeUnit.MILLISECONDS);
     }

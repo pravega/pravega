@@ -9,21 +9,18 @@
  */
 package io.pravega.shared.metrics;
 
-import java.util.AbstractMap;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class StatsLoggerProxy implements StatsLogger {
     private final AtomicReference<StatsLogger> statsLoggerRef = new AtomicReference<>(new NullStatsLogger());
-    private final ConcurrentHashMap<OpStatsLoggerProxy, String> opStatsLoggers = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<CounterProxy, String> counters = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<MeterProxy, String> meters = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<GaugeProxy, Map.Entry<String, Supplier<? extends Number>>> gauges = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, OpStatsLoggerProxy> opStatsLoggers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CounterProxy> counters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, MeterProxy> meters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, GaugeProxy> gauges = new ConcurrentHashMap<>();
 
     StatsLoggerProxy(StatsLogger logger) {
         this.statsLoggerRef.set(logger);
@@ -31,64 +28,65 @@ public class StatsLoggerProxy implements StatsLogger {
 
     void setLogger(StatsLogger logger) {
         this.statsLoggerRef.set(logger);
-        opStatsLoggers.forEach((k, v) -> {
-            k.setLogger(createStats(v));
-        });
-
-        counters.forEach((k, v) -> {
-            k.setCounter(createCounter(v));
-        });
-
-        meters.forEach((k, v) -> {
-            k.setMeter(createMeter(v));
-        });
-
-        gauges.forEach((k, v) -> {
-            k.setGauge(registerGauge(v.getKey(), v.getValue()));
-        });
+        this.opStatsLoggers.values().forEach(v -> v.updateInstance(createStats(v.getName())));
+        this.counters.values().forEach(v -> v.updateInstance(createCounter(v.getName())));
+        this.meters.values().forEach(v -> v.updateInstance(createMeter(v.getName())));
+        this.gauges.values().forEach(v -> v.updateInstance(registerGauge(v.getName(), v.getValueSupplier())));
     }
 
     @Override
     public OpStatsLogger createStats(String name) {
-        OpStatsLogger logger = this.statsLoggerRef.get().createStats(name);
-        OpStatsLoggerProxy proxy = new OpStatsLoggerProxy(logger);
-        opStatsLoggers.put(proxy, name);
-
-        return proxy;
+        return getOrSet(this.opStatsLoggers,
+                () -> new OpStatsLoggerProxy(this.statsLoggerRef.get().createStats(name), this.opStatsLoggers::remove));
     }
 
     @Override
     public Counter createCounter(String name) {
-        Counter counter = this.statsLoggerRef.get().createCounter(name);
-        CounterProxy proxy = new CounterProxy(counter);
-        counters.put(proxy, name);
-
-        return proxy;
+        return getOrSet(this.counters,
+                () -> new CounterProxy(this.statsLoggerRef.get().createCounter(name), this.counters::remove));
     }
 
     @Override
     public Meter createMeter(String name) {
-        Meter meter = this.statsLoggerRef.get().createMeter(name);
-        MeterProxy proxy = new MeterProxy(meter);
-        meters.put(proxy, name);
-
-        return proxy;
+        return getOrSet(this.meters,
+                () -> new MeterProxy(this.statsLoggerRef.get().createMeter(name), this.meters::remove));
     }
 
     @Override
     public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
-        Gauge gauge = this.statsLoggerRef.get().registerGauge(name, value);
-        GaugeProxy proxy = new GaugeProxy(gauge);
-        gauges.put(proxy, new AbstractMap.SimpleImmutableEntry<>(name, value));
-
-        return proxy;
+        return getOrSet(this.gauges,
+                () -> new GaugeProxy(this.statsLoggerRef.get().registerGauge(name, value), value, this.gauges::remove));
     }
 
     @Override
     public StatsLogger createScopeLogger(String scope) {
         StatsLogger logger = this.statsLoggerRef.get().createScopeLogger(scope);
-        StatsLoggerProxy proxy = new StatsLoggerProxy(logger);
+        return new StatsLoggerProxy(logger);
+    }
 
-        return proxy;
+
+    /**
+     * Atomically gets an existing MetricProxy from the given cache or creates a new one and adds it.
+     *
+     * @param cache         The Cache to get or insert into.
+     * @param proxySupplier A Supplier that creates a new MetricProxy.
+     * @param <T>           Type of Metric.
+     * @param <V>           Type of MetricProxy.
+     * @return Either the existing MetricProxy (if it is already registered) or the newly created one.
+     */
+    private <T extends Metric, V extends MetricProxy<T>> V getOrSet(ConcurrentHashMap<String, V> cache, Supplier<V> proxySupplier) {
+        // We could simply use Map.computeIfAbsent to do everything atomically, however in ConcurrentHashMap, the function
+        // is evaluated while holding the lock. As per the method's guidelines, the computation should be quick and not
+        // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
+        // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
+        // the newly created one.
+        V newObject = proxySupplier.get();
+        V existingObject = cache.putIfAbsent(newObject.getName(), newObject);
+        if (existingObject != null) {
+            newObject.close();
+            return existingObject;
+        } else {
+            return newObject;
+        }
     }
 }

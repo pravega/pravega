@@ -9,29 +9,17 @@
  */
 package io.pravega.shared.metrics;
 
-import java.util.concurrent.atomic.AtomicReference;
+import com.google.common.base.Preconditions;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import lombok.Getter;
 
-public class GaugeProxy implements Gauge {
-    private final AtomicReference<Gauge> instance = new AtomicReference<>();
+class GaugeProxy extends MetricProxy<Gauge> implements Gauge {
+    @Getter
+    private final Supplier<? extends Number> valueSupplier;
 
-    GaugeProxy(Gauge gauge) {
-        instance.set(gauge);
-    }
-
-    void setGauge(Gauge gauge) {
-        instance.set(gauge);
-    }
-
-    @Override
-    public String getName() {
-        return instance.get().getName();
-    }
-
-    @Override
-    public void close() {
-        Gauge g = instance.get();
-        if (g != null) {
-            g.close();
-        }
+    GaugeProxy(Gauge gauge, Supplier<? extends Number> valueSupplier, Consumer<String> closeCallback) {
+        super(gauge, closeCallback);
+        this.valueSupplier = Preconditions.checkNotNull(valueSupplier, "valueSupplier");
     }
 }

@@ -14,7 +14,7 @@ import java.time.Duration;
 /**
  * This interface handles logging of statistics related to each operation (Write, Read etc.).
  */
-public interface OpStatsLogger extends AutoCloseable {
+public interface OpStatsLogger extends Metric {
 
     /**
      * Increment the succeeded op counter with the given eventLatency in NanoSeconds.
@@ -55,7 +55,4 @@ public interface OpStatsLogger extends AutoCloseable {
      * Clear stats for this operation.
      */
     void clear();
-
-    @Override
-    void close();
 }

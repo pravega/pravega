@@ -10,54 +10,41 @@
 package io.pravega.shared.metrics;
 
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
-public class OpStatsLoggerProxy implements OpStatsLogger {
-    private final AtomicReference<OpStatsLogger> instance = new AtomicReference<>();
+public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger> implements OpStatsLogger {
 
-    OpStatsLoggerProxy(OpStatsLogger logger) {
-        instance.set(logger);
-    }
-
-    void setLogger(OpStatsLogger logger) {
-        instance.set(logger);
+    OpStatsLoggerProxy(OpStatsLogger logger, Consumer<String> closeCallback) {
+        super(logger, closeCallback);
     }
 
     @Override
     public void reportSuccessEvent(Duration duration) {
-        instance.get().reportSuccessEvent(duration);
+        getInstance().reportSuccessEvent(duration);
     }
 
     @Override
     public void reportFailEvent(Duration duration) {
-        instance.get().reportFailEvent(duration);
+        getInstance().reportFailEvent(duration);
     }
 
     @Override
     public void reportSuccessValue(long value) {
-        instance.get().reportSuccessValue(value);
+        getInstance().reportSuccessValue(value);
     }
 
     @Override
     public void reportFailValue(long value) {
-        instance.get().reportFailValue(value);
+        getInstance().reportFailValue(value);
     }
 
     @Override
     public OpStatsData toOpStatsData() {
-        return instance.get().toOpStatsData();
+        return getInstance().toOpStatsData();
     }
 
     @Override
     public void clear() {
-        instance.get().clear();
-    }
-
-    @Override
-    public void close() {
-        OpStatsLogger o = instance.get();
-        if (o != null) {
-            o.close();
-        }
+        getInstance().clear();
     }
 }
