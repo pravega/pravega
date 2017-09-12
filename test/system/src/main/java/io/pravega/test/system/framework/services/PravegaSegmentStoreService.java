@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.services;
 
+import com.google.common.base.Strings;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
+    private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
@@ -132,6 +134,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
         map.put("CONTROLLER_URL", conUri.toString());
         map.put("TIER2_STORAGE", "HDFS");
+        getCustomEnvVars(map, SEGMENTSTORE_EXTRA_ENV);
 
         //Properties set to override defaults for system tests
         String hostSystemProperties = setSystemProperty("autoScale.muteInSeconds", "120") +
@@ -139,13 +142,26 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
-                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("segmentstore"));
 
         return app;
+    }
+
+    private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
+        log.info("Extran segment store env variables are {}", segmentstoreExtraEnv);
+        if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
+            Arrays.stream(segmentstoreExtraEnv.split(";;")).forEach(str -> {
+                String[] pair = str.split("::");
+                if (pair.length != 2) {
+                    log.warn("Key Value not present {}", str);
+                } else {
+                    map.put(pair[0], pair[1]);
+                }
+            });
+        }
     }
 }
