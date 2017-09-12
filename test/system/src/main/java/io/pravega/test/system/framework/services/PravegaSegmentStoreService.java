@@ -39,6 +39,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
     private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
+    private static final String ENV_SEPARATOR = ";;";
+    private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
@@ -154,8 +156,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
         log.info("Extran segment store env variables are {}", segmentstoreExtraEnv);
         if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
-            Arrays.stream(segmentstoreExtraEnv.split(";;")).forEach(str -> {
-                String[] pair = str.split("::");
+            Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
+                String[] pair = str.split(KEY_VALUE_SEPARATOR);
                 if (pair.length != 2) {
                     log.warn("Key Value not present {}", str);
                 } else {
