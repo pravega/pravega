@@ -14,8 +14,8 @@ import java.util.function.Consumer;
 
 public class OpStatsLoggerProxy extends MetricProxy<OpStatsLogger> implements OpStatsLogger {
 
-    OpStatsLoggerProxy(OpStatsLogger logger, Consumer<String> closeCallback) {
-        super(logger, closeCallback);
+    OpStatsLoggerProxy(OpStatsLogger logger, String proxyName, Consumer<String> closeCallback) {
+        super(logger, proxyName, closeCallback);
     }
 
     @Override

@@ -51,7 +51,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     }
 
     @Override
-    public void finalize() {
+    protected void finalize() {
         close();
     }
 

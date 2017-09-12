@@ -13,8 +13,8 @@ import java.util.function.Consumer;
 
 class CounterProxy extends MetricProxy<Counter> implements Counter {
 
-    CounterProxy(Counter counter, Consumer<String> closeCallback) {
-        super(counter, closeCallback);
+    CounterProxy(Counter counter, String proxyName, Consumer<String> closeCallback) {
+        super(counter, proxyName, closeCallback);
     }
 
     @Override

@@ -18,8 +18,8 @@ class GaugeProxy extends MetricProxy<Gauge> implements Gauge {
     @Getter
     private final Supplier<? extends Number> valueSupplier;
 
-    GaugeProxy(Gauge gauge, Supplier<? extends Number> valueSupplier, Consumer<String> closeCallback) {
-        super(gauge, closeCallback);
+    GaugeProxy(Gauge gauge, String proxyName, Supplier<? extends Number> valueSupplier, Consumer<String> closeCallback) {
+        super(gauge, proxyName, closeCallback);
         this.valueSupplier = Preconditions.checkNotNull(valueSupplier, "valueSupplier");
     }
 }

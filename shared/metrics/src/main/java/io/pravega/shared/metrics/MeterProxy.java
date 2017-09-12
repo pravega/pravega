@@ -12,8 +12,8 @@ package io.pravega.shared.metrics;
 import java.util.function.Consumer;
 
 public class MeterProxy extends MetricProxy<Meter> implements Meter {
-    MeterProxy(Meter meter, Consumer<String> closeCallback) {
-        super(meter, closeCallback);
+    MeterProxy(Meter meter, String proxyName, Consumer<String> closeCallback) {
+        super(meter, proxyName, closeCallback);
     }
 
     @Override

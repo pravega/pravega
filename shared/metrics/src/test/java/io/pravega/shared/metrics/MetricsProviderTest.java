@@ -141,12 +141,21 @@ public class MetricsProviderTest {
     @Test
     public void testContinuity() {
         statsLogger.createCounter("continuity-counter");
-        MetricsConfig config = MetricsConfig.builder()
+        Assert.assertNotNull("Not registered before disabling.",
+                MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
+
+        MetricsConfig disableConfig = MetricsConfig.builder()
                                             .with(MetricsConfig.ENABLE_STATISTICS, false)
                                             .build();
-        MetricsProvider.initialize(config);
+        MetricsProvider.initialize(disableConfig);
+        Assert.assertNull("Still registered after disabling.",
+                MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
 
-        Assert.assertNotNull(null,
+        MetricsConfig enableConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .build();
+        MetricsProvider.initialize(enableConfig);
+        Assert.assertNotNull("Not registered after re-enabling.",
                 MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
     }
 

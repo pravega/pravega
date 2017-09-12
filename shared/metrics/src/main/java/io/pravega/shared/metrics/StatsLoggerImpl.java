@@ -98,7 +98,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
-        public void finalize() {
+        protected void finalize() {
             close();
         }
 
@@ -147,7 +147,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
-        public void finalize() {
+        protected void finalize() {
             close();
         }
     }
@@ -168,7 +168,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
-        public void finalize() {
+        protected void finalize() {
             close();
         }
 
