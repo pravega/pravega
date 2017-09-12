@@ -12,16 +12,12 @@ package io.pravega.test.system.framework;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.Container;
-import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.ContainerCreation;
-import com.spotify.docker.client.messages.ContainerInfo;
-import com.spotify.docker.client.messages.HostConfig;
-import com.spotify.docker.client.messages.RegistryAuth;
+import com.spotify.docker.client.messages.*;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.test.system.framework.docker.Client;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,19 +26,16 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertFalse;
 
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    //TODO: make docker url configurable
-    private static final DockerClient CLIENT = DefaultDockerClient.builder().uri("http://localhost:2375").build();
+    //private static final String MASTER_IP = "http://127.0.0.1:2375";
+    private static final DockerClient CLIENT = Client.getDockerClient();
     private static final String IMAGE = "java:8";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
-    @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         log.debug("Starting test execution for method: {}", testMethod);
@@ -50,12 +43,22 @@ public class DockerRemoteSequential implements TestExecutor {
         String className = testMethod.getDeclaringClass().getName();
         String methodName = testMethod.getName();
         String containerName = methodName + ".testJob";
-        return CompletableFuture.runAsync(() -> { });
+        return CompletableFuture.runAsync(() -> {
+            createContainer(containerName, className, methodName);
+        }).thenCompose(v2 -> waitForJobCompletion(containerName))
+                .whenComplete((v, ex) -> {
+                    deleteContainer(containerName); //delete container once execution is complete.
+                    if (ex != null) {
+                        log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
+                                methodName);
+
+                    }
+                });
     }
 
     @Override
     public CompletableFuture<Void> stopTestExecution(String testID) {
-        throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
+        throw new org.apache.commons.lang.NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
     private CompletableFuture<Void> waitForJobCompletion(final String containerName) {
@@ -68,7 +71,7 @@ public class DockerRemoteSequential implements TestExecutor {
         boolean value = false;
         try {
             //list the service with filter 'serviceName'
-            List<Container> containers = CLIENT.listContainers(DockerClient.ListContainersParam.allContainers());
+            List<Container> containers = CLIENT.listContainers(DockerClient.ListContainersFilterParam.withStatusRunning());
             for (int i = 0; i < containers.size(); i++) {
                 ContainerInfo info = CLIENT.inspectContainer(containers.get(i).id());
                 if (info.name().equals(containerName)) {
@@ -82,15 +85,13 @@ public class DockerRemoteSequential implements TestExecutor {
         return value;
     }
 
-    private void startContainer(String containerName, String className, String methodName) {
-
-        RegistryAuth registryAuth = RegistryAuth.builder().serverAddress(System.getProperty("dockerImageRegistry")).build();
+    private void createContainer(String containerName, String className, String methodName) {
 
         try {
-            CLIENT.pull(IMAGE, registryAuth);
+            CLIENT.pull(IMAGE);
 
-            ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName), containerName);
-            assertThat(containerCreation.id(), is(notNullValue()));
+            ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName, className), containerName);
+            assertFalse(containerCreation.id().toString().equals(null));
 
             final String id = containerCreation.id();
 
@@ -106,28 +107,33 @@ public class DockerRemoteSequential implements TestExecutor {
 
     }
 
-    private ContainerConfig setContainerConfig(String methodName) {
+    private ContainerConfig setContainerConfig(String methodName, String className) {
 
         Map<String, String> labels = new HashMap<>(1);
         labels.put("testMethodName", methodName);
+        labels.put("testClassName", className);
 
-        String masterIp = System.getProperty("masterIP");
-        String env = "masterIP=" + masterIp;
+        /*String env = "masterIP=" + MASTER_IP;
         List<String> stringList = new ArrayList<>();
-        stringList.add(env);
+        stringList.add(env);*/
 
         List<String> cmdList = new ArrayList<>();
-        String cmd1 = "wget" + System.getProperty("testArtifactUrl", "InvalidTestArtifactURL");
-        cmdList.add(cmd1);
+        String cmd = "cp /data/test/system/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                className + "#" + methodName + " > server.log 2>&1" +
+                "; exit $?";
+        cmdList.add(cmd);
 
         HostConfig hostConfig = HostConfig.builder().build();
 
+        String volume = "$(pwd):/data";
+
         ContainerConfig containerConfig = ContainerConfig.builder()
+                .addVolume(volume)
                 .hostConfig(hostConfig)
                 .image(IMAGE)
-                .cmd("sh", "-c", "while :; do sleep 1; done")
+                .cmd(cmdList)
                 .labels(labels)
-                .env(env)
+                //.env(env)
                 .build();
 
         return containerConfig;
@@ -145,5 +151,8 @@ public class DockerRemoteSequential implements TestExecutor {
         } catch (DockerException | InterruptedException e) {
             log.error("unable to get service list {}", e);
         }
+
     }
 }
+
+

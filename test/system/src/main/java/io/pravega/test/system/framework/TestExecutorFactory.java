@@ -12,7 +12,7 @@ package io.pravega.test.system.framework;
 import org.apache.commons.lang.NotImplementedException;
 
 public class TestExecutorFactory {
-    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
+    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new DockerRemoteSequential();
 
     public enum TestExecutorType {
         LOCAL,

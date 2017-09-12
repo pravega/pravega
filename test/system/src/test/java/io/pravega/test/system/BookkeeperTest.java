@@ -16,6 +16,8 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -23,6 +25,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
     /**
@@ -30,13 +33,13 @@ public class BookkeeperTest {
      *
      * @throws MarathonException if error in setup
      */
-    @Environment
-    public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper");
+    @Before
+    public void setup() throws MarathonException {
+        Service zk = new io.pravega.test.system.framework.services.docker.ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
+        Service bk = new io.pravega.test.system.framework.services.docker.BookkeeperService("bookkeeper");
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -50,7 +53,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
+        Service bk = new io.pravega.test.system.framework.services.docker.BookkeeperService("bookkeeper");
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

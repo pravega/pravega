@@ -512,6 +512,7 @@ project('test:system') {
 
     //This is  used to invoke systemTests
     task startSystemTests(type: Test) {
+        dependsOn 'jar'
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
@@ -528,12 +529,12 @@ project('test:system') {
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
-        if (System.getProperty("masterIP") == null) {
+       /* if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
-        }
-        if (System.getProperty("imageVersion") == null) {
+        }*/
+        /*if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
-        }
+        }*/
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "true"
@@ -544,7 +545,7 @@ project('test:system') {
         systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
-        onlyIf { dockerRegistryUrl && repoUrl }
+        //onlyIf { dockerRegistryUrl && repoUrl }
     }
 }
 

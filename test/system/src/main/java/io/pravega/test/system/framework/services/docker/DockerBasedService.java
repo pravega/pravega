@@ -14,10 +14,10 @@ import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.swarm.Service;
-import com.spotify.docker.client.messages.swarm.ServiceMode;
-import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.NetworkConfig;
+import com.spotify.docker.client.messages.swarm.*;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.test.system.framework.docker.Client;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -36,9 +36,10 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(String serviceName) {
-        dockerClient = DefaultDockerClient.builder().uri("http://localhost:2375").build();
+        dockerClient = Client.getDockerClient();
         this.serviceName = serviceName;
-    }
+        }
+
 
     @Override
     public String getID() {
@@ -130,5 +131,13 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             log.error("unable to leave swarm");
         }
         dockerClient.close();
+    }
+
+    long setNanoCpus(final double cpu) {
+        return (long)  (cpu * Math.pow(10.0, 9.0));
+    }
+
+    long setMemInBytes(final double mem) {
+        return (long) mem * 1024 * 1024;
     }
 }

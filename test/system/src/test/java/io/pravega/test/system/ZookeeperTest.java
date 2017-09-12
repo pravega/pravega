@@ -18,6 +18,7 @@ import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -32,9 +33,10 @@ public class ZookeeperTest {
      * This is used to setup the various services required by the system test framework.
      * @throws MarathonException if error in setup
      */
-    @Environment
-    public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper");
+    //@Environment
+    @Before
+    public void setup() throws MarathonException {
+        Service zk = new io.pravega.test.system.framework.services.docker.ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
@@ -48,7 +50,7 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-        Service zk = new ZookeeperService("zookeeper", 0, 0.0, 0.0);
+        Service zk = new io.pravega.test.system.framework.services.docker.ZookeeperService("zookeeper");
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
                 CuratorFrameworkFactory.newClient(zkUri.getHost()+":"+2181, new RetryOneTime(5000));
