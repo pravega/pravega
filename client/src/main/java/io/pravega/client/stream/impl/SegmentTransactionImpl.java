@@ -9,7 +9,6 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Serializer;
