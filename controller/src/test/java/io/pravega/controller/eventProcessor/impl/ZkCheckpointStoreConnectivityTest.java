@@ -15,6 +15,8 @@ import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.test.common.AssertExtensions;
+import org.apache.curator.RetryPolicy;
+import org.apache.curator.RetrySleeper;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -34,7 +36,7 @@ public class ZkCheckpointStoreConnectivityTest {
 
     @Before
     public void setup() throws Exception {
-        cli = CuratorFrameworkFactory.newClient("localhost:0000", 1, 1, new RetryOneTime(10000));
+        cli = CuratorFrameworkFactory.newClient("localhost:0000", 1, 1, (r, e, s) -> false);
         cli.start();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
