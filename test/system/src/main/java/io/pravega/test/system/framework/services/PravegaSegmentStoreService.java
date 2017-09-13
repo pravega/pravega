@@ -155,7 +155,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     }
 
     private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
-        log.info("Extran segment store env variables are {}", segmentstoreExtraEnv);
+        log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
         if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
             Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
                 String[] pair = str.split(KEY_VALUE_SEPARATOR);
