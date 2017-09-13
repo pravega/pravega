@@ -90,7 +90,6 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
             synchronized (lock) {
                 removeCompleted();
                 checkFailed();
-                Preconditions.checkState(outstanding.isEmpty());
             }
         } catch (SegmentSealedException e) {
             throw new TxnFailedException(e);
