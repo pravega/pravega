@@ -95,6 +95,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         val bk = this.servers.get(bookieIndex);
         bk.suspendProcessing();
+        log.info("Bookie {} suspended.", bookieIndex);
     }
 
     /**
@@ -107,6 +108,40 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
         val bk = this.servers.get(bookieIndex);
         bk.resumeProcessing();
+        log.info("Bookie {} resumed.", bookieIndex);
+    }
+
+    /**
+     * Suspends (stops) ZooKeeper, without destroying its underlying data (so a subsequent resume can pick up from the
+     * state where it left off).
+     */
+    public void suspendZooKeeper() {
+        val zk = this.zkServer.get();
+        Preconditions.checkState(zk != null, "ZooKeeper not started.");
+
+        // Stop, but do not close, the ZK runner.
+        zk.stop();
+        log.info("ZooKeeper suspended.");
+    }
+
+    /**
+     * Resumes ZooKeeper (if it had previously been suspended).
+     *
+     * @throws Exception If an exception got thrown.
+     */
+    public void resumeZooKeeper() throws Exception {
+        val zk = new ZooKeeperServiceRunner(this.zkPort);
+        if (this.zkServer.compareAndSet(null, zk)) {
+            // Initialize ZK runner (since nobody else did it for us).
+            zk.initialize();
+            log.info("ZooKeeper initialized.");
+        } else {
+            zk.close();
+        }
+
+        // Start or resume ZK.
+        this.zkServer.get().start();
+        log.info("ZooKeeper resumed.");
     }
 
     /**
@@ -120,9 +155,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Runtime.getRuntime().addShutdownHook(this.cleanup.get());
 
         if (this.startZk) {
-            val zk = new ZooKeeperServiceRunner(this.zkPort);
-            zk.start();
-            this.zkServer.set(zk);
+            resumeZooKeeper();
         }
 
         initializeZookeeper();
