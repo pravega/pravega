@@ -171,9 +171,12 @@ public class AutoScaleProcessor {
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
                         segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
-                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName,
-                        new ImmutablePair<>(0L, timestamp)));
-                // mute only scale downs
+                writeRequest(event).thenAccept(x -> {
+                    if (!silent) {
+                        // mute only scale downs
+                        cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
+                    }
+                });
             }
         }
     }
@@ -238,5 +241,9 @@ public class AutoScaleProcessor {
         cache.put(streamSegmentName, lrImmutablePair);
     }
 
+    @VisibleForTesting
+    Pair<Long, Long> get(String streamSegmentName) {
+        return cache.getIfPresent(streamSegmentName);
+    }
 }
 

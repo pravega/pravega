@@ -183,8 +183,8 @@ public class MultiReaderWriterWithFailOverTest {
         //get Controller Uri
         URI controllerUri = controllerURIDirect;
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
-        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1)
-                .build(), executorService);
+        Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+                executorService);
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);

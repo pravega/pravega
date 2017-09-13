@@ -15,7 +15,6 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -66,6 +65,7 @@ import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -357,24 +357,28 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             u = u.getCause();
         }
 
-        log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
         if (u instanceof StreamSegmentExistsException) {
+            log.info("Segment '{}' already exists and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
+            log.warn("Segment '{}' does not exist and cannot perform operation '{}'", segment, operation);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
+            log.info("Segment '{}' is sealed and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         }  else if (u instanceof ContainerNotFoundException) {
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection due to: ", u.getMessage());
+            log.info("Closing connection {} while perfroming {} due to {} ", connection, operation, u.getMessage());
             connection.close();
         } else {
-            // TODO: don't know what to do here...
-            connection.close();
+            log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }
     }

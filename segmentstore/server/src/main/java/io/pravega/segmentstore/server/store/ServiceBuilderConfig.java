@@ -16,6 +16,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -77,6 +78,15 @@ public class ServiceBuilderConfig {
         try (val s = new FileOutputStream(file, false)) {
             this.properties.store(s, "");
         }
+    }
+
+    /**
+     * Executes the given BiConsumer on all non-default properties in this configuration.
+     *
+     * @param consumer The BiConsumer to execute.
+     */
+    public void forEach(BiConsumer<? super Object, ? super Object> consumer) {
+        this.properties.forEach(consumer);
     }
 
     //region Default Configuration

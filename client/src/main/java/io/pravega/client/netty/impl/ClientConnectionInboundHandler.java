@@ -128,14 +128,18 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
-        Channel channel = getChannel();
+        Channel ch = channel.get();
+        if (ch == null) {
+            callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
+            return;
+        }
         PromiseCombiner combiner = new PromiseCombiner();
         for (Append append : appends) {
             batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
-            combiner.add(channel.write(append));
+            combiner.add(ch.write(append));
         }
-        channel.flush();
-        ChannelPromise promise = channel.newPromise();
+        ch.flush();
+        ChannelPromise promise = ch.newPromise();
         promise.addListener(new GenericFutureListener<Future<? super Void>>() {
             @Override
             public void operationComplete(Future<? super Void> future) throws Exception {
@@ -154,9 +158,11 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
     }
 
-    private Channel getChannel() {
+    private Channel getChannel() throws ConnectionFailedException {
         Channel ch = channel.get();
-        Preconditions.checkState(ch != null, connectionName + " Connection not yet established.");
+        if (ch == null) {
+            throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
+        }
         return ch;
     }
     

@@ -37,7 +37,6 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
-    private static final int BACK_OFF_SECS = 7200;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
@@ -95,7 +94,6 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private App createPravegaSegmentStoreApp() {
         App app = new App();
         app.setId(this.id);
-        app.setBackoffSeconds(BACK_OFF_SECS);
         app.setCpus(cpu);
         app.setMem(mem);
         app.setInstances(instances);
@@ -141,7 +139,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000)) +
+                setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
 
         map.put("PRAVEGA_SEGMENTSTORE_OPTS", hostSystemProperties);
         app.setEnv(map);
