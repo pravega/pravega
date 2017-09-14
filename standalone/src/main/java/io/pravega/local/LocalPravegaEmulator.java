@@ -12,11 +12,13 @@ package io.pravega.local;
 
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class LocalPravegaEmulator implements AutoCloseable {
 
+    @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
 
     @Builder
@@ -92,8 +94,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
 
     /**
      * Start controller and host.
+     * @throws Exception passes on the exception thrown by `inProcPravegaCluster`
      */
-    private void start() throws Exception {
+    public void start() throws Exception {
         inProcPravegaCluster.start();
     }
 
