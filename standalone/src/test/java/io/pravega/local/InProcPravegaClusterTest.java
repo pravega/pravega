@@ -13,11 +13,13 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,7 +28,7 @@ import org.junit.Test;
  */
 @Slf4j
 public class InProcPravegaClusterTest {
-    LocalPravegaEmulator localPravega;
+    private LocalPravegaEmulator localPravega;
 
     @Before
     public void setUp() throws Exception {
@@ -53,7 +55,7 @@ public class InProcPravegaClusterTest {
     @Test
     public void createTestStream()
             throws Exception {
-
+        Assert.assertNotNull("Pravega not initialized", localPravega);
         String scope = "Scope";
         String streamName = "Stream";
         int numSegments = 10;
@@ -64,17 +66,20 @@ public class InProcPravegaClusterTest {
         ));
 
         streamManager.createScope(scope);
-        streamManager.createStream(scope, streamName,
-                StreamConfiguration.builder()
+        Assert.assertTrue("Stream creation is not successful ",
+                streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                    .scope(scope)
                                    .streamName(streamName)
                                    .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                   .build());
+                                   .build()) == true);
+
         log.info("Created stream: " + streamName);
     }
 
     @After
     public void tearDown() throws Exception {
-        localPravega.close();
+        if (localPravega != null) {
+            localPravega.close();
+        }
     }
 }

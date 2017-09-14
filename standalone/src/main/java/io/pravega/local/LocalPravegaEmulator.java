@@ -96,7 +96,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
      * Start controller and host.
      * @throws Exception passes on the exception thrown by `inProcPravegaCluster`
      */
-    public void start() throws Exception {
+    void start() throws Exception {
         inProcPravegaCluster.start();
     }
 
