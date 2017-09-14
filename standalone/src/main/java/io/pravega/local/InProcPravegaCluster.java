@@ -184,6 +184,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void startLocalZK() throws Exception {
         zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService.initialize();
         zkService.start();
     }
 
