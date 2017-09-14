@@ -33,7 +33,7 @@ public class RocksDBCacheTests extends CacheTestBase {
     public void setUp() {
         this.tempDir.set(Files.createTempDir());
         this.config.set(RocksDBConfig.builder().with(RocksDBConfig.DATABASE_DIR, tempDir.get().getAbsolutePath()).build());
-        this.factory.set(new RocksDBCacheFactory(this.config.get()));
+        this.factory.set(new RocksDBCacheFactory(this.config.get(), null));
     }
 
     @After

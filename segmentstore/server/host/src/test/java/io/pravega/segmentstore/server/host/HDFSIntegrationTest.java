@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.common.health.processor.HealthRequestProcessor;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -78,14 +80,15 @@ public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
 
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
+        HealthRequestProcessor healthProcessor = new HealthRequestProcessorImpl();
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder), healthProcessor))
                 .withStorageFactory(setup -> {
-                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor());
+                    StorageFactory f = new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getExecutor(), healthProcessor);
                     return new ListenableStorageFactory(f);
                 })
-                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
+                .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor(), healthProcessor));
     }
 
     //endregion

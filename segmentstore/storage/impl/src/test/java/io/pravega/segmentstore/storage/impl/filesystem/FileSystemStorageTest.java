@@ -46,7 +46,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService());
+        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService(), null);
     }
 
     @After

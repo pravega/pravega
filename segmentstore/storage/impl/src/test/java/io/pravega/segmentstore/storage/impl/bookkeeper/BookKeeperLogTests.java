@@ -130,7 +130,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .build());
 
         // Create default factory.
-        val factory = new BookKeeperLogFactory(this.config.get(), this.zkClient.get(), executorService());
+        val factory = new BookKeeperLogFactory(this.config.get(), this.zkClient.get(), executorService(), null);
         factory.initialize();
         this.factory.set(factory);
     }
@@ -160,7 +160,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
         @Cleanup
-        val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService());
+        val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService(), null);
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
