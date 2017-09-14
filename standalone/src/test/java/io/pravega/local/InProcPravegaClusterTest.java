@@ -13,7 +13,6 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import lombok.Cleanup;
@@ -71,7 +70,7 @@ public class InProcPravegaClusterTest {
                                    .scope(scope)
                                    .streamName(streamName)
                                    .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                   .build()) == true);
+                                   .build()));
 
         log.info("Created stream: " + streamName);
     }
