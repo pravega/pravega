@@ -184,6 +184,7 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private void startLocalZK() throws Exception {
         zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService.initialize();
         zkService.start();
     }
 
@@ -270,7 +271,10 @@ public class InProcPravegaCluster implements AutoCloseable {
         for (int i = 0; i < this.controllerCount; i++) {
             controllerServers[i] = startLocalController(i);
         }
-        controllerURI = "localhost:" + controllerPorts[0];
+        controllerURI = "tcp://localhost:" + controllerPorts[0];
+        for (int i = 0; i < this.controllerCount; i++) {
+            controllerURI += ",localhost:" + controllerPorts[i];
+        }
 
     }
 

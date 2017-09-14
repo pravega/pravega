@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
@@ -18,7 +19,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import com.google.common.base.Preconditions;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-
 import lombok.SneakyThrows;
 
 /**
@@ -76,7 +75,14 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .getStreamSegmentInfo(stateSegment, timer.getRemaining())
-                .thenComposeAsync(sp -> readSegmentState(sp, timer.getRemaining()), this.executor)
+                .thenComposeAsync(sp -> {
+                    if (sp.getLength() == 0) {
+                        // Empty state files are treated the same as if they didn't exist.
+                        return CompletableFuture.completedFuture(null);
+                    } else {
+                        return readSegmentState(sp, timer.getRemaining());
+                    }
+                }, this.executor)
                 .exceptionally(this::handleSegmentNotExistsException);
     }
 
@@ -133,7 +139,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
         }
     }
 
-    @SneakyThrows(IOException.class)
+    @SneakyThrows
     private SegmentState deserialize(byte[] contents) {
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(contents))) {
             return SegmentState.deserialize(input);

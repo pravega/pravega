@@ -25,21 +25,21 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Controller fail over system test.
@@ -145,17 +145,18 @@ public class ControllerFailoverTest {
         log.info("Stream {}/{} created successfully", scope, stream);
 
         long txnCreationTimestamp = System.nanoTime();
+        StreamImpl stream1 = new StreamImpl(scope, stream);
         TxnSegments txnSegments = controller1.createTransaction(
-                new StreamImpl(scope, stream), lease, maxExecutionTime, scaleGracePeriod).join();
+                stream1, lease, maxExecutionTime, scaleGracePeriod).join();
         log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
-        CompletableFuture<Boolean> scaleFuture = controller1.scaleStream(
-                new StreamImpl(scope, stream), segmentsToSeal, newRangesToCreate, EXECUTOR_SERVICE).getFuture();
+        controller1.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
 
         // Ensure that scale is not yet done.
-        log.info("Status of scale operation isDone={}", scaleFuture.isDone());
-        Assert.assertTrue(!scaleFuture.isDone());
+        boolean scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
+        log.info("Status of scale operation isDone={}", scaleStatus);
+        Assert.assertTrue(!scaleStatus);
 
         // Now stop the controller instance executing scale operation.
         stopTestControllerService();
@@ -169,7 +170,7 @@ public class ControllerFailoverTest {
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",
                 txnSegments.getTxnId(), System.nanoTime() - txnCreationTimestamp);
-        Transaction.Status status = controller2.checkTransactionStatus(new StreamImpl(scope, stream),
+        Transaction.Status status = controller2.checkTransactionStatus(stream1,
                 txnSegments.getTxnId()).join();
         log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
 
@@ -177,12 +178,15 @@ public class ControllerFailoverTest {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
                     controllerUri);
-            controller2.abortTransaction(new StreamImpl(scope, stream), txnSegments.getTxnId()).join();
+            controller2.abortTransaction(stream1, txnSegments.getTxnId()).join();
         }
 
         // Scale operation should now complete on the second controller instance.
-        // Sleep for some time for it to complete
-        Thread.sleep(90000);
+        // Note: if scale does not complete within desired time, test will timeout. 
+        while (!scaleStatus) {
+            scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
+            Thread.sleep(30000);
+        }
 
         // Ensure that the stream has 3 segments now.
         log.info("Checking whether scale operation succeeded by fetching current segments");

@@ -55,6 +55,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 
@@ -213,9 +214,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private PendingEvent removeSingleInflight(long inflightEventNumber) {
             synchronized (lock) {
                 PendingEvent result = inflight.remove(inflightEventNumber);
-                if (inflight.isEmpty()) {
-                    waitingInflight.release();
-                }
                 return result;
             }
         }
@@ -228,10 +226,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
                 List<PendingEvent> result = new ArrayList<>(acked.values());
                 acked.clear();
+                return result;
+            }
+        }
+
+        private void releaseIfEmptyInflight() {
+            synchronized (lock) {
                 if (inflight.isEmpty()) {
                     waitingInflight.release();
                 }
-                return result;
             }
         }
 
@@ -297,7 +300,21 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
-            failConnection(new IllegalArgumentException(noSuchSegment.toString()));
+            String segment = noSuchSegment.getSegment();
+            checkArgument(segmentName.equals(segment), "Wrong segment name %s, %s", segmentName, segment);
+            log.info("Segment being written to {} no longer exists. Failing all writes", segment);
+            state.setClosed(true);
+            ClientConnection connection = state.getConnection();
+            if (connection != null) {
+                connection.close();
+            }
+            NoSuchSegmentException exception = new NoSuchSegmentException(segment);
+            for (PendingEvent toAck : state.removeInflightBelow(Long.MAX_VALUE)) {
+                if (toAck != null) {
+                    toAck.getAckFuture().completeExceptionally(exception);
+                }
+            }
+            state.releaseIfEmptyInflight();
         }
         
         @Override
@@ -346,6 +363,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     toAck.getAckFuture().complete(true);
                 }
             }
+            state.releaseIfEmptyInflight();
         }
         
         private void conditionalFail(long eventNumber) {
@@ -353,6 +371,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             if (toAck != null) {
                 toAck.getAckFuture().complete(false);
             }
+            state.releaseIfEmptyInflight();
         }
 
         @Override
