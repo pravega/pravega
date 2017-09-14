@@ -121,6 +121,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         }
 
         ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort);
+        runner.initialize();
         runner.start();
         Thread.sleep(Long.MAX_VALUE);
     }
