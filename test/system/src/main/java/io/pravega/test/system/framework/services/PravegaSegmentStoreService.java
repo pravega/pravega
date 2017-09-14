@@ -133,9 +133,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
-        map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
         map.put("CONTROLLER_URL", conUri.toString());
-        map.put("TIER2_STORAGE", "HDFS");
         getCustomEnvVars(map, SEGMENTSTORE_EXTRA_ENV);
 
         //Properties set to override defaults for system tests
@@ -165,6 +163,10 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
                     map.put(pair[0], pair[1]);
                 }
             });
+        } else {
+            // Set HDFS as the default for Tier2.
+            map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+            map.put("TIER2_STORAGE", "HDFS");
         }
     }
 }
