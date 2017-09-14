@@ -89,7 +89,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), null))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     SingletonStorageFactory factory = new SingletonStorageFactory(setup.getExecutor());
@@ -117,7 +117,7 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.zkClient.start();
             return builder.withDataLogFactory(setup -> {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
-                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
+                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor(), null);
             });
         } else {
             // No Bookies -> InMemory Tier1.

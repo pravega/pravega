@@ -106,7 +106,7 @@ class BookKeeperAdapter extends StoreAdapter {
         this.zkClient.start();
 
         // Create a BK client.
-        this.logFactory = new BookKeeperLogFactory(this.bkConfig, this.zkClient, this.executor);
+        this.logFactory = new BookKeeperLogFactory(this.bkConfig, this.zkClient, this.executor, null);
         this.logFactory.initialize();
     }
 
