@@ -70,7 +70,7 @@ public class WireCommandsTest {
 
     @Test
     public void testDataAppended() throws IOException {
-        testCommand(new WireCommands.DataAppended(uuid, l));
+        testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE));
     }
 
     @Test

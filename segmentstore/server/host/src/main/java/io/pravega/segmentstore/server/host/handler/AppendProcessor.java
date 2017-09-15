@@ -247,6 +247,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
             boolean conditionalFailed = exception != null && (ExceptionHelpers.getRealException(exception) instanceof BadOffsetException);
+            Long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
             synchronized (lock) {
                 Preconditions.checkState(outstandingAppend == append,
                         "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
@@ -272,7 +273,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (statsRecorder != null) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
-                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber()));
+                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber(), previousEventNumber));
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
             }
