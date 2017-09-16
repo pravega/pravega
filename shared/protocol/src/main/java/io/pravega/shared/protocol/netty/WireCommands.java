@@ -510,7 +510,8 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.DATA_APPENDED;
         final UUID writerId;
         final long eventNumber;
-        final long previousEventNumber;
+        // using Long instead of long to allow null checking as the field may be missing from server
+        final Long previousEventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -528,7 +529,10 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
-            long previousEventNumber = in.readLong();
+            Long previousEventNumber = null;
+            if (length == 32) {
+                previousEventNumber = in.readLong();
+            }
             return new DataAppended(writerId, offset, previousEventNumber);
         }
     }

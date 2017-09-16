@@ -327,13 +327,15 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
-            long previousAckLevel = dataAppended.getPreviousEventNumber();
+            Long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
-                checkAckLevels(ackLevel, previousAckLevel);
+                if (previousAckLevel != null) {
+                    checkAckLevels(ackLevel, previousAckLevel);
+                }
+                ackUpTo(ackLevel);
             } catch (Exception e) {
                 failConnection(e);
             }
-            ackUpTo(ackLevel);
         }
         
         @Override
@@ -379,17 +381,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void checkAckLevels(long ackLevel, long previousAckLevel) {
-            if (previousAckLevel > ackLevel) {
-                throw new IllegalStateException("Bad ack from server - previousAckLevel = " +
-                                                previousAckLevel + ", ackLevel = " + ackLevel);
-            } else {
-                Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
-                if (inFlightBelowPreviousAckLevel != null) {
-                    throw new IllegalStateException("Missed ack from server - previousAckLevel = " +
-                                                    previousAckLevel + ", ackLevel = " + ackLevel + ", " +
-                                                    "inFlightLevel = " + inFlightBelowPreviousAckLevel);
-                }
-            }
+            checkState(previousAckLevel < ackLevel, "Bad ack from server - previousAckLevel = %s, ackLevel = %s",
+                       previousAckLevel, ackLevel);
+            // we only care that the lowest in flight level is higher than previous ack level.
+            // it may be higher by more than 1 (eg: in the case of a prior failed conditional appends).
+            // this is because client never decrements eventNumber.
+            Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
+            checkState(inFlightBelowPreviousAckLevel == null, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
+                       previousAckLevel, ackLevel, inFlightBelowPreviousAckLevel);
         }
 
         private void conditionalFail(long eventNumber) {
