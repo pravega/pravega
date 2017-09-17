@@ -13,6 +13,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.health.HealthReporter;
 import io.pravega.common.health.HealthReporterException;
+import io.pravega.common.health.processor.HealthRequestProcessor;
+import io.pravega.common.health.processor.NullRequestProcessor;
 import io.pravega.common.health.processor.impl.SocketStreamHealthRequestProcessorImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -61,7 +63,7 @@ public final class ServiceStarter extends HealthReporter {
     private SegmentStatsFactory segmentStatsFactory;
     private CuratorFramework zkClient;
     private boolean closed;
-    private SocketStreamHealthRequestProcessorImpl requestProcessor;
+    private HealthRequestProcessor requestProcessor;
 
     //endregion
 
@@ -101,6 +103,15 @@ public final class ServiceStarter extends HealthReporter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
+        if (this.serviceConfig.isEnableHealthReporting()) {
+            SocketStreamHealthRequestProcessorImpl healthRequestProcessor = new SocketStreamHealthRequestProcessorImpl(this.serviceConfig.getHealthReporterIPAddress(),
+                    this.serviceConfig.getHealthReporterPort());
+            healthRequestProcessor.startListening();
+            this.requestProcessor = healthRequestProcessor;
+        } else {
+            this.requestProcessor = new NullRequestProcessor();
+        }
+
         log.info("Initializing metrics provider ...");
         MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -125,8 +136,7 @@ public final class ServiceStarter extends HealthReporter {
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
 
-        requestProcessor = new SocketStreamHealthRequestProcessorImpl("localhost", 7070);
-        requestProcessor.startListening();
+
         log.info("StreamSegmentService started.");
     }
 
