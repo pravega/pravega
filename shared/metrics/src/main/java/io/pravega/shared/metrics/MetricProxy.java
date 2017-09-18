@@ -1,13 +1,12 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.shared.metrics;
 
 import com.google.common.base.Preconditions;
@@ -31,7 +30,7 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
      * Creates a new instance of the MetricProxy class.
      *
      * @param instance      The initial Metric Instance.
-     * @param proxyName          The name of the MetricProxy. This may be different from the name of the Metric's instance.
+     * @param proxyName     The name of the MetricProxy. This may be different from the name of the Metric's instance.
      * @param closeCallback A Consumer that will be invoked when this Proxy is closed.
      */
     MetricProxy(T instance, String proxyName, Consumer<String> closeCallback) {
