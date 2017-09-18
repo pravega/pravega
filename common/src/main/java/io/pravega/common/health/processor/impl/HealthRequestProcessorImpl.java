@@ -61,6 +61,9 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
                             log.warn("Error while writing health");
                         }
                     });
+                    break;
+                    default:
+                        log.warn("Unknown cmd {}", cmd);
             }
         }
     }
