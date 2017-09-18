@@ -22,6 +22,10 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
@@ -73,14 +77,16 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     @Before
     public void setup() {
         // Get zk details to verify if controller, SSS are running
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controller", zkUri);
+        controllerInstance = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
@@ -93,7 +99,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
+        segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 

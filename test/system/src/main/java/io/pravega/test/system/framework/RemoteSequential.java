@@ -39,7 +39,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  * This is used to execute tests sequentially.
  */
 @Slf4j
-public class RemoteSequential /*implements TestExecutor*/ {
+public class RemoteSequential implements TestExecutor {
     private static final Metronome CLIENT = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 

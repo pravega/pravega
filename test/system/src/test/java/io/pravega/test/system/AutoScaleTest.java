@@ -25,6 +25,11 @@ import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
@@ -76,7 +81,9 @@ public class AutoScaleTest extends AbstractScaleTests {
     public static void setup() {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -86,7 +93,9 @@ public class AutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.isDockerLocalExecEnabled()
+                ? new BookkeeperDockerService("bookkeeper")
+                : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -95,7 +104,9 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -104,7 +115,9 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }

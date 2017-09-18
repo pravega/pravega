@@ -19,7 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class Client {
 
-    static final DockerClient DOCKER_CLIENT = DefaultDockerClient.builder().uri("http://127.0.0.1:2375").build();
+    static String masterIp = System.getProperty("masterIP");
+    static final DockerClient DOCKER_CLIENT = DefaultDockerClient.builder().uri("http://" + masterIp + ":2375").build();
 
     public static DockerClient getDockerClient() {
       return createDockerClient();
@@ -29,7 +30,7 @@ public class Client {
         try {
             log.info("This node is not in swarm");
             DOCKER_CLIENT.initSwarm(SwarmInit.builder()
-                        .advertiseAddr("127.0.0.1")
+                        .advertiseAddr(masterIp)
                         .listenAddr("0.0.0.0:2377")
                         .build()
                 );

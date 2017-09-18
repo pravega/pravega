@@ -32,6 +32,11 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
@@ -91,7 +96,9 @@ public class MultiReaderWriterWithFailOverTest {
     public static void initialize() throws MarathonException, URISyntaxException {
 
         //1. Start 1 instance of zookeeper
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -101,7 +108,8 @@ public class MultiReaderWriterWithFailOverTest {
         URI zkUri = zkUris.get(0);
 
         //2. Start 3 bookies
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -109,7 +117,9 @@ public class MultiReaderWriterWithFailOverTest {
         log.debug("Bookkeeper service details: {}", bkUris);
 
         //3. start 3 instances of pravega controller
-        Service conService = new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -125,7 +135,9 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start 3 instances of pravega segmentstore
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
+        Service segService = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -139,14 +151,18 @@ public class MultiReaderWriterWithFailOverTest {
     public void setup() {
 
         // Get zk details to verify if controller, SSS are running
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controller", zkUri);
+        controllerInstance = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
@@ -159,7 +175,9 @@ public class MultiReaderWriterWithFailOverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
+        segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 

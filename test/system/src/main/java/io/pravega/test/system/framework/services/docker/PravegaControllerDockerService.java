@@ -13,13 +13,15 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.Assert.assertThat;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.RestartPolicy;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
@@ -30,19 +32,17 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
 
 @Slf4j
-public class BookkeeperService extends DockerBasedService {
+public class PravegaControllerDockerService extends DockerBasedService {
 
-    private static final int BK_PORT = 3181;
-    private int instances = 3;
+    static final int CONTROLLER_PORT = 9092;
+    private static final int REST_PORT = 10080;
+    private int instances = 1;
     private double cpu = 0.1;
-    private double mem = 1024.0;
+    private double mem = 700.0;
 
-    public BookkeeperService(String serviceName) {
+    public PravegaControllerDockerService(final String serviceName) {
         super(serviceName);
     }
 
@@ -67,51 +67,45 @@ public class BookkeeperService extends DockerBasedService {
                 waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException | TimeoutException | ExecutionException e) {
+        } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
             log.error("unable to create service {}", e);
         }
     }
 
     private ServiceSpec setServiceSpec() {
-        Mount mount1 = Mount.builder().type("volume").source("journal-volume").target("/bk/journal")
-                .build();
-        Mount mount2 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
-                .build();
-        Mount mount3 = Mount.builder().type("volume").source("ledgers-volume").target("/bk/ledger")
-                .build();
-        Mount mount4 = Mount.builder().type("volume").source("logs-volume")
-                .target("/opt/dl_all/distributedlog-service/logs/")
-                .build();
-
+        Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
         String zk = "zookeeper" + ":" + ZKSERVICE_ZKPORT;
+        String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", dockerClient.getHost()) +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
+                setSystemProperty("log.level", "DEBUG") +
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
+        String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
+        String env2 = "JAVA_OPTS=-Xmx512m";
         List<String> stringList = new ArrayList<>();
-        String env1 = "ZK_URL=" + zk;
-        String env2 = "ZK=" + zk;
-        String env3 = "bookiePort=" + String.valueOf(BK_PORT);
-        String env4 = "DLOG_EXTRA_OPTS=-Xms512m";
         stringList.add(env1);
         stringList.add(env2);
-        stringList.add(env3);
-        stringList.add(env4);
         final TaskSpec taskSpec = TaskSpec
-                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
-                .containerSpec(ContainerSpec.builder()
-                        .image("asdrepo.isus.emc.com:8103" + "/nautilus/bookkeeper:0.1.0-1415.b5f03f5")
-                        .command("/bin/sh", "-c",
-                                "/opt/bk_all/entrypoint.sh")
+                .builder()
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
-                        .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
-                        .env(stringList).build())
+                        .mounts(Arrays.asList(mount))
+                        .env(stringList).args("controller").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
-        ServiceSpec spec = ServiceSpec.builder().name(serviceName)
-                .networks(NetworkAttachmentConfig.builder().target("network-name").build())
-                .taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().
-                        targetPort(BK_PORT).protocol("TCP").build())
+        List<PortConfig> portConfigs = new ArrayList<>();
+        PortConfig port1 = PortConfig.builder().publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).protocol("TCP").build();
+        PortConfig port2 = PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).protocol("TCP").build();
+        portConfigs.add(port1);
+        portConfigs.add(port2);
+        ServiceSpec spec = ServiceSpec.builder().name("controller").taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+                .name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build())
+                .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;
     }

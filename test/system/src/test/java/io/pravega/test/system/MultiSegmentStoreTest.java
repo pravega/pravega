@@ -14,6 +14,11 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
@@ -57,7 +62,9 @@ public class MultiSegmentStoreTest {
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
 
         // 1. Check if zk is running, if not start it.
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -66,7 +73,9 @@ public class MultiSegmentStoreTest {
         log.info("zookeeper service details: {}", zkUris);
         URI zkUri = zkUris.get(0);
         // 2. Check if bk is running, otherwise start it.
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper")
+                : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -75,7 +84,9 @@ public class MultiSegmentStoreTest {
         log.info("bookkeeper service details: {}", bkUris);
 
         // 3. Start controller.
-        Service controllerService = new PravegaControllerService("controller", zkUri);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -84,7 +95,9 @@ public class MultiSegmentStoreTest {
         log.info("Pravega Controller service instance details: {}", conUris);
 
         // 4. Start segment store.
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -95,19 +108,25 @@ public class MultiSegmentStoreTest {
 
     @Before
     public void setup() {
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
         // Verify controller is running.
-        this.controllerInstance = new PravegaControllerService("controller", zkUris.get(0));
+        this.controllerInstance = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUris.get(0));
         Assert.assertTrue(this.controllerInstance.isRunning());
         List<URI> conURIs = this.controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Verify segment stores is running.
-        this.segmentServiceInstance = new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conURIs.get(0));
+        this.segmentServiceInstance = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conURIs.get(0));
         Assert.assertTrue(this.segmentServiceInstance.isRunning());
         Assert.assertEquals(1, this.segmentServiceInstance.getServiceDetails().size());
         log.info("Pravega segment store instance details: {}", this.segmentServiceInstance.getServiceDetails());

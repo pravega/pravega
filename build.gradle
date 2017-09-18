@@ -521,6 +521,7 @@ project('test:system') {
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
+        systemProperty "dockerExecLocal", System.getProperty("dockerExecLocal")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
@@ -528,12 +529,16 @@ project('test:system') {
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
         }
-       /* if (System.getProperty("masterIP") == null) {
+        if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"
-        }*/
-        /*if (System.getProperty("imageVersion") == null) {
+        }
+        if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
-        }*/
+        }
+
+        if (System.getProperty("dockerExecLocal") == null) {
+            systemProperty "dockerExecLocal", "false"
+        }
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
             systemProperty "skipServiceInstallation", "true"

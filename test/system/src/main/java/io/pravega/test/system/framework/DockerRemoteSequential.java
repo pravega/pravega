@@ -117,7 +117,7 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testClassName", className);
 
         HostConfig hostConfig = HostConfig.builder().appendBinds("/root/git/docker-framework/pravega/test/system/build/libs:/data")
-                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( "127.0.0.1", "2375" ) ) ) ).networkMode("host").build();
+                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( System.getProperty("masterIp"), "2375" ) ) ) ).networkMode("host").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)
@@ -126,7 +126,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 .workingDir("/data")
                 .cmd("java -cp test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
                         className + "#" + methodName + " > server.log 2>&1" )
-                //.cmd("sh", "-c", "while :; do sleep 1; done")
+                .cmd("sh", "-c", "while :; do sleep 1; done")
                 .labels(labels)
                 .build();
 

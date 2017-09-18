@@ -11,13 +11,14 @@ package io.pravega.test.system;
 
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -25,7 +26,6 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
     /**
@@ -33,13 +33,16 @@ public class BookkeeperTest {
      *
      * @throws MarathonException if error in setup
      */
-    @Before
+    @Environment
     public void setup() throws MarathonException {
-        Service zk = new io.pravega.test.system.framework.services.docker.ZookeeperService("zookeeper");
+        Service zk = Utils.isDockerLocalExecEnabled() ?
+                new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = new io.pravega.test.system.framework.services.docker.BookkeeperService("bookkeeper");
+        Service bk = Utils.isDockerLocalExecEnabled() ? 
+                new BookkeeperDockerService("bookkeeper") :
+                new BookkeeperService("zookeeper", zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -53,7 +56,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = new io.pravega.test.system.framework.services.docker.BookkeeperService("bookkeeper");
+        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper"): new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

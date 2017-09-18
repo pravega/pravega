@@ -9,10 +9,12 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import org.apache.commons.lang.NotImplementedException;
 
 public class TestExecutorFactory {
-    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new DockerRemoteSequential();
+    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = Utils.isDockerLocalExecEnabled() ?
+             new DockerRemoteSequential() : new RemoteSequential();
 
     public enum TestExecutorType {
         LOCAL,

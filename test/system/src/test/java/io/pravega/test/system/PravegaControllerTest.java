@@ -11,6 +11,9 @@ package io.pravega.test.system;
 
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
@@ -35,11 +38,15 @@ public class PravegaControllerTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper");
+        Service zk = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service con = new PravegaControllerService("controller", zk.getServiceDetails().get(0));
+        Service con = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }
@@ -53,7 +60,9 @@ public class PravegaControllerTest {
     @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
-        Service con = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service con = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {

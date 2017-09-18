@@ -20,6 +20,11 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
@@ -56,7 +61,9 @@ public class ControllerFailoverTest {
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled() ?
+                new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -66,7 +73,9 @@ public class ControllerFailoverTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper")
+                : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -75,13 +84,17 @@ public class ControllerFailoverTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //3. start controller
-        Service controllerService = new PravegaControllerService("controller", zkUri);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller")
+                : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
 
         //4. start test controller instances
-        Service testControllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
+        Service testControllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME)
+                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
         if (!testControllerService.isRunning()) {
             testControllerService.start(true);
         }
@@ -93,7 +106,9 @@ public class ControllerFailoverTest {
         log.debug("Pravega test Controller service instance details: {}", testConUris);
 
         //4.start host
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore")
+                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }

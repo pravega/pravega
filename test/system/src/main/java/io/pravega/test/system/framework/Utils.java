@@ -38,4 +38,10 @@ public class Utils {
         String config = getConfig("skipServiceInstallation", "true");
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
+
+    public static boolean isDockerLocalExecEnabled() {
+        String dockerConfig = getConfig("dockerExecLocal", "false");
+        return dockerConfig.trim().equalsIgnoreCase("false") ? false : true;
+
+    }
 }
