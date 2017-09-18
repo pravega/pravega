@@ -13,9 +13,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.health.HealthReporter;
 import io.pravega.common.health.HealthReporterException;
-import io.pravega.common.health.processor.HealthRequestProcessor;
-import io.pravega.common.health.processor.NullRequestProcessor;
-import io.pravega.common.health.processor.impl.SocketStreamHealthRequestProcessorImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -63,7 +60,6 @@ public final class ServiceStarter extends HealthReporter {
     private SegmentStatsFactory segmentStatsFactory;
     private CuratorFramework zkClient;
     private boolean closed;
-    private HealthRequestProcessor requestProcessor;
 
     //endregion
 
@@ -103,15 +99,6 @@ public final class ServiceStarter extends HealthReporter {
     public void start() throws Exception {
         Exceptions.checkNotClosed(this.closed, this);
 
-        if (this.serviceConfig.isEnableHealthReporting()) {
-            SocketStreamHealthRequestProcessorImpl healthRequestProcessor = new SocketStreamHealthRequestProcessorImpl(this.serviceConfig.getHealthReporterIPAddress(),
-                    this.serviceConfig.getHealthReporterPort());
-            healthRequestProcessor.startListening();
-            this.requestProcessor = healthRequestProcessor;
-        } else {
-            this.requestProcessor = new NullRequestProcessor();
-        }
-
         log.info("Initializing metrics provider ...");
         MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -135,7 +122,6 @@ public final class ServiceStarter extends HealthReporter {
                 this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
-
 
         log.info("StreamSegmentService started.");
     }
@@ -171,12 +157,12 @@ public final class ServiceStarter extends HealthReporter {
     }
 
     private void attachBookKeeper(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor(), this.requestProcessor));
+        builder.withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor(), setup.getHealthProcessor()));
 
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), this.requestProcessor));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), setup.getHealthProcessor()));
     }
 
     private void attachStorage(ServiceBuilder builder) {
@@ -187,15 +173,15 @@ public final class ServiceStarter extends HealthReporter {
                 switch (storageChoice) {
                     case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor(), this.requestProcessor);
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor(), setup.getHealthProcessor());
 
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor(), this.requestProcessor);
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor(), setup.getHealthProcessor());
 
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), this.requestProcessor);
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), setup.getHealthProcessor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());

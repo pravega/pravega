@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -205,7 +206,7 @@ public class TestDurableDataLog implements DurableDataLog {
      * @return The newly created log.
      */
     public static TestDurableDataLog create(int containerId, int maxAppendSize, int appendDelayMillis, ScheduledExecutorService executorService) {
-        try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize, executorService)) {
+        try (InMemoryDurableDataLogFactory factory = new InMemoryDurableDataLogFactory(maxAppendSize, executorService, new HealthRequestProcessorImpl())) {
             if (appendDelayMillis > 0) {
                 Duration delay = Duration.ofMillis(appendDelayMillis);
                 factory.setAppendDelayProvider(() -> delay);

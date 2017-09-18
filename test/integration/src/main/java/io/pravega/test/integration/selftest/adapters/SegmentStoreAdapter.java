@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -121,7 +122,7 @@ class SegmentStoreAdapter extends StoreAdapter {
             });
         } else {
             // No Bookies -> InMemory Tier1.
-            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()));
+            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor(), new HealthRequestProcessorImpl()));
         }
     }
 

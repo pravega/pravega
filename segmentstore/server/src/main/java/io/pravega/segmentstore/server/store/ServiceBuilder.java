@@ -11,6 +11,9 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.pravega.common.health.processor.HealthRequestProcessor;
+import io.pravega.common.health.processor.NullRequestProcessor;
+import io.pravega.common.health.processor.impl.SocketStreamHealthRequestProcessorImpl;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -41,6 +44,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -63,12 +67,14 @@ public final class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<SegmentContainerManager> containerManager;
     private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
+    private final AtomicReference<HealthRequestProcessor> healthProcessor;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
     private Function<ComponentSetup, DurableDataLogFactory> dataLogFactoryCreator;
     private Function<ComponentSetup, StorageFactory> storageFactoryCreator;
     private Function<ComponentSetup, SegmentContainerManager> segmentContainerManagerCreator;
     private Function<ComponentSetup, CacheFactory> cacheFactoryCreator;
     private Function<ComponentSetup, StreamSegmentStore> streamSegmentStoreCreator;
+    private Function<ComponentSetup, HealthRequestProcessor> healthProcessorCreator;
 
     //endregion
 
@@ -100,6 +106,7 @@ public final class ServiceBuilder implements AutoCloseable {
         this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
+        this.healthProcessor = new AtomicReference<>();
 
         // Setup default creators - we cannot use the ServiceBuilder unless all of these are setup.
         this.dataLogFactoryCreator = notConfiguredCreator(DurableDataLogFactory.class);
@@ -173,6 +180,19 @@ public final class ServiceBuilder implements AutoCloseable {
     }
 
     /**
+     * Attaches the given StorageFactory creator to this ServiceBuilder. The given Function will only not be invoked
+     * right away; it will be called when needed.
+     *
+     * @param healthProcessorCreator The Function to attach.
+     * @return This ServiceBuilder.
+     */
+    public ServiceBuilder withHealthProcessor(Function<ComponentSetup, HealthRequestProcessor> healthProcessorCreator) {
+        Preconditions.checkNotNull(storageFactoryCreator, "storageFactoryCreator");
+        this.healthProcessorCreator = healthProcessorCreator;
+        return this;
+    }
+
+    /**
      * Attaches the given SegmentContainerManager creator to this ServiceBuilder. The given Function will only not be invoked
      * right away; it will be called when needed.
      *
@@ -228,6 +248,7 @@ public final class ServiceBuilder implements AutoCloseable {
      * @throws DurableDataLogException If unable to initialize DurableDataLogFactory.
      */
     public void initialize() throws DurableDataLogException {
+        getSingleton(this.healthProcessor, this.healthProcessorCreator);
         getSingleton(this.dataLogFactory, this.dataLogFactoryCreator).initialize();
         getSingleton(this.containerManager, this.segmentContainerManagerCreator).initialize();
     }
@@ -339,13 +360,29 @@ public final class ServiceBuilder implements AutoCloseable {
     }
 
     private static ServiceBuilder attachDefaultComponents(ServiceBuilder serviceBuilder) {
-        return serviceBuilder.withCacheFactory(setup -> new InMemoryCacheFactory())
+        return serviceBuilder.withHealthProcessor(setup -> createHealthProcessor(setup))
+                             .withCacheFactory(setup -> new InMemoryCacheFactory(setup.getHealthProcessor()))
                              .withContainerManager(setup -> new LocalSegmentContainerManager(
-                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
+                                     setup.getContainerRegistry(), setup.getSegmentToContainerMapper(), setup.getHealthProcessor()))
                              .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
-                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
+                             .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor(), setup.getHealthProcessor()))
                              .withStreamSegmentStore(setup -> new StreamSegmentService(setup.getContainerRegistry(),
                                      setup.getSegmentToContainerMapper()));
+    }
+
+    private static HealthRequestProcessor createHealthProcessor(ComponentSetup setup) {
+        ServiceConfig config = setup.getConfig(ServiceConfig::builder);
+        HealthRequestProcessor requestProcessor;
+        if (config.isEnableHealthReporting()) {
+            SocketStreamHealthRequestProcessorImpl healthRequestProcessor = new SocketStreamHealthRequestProcessorImpl(config.getHealthReporterIPAddress(),
+                    config.getHealthReporterPort());
+            healthRequestProcessor.startListening();
+            requestProcessor = healthRequestProcessor;
+        } else {
+            requestProcessor = new NullRequestProcessor();
+        }
+        setup.setHealthProcessor(requestProcessor);
+        return requestProcessor;
     }
 
     public StorageFactory getStorageFactory() {
@@ -359,9 +396,12 @@ public final class ServiceBuilder implements AutoCloseable {
      */
     public static class ComponentSetup {
         private final ServiceBuilder builder;
+        @Getter
+        private HealthRequestProcessor healthProcessor;
 
         private ComponentSetup(ServiceBuilder builder) {
             this.builder = builder;
+            this.healthProcessor = builder.healthProcessor.get();
         }
 
         /**
@@ -393,6 +433,10 @@ public final class ServiceBuilder implements AutoCloseable {
          */
         public ScheduledExecutorService getExecutor() {
             return this.builder.executorService;
+        }
+
+        public void setHealthProcessor(HealthRequestProcessor healthProcessor) {
+            this.healthProcessor = healthProcessor;
         }
     }
 }

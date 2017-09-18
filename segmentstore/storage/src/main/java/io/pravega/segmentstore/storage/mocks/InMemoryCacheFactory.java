@@ -10,9 +10,12 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.health.HealthReporter;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 
+import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.annotation.concurrent.GuardedBy;
@@ -22,11 +25,17 @@ import javax.annotation.concurrent.ThreadSafe;
  * Factory for InMemoryCache.
  */
 @ThreadSafe
-public class InMemoryCacheFactory implements CacheFactory {
+public class InMemoryCacheFactory extends HealthReporter implements CacheFactory {
     @GuardedBy("caches")
     private final HashMap<String, InMemoryCache> caches = new HashMap<>();
+    private final HealthRequestProcessor healthProcessor;
     @GuardedBy("caches")
     private boolean closed;
+
+    public InMemoryCacheFactory(HealthRequestProcessor healthProcessor) {
+        super("segmentstore/inmemcache/", new String[]{"ruok"});
+        this.healthProcessor = healthProcessor;
+    }
 
     @Override
     public Cache getCache(String id) {
@@ -55,5 +64,10 @@ public class InMemoryCacheFactory implements CacheFactory {
         synchronized (this.caches) {
             this.caches.remove(cacheId);
         }
+    }
+
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+
     }
 }

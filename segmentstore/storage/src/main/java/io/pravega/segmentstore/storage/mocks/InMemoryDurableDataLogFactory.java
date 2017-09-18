@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -30,15 +31,17 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
     @Setter
     private Supplier<Duration> appendDelayProvider = InMemoryDurableDataLog.DEFAULT_APPEND_DELAY_PROVIDER;
     private boolean closed;
+    private final HealthRequestProcessor healthRequestProcessor;
 
-    public InMemoryDurableDataLogFactory(ScheduledExecutorService executorService) {
-        this(-1, executorService);
+    public InMemoryDurableDataLogFactory(ScheduledExecutorService executorService, HealthRequestProcessor healthRequestProcessor) {
+        this(-1, executorService, healthRequestProcessor);
     }
 
-    public InMemoryDurableDataLogFactory(int maxAppendSize, ScheduledExecutorService executorService) {
+    public InMemoryDurableDataLogFactory(int maxAppendSize, ScheduledExecutorService executorService, HealthRequestProcessor healthRequestProcessor) {
         Preconditions.checkNotNull(executorService, "executorService");
         this.maxAppendSize = maxAppendSize;
         this.executorService = executorService;
+        this.healthRequestProcessor = healthRequestProcessor;
     }
 
     @Override
@@ -53,8 +56,9 @@ public class InMemoryDurableDataLogFactory implements DurableDataLogFactory {
                 this.persistedData.put(containerId, entries);
             }
         }
-
-        return new InMemoryDurableDataLog(entries, this.appendDelayProvider, this.executorService);
+        InMemoryDurableDataLog inMemdurableLog = new InMemoryDurableDataLog(entries, this.appendDelayProvider, this.executorService);
+        this.healthRequestProcessor.registerHealthProcessor("segmentstore/inmemlog/" + containerId, inMemdurableLog);
+        return inMemdurableLog;
     }
 
     @Override

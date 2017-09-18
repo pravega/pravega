@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.OrderedItemProcessor;
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.io.ByteArrayInputStream;
+import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
@@ -41,7 +43,7 @@ import lombok.RequiredArgsConstructor;
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
 @ThreadSafe
-class InMemoryDurableDataLog implements DurableDataLog {
+class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
     static final Supplier<Duration> DEFAULT_APPEND_DELAY_PROVIDER = () -> Duration.ZERO; // No delay.
     private static final int DEFAULT_WRITE_CONCURRENCY = 10; // TODO: consider making configurable (if there's a need).
     private final EntryCollection entries;
@@ -61,6 +63,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
     }
 
     InMemoryDurableDataLog(EntryCollection entries, Supplier<Duration> appendDelayProvider, ScheduledExecutorService executorService) {
+        super("segmentstore/inmemlog/", new String[] {"ruok"});
+
         this.entries = Preconditions.checkNotNull(entries, "entries");
         this.appendDelayProvider = Preconditions.checkNotNull(appendDelayProvider, "appendDelayProvider");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
@@ -185,6 +189,11 @@ class InMemoryDurableDataLog implements DurableDataLog {
     private void ensurePreconditions() {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.initialized, "InMemoryDurableDataLog is not initialized.");
+    }
+
+    @Override
+    public void execute(String cmd, DataOutputStream out) {
+
     }
 
     //region ReadResultIterator

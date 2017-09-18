@@ -9,14 +9,18 @@
  */
 package io.pravega.common.health.processor.impl;
 
+import com.google.common.base.Strings;
 import io.pravega.common.health.HealthReporter;
-import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.common.health.NoSuchHealthProcessor;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class HealthRequestProcessorImpl extends HealthRequestProcessor {
     private final ConcurrentHashMap<String, HealthReporter> reporterMap = new ConcurrentHashMap<>();
 
@@ -31,11 +35,33 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
 
     @Override
     public final void processHealthRequest(OutputStream writer, String target, String cmd) throws IOException {
-        HealthReporter reporter = reporterMap.get(target);
-        if (reporter != null) {
-            reporter.execute(cmd, new DataOutputStream(writer));
+        DataOutputStream opStr = new DataOutputStream(writer);
+        if (!Strings.isNullOrEmpty(target)) {
+            HealthReporter reporter = reporterMap.get(target);
+            if (reporter != null) {
+                reporter.execute(cmd, opStr);
+            } else {
+                throw new NoSuchHealthProcessor(target);
+            }
         } else {
-            throw new NoSuchHealthProcessor(target);
+            switch (cmd) {
+                case "tgts":
+                    reporterMap.forEach( (id, reporter) -> {
+                        try {
+                            opStr.writeBytes(id + " { ");
+                        Arrays.stream(reporter.listCommands()).forEach(cmds -> {
+                            try {
+                                opStr.writeBytes(cmds + " ");
+                            } catch (IOException e) {
+                                log.warn("Exception while writing");
+                            }
+                        });
+                            opStr.writeBytes(" } \n");
+                        } catch (IOException e) {
+                            log.warn("Error while writing health");
+                        }
+                    });
+            }
         }
     }
 
