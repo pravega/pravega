@@ -79,6 +79,8 @@ public class InMemoryCacheFactory extends HealthReporter implements CacheFactory
                     log.warn("Error while reporting health");
                 }
                 break;
+            default:
+                log.warn("Unhandled command {}", cmd);
         }
 
     }

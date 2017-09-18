@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheTestBase;
 import org.junit.After;
@@ -26,7 +27,7 @@ public class InMemoryCacheTests extends CacheTestBase {
 
     @Before
     public void setUp() {
-        this.factory = new InMemoryCacheFactory();
+        this.factory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
     }
 
     @After

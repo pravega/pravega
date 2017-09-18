@@ -204,6 +204,8 @@ class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
                     log.warn("Error while reporting health");
                 }
                 break;
+            default:
+                log.warn("Unhandled command {}", cmd);
         }
 
     }
