@@ -522,6 +522,7 @@ project('test:system') {
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
