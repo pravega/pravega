@@ -24,6 +24,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.io.ByteArrayInputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
@@ -38,11 +39,13 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
 @ThreadSafe
+@Slf4j
 class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
     static final Supplier<Duration> DEFAULT_APPEND_DELAY_PROVIDER = () -> Duration.ZERO; // No delay.
     private static final int DEFAULT_WRITE_CONCURRENCY = 10; // TODO: consider making configurable (if there's a need).
@@ -193,6 +196,15 @@ class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
 
     @Override
     public void execute(String cmd, DataOutputStream out) {
+        switch (cmd) {
+            case "ruok":
+                try {
+                    out.writeChars("imok");
+                } catch (IOException e) {
+                    log.warn("Error while reporting health");
+                }
+                break;
+        }
 
     }
 

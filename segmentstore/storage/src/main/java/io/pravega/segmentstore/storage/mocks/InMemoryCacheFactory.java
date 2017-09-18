@@ -16,15 +16,18 @@ import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Factory for InMemoryCache.
  */
 @ThreadSafe
+@Slf4j
 public class InMemoryCacheFactory extends HealthReporter implements CacheFactory {
     @GuardedBy("caches")
     private final HashMap<String, InMemoryCache> caches = new HashMap<>();
@@ -68,6 +71,15 @@ public class InMemoryCacheFactory extends HealthReporter implements CacheFactory
 
     @Override
     public void execute(String cmd, DataOutputStream out) {
+        switch (cmd) {
+            case "ruok":
+                try {
+                    out.writeChars("imok");
+                } catch (IOException e) {
+                    log.warn("Error while reporting health");
+                }
+                break;
+        }
 
     }
 }
