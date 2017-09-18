@@ -14,10 +14,10 @@ import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.NetworkConfig;
-import com.spotify.docker.client.messages.swarm.*;
+import com.spotify.docker.client.messages.swarm.Service;
+import com.spotify.docker.client.messages.swarm.ServiceMode;
+import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.test.system.framework.docker.Client;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -31,12 +31,12 @@ import java.util.concurrent.ScheduledExecutorService;
 public abstract class DockerBasedService  implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
-    final DockerClient dockerClient;
+    DockerClient dockerClient;
     String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(String serviceName) {
-        dockerClient = Client.getDockerClient();
+        dockerClient = DefaultDockerClient.builder().uri("http://127.0.0.1:2375").build();
         this.serviceName = serviceName;
         }
 

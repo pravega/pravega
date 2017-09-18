@@ -9,17 +9,21 @@
  */
 package io.pravega.test.system.framework;
 
-import com.spotify.docker.client.DefaultDockerClient;
+import com.google.common.collect.ImmutableMap;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.*;
+import com.spotify.docker.client.messages.Container;
+import com.spotify.docker.client.messages.ContainerConfig;
+import com.spotify.docker.client.messages.ContainerCreation;
+import com.spotify.docker.client.messages.ContainerInfo;
+import com.spotify.docker.client.messages.HostConfig;
+import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.docker.Client;
 import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +35,7 @@ import static org.junit.Assert.assertFalse;
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    //private static final String MASTER_IP = "http://127.0.0.1:2375";
-    private static final DockerClient CLIENT = Client.getDockerClient();
+    public static final DockerClient CLIENT = Client.getDockerClient();
     private static final String IMAGE = "java:8";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
@@ -93,7 +96,7 @@ public class DockerRemoteSequential implements TestExecutor {
             ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName, className), containerName);
             assertFalse(containerCreation.id().toString().equals(null));
 
-            final String id = containerCreation.id();
+             final String id = containerCreation.id();
 
             // Inspect container
             final ContainerInfo info = CLIENT.inspectContainer(id);
@@ -113,27 +116,18 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testMethodName", methodName);
         labels.put("testClassName", className);
 
-        /*String env = "masterIP=" + MASTER_IP;
-        List<String> stringList = new ArrayList<>();
-        stringList.add(env);*/
-
-        List<String> cmdList = new ArrayList<>();
-        String cmd = "cp /data/test/system/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
-                className + "#" + methodName + " > server.log 2>&1" +
-                "; exit $?";
-        cmdList.add(cmd);
-
-        HostConfig hostConfig = HostConfig.builder().build();
-
-        String volume = "$(pwd):/data";
+        HostConfig hostConfig = HostConfig.builder().appendBinds("/root/git/docker-framework/pravega/test/system/build/libs:/data")
+                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( "127.0.0.1", "2375" ) ) ) ).networkMode("host").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
-                .addVolume(volume)
                 .hostConfig(hostConfig)
                 .image(IMAGE)
-                .cmd(cmdList)
+                .user("root")
+                .workingDir("/data")
+                .cmd("java -cp test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                        className + "#" + methodName + " > server.log 2>&1" )
+                //.cmd("sh", "-c", "while :; do sleep 1; done")
                 .labels(labels)
-                //.env(env)
                 .build();
 
         return containerConfig;
