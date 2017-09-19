@@ -27,7 +27,7 @@ final class BookKeeperMetrics {
     /**
      * BookKeeperLog-specific (i.e. per Container) Metrics.
      */
-    final static class BookKeeperLog {
+    final static class BookKeeperLog  implements AutoCloseable {
         private final OpStatsLogger writeQueueSize;
         private final OpStatsLogger writeQueueFillRate;
         private final String ledgerCount;
@@ -42,6 +42,15 @@ final class BookKeeperMetrics {
             this.writeLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_LATENCY, containerId));
             this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_TOTAL_WRITE_LATENCY, containerId));
             this.writeBytes = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_BYTES, containerId));
+        }
+
+        @Override
+        public void close() {
+            this.writeQueueSize.close();
+            this.writeQueueFillRate.close();
+            this.writeLatency.close();
+            this.totalWriteLatency.close();
+            this.writeBytes.close();
         }
 
         void ledgerCount(int count) {

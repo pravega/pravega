@@ -138,6 +138,7 @@ public final class ServiceBuilder implements AutoCloseable {
         closeComponent(this.cacheFactory);
         this.threadPoolMetrics.close();
         this.executorService.shutdown();
+        this.threadPoolMetrics.close();
     }
 
     //endregion

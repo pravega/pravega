@@ -84,8 +84,8 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
-        HdfsMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        HdfsMetrics.WRITE_BYTES.add(this.length);
+        HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        HDFSMetrics.WRITE_BYTES.add(this.length);
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 }

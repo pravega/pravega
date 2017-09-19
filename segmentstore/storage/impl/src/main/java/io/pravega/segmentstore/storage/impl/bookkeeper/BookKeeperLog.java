@@ -136,6 +136,7 @@ class BookKeeperLog implements DurableDataLog {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.metricReporter.cancel(true);
+            this.metrics.close();
             this.rolloverProcessor.close();
             this.writeProcessor.close();
 

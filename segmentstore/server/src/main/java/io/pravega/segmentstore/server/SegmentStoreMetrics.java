@@ -41,13 +41,19 @@ public final class SegmentStoreMetrics {
     /**
      * CacheManager metrics.
      */
-    public final static class CacheManager {
+    public final static class CacheManager implements AutoCloseable {
         private final OpStatsLogger totalSize = STATS_LOGGER.createStats(MetricsNames.CACHE_TOTAL_SIZE_BYTES);
         private final OpStatsLogger generationSpread = STATS_LOGGER.createStats(MetricsNames.CACHE_GENERATION_SPREAD);
 
         public void report(long totalBytes, int generationSpread) {
             this.totalSize.reportSuccessValue(totalBytes);
             this.generationSpread.reportSuccessValue(generationSpread);
+        }
+
+        @Override
+        public void close()  {
+            this.totalSize.close();
+            this.generationSpread.close();
         }
     }
 
@@ -74,6 +80,8 @@ public final class SegmentStoreMetrics {
         @Override
         public void close() {
             this.reporter.cancel(true);
+            this.queueSize.close();
+            this.activeThreads.close();
         }
 
         private void report() {
@@ -92,7 +100,7 @@ public final class SegmentStoreMetrics {
     /**
      * OperationProcessor metrics.
      */
-    public final static class OperationProcessor {
+    public final static class OperationProcessor implements AutoCloseable {
         /**
          * Number of items in the Operation Queue.
          */
@@ -155,6 +163,20 @@ public final class SegmentStoreMetrics {
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_LATENCY, containerId));
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, containerId));
             this.operationLogSize = "segmentstore." + MetricsNames.nameFromContainer(MetricsNames.OPERATION_LOG_SIZE, containerId);
+        }
+
+        @Override
+        public void close() {
+            this.operationQueueSize.close();
+            this.operationsInFlight.close();
+            this.operationQueueWaitTime.close();
+            this.operationProcessorDelay.close();
+            this.operationCommitLatency.close();
+            this.operationLatency.close();
+            this.memoryCommitLatency.close();
+            this.metadataCommitTxnCount.close();
+            this.processOperationsLatency.close();
+            this.processOperationsBatchSize.close();
         }
 
         public void currentState(int queueSize, int inFlightCount) {

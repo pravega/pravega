@@ -130,6 +130,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         this.state.fail(ex, null);
+        this.metrics.close();
         super.doStop();
     }
 

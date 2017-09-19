@@ -87,8 +87,8 @@ public class ReadOperation extends FileSystemOperation<HDFSSegmentHandle> implem
             }
         }
 
-        HdfsMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-        HdfsMetrics.READ_BYTES.add(totalBytesRead.get());
+        HDFSMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+        HDFSMetrics.READ_BYTES.add(totalBytesRead.get());
         LoggerHelpers.traceLeave(log, "read", traceId, handle, this.offset, totalBytesRead);
         return totalBytesRead.get();
     }
