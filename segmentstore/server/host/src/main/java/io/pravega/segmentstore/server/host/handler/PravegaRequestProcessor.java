@@ -92,6 +92,8 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
@@ -454,6 +456,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         future.thenAccept(size -> {
             connection.send(new SegmentSealed(sealSegment.getRequestId(), segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
         }).whenComplete((r, e) -> {
             if (e != null) {
                 handleException(sealSegment.getRequestId(), segment, "Seal segment", e);
@@ -472,6 +476,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(segment, TIMEOUT);
         future.thenRun(() -> {
             connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
         }).exceptionally(e -> {
             handleException(deleteSegment.getRequestId(), segment, "Delete segment", e);
             return null;

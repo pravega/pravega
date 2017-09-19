@@ -7,10 +7,20 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
+
 package io.pravega.shared.metrics;
 
 /**
- * Defines a Gauge, which will wrap a gauge instance and its name.
+ * Defines common methods for a Metric.
  */
-public interface Gauge extends Metric {
+interface Metric extends AutoCloseable {
+    /**
+     * Gets name.
+     *
+     * @return the name.
+     */
+    String getName();
+
+    @Override
+    void close();
 }
