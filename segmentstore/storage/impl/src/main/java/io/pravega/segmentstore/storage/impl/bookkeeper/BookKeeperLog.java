@@ -801,7 +801,7 @@ class BookKeeperLog implements DurableDataLog {
 
     private void reportMetrics() {
         this.metrics.ledgerCount(getLogMetadata().getLedgers().size());
-        this.metrics.queueStats(this.writes.getStatistics());
+        this.metrics.queueStats(this.writes.getStatistics(this.concurrencyManager.getCurrentParallelism()));
     }
 
     private LogMetadata getLogMetadata() {

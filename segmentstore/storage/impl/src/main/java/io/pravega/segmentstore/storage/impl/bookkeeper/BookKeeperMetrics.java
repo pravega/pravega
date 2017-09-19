@@ -27,9 +27,10 @@ final class BookKeeperMetrics {
     /**
      * BookKeeperLog-specific (i.e. per Container) Metrics.
      */
-    final static class BookKeeperLog  implements AutoCloseable {
+    final static class BookKeeperLog implements AutoCloseable {
         private final OpStatsLogger writeQueueSize;
         private final OpStatsLogger writeQueueFillRate;
+        private final OpStatsLogger parallelism;
         private final String ledgerCount;
         private final OpStatsLogger writeLatency;
         private final OpStatsLogger totalWriteLatency;
@@ -39,6 +40,7 @@ final class BookKeeperMetrics {
             this.ledgerCount = MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, containerId);
             this.writeQueueSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, containerId));
             this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, containerId));
+            this.parallelism = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_PARALLELISM, containerId));
             this.writeLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_LATENCY, containerId));
             this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_TOTAL_WRITE_LATENCY, containerId));
             this.writeBytes = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_BYTES, containerId));
@@ -48,6 +50,7 @@ final class BookKeeperMetrics {
         public void close() {
             this.writeQueueSize.close();
             this.writeQueueFillRate.close();
+            this.parallelism.close();
             this.writeLatency.close();
             this.totalWriteLatency.close();
             this.writeBytes.close();
@@ -59,7 +62,8 @@ final class BookKeeperMetrics {
 
         void queueStats(QueueStats qs) {
             this.writeQueueSize.reportSuccessValue(qs.getSize());
-            this.writeQueueFillRate.reportSuccessValue((int) (qs.getAverageItemFillRate() * 100));
+            this.writeQueueFillRate.reportSuccessValue((int) (qs.getAverageItemFillRatio() * 100));
+            this.parallelism.reportSuccessValue(qs.getEstimatedParallelism());
         }
 
         void writeCompleted(Duration elapsed) {
