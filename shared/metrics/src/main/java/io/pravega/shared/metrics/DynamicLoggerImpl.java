@@ -119,6 +119,13 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
+    public void freezeCounter(String name) {
+        String counterName = name + ".Counter";
+        countersCache.invalidate(counterName);
+        metrics.remove(counterName);
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
@@ -144,6 +151,13 @@ public class DynamicLoggerImpl implements DynamicLogger {
         } else {
             gaugesCache.put(gaugeName, newGauge);
         }
+    }
+
+    @Override
+    public void freezeGaugeValue(String name) {
+        String gaugeName = name + ".Gauge";
+        gaugesCache.invalidate(gaugeName);
+        metrics.remove(gaugeName);
     }
 
     @Override

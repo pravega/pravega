@@ -73,6 +73,8 @@ public class MetricsProviderTest {
             dynamicLogger.incCounterValue("dynamicCounter", i);
             assertEquals(sum, MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.dynamicCounter.Counter").getCount());
         }
+        dynamicLogger.freezeCounter("dynamicCounter");
+        assertEquals(null, MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.dynamicCounter.Counter"));
     }
 
     /**
@@ -110,6 +112,8 @@ public class MetricsProviderTest {
             assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.testStatsLogger.testGauge").getValue());
             assertEquals(i, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge").getValue());
         }
+        dynamicLogger.freezeGaugeValue("dynamicGauge");
+        assertEquals(null, MetricsProvider.METRIC_REGISTRY.getGauges().get("pravega.dynamicGauge.Gauge"));
     }
 
     /**
@@ -141,12 +145,21 @@ public class MetricsProviderTest {
     @Test
     public void testContinuity() {
         statsLogger.createCounter("continuity-counter");
-        MetricsConfig config = MetricsConfig.builder()
+        Assert.assertNotNull("Not registered before disabling.",
+                MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
+
+        MetricsConfig disableConfig = MetricsConfig.builder()
                                             .with(MetricsConfig.ENABLE_STATISTICS, false)
                                             .build();
-        MetricsProvider.initialize(config);
+        MetricsProvider.initialize(disableConfig);
+        Assert.assertNull("Still registered after disabling.",
+                MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
 
-        Assert.assertNotNull(null,
+        MetricsConfig enableConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATISTICS, true)
+                .build();
+        MetricsProvider.initialize(enableConfig);
+        Assert.assertNotNull("Not registered after re-enabling.",
                 MetricsProvider.METRIC_REGISTRY.getCounters().get("pravega.testStatsLogger.continuity-counter"));
     }
 

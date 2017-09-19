@@ -12,7 +12,7 @@ package io.pravega.shared.metrics;
 /**
  * A meter metric which measures mean throughput and exponentially-weighted moving average throughput.
  */
-public interface Meter {
+public interface Meter extends Metric {
     /**
      * Record the occurrence of an event in Meter.
      */
@@ -31,11 +31,4 @@ public interface Meter {
      * @return the count
      */
     long getCount();
-
-    /**
-     * Gets name.
-     *
-     * @return the name of Gauge
-     */
-    String getName();
 }

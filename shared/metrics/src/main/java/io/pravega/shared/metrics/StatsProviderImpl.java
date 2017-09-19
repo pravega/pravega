@@ -20,6 +20,7 @@ import com.codahale.metrics.graphite.Graphite;
 import com.codahale.metrics.graphite.GraphiteReporter;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.readytalk.metrics.StatsDReporter;
 import info.ganglia.gmetric4j.gmetric.GMetric;
@@ -29,42 +30,34 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@RequiredArgsConstructor
-public class StatsProviderImpl implements StatsProvider {
-    @GuardedBy("$lock")
-    private MetricRegistry metrics = MetricsProvider.METRIC_REGISTRY;
+class StatsProviderImpl implements StatsProvider {
+    @Getter
+    private final MetricRegistry metrics = MetricsProvider.METRIC_REGISTRY;
     private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
     private final MetricsConfig conf;
 
+    StatsProviderImpl(MetricsConfig conf) {
+        this.conf = Preconditions.checkNotNull(conf, "conf");
+    }
+
     @Synchronized
-    void init() {
+    private void init() {
         // I'm not entirely sure that re-inserting is necessary, but given that
         // at this point we are preserving the registry, it seems safer to remove
         // and re-insert.
         MemoryUsageGaugeSet memoryGaugeNames = new MemoryUsageGaugeSet();
         GarbageCollectorMetricSet gcMetricSet = new GarbageCollectorMetricSet();
 
-        memoryGaugeNames.getMetrics().forEach((key, value) -> {
-            metrics.remove(key);
-        });
-
-        gcMetricSet.getMetrics().forEach((key, value) -> {
-           metrics.remove(key);
-        });
+        memoryGaugeNames.getMetrics().forEach((key, value) -> metrics.remove(key));
+        gcMetricSet.getMetrics().forEach((key, value) -> metrics.remove(key));
 
         metrics.registerAll(new MemoryUsageGaugeSet());
         metrics.registerAll(new GarbageCollectorMetricSet());
-    }
-
-    @Synchronized
-    public MetricRegistry getMetrics() {
-        return metrics;
     }
 
     @Synchronized
@@ -147,12 +140,14 @@ public class StatsProviderImpl implements StatsProvider {
                 log.error("Exception report or stop reporter", e);
             }
         }
+
+        metrics.removeMatching(MetricFilter.ALL);
     }
 
     @Override
     public StatsLogger createStatsLogger(String name) {
         init();
-        return new StatsLoggerImpl(getMetrics(), new StringBuffer("pravega.").append(name).toString());
+        return new StatsLoggerImpl(getMetrics(), "pravega." + name);
     }
 
     @Override
