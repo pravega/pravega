@@ -71,8 +71,8 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, TIMEOUT).join();
 
-            long expectedMetricsSize = Metrics.WRITE_BYTES.get();
-            long expectedMetricsSuccesses = Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
+            long expectedMetricsSize = FileSystemMetrics.WRITE_BYTES.get();
+            long expectedMetricsSuccesses = FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
             // Invalid handle.
             val readOnlyHandle = s.openRead(segmentName).join();
             assertThrows(
@@ -87,9 +87,9 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
 
             val writeHandle = s.openWrite(segmentName).join();
             long offset = 0;
@@ -100,9 +100,9 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 expectedMetricsSize += writeData.length;
                 expectedMetricsSuccesses += 1;
                 Assert.assertEquals("WRITE_LATENCY should increase the count of successful events in case of successful writes",
-                        expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                        expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
                 Assert.assertEquals("WRITE_BYTES should increase by the size of successful writes",
-                        expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                        expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
 
                 offset += writeData.length;
             }
@@ -113,18 +113,18 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                     () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             // Check post-delete write.
             s.delete(writeHandle, TIMEOUT).join();
             assertThrows("write() did not throw for a deleted StreamSegment.",
                     () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
         }
     }
 

@@ -138,8 +138,9 @@ class OperationMetadataUpdater implements ContainerMetadata {
      * Commits all outstanding changes to the base Container Metadata, up to and including the one for the given
      * UpdateTransaction.
      * @param upToTransactionId  The Id of the UpdateTransaction up to which to commit.
+     * @return The number of MetadataUpdateTransactions committed.
      */
-    void commit(long upToTransactionId) {
+    int commit(long upToTransactionId) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "commit", upToTransactionId);
 
         // Commit every UpdateTransaction, in order, until we reach our transaction id.
@@ -158,6 +159,7 @@ class OperationMetadataUpdater implements ContainerMetadata {
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "commit", traceId, commits);
+        return commits.size();
     }
 
     /**
