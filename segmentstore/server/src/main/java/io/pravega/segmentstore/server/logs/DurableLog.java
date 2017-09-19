@@ -16,6 +16,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.SequencedItemList;
@@ -242,10 +243,11 @@ public class DurableLog extends AbstractService implements OperationLog {
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
+                    int count = this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
+                    this.operationProcessor.getMetrics().operationLogTruncate(count);
                 }, this.executor);
     }
 
@@ -307,7 +309,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
-        TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
+        Timer timer = new Timer();
         log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
@@ -315,18 +317,20 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Reset metadata.
         this.metadata.reset();
+        this.operationProcessor.getMetrics().operationLogInit();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean successfulRecovery = false;
-        boolean anyItemsRecovered;
+        int recoveredItemCount;
         try {
             try {
-                this.durableDataLog.initialize(timer.getRemaining());
-                anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+                this.durableDataLog.initialize(RECOVERY_TIMEOUT);
+                recoveredItemCount = recoverFromDataFrameLog(metadataUpdater);
                 this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
+                        this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
                 successfulRecovery = true;
             } finally {
                 // We must exit recovery mode when done, regardless of outcome.
@@ -339,8 +343,9 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
+        this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
-        return anyItemsRecovered;
+        return recoveredItemCount > 0;
     }
 
     /**
@@ -351,9 +356,9 @@ public class DurableLog extends AbstractService implements OperationLog {
      * been built up using the Operations up to them).
      *
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
-     * @return True if any operations were recovered, false otherwise.
+     * @return The number of Operations recovered.
      */
-    private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
+    private int recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverFromDataFrameLog");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -399,7 +404,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
         metadataUpdater.commitAll();
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
-        return recoveredItemCount > 0;
+        return recoveredItemCount;
     }
 
     private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {

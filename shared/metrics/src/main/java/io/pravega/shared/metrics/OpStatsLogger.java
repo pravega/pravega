@@ -14,7 +14,7 @@ import java.time.Duration;
 /**
  * This interface handles logging of statistics related to each operation (Write, Read etc.).
  */
-public interface OpStatsLogger {
+public interface OpStatsLogger extends Metric {
 
     /**
      * Increment the succeeded op counter with the given eventLatency in NanoSeconds.

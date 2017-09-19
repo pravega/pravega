@@ -10,8 +10,12 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.function.RunnableWithException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
@@ -21,7 +25,8 @@ import javax.annotation.concurrent.GuardedBy;
 public class SequentialAsyncProcessor implements AutoCloseable {
     //region Members
 
-    private final Runnable runnable;
+    private final RunnableWithException runnable;
+    private final BiFunction<Throwable, Integer, Boolean> errorHandler;
     private final Executor executor;
     @GuardedBy("this")
     private boolean running;
@@ -29,6 +34,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
     private boolean runAgain;
     @GuardedBy("this")
     private boolean closed;
+    private final AtomicInteger consecutiveFailedAttempts;
 
     //endregion
 
@@ -38,11 +44,16 @@ public class SequentialAsyncProcessor implements AutoCloseable {
      * Region Constructor.
      *
      * @param runnable The task to run.
+     * @param errorHandler A BiFunction that will be invoked when runnable throws exceptions. First argument is the exception
+     *                     itself, while the second one is the number of consecutive failed attempts. This Function will
+     *                     return true if we should reinvoke the runnable or false otherwise.
      * @param executor An Executor to run the task on.
      */
-    public SequentialAsyncProcessor(Runnable runnable, Executor executor) {
+    public SequentialAsyncProcessor(RunnableWithException runnable, BiFunction<Throwable, Integer, Boolean> errorHandler, Executor executor) {
         this.runnable = Preconditions.checkNotNull(runnable, "runnable");
+        this.errorHandler = Preconditions.checkNotNull(errorHandler, "errorHandler");
         this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.consecutiveFailedAttempts = new AtomicInteger();
     }
 
     //endregion
@@ -70,6 +81,19 @@ public class SequentialAsyncProcessor implements AutoCloseable {
             while (canContinue) {
                 try {
                     this.runnable.run();
+                    this.consecutiveFailedAttempts.set(0);
+                } catch (Throwable ex) {
+                    int c = this.consecutiveFailedAttempts.incrementAndGet();
+                    if (ExceptionHelpers.mustRethrow(ex)) {
+                        close();
+                    }
+
+                    boolean retry = this.errorHandler.apply(ex, c);
+                    if (retry) {
+                        synchronized (this) {
+                            this.runAgain = true;
+                        }
+                    }
                 } finally {
                     // Determine if we need to run the task again. Otherwise release our spot.
                     synchronized (this) {

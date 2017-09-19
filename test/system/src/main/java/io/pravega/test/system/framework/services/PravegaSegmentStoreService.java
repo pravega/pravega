@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.services;
 
+import com.google.common.base.Strings;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,9 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 public class PravegaSegmentStoreService extends MarathonBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
+    private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
+    private static final String ENV_SEPARATOR = ";;";
+    private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
@@ -129,9 +133,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         Map<String, String> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
-        map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
         map.put("CONTROLLER_URL", conUri.toString());
-        map.put("TIER2_STORAGE", "HDFS");
+        getCustomEnvVars(map, SEGMENTSTORE_EXTRA_ENV);
 
         //Properties set to override defaults for system tests
         String hostSystemProperties = setSystemProperty("autoScale.muteInSeconds", "120") +
@@ -147,5 +150,23 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setArgs(Arrays.asList("segmentstore"));
 
         return app;
+    }
+
+    private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
+        log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
+        if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
+            Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
+                String[] pair = str.split(KEY_VALUE_SEPARATOR);
+                if (pair.length != 2) {
+                    log.warn("Key Value not present {}", str);
+                } else {
+                    map.put(pair[0], pair[1]);
+                }
+            });
+        } else {
+            // Set HDFS as the default for Tier2.
+            map.put("HDFS_URL", "hdfs.marathon.containerip.dcos.thisdcos.directory:8020");
+            map.put("TIER2_STORAGE", "HDFS");
+        }
     }
 }

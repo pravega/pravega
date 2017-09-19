@@ -91,6 +91,8 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
@@ -443,12 +445,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         log.debug("Sealing segment {} ", sealSegment);
+        CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         handleException(sealSegment.getRequestId(), segment, "Seal segment", e);
                     } else {
+                        DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+                        DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
                         if (statsRecorder != null) {
                             statsRecorder.sealSegment(sealSegment.getSegment());
                         }
@@ -461,7 +466,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String segment = deleteSegment.getSegment();
         log.debug("Deleting segment {} ", deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
-                .thenRun(() -> connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment)))
+                .thenRun(() -> {
+                    connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
+                })
                 .exceptionally(e -> handleException(deleteSegment.getRequestId(), segment, "Delete segment", e));
     }
 
