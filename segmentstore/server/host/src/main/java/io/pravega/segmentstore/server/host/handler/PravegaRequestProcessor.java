@@ -445,7 +445,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
         log.debug("Sealing segment {} ", sealSegment);
-        CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
