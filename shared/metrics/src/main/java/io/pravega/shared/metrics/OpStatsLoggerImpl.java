@@ -9,26 +9,61 @@
  */
 package io.pravega.shared.metrics;
 
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 
-class OpStatsLoggerImpl implements OpStatsLogger {
-    private final Timer success;
-    private final Timer fail;
+import static com.codahale.metrics.MetricRegistry.name;
 
-    OpStatsLoggerImpl(Timer success, Timer fail) {
-        Preconditions.checkNotNull(success, "success");
-        Preconditions.checkNotNull(fail, "fail");
-        this.success = success;
-        this.fail = fail;
+class OpStatsLoggerImpl implements OpStatsLogger {
+    //region Members
+
+    private final Timer success;
+    private final String successName;
+    private final Timer fail;
+    private final String failName;
+    private final MetricRegistry metricRegistry;
+
+    //endregion
+
+    //region Constructor
+
+    OpStatsLoggerImpl(MetricRegistry metricRegistry, String basename, String statName) {
+        this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
+        this.successName = name(basename, statName);
+        this.failName = name(basename, statName + "-fail");
+        this.success = this.metricRegistry.timer(this.successName);
+        this.fail = this.metricRegistry.timer(this.failName);
     }
 
-    // OpStatsLogger functions
+    //endregion
+
+    //region AutoCloseable and Finalizer Implementation
+
+    @Override
+    public void close() {
+        this.metricRegistry.remove(this.successName);
+        this.metricRegistry.remove(this.failName);
+    }
+
+    @Override
+    protected void finalize() {
+        close();
+    }
+
+    //endregion
+
+    //region OpStatsLogger Implementation
+
+    @Override
+    public String getName() {
+        return this.successName;
+    }
+
     @Override
     public void reportFailEvent(Duration duration) {
         fail.update(duration.toMillis(), TimeUnit.MILLISECONDS);
@@ -70,4 +105,6 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);
     }
+
+    //endregion
 }
