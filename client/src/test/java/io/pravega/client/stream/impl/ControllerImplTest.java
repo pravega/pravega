@@ -12,8 +12,6 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableSet;
 import io.grpc.Server;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -74,8 +72,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
-
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -97,8 +93,8 @@ import static org.junit.Assert.assertTrue;
 public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
 
-    //@Rule
-    //public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
+    @Rule
+    public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
 
     // Global variable to track number of attempts to verify retries.
     private final AtomicInteger retryAttempts = new AtomicInteger(0);
@@ -163,12 +159,7 @@ public class ControllerImplTest {
                             .setStatus(CreateStreamStatus.Status.SUCCESS)
                             .build());
                     responseObserver.onCompleted();
-                } else if (request.getStreamInfo().getStream().equals("streamdelayed_error")) {
-
-                    Exceptions.handleInterrupted(() -> Thread.sleep(40000));
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
-                }
-                else if (request.getStreamInfo().getStream().equals("streamretryfailure")) {
+                } else if (request.getStreamInfo().getStream().equals("streamretryfailure")) {
                     responseObserver.onError(Status.UNKNOWN.withDescription("Transport error").asRuntimeException());
                 } else if (request.getStreamInfo().getStream().equals("streamretrysuccess")) {
                     if (retryAttempts.incrementAndGet() > 3) {
@@ -604,17 +595,17 @@ public class ControllerImplTest {
     @Test
     public void testKeepAlive() throws IOException, ExecutionException, InterruptedException {
 
-//        // Verify that keep-alive timeout less than permissible by the server results in a failure.
-//        final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
-//                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
-//                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
-//        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
-//                .streamName("streamdelayed")
-//                .scope("scope1")
-//                .scalingPolicy(ScalingPolicy.fixed(1))
-//                .build());
-//        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
-//                throwable -> throwable instanceof RetriesExhaustedException);
+        // Verify that keep-alive timeout less than permissible by the server results in a failure.
+        final ControllerImpl controller = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort)
+                .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
+                ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
+        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+                throwable -> throwable instanceof RetriesExhaustedException);
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
@@ -626,25 +617,12 @@ public class ControllerImplTest {
         final ControllerImpl controller1 = new ControllerImpl(NettyChannelBuilder.forAddress("localhost", serverPort2)
                 .keepAliveTime(10, TimeUnit.SECONDS).usePlaintext(true),
                 ControllerImplConfig.builder().retryAttempts(1).build(), this.executor);
-        IntStream.range(1, 10).forEach(value -> {
-            CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                    .streamName("streamdelayed_error")
-                    .scope("scope1")
-                    .scalingPolicy(ScalingPolicy.fixed(1))
-                    .build());
-            try {
-                createStreamStatus.get();
-            } catch (Exception e) {
-                Throwable e1 = e.getCause().getCause().getCause();
-                if(e1 instanceof StatusRuntimeException) {
-                    Status status = ((StatusRuntimeException) e1).getStatus();
-                    if (Status.RESOURCE_EXHAUSTED.equals(status)) {
-                        log.debug("too_many_pings", e1);
-                    }
-                }
-                log.debug("==========================================+>", e);
-            }
-        });
+        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
+                .streamName("streamdelayed")
+                .scope("scope1")
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        assertTrue(createStreamStatus.get());
         testServer.shutdownNow();
     }
 
@@ -1104,7 +1082,6 @@ public class ControllerImplTest {
     
     @Test
     public void testCutpointSuccessors() throws Exception {
-        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
