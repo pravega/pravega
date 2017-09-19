@@ -281,6 +281,9 @@ public final class ServiceStarter extends HealthReporter {
                             log.warn("Error while writing the property");
                         }
                     });
+                    break;
+                default:
+                    log.warn("Unexpected command {}", cmd);
             }
         } catch (IOException e) {
             throw new HealthReporterException(e);

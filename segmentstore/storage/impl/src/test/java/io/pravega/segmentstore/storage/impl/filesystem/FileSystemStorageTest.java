@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.filesystem;
 
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -46,7 +47,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService(), null);
+        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService(), new HealthRequestProcessorImpl());
     }
 
     @After
