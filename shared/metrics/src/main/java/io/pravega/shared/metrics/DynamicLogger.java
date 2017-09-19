@@ -31,6 +31,13 @@ public interface DynamicLogger {
     void updateCounterValue(String name, long value);
 
     /**
+     * Notifies that the counter will not be updated.
+     *
+     * @param name              the name of counter
+     */
+    void freezeCounter(String name);
+
+    /**
      * Report gauge value.
      *
      * @param <T>   the type of value
@@ -38,6 +45,13 @@ public interface DynamicLogger {
      * @param value the value to be reported
      */
     <T extends Number> void reportGaugeValue(String name, T value);
+
+    /**
+     * Notifies that the gauge value will not be updated.
+     *
+     * @param name  the name of gauge
+     */
+    void freezeGaugeValue(String name);
 
     /**
      * Record the occurrence of a given number of events in Meter.

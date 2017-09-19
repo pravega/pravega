@@ -9,36 +9,25 @@
  */
 package io.pravega.shared.metrics;
 
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
-public class MeterProxy implements Meter {
-    private final AtomicReference<Meter> instance = new AtomicReference<>();
-
-    MeterProxy(Meter meter) {
-        instance.set(meter);
-    }
-
-    void setMeter(Meter meter) {
-        instance.set(meter);
+public class MeterProxy extends MetricProxy<Meter> implements Meter {
+    MeterProxy(Meter meter, String proxyName, Consumer<String> closeCallback) {
+        super(meter, proxyName, closeCallback);
     }
 
     @Override
     public void recordEvent() {
-        instance.get().recordEvent();
+        getInstance().recordEvent();
     }
 
     @Override
     public void recordEvents(long n) {
-        instance.get().recordEvents(n);
+        getInstance().recordEvents(n);
     }
 
     @Override
     public long getCount() {
-        return instance.get().getCount();
-    }
-
-    @Override
-    public String getName() {
-        return instance.get().getName();
+        return getInstance().getCount();
     }
 }

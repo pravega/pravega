@@ -10,9 +10,9 @@
 package io.pravega.shared.metrics;
 
 import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import java.util.function.Supplier;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.codahale.metrics.MetricRegistry.name;
@@ -23,54 +23,40 @@ import static io.pravega.shared.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
 
 @Slf4j
 public class StatsLoggerImpl implements StatsLogger {
-    protected final String basename;
+    private final String basename;
     private final MetricRegistry metrics;
 
     StatsLoggerImpl(MetricRegistry metrics, String basename) {
-        Preconditions.checkNotNull(metrics, "metrics");
-        this.metrics = metrics;
+        this.metrics = Preconditions.checkNotNull(metrics, "metrics");
         this.basename = basename;
     }
 
     @Override
     public OpStatsLogger createStats(String statName) {
         try {
-            Timer success = metrics.timer(name(basename, statName));
-            Timer failure = metrics.timer(name(basename, statName + "-fail"));
-            return new OpStatsLoggerImpl(success, failure);
+            return new OpStatsLoggerImpl(metrics, basename, statName);
         } catch (Exception e) {
-            log.warn("createStats failure: {}", e);
+            log.warn("createStats failure: {}", statName, e);
             return NULLOPSTATSLOGGER;
-
         }
     }
 
     @Override
     public Counter createCounter(String statName) {
         try {
-            final com.codahale.metrics.Counter c = metrics.counter(name(basename, statName));
-            return new CounterImpl(c, name(basename, statName));
+            return new CounterImpl(statName);
         } catch (Exception e) {
-            log.warn("createCounter failure: {}", e);
+            log.warn("createCounter failure: {}", statName, e);
             return NULLCOUNTER;
         }
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> value) {
+    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> valueSupplier) {
         try {
-            String metricName = name(basename, statName);
-            com.codahale.metrics.Gauge<T> gauge = new com.codahale.metrics.Gauge<T>() {
-                @Override
-                public T getValue() {
-                    return value.get();
-                }
-            };
-            metrics.remove(metricName);
-            metrics.register(metricName, gauge);
-            return new GaugeImpl<>(gauge, metricName);
+            return new GaugeImpl<>(statName, valueSupplier);
         } catch (Exception e) {
-            log.warn("registerGauge failure: {}", e);
+            log.warn("registerGauge failure: {}", statName, e);
             return NULLGAUGE;
         }
     }
@@ -78,10 +64,9 @@ public class StatsLoggerImpl implements StatsLogger {
     @Override
     public Meter createMeter(String statName) {
         try {
-            final com.codahale.metrics.Meter meter = metrics.meter(name(basename, statName));
-            return new MeterImpl(meter, name(basename, statName));
+            return new MeterImpl(statName);
         } catch (Exception e) {
-            log.warn("createMeter failure: {}", e);
+            log.warn("createMeter failure: {}", statName, e);
             return NULLMETER;
         }
     }
@@ -97,13 +82,24 @@ public class StatsLoggerImpl implements StatsLogger {
         return new StatsLoggerImpl(metrics, scopeName);
     }
 
-    private static class CounterImpl implements Counter {
+    private class CounterImpl implements Counter {
         private final com.codahale.metrics.Counter counter;
+        @Getter
         private final String name;
 
-        CounterImpl(com.codahale.metrics.Counter c, String name) {
-            counter = c;
-            this.name = name;
+        CounterImpl(String statName) {
+            this.name = name(basename, statName);
+            this.counter = metrics.counter(name);
+        }
+
+        @Override
+        public void close() {
+            metrics.remove(this.name);
+        }
+
+        @Override
+        protected void finalize() {
+            close();
         }
 
         @Override
@@ -131,35 +127,49 @@ public class StatsLoggerImpl implements StatsLogger {
         public void add(long delta) {
             counter.inc(delta);
         }
-
-        @Override
-        public String getName() {
-            return name;
-        }
     }
 
-    private static class GaugeImpl<T> implements Gauge {
+    private class GaugeImpl<T> implements Gauge {
         private final com.codahale.metrics.Gauge<T> gauge;
+        @Getter
         private final String name;
 
-        GaugeImpl(com.codahale.metrics.Gauge<T> gauge, String name) {
-            this.gauge = gauge;
-            this.name = name;
+        GaugeImpl(String statName, Supplier<T> value) {
+            this.name = name(basename, statName);
+            this.gauge = value::get;
+            metrics.remove(name);
+            metrics.register(name, gauge);
         }
 
         @Override
-        public String getName() {
-            return name;
+        public void close() {
+            metrics.remove(this.name);
+        }
+
+        @Override
+        protected void finalize() {
+            close();
         }
     }
 
-    private static class MeterImpl implements Meter {
+    private class MeterImpl implements Meter {
         private final com.codahale.metrics.Meter meter;
+        @Getter
         private final String name;
 
-        MeterImpl(com.codahale.metrics.Meter meter, String name) {
-            this.meter = meter;
-            this.name = name;
+        MeterImpl(String statName) {
+            this.name = name(basename, statName);
+            this.meter = metrics.meter(this.name);
+        }
+
+        @Override
+        public void close() {
+            metrics.remove(this.name);
+        }
+
+        @Override
+        protected void finalize() {
+            close();
         }
 
         @Override
@@ -175,11 +185,6 @@ public class StatsLoggerImpl implements StatsLogger {
         @Override
         public long getCount() {
             return meter.getCount();
-        }
-
-        @Override
-        public String getName() {
-            return name;
         }
     }
 }

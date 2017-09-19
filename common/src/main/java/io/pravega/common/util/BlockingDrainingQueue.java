@@ -9,10 +9,9 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import com.google.common.base.Preconditions;
-
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
@@ -139,6 +138,17 @@ public class BlockingDrainingQueue<T> {
                 this.pendingTake = new CompletableFuture<>();
                 return this.pendingTake;
             }
+        }
+    }
+
+    /**
+     * Gets a value indicating the size of this queue.
+     *
+     * @return The size.
+     */
+    public int size() {
+        synchronized (this.contents) {
+            return this.contents.size();
         }
     }
 

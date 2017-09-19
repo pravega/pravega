@@ -1082,7 +1082,6 @@ public class ControllerImplTest {
     
     @Test
     public void testCutpointSuccessors() throws Exception {
-        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);
