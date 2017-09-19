@@ -9,10 +9,8 @@
  */
 package io.pravega.common.util;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -21,8 +19,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Test methods for Retry utilities
@@ -102,8 +104,7 @@ public class RetryTests {
 
     @Test
     public void retryFutureTests() {
-        ScheduledExecutorService executorService =
-                Executors.newScheduledThreadPool(5, new ThreadFactoryBuilder().setNameFormat("testpool-%d").build());
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
         begin = Instant.now();
@@ -146,6 +147,73 @@ public class RetryTests {
         result = retryFuture(uniformDelay, 1, maxLoops - 1, maxDelay, true, executorService);
         try {
             result.join();
+        } catch (Exception e) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            log.debug("Expected duration = {}", expectedDurationUniform - uniformDelay);
+            log.debug("Actual duration   = {}", duration);
+            assertTrue(duration >= expectedDurationUniform - uniformDelay);
+            assertTrue(e instanceof CompletionException);
+            assertTrue(e.getCause() instanceof RetriesExhaustedException);
+            assertTrue(e.getCause().getCause() instanceof CompletionException);
+            assertTrue(e.getCause().getCause().getCause() instanceof RetryableException);
+        }
+    }
+
+    @Test
+    public void retryFutureInExecutorTests() {
+        ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
+
+        // 1. series of retryable exceptions followed by a failure
+        begin = Instant.now();
+        final CompletableFuture<Void> result1 = retryFutureInExecutor(uniformDelay, 1, maxLoops, maxDelay, true, executorService);
+        try {
+            Exceptions.handleInterrupted(() -> result1.get());
+        } catch (ExecutionException e) {
+            log.debug("Exception not expected", e);
+            fail("Exception observed in retryInExecutor");
+        }
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        log.debug("Expected duration = {}", expectedDurationUniform);
+        log.debug("Actual duration   = {}", duration);
+        assertTrue(duration >= expectedDurationUniform);
+
+        // 2, series of retryable exceptions followed by a non-retryable failure
+        begin = Instant.now();
+        CompletableFuture<Void> result2 = retryFutureInExecutor(uniformDelay, 1, maxLoops, maxDelay, false, executorService);
+        try {
+            result2.join();
+        } catch (CompletionException ce) {
+            end = Instant.now();
+            duration = end.toEpochMilli() - begin.toEpochMilli();
+            log.debug("Expected duration = {}", expectedDurationUniform);
+            log.debug("Actual duration   = {}", duration);
+            assertTrue(duration >= expectedDurationUniform);
+            assertTrue(ce.getCause() instanceof NonretryableException);
+            assertEquals(accumulator.get(), expectedResult);
+        }
+
+        // 3. exponential backoff
+        begin = Instant.now();
+        final CompletableFuture<Void> result3 = retryFutureInExecutor(exponentialInitialDelay, multiplier, maxLoops, maxDelay, true, executorService);
+        try {
+            Exceptions.handleInterrupted(() -> result3.get());
+        } catch (ExecutionException e) {
+            log.debug("Exception not expected", e);
+            fail("Exception observed in retryInExecutor");
+        }
+        end = Instant.now();
+        duration = end.toEpochMilli() - begin.toEpochMilli();
+        log.debug("Expected duration = {}", expectedDurationExponential);
+        log.debug("Actual duration   = {}", duration);
+        assertTrue(duration >= expectedDurationExponential);
+
+        // 4. Exhaust retries
+        begin = Instant.now();
+        final CompletableFuture<Void> result4 = retryFutureInExecutor(uniformDelay, 1, maxLoops - 1, maxDelay, true, executorService);
+        try {
+            result4.join();
         } catch (Exception e) {
             end = Instant.now();
             duration = end.toEpochMilli() - begin.toEpochMilli();
@@ -227,6 +295,35 @@ public class RetryTests {
                 .retryingOn(RetryableException.class)
                 .throwingOn(NonretryableException.class)
                 .runAsync(() -> futureComputation(success, executorService), executorService);
+    }
+
+    private CompletableFuture<Void> retryFutureInExecutor(final long delay,
+                                                   final int multiplier,
+                                                   final int attempts,
+                                                   final long maxDelay,
+                                                   final boolean success,
+                                                   final ScheduledExecutorService executorService) {
+
+        loopCounter.set(0);
+        accumulator.set(0);
+        return Retry.withExpBackoff(delay, multiplier, attempts, maxDelay)
+                .retryingOn(RetryableException.class)
+                .throwingOn(NonretryableException.class)
+                .runInExecutor(() -> {
+                    accumulator.getAndAdd(loopCounter.getAndIncrement());
+                    int i = loopCounter.get();
+                    log.debug("Loop counter = " + i);
+                    if (i % 10 == 0) {
+                        if (success) {
+                            log.debug("result = ", accumulator.get());
+                            return;
+                        } else {
+                            throw new NonretryableException();
+                        }
+                    } else {
+                        throw new RetryableException();
+                    }
+                }, executorService);
     }
 
     private CompletableFuture<Integer> futureComputation(boolean success, ScheduledExecutorService executorService) {

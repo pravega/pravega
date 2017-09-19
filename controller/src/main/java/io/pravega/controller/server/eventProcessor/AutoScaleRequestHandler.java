@@ -57,6 +57,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
         this.executor = executor;
     }
 
+    @Override
     public CompletableFuture<Void> process(final AutoScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
@@ -85,7 +86,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
     }
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.debug("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -105,7 +106,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
-        log.debug("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
+        log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
         if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }

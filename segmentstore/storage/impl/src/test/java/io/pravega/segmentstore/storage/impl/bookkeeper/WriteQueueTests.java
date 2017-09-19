@@ -145,10 +145,10 @@ public class WriteQueueTests {
             }
 
             // Estimate the Expected elapsed time based on the removals.
-            long expectedElapsed = write.getTimestamp();
+            long expectedElapsed = write.getQueueAddedTimestamp();
             int removed = 1;
             while (!writes.isEmpty() && writes.peekFirst().isDone()) {
-                expectedElapsed += writes.pollFirst().getTimestamp();
+                expectedElapsed += writes.pollFirst().getQueueAddedTimestamp();
                 removed++;
             }
             expectedElapsed = (time.get() * removed - expectedElapsed) / AbstractTimer.NANOS_TO_MILLIS / removed;

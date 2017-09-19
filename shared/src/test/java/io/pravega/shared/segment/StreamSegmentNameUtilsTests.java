@@ -7,15 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.segment;
-
-import java.util.Stack;
-import java.util.UUID;
-
-import org.junit.Assert;
-import org.junit.Test;
+package io.pravega.shared.segment;
 
 import io.pravega.test.common.AssertExtensions;
+import java.util.Stack;
+import java.util.UUID;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentNameUtils class.

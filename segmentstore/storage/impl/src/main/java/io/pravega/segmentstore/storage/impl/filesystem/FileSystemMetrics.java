@@ -18,7 +18,7 @@ import io.pravega.shared.metrics.StatsLogger;
 /**
  * Defines all Metrics used by the FilesystemStorage class.
  */
-final class Metrics {
+final class FileSystemMetrics {
     private static final StatsLogger FILESYSTEM_LOGGER = MetricsProvider.createStatsLogger("filesystem");
     static final OpStatsLogger READ_LATENCY = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
     static final OpStatsLogger WRITE_LATENCY = FILESYSTEM_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);

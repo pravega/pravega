@@ -13,15 +13,25 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TxnFailedException;
-
+import io.pravega.common.concurrent.FutureHelpers;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.val;
 
 final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
     private final Serializer<Type> serializer;
-    private final SegmentOutputStream out;
     private final UUID txId;
+    private final Object lock = new Object();
+    @GuardedBy("lock")
+    private final SegmentOutputStream out;
+    @GuardedBy("lock")
+    private final LinkedList<CompletableFuture<Boolean>> outstanding = new LinkedList<>();
+    private final AtomicReference<Throwable> txnFailedCause = new AtomicReference<>();
 
     SegmentTransactionImpl(UUID txId, SegmentOutputStream out, Serializer<Type> serializer) {
         this.txId = txId;
@@ -31,8 +41,39 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 
     @Override
     public void writeEvent(Type event) throws TxnFailedException {
+        checkFailed();
         ByteBuffer buffer = serializer.serialize(event);
-        out.write(new PendingEvent(null, buffer, CompletableFuture.completedFuture(null)));
+        CompletableFuture<Boolean> ack = new CompletableFuture<Boolean>();
+        PendingEvent pendingEvent = new PendingEvent(null, buffer, ack);
+        synchronized (lock) {
+            out.write(pendingEvent);
+            outstanding.addLast(ack);
+            removeCompleted();
+        }
+        checkFailed();
+    }
+
+    private void checkFailed() throws TxnFailedException {
+        Throwable cause = txnFailedCause.get();
+        if (cause != null) {
+            throw new TxnFailedException(cause);
+        }
+    }
+
+    @GuardedBy("lock")
+    private void removeCompleted() {
+        for (Iterator<CompletableFuture<Boolean>> iter = outstanding.iterator(); iter.hasNext();) {
+            val ack = iter.next();
+            if (ack.isDone()) {
+                Throwable exception = FutureHelpers.getException(ack);
+                if (exception != null) {
+                    txnFailedCause.compareAndSet(null, exception);
+                }
+                iter.remove();
+            } else {
+                break;
+            }
+        }
     }
 
     @Override
@@ -42,8 +83,13 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 
     @Override
     public void flush() throws TxnFailedException {
+        checkFailed();
         try {
             out.flush();
+            synchronized (lock) {
+                removeCompleted();
+                checkFailed();
+            }
         } catch (SegmentSealedException e) {
             throw new TxnFailedException(e);
         }
@@ -51,6 +97,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
 
     @Override
     public void close() throws TxnFailedException {
+        flush();
         try {
             out.close();
         } catch (SegmentSealedException e) {

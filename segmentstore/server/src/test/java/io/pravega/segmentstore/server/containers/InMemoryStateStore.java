@@ -42,7 +42,7 @@ public class InMemoryStateStore implements AsyncMap<String, SegmentState> {
     }
 
     @Override
-    @SneakyThrows(IOException.class)
+    @SneakyThrows
     public CompletableFuture<SegmentState> get(String segmentName, Duration timeout) {
         ByteArraySegment s = this.map.getOrDefault(segmentName, null);
         if (s == null) {

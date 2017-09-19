@@ -97,7 +97,7 @@ class OpenWriteOperation extends FileSystemOperation<String> implements Callable
     private HDFSSegmentHandle fenceOut(String segmentName, long offset) throws IOException, StorageNotPrimaryException {
         // Create a new, empty file, and verify nobody else beat us to it.
         val newFile = new FileDescriptor(getFilePath(segmentName, offset, this.context.epoch), offset, 0, this.context.epoch, false);
-        createEmptyFile(newFile.getPath());
+        atomicCreate(newFile.getPath());
         List<FileDescriptor> allFiles;
         try {
             allFiles = checkForFenceOut(segmentName, -1, newFile);

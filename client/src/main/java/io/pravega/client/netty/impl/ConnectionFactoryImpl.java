@@ -10,24 +10,7 @@
 package io.pravega.client.netty.impl;
 
 
-import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import javax.net.ssl.SSLException;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import io.pravega.common.Exceptions;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
-import io.pravega.shared.protocol.netty.CommandDecoder;
-import io.pravega.shared.protocol.netty.CommandEncoder;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
 import com.google.common.base.Preconditions;
-
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -44,19 +27,35 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.net.ssl.SSLException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
+    private static final Integer POOL_SIZE = Integer.valueOf(
+            System.getProperty("pravega.client.internal.threadpool.size",
+                    String.valueOf(Runtime.getRuntime().availableProcessors())));
     private final boolean ssl;
     private EventLoopGroup group;
     private boolean nio = false;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(
-            Runtime.getRuntime().availableProcessors(),
-            new ThreadFactoryBuilder().setNameFormat("clientInternal-%d").build());
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(POOL_SIZE,
+                                                                                                    "clientInternal");
 
     /**
      * Actual implementation of ConnectionFactory interface.
@@ -139,6 +138,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public void close() {
+        log.info("Shutting down connection factory");
         if (closed.compareAndSet(false, true)) {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();

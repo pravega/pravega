@@ -11,8 +11,10 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.AttributeSerializer;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
@@ -74,17 +76,22 @@ class SegmentState {
      *
      * @param source The DataInputStream to deserialize from.
      * @return The deserialized SegmentState.
-     * @throws IOException If an exception occured.
+     * @throws IOException If an exception occurred.
+     * @throws DataCorruptionException If the given InputStream cannot be parsed into a SegmentState object.
      */
-    public static SegmentState deserialize(DataInputStream source) throws IOException {
-        byte version = source.readByte();
-        if (version == SERIALIZATION_VERSION) {
-            long segmentId = source.readLong();
-            String segmentName = source.readUTF();
-            Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
-            return new SegmentState(segmentId, segmentName, attributes);
-        } else {
-            throw new IOException(String.format("Unsupported version: %d.", version));
+    public static SegmentState deserialize(DataInputStream source) throws IOException, DataCorruptionException {
+        try {
+            byte version = source.readByte();
+            if (version == SERIALIZATION_VERSION) {
+                long segmentId = source.readLong();
+                String segmentName = source.readUTF();
+                Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
+                return new SegmentState(segmentId, segmentName, attributes);
+            } else {
+                throw new DataCorruptionException(String.format("Unsupported State File version: %d.", version));
+            }
+        } catch (EOFException ex) {
+            throw new DataCorruptionException("Corrupted State File.", ex);
         }
     }
 

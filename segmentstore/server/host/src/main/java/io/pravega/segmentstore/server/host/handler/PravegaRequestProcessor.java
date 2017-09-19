@@ -12,9 +12,9 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -65,6 +65,7 @@ import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -78,8 +79,9 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import lombok.val;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
@@ -90,6 +92,8 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
@@ -129,9 +133,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Timer timer = new Timer();
         final String segment = readSegment.getSegment();
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
-
+        long trace = LoggerHelpers.traceEnter(log, "readSegment", readSegment);
         CompletableFuture<ReadResult> future = segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT);
         future.thenApply((ReadResult t) -> {
+            LoggerHelpers.traceLeave(log, "readSegment", trace, t);
             handleReadResult(readSegment, t);
             DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), t.getConsumedLength());
             READ_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
@@ -224,8 +229,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         UUID attributeId = updateSegmentAttribute.getAttributeId();
         long newValue = updateSegmentAttribute.getNewValue();
         long expectedValue = updateSegmentAttribute.getExpectedValue();
+        long trace = LoggerHelpers.traceEnter(log, "updateSegmentAttribute", updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
         segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT).whenComplete((v, e) -> {
+            LoggerHelpers.traceLeave(log, "updateSegmentAttribute", trace, e);
             if (e == null) {
                 connection.send(new SegmentAttributeUpdated(requestId, true));
             } else {
@@ -247,7 +254,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long requestId = getSegmentAttribute.getRequestId();
         String segmentName = getSegmentAttribute.getSegmentName();
         UUID attributeId = getSegmentAttribute.getAttributeId();
+        long trace = LoggerHelpers.traceEnter(log, "getSegmentAttribute", getSegmentAttribute);
         segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).thenApply(properties -> {
+            LoggerHelpers.traceLeave(log, "getSegmentAttribute", trace, properties);
             if (properties == null) {
                 connection.send(new NoSuchSegment(requestId, segmentName));
             } else {
@@ -297,26 +306,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         CompletableFuture<SegmentProperties> future = segmentStore.getStreamSegmentInfo(transactionName, false, TIMEOUT);
         future.thenApply(properties -> {
             if (properties != null) {
-                TransactionInfo result = new TransactionInfo(request.getRequestId(),
-                                                             request.getSegment(),
-                                                             request.getTxid(),
-                                                             transactionName,
-                                                             !properties.isDeleted(),
-                                                             properties.isSealed(),
-                                                             properties.getLastModified().getTime(),
-                                                             properties.getLength());
+                TransactionInfo result = new TransactionInfo(request.getRequestId(), request.getSegment(),
+                        request.getTxid(), transactionName, !properties.isDeleted(), properties.isSealed(),
+                        properties.getLastModified().getTime(), properties.getLength());
                 log.trace("Read transaction segment info: {}", result);
                 connection.send(result);
             } else {
                 log.trace("getTransactionInfo could not find segment {}", transactionName);
-                connection.send(new TransactionInfo(request.getRequestId(),
-                                                    request.getSegment(),
-                                                    request.getTxid(),
-                                                    transactionName,
-                                                    false,
-                                                    true,
-                                                    0,
-                                                    0));
+                connection.send(new TransactionInfo(request.getRequestId(), request.getSegment(), request.getTxid(),
+                        transactionName, false, true, 0, 0));
             }
             return null;
         }).exceptionally((Throwable e) -> {
@@ -361,37 +359,39 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             u = u.getCause();
         }
 
-        log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
         if (u instanceof StreamSegmentExistsException) {
+            log.info("Segment '{}' already exists and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment));
         } else if (u instanceof StreamSegmentNotExistsException) {
+            log.warn("Segment '{}' does not exist and cannot perform operation '{}'", segment, operation);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
+            log.info("Segment '{}' is sealed and cannot perform operation '{}'", segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             WrongHostException wrongHost = (WrongHostException) u;
             connection.send(new WrongHost(requestId, wrongHost.getStreamSegmentName(), wrongHost.getCorrectHost()));
         }  else if (u instanceof ContainerNotFoundException) {
+            log.warn("Wrong host. Segment = '{}' is not owned. Operation = '{}')", segment, operation);
             connection.send(new WrongHost(requestId, segment, ""));
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection due to: ", u.getMessage());
+            log.info("Closing connection {} while perfroming {} due to {} ", connection, operation, u.getMessage());
             connection.close();
         } else {
-            // TODO: don't know what to do here...
-            connection.close();
+            log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }
     }
 
     @Override
     public void createTransaction(CreateTransaction createTransaction) {
-        Collection<AttributeUpdate> attributes = Collections.singleton(
-                new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis()));
-
-        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(),
-                createTransaction.getTxid(),
-                attributes,
-                TIMEOUT);
+        Collection<AttributeUpdate> attributes = Collections.singleton(new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None,
+                System.currentTimeMillis()));
+        log.debug("Creating transaction {} ", createTransaction);
+        CompletableFuture<String> future = segmentStore.createTransaction(createTransaction.getSegment(), createTransaction.getTxid(),
+                                                                          attributes, TIMEOUT);
         long requestId = createTransaction.getRequestId();
         future.thenApply((String txName) -> {
             connection.send(new TransactionCreated(requestId, createTransaction.getSegment(), createTransaction.getTxid()));
@@ -406,31 +406,36 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         long requestId = commitTx.getRequestId();
+        log.debug("Commiting transaction {} ", commitTx);
         segmentStore.sealStreamSegment(transactionName, TIMEOUT)
-                .thenCompose((Long length) -> recordStatForTransaction(transactionName, commitTx.getSegment())
-                        .exceptionally((Throwable e) -> {
-                            // gobble up any errors from stat recording so we do not affect rest of the flow.
-                            log.error("exception while computing stats while merging txn {}", e);
+                    .exceptionally(this::ignoreSegmentSealed)
+                    .thenCompose(v -> recordStatForTransaction(transactionName, commitTx.getSegment())
+                                 .exceptionally((Throwable e) -> {
+                                     // gobble up any errors from state recording so we do not affect rest of the flow.
+                                     log.error("exception while computing stats while merging txn {}", e);
+                                     return null;
+                                 }))
+                    .thenApply(result -> {
+                        segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
+                            connection.send(new TransactionCommitted(requestId, commitTx.getSegment(),
+                                    commitTx.getTxid()));
+                        }).exceptionally((Throwable e) -> {
+                            handleException(requestId, transactionName, "Commit transaction", e);
                             return null;
-                        }))
-                .thenApply(result -> {
-                    segmentStore.mergeTransaction(transactionName, TIMEOUT).thenAccept(v -> {
-                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
-                    }).exceptionally((Throwable e) -> {
+                        });
+                        return null;
+                    })
+                    .exceptionally((Throwable e) -> {
                         handleException(requestId, transactionName, "Commit transaction", e);
                         return null;
                     });
-                    return null;
-                }).exceptionally((Throwable e) -> {
-            handleException(requestId, transactionName, "Commit transaction", e);
-            return null;
-        });
     }
 
     @Override
     public void abortTransaction(AbortTransaction abortTx) {
         long requestId = abortTx.getRequestId();
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(abortTx.getSegment(), abortTx.getTxid());
+        log.debug("Aborting transaction {} ", abortTx);
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(transactionName, TIMEOUT);
         future.thenRun(() -> {
             connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid()));
@@ -447,9 +452,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void sealSegment(SealSegment sealSegment) {
         String segment = sealSegment.getSegment();
+        log.debug("Sealing segment {} ", sealSegment);
         CompletableFuture<Long> future = segmentStore.sealStreamSegment(segment, TIMEOUT);
         future.thenAccept(size -> {
             connection.send(new SegmentSealed(sealSegment.getRequestId(), segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
         }).whenComplete((r, e) -> {
             if (e != null) {
                 handleException(sealSegment.getRequestId(), segment, "Seal segment", e);
@@ -464,9 +472,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void deleteSegment(DeleteSegment deleteSegment) {
         String segment = deleteSegment.getSegment();
+        log.debug("Deleting segment {} ", deleteSegment);
         CompletableFuture<Void> future = segmentStore.deleteStreamSegment(segment, TIMEOUT);
         future.thenRun(() -> {
             connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
+            DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
         }).exceptionally(e -> {
             handleException(deleteSegment.getRequestId(), segment, "Delete segment", e);
             return null;
@@ -478,7 +490,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
-
+        log.debug("Updating segment policy {} ", updateSegmentPolicy);
         CompletableFuture<Void> future = segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT);
         future.thenAccept((Void v) -> {
             connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment()));
@@ -487,8 +499,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(), "Update segment", e);
             } else {
                 if (statsRecorder != null) {
-                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                            updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
+                    statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(), updateSegmentPolicy.getScaleType(),
+                                               updateSegmentPolicy.getTargetRate());
                 }
             }
         });
@@ -509,5 +521,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         }
                     }
                 });
+    }
+
+    /**
+     * Ignores StreamSegmentSealedException, re-throws anything else.
+     */
+    @SneakyThrows
+    private Long ignoreSegmentSealed(Throwable ex) {
+        ex = ExceptionHelpers.getRealException(ex);
+        if (!(ex instanceof StreamSegmentSealedException)) {
+            throw ex;
+        }
+
+        return null;
     }
 }

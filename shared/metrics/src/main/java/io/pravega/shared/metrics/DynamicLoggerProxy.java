@@ -33,8 +33,18 @@ public class DynamicLoggerProxy implements DynamicLogger {
     }
 
     @Override
+    public void freezeCounter(String name) {
+        this.instance.get().freezeCounter(name);
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
         this.instance.get().reportGaugeValue(name, value);
+    }
+
+    @Override
+    public void freezeGaugeValue(String name) {
+        this.instance.get().freezeGaugeValue(name);
     }
 
     @Override

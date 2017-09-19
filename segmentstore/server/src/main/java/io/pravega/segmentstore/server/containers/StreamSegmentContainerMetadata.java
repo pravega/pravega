@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.EvictableMetadata;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -53,6 +54,8 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final HashMap<String, StreamSegmentMetadata> metadataByName;
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentMetadata> metadataById;
+    @GuardedBy("lock")
+    private final HashMap<Long, Integer> activeTxnCounts;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     private final int maxActiveSegmentCount;
@@ -61,6 +64,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @GuardedBy("truncationMarkers")
     private final TreeSet<Long> truncationPoints;
     private final Object lock = new Object();
+    private final SegmentStoreMetrics.Metadata metrics;
 
     //endregion
 
@@ -80,11 +84,14 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber = new AtomicLong();
         this.metadataByName = new HashMap<>();
         this.metadataById = new HashMap<>();
+        this.activeTxnCounts = new HashMap<>();
         this.truncationMarkers = new TreeMap<>();
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
         this.lastTruncatedSequenceNumber = new AtomicLong();
         this.epoch = new AtomicLong(NO_EPOCH);
+        this.metrics = new SegmentStoreMetrics.Metadata(this.streamSegmentContainerId);
+        this.metrics.segmentCount(0);
     }
 
     //endregion
@@ -152,34 +159,42 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
+        int count;
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
+            count = this.metadataById.size();
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapStreamSegment Id = {}, Name = '{}'", this.traceObjectId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapStreamSegment SegmentId = {}, Name = '{}', Active = {}", this.traceObjectId, streamSegmentId, streamSegmentName, count);
+        this.metrics.segmentCount(count);
         return segmentMetadata;
     }
 
     @Override
     public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
         StreamSegmentMetadata segmentMetadata;
+        int count;
         synchronized (this.lock) {
             validateNewMapping(streamSegmentName, streamSegmentId);
             StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
-            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id.");
-            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction.");
+            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id (%s).", parentStreamSegmentId);
+            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction (%s).", parentStreamSegmentId);
 
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
+            count = this.metadataById.size();
+            updateValue(this.activeTxnCounts, parentStreamSegmentId, 1);
         }
 
         segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapTransactionStreamSegment ParentId = {}, Id = {}, Name = '{}'", this.traceObjectId, parentStreamSegmentId, streamSegmentId, streamSegmentName);
+        log.info("{}: MapTransactionStreamSegment ParentId = {}, SegmentId = {}, Name = '{}', Active = {}", this.traceObjectId,
+                parentStreamSegmentId, streamSegmentId, streamSegmentName, count);
+        this.metrics.segmentCount(count);
         return segmentMetadata;
     }
 
@@ -268,7 +283,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         List<SegmentMetadata> candidates;
         synchronized (this.lock) {
             // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
+            Set<Long> activeTransactions = this.metadataById
+                    .values().stream()
+                    .filter(m -> m.isTransaction() && !isEligibleForEviction(m, adjustedCutoff))
+                    .map(SegmentMetadata::getParentId)
+                    .collect(Collectors.toSet());
 
             // The result is all segments that are eligible for removal but that do not have any active transactions.
             candidates = this.metadataById
@@ -290,40 +309,30 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     public Collection<SegmentMetadata> cleanup(Collection<SegmentMetadata> evictionCandidates, long sequenceNumberCutoff) {
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
+        int count;
         synchronized (this.lock) {
-            // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = getSegmentsWithActiveTransactions(adjustedCutoff);
+            // First, process all transactions eligible for removal and update their parent's stats.
+            evictionCandidates
+                    .stream()
+                    .filter(m -> m.isTransaction() && isEligibleForEviction(m, adjustedCutoff))
+                    .forEach(m -> updateValue(this.activeTxnCounts, m.getParentId(), -1));
 
             // Remove those candidates that are still eligible for removal and which do not have any active transactions.
             evictionCandidates
                     .stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !this.activeTxnCounts.containsKey(m.getId()))
                     .forEach(m -> {
                         StreamSegmentMetadata removedMetadata = this.metadataById.remove(m.getId());
                         removedMetadata.markInactive();
                         this.metadataByName.remove(m.getName());
                         evictedSegments.add(m);
                     });
+            count = this.metadataById.size();
         }
 
-        log.info("{}: EvictedStreamSegments {}", this.traceObjectId, evictedSegments);
+        log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
+        this.metrics.segmentCount(count);
         return evictedSegments;
-    }
-
-    /**
-     * Gets a Set of Segment Ids that have active transactions referring to them.
-     *
-     * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
-     *                             if it has a LastUsed value smaller than this threshold.
-     * @return A Set of Segment Ids that have active transactions referring to them.
-     */
-    @GuardedBy("lock")
-    private Set<Long> getSegmentsWithActiveTransactions(long sequenceNumberCutoff) {
-        return this.metadataById
-                .values().stream()
-                .filter(m -> m.isTransaction() && !isEligibleForEviction(m, sequenceNumberCutoff))
-                .map(SegmentMetadata::getParentId)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -338,6 +347,15 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
         return metadata.getLastUsed() < sequenceNumberCutoff
                 || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
+    }
+
+    private void updateValue(HashMap<Long, Integer> map, long key, int delta) {
+        int newValue = map.getOrDefault(key, 0) + delta;
+        if (newValue == 0) {
+            map.remove(key);
+        } else {
+            map.put(key, newValue);
+        }
     }
 
     //endregion
@@ -367,6 +385,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             this.metadataByName.clear();
             this.metadataById.clear();
+            this.activeTxnCounts.clear();
         }
 
         synchronized (this.truncationMarkers) {

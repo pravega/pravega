@@ -13,15 +13,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,9 +62,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.actors = new ArrayList<>();
         this.testCompletion = new AtomicReference<>();
         this.state = new TestState();
-        this.executor = Executors.newScheduledThreadPool(
-                testConfig.getThreadPoolSize(),
-                new ThreadFactoryBuilder().setNameFormat("self-test-%d").build());
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
         this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
         ServiceHelpers.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);

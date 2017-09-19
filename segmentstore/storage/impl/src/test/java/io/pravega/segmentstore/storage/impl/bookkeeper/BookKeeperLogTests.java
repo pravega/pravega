@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
@@ -172,12 +173,12 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests the ability to auto-close upon a permanent write failure.
+     * Tests the ability to auto-close upon a permanent write failure caused by BookKeeper.
      *
      * @throws Exception If one got thrown.
      */
     @Test
-    public void testAutoCloseOnFailure() throws Exception {
+    public void testAutoCloseOnBookieFailure() throws Exception {
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
 
@@ -208,10 +209,50 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
+     * Tests the ability to auto-close upon a permanent write failure caused by ZooKeeper
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public void testAutoCloseOnZooKeeperFailure() throws Exception {
+        int writeCount = getWriteCount();
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+
+            try {
+                // Suspend a bookie (this will trigger write errors).
+                suspendZooKeeper();
+
+                // It may be a while until the BK client realizes that ZK is closed. So we send out a number of appends
+                // and wait for one of them to fail.
+                val appends = new ArrayList<CompletableFuture<LogAddress>>();
+                for (int i = 0; i < writeCount; i++) {
+                    appends.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
+                }
+
+                AssertExtensions.assertThrows(
+                        "First write did not fail with the appropriate exception.",
+                        () -> FutureHelpers.allOf(appends),
+                        ex -> ex instanceof CancellationException);
+
+                // Subsequent writes should be rejected since the BookKeeperLog is now closed.
+                AssertExtensions.assertThrows(
+                        "Second write did not fail with the appropriate exception.",
+                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
+                        ex -> ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
+            } finally {
+                // Don't forget to cleanup after the test.
+                resumeZooKeeper();
+            }
+        }
+    }
+
+    /**
      * Tests the ability to retry writes when Bookies fail.
      */
     @Test
-    public void testAppendTransientFailure() throws Exception {
+    public void testAppendTransientBookieFailure() throws Exception {
         TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
         try (DurableDataLog log = createDurableDataLog()) {
             log.initialize(TIMEOUT);
@@ -238,7 +279,56 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 resumeFirstBookie();
             }
 
-            // Wait for all writes to complete, then reassemble the data in the order ste by LogAddress.
+            // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
+            val addresses = FutureHelpers.allOfWithResults(futures).join();
+            for (int i = 0; i < dataList.size(); i++) {
+                writeData.put(addresses.get(i), dataList.get(i));
+            }
+        }
+
+        // Verify data.
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+            verifyReads(log, writeData);
+        }
+    }
+
+    /**
+     * Tests the ability to retry writes when ZooKeeper fails.
+     */
+    @Test
+    public void testAppendTransientZooKeeperFailure() throws Exception {
+        TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        int writeCount = getWriteCount();
+        int failEvery = writeCount / 5;
+        try (DurableDataLog log = createDurableDataLog()) {
+            log.initialize(TIMEOUT);
+
+            val dataList = new ArrayList<byte[]>();
+            val futures = new ArrayList<CompletableFuture<LogAddress>>();
+
+            try {
+                // Issue appends in parallel.
+                for (int i = 0; i < writeCount; i++) {
+                    byte[] data = getWriteData();
+                    futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
+                    dataList.add(data);
+                    if (i % failEvery == 0) {
+                        FutureHelpers.allOf(futures).join();
+                        suspendZooKeeper();
+                        resumeZooKeeper();
+                    }
+                }
+            } finally {
+                // Don't forget to cleanup after the test.
+                try {
+                    resumeZooKeeper();
+                } catch (IllegalStateException ex) {
+                    // Ignore.
+                }
+            }
+
+            // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
             val addresses = FutureHelpers.allOfWithResults(futures).join();
             for (int i = 0; i < dataList.size(); i++) {
                 writeData.put(addresses.get(i), dataList.get(i));
@@ -305,6 +395,15 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static void resumeFirstBookie() {
         BK_SERVICE.get().resumeBookie(0);
+    }
+
+    private static void suspendZooKeeper() {
+        BK_SERVICE.get().suspendZooKeeper();
+    }
+
+    @SneakyThrows
+    private static void resumeZooKeeper() {
+        BK_SERVICE.get().resumeZooKeeper();
     }
 
     private static boolean isLedgerClosedException(Throwable ex) {

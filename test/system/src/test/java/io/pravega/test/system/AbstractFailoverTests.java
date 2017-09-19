@@ -1,15 +1,15 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
 package io.pravega.test.system;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -24,14 +24,11 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,6 +43,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+
+import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -55,7 +56,6 @@ abstract class AbstractFailoverTests {
 
     static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
     static final String SCALE_STREAM = "testReadWriteAndScaleStream";
-    static final int ADD_NUM_WRITERS = 6;
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
@@ -67,6 +67,7 @@ abstract class AbstractFailoverTests {
     Service segmentStoreInstance;
     URI controllerURIDirect = null;
     ScheduledExecutorService executorService;
+    ScheduledExecutorService controllerExecutorService;
     Controller controller;
     TestState testState;
 
@@ -81,6 +82,11 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
+        //list of all writer's futures
+        final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        //list of all reader's futures
+        final List<CompletableFuture<Void>> readers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
+        final List<CompletableFuture<Void>> writersListComplete = new ArrayList<>();
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
@@ -195,11 +201,6 @@ abstract class AbstractFailoverTests {
                         log.debug("Read timeout");
                     }
                 } catch (Throwable e) {
-                    //TODO: remove it once issue https://github.com/pravega/pravega/issues/1687 is fixed.
-                    if (e.getCause() instanceof RetriesExhaustedException) {
-                        log.warn("Test exception in reading events: ", e);
-                        continue;
-                    }
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
                 }
@@ -241,6 +242,7 @@ abstract class AbstractFailoverTests {
     }
 
     void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+        Preconditions.checkNotNull(testState.writersListComplete.get(0));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
         List<EventStreamWriter<Long>> writerList = new ArrayList<>(writers);
@@ -258,11 +260,13 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                 writerFutureList.add(writerFuture);
             }
+        }).thenRun(() -> {
+            testState.writers.addAll(writerFutureList);
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
+                    testState.writersListComplete.get(0));
+            FutureHelpers.exceptionListener(testState.writersListComplete.get(0),
+                    t -> log.error("Exception while waiting for writers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList), testState.writersComplete);
-        FutureHelpers.exceptionListener(testState.writersComplete,
-                                        t -> log.error("Exception while waiting for writers to complete", t));
-
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
@@ -291,13 +295,16 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
                 readerFutureList.add(readerFuture);
             }
+        }).thenRun(() -> {
+            testState.readers.addAll(readerFutureList);
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
+            FutureHelpers.exceptionListener(testState.readersComplete,
+                    t -> log.error("Exception while waiting for all readers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
-        FutureHelpers.exceptionListener(testState.readersComplete,
-                                        t -> log.error("Exception while waiting for all readers to complete", t));
     }
 
     void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+        Preconditions.checkNotNull(testState.writersListComplete.get(1));
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
         List<EventStreamWriter<Long>> newlyAddedWriterList = new ArrayList<>();
@@ -315,30 +322,32 @@ abstract class AbstractFailoverTests {
                 FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events :", t));
                 newWritersFutureList.add(writerFuture);
             }
+        }).thenRun(() -> {
+            testState.writers.addAll(newWritersFutureList);
+            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
+            FutureHelpers.exceptionListener(testState.writersListComplete.get(1),
+                    t -> log.error("Exception while waiting for writers to complete", t));
         });
-        FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.newWritersComplete);
-        FutureHelpers.exceptionListener(testState.writersComplete,
-                                        t -> log.error("Exception while waiting for writers to complete", t));
     }
 
-    void stopReadersAndWriters(ReaderGroupManager readerGroupManager, String readerGroupName) {
+    void stopWriters() {
         //Stop Writers
         log.info("Stop write flag status {}", testState.stopWriteFlag);
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        if (!FutureHelpers.await(testState.writersComplete)) {
+        if (!FutureHelpers.await(FutureHelpers.allOf(testState.writersListComplete))) {
             log.error("Writers stopped with exceptions");
         }
-        if (!FutureHelpers.await(testState.newWritersComplete)) {
-            log.error("Writers stopped with exceptions");
-        }
+
         // check for exceptions during writes
         if (testState.getWriteException.get() != null) {
             log.info("Unable to write events:", testState.getWriteException.get());
             Assert.fail("Unable to write events. Test failure");
         }
+    }
 
+    void stopReaders() {
         //Stop Readers
         log.info("Stop read flag status {}", testState.stopReadFlag);
         testState.stopReadFlag.set(true);
@@ -352,7 +361,9 @@ abstract class AbstractFailoverTests {
             log.info("Unable to read events:", testState.getReadException.get());
             Assert.fail("Unable to read events. Test failure");
         }
+    }
 
+    void validateResults(ReaderGroupManager readerGroupManager, String readerGroupName) {
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());

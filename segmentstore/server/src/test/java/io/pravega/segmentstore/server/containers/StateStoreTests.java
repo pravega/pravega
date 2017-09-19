@@ -30,7 +30,7 @@ import org.junit.rules.Timeout;
  * Defines tests for a generic State Store (AsyncMap(String, SegmentState))
  */
 public abstract class StateStoreTests extends ThreadPooledTestSuite {
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int ATTRIBUTE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());

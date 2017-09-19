@@ -96,13 +96,14 @@ class MemoryStateUpdater {
      * Appends the given operation.
      *
      * @param operation The operation to append.
+     * @return True if the Operation has been added, false otherwise (i.e., if the operation was not serializable).
      * @throws DataCorruptionException If a serious, non-recoverable, data corruption was detected, such as trying to
      *                                 append operations out of order.
      */
-    void process(Operation operation) throws DataCorruptionException {
+    boolean process(Operation operation) throws DataCorruptionException {
         if (!operation.canSerialize()) {
             // Nothing to do.
-            return;
+            return false;
         }
 
         // Add entry to MemoryTransactionLog and ReadIndex/Cache. This callback is invoked from the QueueProcessor,
@@ -131,6 +132,8 @@ class MemoryStateUpdater {
             // while serving reads, so better stop now than later.
             throw new DataCorruptionException("About to have added a Log Operation to InMemoryOperationLog that was out of order.");
         }
+
+        return true;
     }
 
     /**

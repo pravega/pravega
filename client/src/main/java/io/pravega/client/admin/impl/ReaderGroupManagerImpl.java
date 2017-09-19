@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -47,7 +48,8 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     public ReaderGroupManagerImpl(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
         this.scope = scope;
-        this.controller = new ControllerImpl(controllerUri);
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
+                connectionFactory.getInternalExecutor());
         this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }

@@ -83,7 +83,7 @@ class WriteQueue {
             // We get in here when this method is invoked prior to any operation being completed. Since lastDurationMillis
             // is only set when an item is completed, in this special case we just estimate based on the amount of time
             // the first item in the queue has been added.
-            processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
+            processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getQueueAddedTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
         }
 
         return new QueueStats(parallelism, size, fillRatio, processingTime);
@@ -98,7 +98,7 @@ class WriteQueue {
         Exceptions.checkNotClosed(this.closed, this);
         this.writes.addLast(write);
         this.totalLength += write.data.getLength();
-        write.setTimestamp(this.timeSupplier.get());
+        write.setQueueAddedTimestamp(this.timeSupplier.get());
     }
 
     /**
@@ -185,7 +185,7 @@ class WriteQueue {
             Write w = this.writes.removeFirst();
             this.totalLength = Math.max(0, this.totalLength - w.data.getLength());
             removedCount++;
-            totalElapsed += currentTime - w.getTimestamp();
+            totalElapsed += currentTime - w.getQueueAddedTimestamp();
             failedWrite |= w.getFailureCause() != null;
         }
 

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -24,8 +24,10 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
@@ -35,14 +37,9 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -50,15 +47,23 @@ import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import static java.time.Duration.ofSeconds;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -78,11 +83,16 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private final List<EventStreamWriter<Long>> writerList = synchronizedList(new ArrayList<>());
     private final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
     private ScheduledExecutorService executorService;
+    private ScheduledExecutorService controllerExecutorService;
     private AtomicBoolean stopReadFlag;
     private AtomicBoolean stopWriteFlag;
     private AtomicLong eventData;
     private AtomicLong eventReadCount;
     private AtomicLong eventWriteCount;
+    // Error atomic reference
+    private AtomicReference<Throwable> writerErrorRef = new AtomicReference<>();
+    private AtomicReference<Throwable> readerErrorRef = new AtomicReference<>();
+
     private ConcurrentLinkedQueue<Long> eventsReadFromPravega;
     private Service controllerInstance = null;
     private Service segmentStoreInstance = null;
@@ -172,9 +182,14 @@ public class MultiReaderTxnWriterWithFailoverTest {
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = Executors.newScheduledThreadPool(NUM_READERS + NUM_WRITERS);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
+                                                                        "MultiReaderTxnWriterWithFailoverTest-main");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
+                                                                                  "MultiReaderTxnWriterWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(controllerURIDirect);
+        controller = new ControllerImpl(controllerURIDirect,
+                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                                        controllerExecutorService);
         //read and write count variables
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         stopReadFlag = new AtomicBoolean(false);
@@ -189,6 +204,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
         executorService.shutdownNow();
+        controllerExecutorService.shutdownNow();
         eventsReadFromPravega.clear();
     }
 
@@ -261,12 +277,13 @@ public class MultiReaderTxnWriterWithFailoverTest {
             log.info("Stop write flag status {}", stopWriteFlag);
             stopWriteFlag.set(true);
 
-            //wait for txns to get committed
-            FutureHelpers.allOf(txnStatusFutureList).get();
-
             //wait for writers completion
             log.info("Wait for writers execution to complete");
             FutureHelpers.allOf(writerFutureList).get();
+
+            //wait for txns to get committed
+            log.info("Wait for txns to complete");
+            FutureHelpers.allOf(txnStatusFutureList).get();
 
             //set the stop read flag to true
             log.info("Stop read flag status {}", stopReadFlag);
@@ -280,6 +297,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     "Count: {}", eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), eventsReadFromPravega.size());
             assertEquals(eventWriteCount.get(), new TreeSet<>(eventsReadFromPravega).size()); //check unique events.
+            assertNull(writerErrorRef.get() == null ? "" : writerErrorRef.get().getMessage(), writerErrorRef.get());
+            assertNull(readerErrorRef.get() == null ? "" : readerErrorRef.get().getMessage(), readerErrorRef.get());
 
             closeReadersAndWriters();
 
@@ -387,28 +406,52 @@ public class MultiReaderTxnWriterWithFailoverTest {
                                                         final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
+                Transaction<Long> txnDebugReference = null;
+                AtomicBoolean txnIsDone = new AtomicBoolean(false);
+
                 try {
-                    transaction = retry
-                            .retryingOn(MultiReaderTxnWriterWithFailoverTest.TxnCreationFailedException.class)
-                            .throwingOn(RuntimeException.class)
-                            .run(() -> createTransaction(writer, stopWriteFlag));
+                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000);
+                    txnDebugReference = transaction;
+
+                    // Sets a recurrent delayed task to ping the txn. It exits when the
+                    // txn completes and no longer needs pinging
+                    FutureHelpers.loop(() -> !txnIsDone.get(), () -> {
+                        return FutureHelpers.delayedTask(() -> {
+                            if (transaction.checkStatus() == Transaction.Status.OPEN) {
+                                FutureHelpers.runOrFail(() -> {
+                                    transaction.ping(5000);
+                                    return null;
+                                }, new CompletableFuture<Void>());
+                            } else {
+                                txnIsDone.set(true);
+                            }
+
+                            return null;
+                        }, Duration.ofMillis(2000), executorService);
+                    }, executorService);
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
                         transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction);
+                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
                     }
                     //commit Txn
                     transaction.commit();
+                    txnIsDone.set(true);
 
                     //wait for transaction to get committed
                     txnStatusFutureList.add(checkTxnStatus(transaction, eventWriteCount));
                 } catch (Throwable e) {
-                    log.warn("Exception while writing events in the transaction: {}", e);
-                    if (transaction != null) {
-                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                    // Given that we have retry logic both in the interaction with controller and
+                    // segment store, we should fail the test case in the presence of any exception
+                    // caught here.
+                    txnIsDone.set(true);
+                    log.warn("Exception while writing events in the transaction: ", e);
+                    if (txnDebugReference != null) {
+                        log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());
                     }
+                    writerErrorRef.set(e);
+                    return;
                 }
             }
         }, executorService);
@@ -433,25 +476,6 @@ public class MultiReaderTxnWriterWithFailoverTest {
         }, executorService);
     }
 
-    private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
-        Transaction<Long> txn = null;
-        try {
-            //Default max scale grace period is 30000
-            txn = writer.beginTxn(5000, 3600000, 29000);
-            log.info("Transaction created with id:{} ", txn.getTxnId());
-        } catch (RuntimeException ex) {
-            log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
-            if (ex instanceof io.grpc.StatusRuntimeException && !exitFlag.get()) {
-                //Exit flag is true no need to retry.
-                log.warn("Cause for failure is {} and we need to retry", ex.getClass().getName());
-                throw new TxnCreationFailedException(); // we can retry on this exception.
-            } else {
-                throw ex;
-            }
-        }
-        return txn;
-    }
-
     private CompletableFuture<Void> startReading(final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
     AtomicLong readCount, final AtomicBoolean exitFlag, final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
@@ -473,14 +497,12 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     }
                 } catch (Throwable e) {
                     log.error("Test Exception while reading from the stream: ", e);
+                    readerErrorRef.set(e);
+                    return;
                 }
             }
 
         }, executorService);
-    }
-
-
-    private static class TxnCreationFailedException extends RuntimeException {
     }
 
     private static class TxnNotCompleteException extends RuntimeException {

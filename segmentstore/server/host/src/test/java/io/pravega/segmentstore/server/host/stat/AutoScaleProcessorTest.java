@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class AutoScaleProcessorTest {
@@ -122,6 +123,29 @@ public class AutoScaleProcessorTest {
         assertTrue(FutureHelpers.await(result2));
         assertTrue(FutureHelpers.await(result3));
         assertTrue(FutureHelpers.await(result4));
+    }
+
+    @Test(timeout = 10000)
+    public void testCacheExpiry() {
+        CompletableFuture<Void> scaleDownFuture = new CompletableFuture<>();
+
+        AutoScaleProcessor monitor = new AutoScaleProcessor(createWriter(event -> {
+            if (event.getDirection() == AutoScaleEvent.DOWN) {
+                scaleDownFuture.complete(null);
+            } else {
+                scaleDownFuture.completeExceptionally(new RuntimeException());
+            }
+        }), AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
+                .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
+                .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
+                executor, maintenanceExecutor);
+        String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
+        monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+
+        assertTrue(FutureHelpers.await(scaleDownFuture));
+
+        assertNull(monitor.get(streamSegmentName1));
     }
 
     private EventStreamWriter<AutoScaleEvent> createWriter(Consumer<AutoScaleEvent> consumer) {
