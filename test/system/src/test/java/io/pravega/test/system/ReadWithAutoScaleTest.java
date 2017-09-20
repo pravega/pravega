@@ -81,7 +81,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     public static void setup() throws Exception {
 
         //1. check if zk is running, if not start it
-        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -92,7 +93,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUris.get(0)) : new BookkeeperService("bookkeeper", zkUris.get(0));
+                new BookkeeperDockerService("bookkeeper", zkUris.get(0))
+                : new BookkeeperService("bookkeeper", zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }

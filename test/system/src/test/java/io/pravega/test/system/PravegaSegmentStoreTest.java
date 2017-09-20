@@ -41,12 +41,14 @@ public class PravegaSegmentStoreTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
         Service bk = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0)) : new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
+                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0))
+                : new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
         }

@@ -34,18 +34,14 @@ public class ZookeeperTest {
      * This is used to setup the various services required by the system test framework.
      * @throws MarathonException if error in setup
      */
-
     @Environment
     public static void setup() throws MarathonException {
-
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
     }
-
-
-
 
     /**
      * Invoke the zookeeper test, ensure zookeeper can be accessed.
@@ -55,7 +51,8 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
                 CuratorFrameworkFactory.newClient(zkUri.getHost()+":"+2181, new RetryOneTime(5000));

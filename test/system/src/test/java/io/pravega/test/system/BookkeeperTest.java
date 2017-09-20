@@ -56,7 +56,8 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper", null) : new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
+        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper", null)
+                : new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

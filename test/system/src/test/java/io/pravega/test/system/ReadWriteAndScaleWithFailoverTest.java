@@ -81,7 +81,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     @Before
     public void setup() {
         // Get zk details to verify if controller, SSS are running
-        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller

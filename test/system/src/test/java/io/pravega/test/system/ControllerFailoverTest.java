@@ -125,7 +125,8 @@ public class ControllerFailoverTest {
 
     private static URI getTestControllerServiceURI() {
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null) : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null)
+                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         List<URI> ctlURIs = controllerService.getServiceDetails();
         return ctlURIs.get(0);
     }
@@ -142,7 +143,8 @@ public class ControllerFailoverTest {
     private static void stopTestControllerService() {
         log.info("Stopping test controller service");
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null) : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null)
+                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         controllerService.stop();
     }
 

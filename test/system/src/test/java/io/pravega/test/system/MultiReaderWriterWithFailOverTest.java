@@ -108,7 +108,8 @@ public class MultiReaderWriterWithFailOverTest {
 
         //2. Start 3 bookies
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri) : new BookkeeperService("bookkeeper", zkUri);
+                new BookkeeperDockerService("bookkeeper", zkUri)
+                : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
