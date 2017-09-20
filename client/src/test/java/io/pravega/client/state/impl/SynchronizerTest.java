@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.Data;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -119,12 +119,12 @@ public class SynchronizerTest {
 
         @Override
         public Revision writeConditionally(Revision latestRevision, UpdateOrInit<RevisionedImpl> value) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("writeConditionally");
         }
 
         @Override
         public void writeUnconditionally(UpdateOrInit<RevisionedImpl> value) {
-            throw new NotImplementedException();
+            throw new NotImplementedException("writeUnconditionally");
         }
 
         @Override
