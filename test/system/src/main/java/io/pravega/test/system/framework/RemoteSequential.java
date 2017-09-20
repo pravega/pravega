@@ -43,7 +43,7 @@ public class RemoteSequential implements TestExecutor {
     private static final Metronome CLIENT = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
-    //@Override
+    @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         log.debug("Starting test execution for method: {}", testMethod);
@@ -78,7 +78,7 @@ public class RemoteSequential implements TestExecutor {
                 });
     }
 
-    //@Override
+    @Override
     public CompletableFuture<Void> stopTestExecution(String testID) {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }

@@ -560,7 +560,7 @@ project('test:system') {
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
         systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
-                pravegaVersion + "/pravega-test-system-" + pravegaVersion + ".jar"
+                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
         onlyIf { dockerRegistryUrl && repoUrl }
     }

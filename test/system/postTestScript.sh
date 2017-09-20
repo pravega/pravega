@@ -27,4 +27,4 @@ done
 #### copy all test logs on the given mesos host.
 find / -name 'server.log' -print0 | tar -czvf testLogsIn-$host.tar.gz --null -T -
 #### leave the swarm after collecting the logs
-#docker swarm leave --force
+docker swarm leave --force

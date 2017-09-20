@@ -103,13 +103,7 @@ public class DockerRemoteSequential implements TestExecutor {
             // Inspect container
             final ContainerInfo info = CLIENT.inspectContainer(id);
 
-            //TODO: copy test.jar to the container
-            /*try {
-                final Path dockerDirectory = Paths.get(Resources.getResource(System.getProperty("user.dir")+ "/build/libs").toURI());
-                CLIENT.copyToContainer(dockerDirectory, id, "/data");
-            } catch(URISyntaxException | IOException e) {
-                log.error("Exception while copying test jar to the container {}", e);
-            }*/
+            //TODO: copy test.jar to the container instead of using appendbind
 
             // Start container
             CLIENT.startContainer(id);
@@ -156,5 +150,3 @@ public class DockerRemoteSequential implements TestExecutor {
 
     }
 }
-
-
