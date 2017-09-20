@@ -20,7 +20,7 @@ import io.pravega.test.system.framework.metronome.model.v1.Restart;
 import io.pravega.test.system.framework.metronome.model.v1.Run;
 import feign.Response;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.lang.reflect.Method;
 import java.time.Duration;

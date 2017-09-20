@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -217,21 +218,22 @@ public final class Retry {
         public CompletableFuture<Void> runInExecutor(final Runnable task,
                                                      final ScheduledExecutorService executorService) {
             Preconditions.checkNotNull(task);
-            CompletableFuture<Void> result = new CompletableFuture<>();
+            AtomicBoolean isDone = new AtomicBoolean();
             AtomicInteger attemptNumber = new AtomicInteger(1);
             AtomicLong delay = new AtomicLong(0);
-            FutureHelpers.loop(
-                    () -> !result.isDone(),
+            return FutureHelpers.loop(
+                    () -> !isDone.get(),
                     () -> FutureHelpers.delayedFuture(Duration.ofMillis(delay.get()), executorService)
                             .thenRunAsync(task, executorService)
-                            .thenAccept(result::complete) // We are done.
+                            .thenRun(() -> isDone.set(true)) // We are done.
                             .exceptionally(ex -> {
                                 if (!canRetry(ex)) {
                                     // Cannot retry this exception. Fail now.
-                                    result.completeExceptionally(ex);
+                                    isDone.set(true);
                                 } else if (attemptNumber.get() + 1 > params.attempts) {
                                     // We have retried as many times as we were asked, unsuccessfully.
-                                    result.completeExceptionally(new RetriesExhaustedException(ex));
+                                    isDone.set(true);
+                                    throw new RetriesExhaustedException(ex);
                                 } else {
                                     // Try again.
                                     delay.set(attemptNumber.get() == 1 ?
@@ -243,7 +245,6 @@ public final class Retry {
                                 return null;
                             }),
                     executorService);
-            return result;
         }
         
         public <ReturnT> CompletableFuture<ReturnT> runAsync(final Supplier<CompletableFuture<ReturnT>> r,

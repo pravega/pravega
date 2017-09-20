@@ -184,6 +184,7 @@ abstract class AbstractFailoverTests {
             writer.close();
         } catch (Throwable e) {
             log.error("Error while closing writer", e);
+            testState.getWriteException.compareAndSet(null, e);
         }
     }
 
@@ -221,6 +222,7 @@ abstract class AbstractFailoverTests {
             reader.close();
         } catch (Throwable e) {
             log.error("Error while closing reader", e);
+            testState.getReadException.compareAndSet(null, e);
         }
     }
 
