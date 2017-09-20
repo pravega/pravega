@@ -280,21 +280,13 @@ class BookKeeperLog implements DurableDataLog {
      * Write Processor main loop. This method is not thread safe and should only be invoked as part of the Write Processor.
      */
     private void processWritesSync() {
-        try {
-            if (getWriteLedger().ledger.isClosed()) {
-                // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
-                // the write processor upon finish, so
-                this.rolloverProcessor.runAsync();
-            } else if (!processPendingWrites()) {
-                // We were not able to complete execution of all writes. Try again.
-                this.writeProcessor.runAsync();
-            } else {
-                // After every run, check if we need to trigger a rollover.
-                this.rolloverProcessor.runAsync();
-            }
-        } catch (Exception ex) {
-            log.error("{}: processWritesSync failed.", this.traceObjectId, ex);
-            throw ex;
+        if (getWriteLedger().ledger.isClosed()) {
+            // Current ledger is closed. Execute the rollover processor to safely create a new ledger. This will reinvoke
+            // the write processor upon finish, so the writes can be reattempted.
+            this.rolloverProcessor.runAsync();
+        } else if (!processPendingWrites() && !this.closed.get()) {
+            // We were not able to complete execution of all writes. Try again.
+            this.writeProcessor.runAsync();
         }
     }
 
@@ -417,7 +409,7 @@ class BookKeeperLog implements DurableDataLog {
             long lac = fetchLastAddConfirmed(w.getWriteLedger(), lastAddsConfirmed);
             if (w.getEntryId() >= 0 && w.getEntryId() <= lac) {
                 // Write was actually successful. Complete it and move on.
-                w.complete();
+                completeWrite(w);
                 anythingChanged = true;
             } else if (currentLedger.ledger.getId() != w.getWriteLedger().ledger.getId()) {
                 // Current ledger has changed; attempt to write to the new one.
@@ -480,13 +472,7 @@ class BookKeeperLog implements DurableDataLog {
                 // Successful write. If we get this, then by virtue of how the Writes are executed (always wait for writes
                 // in previous ledgers to complete before initiating, and BookKeeper guaranteeing that all writes in this
                 // ledger prior to this writes are done), it is safe to complete the callback future now.
-                write.complete();
-                this.concurrencyManager.writeCompleted(write.data.getLength());
-                Timer t = write.complete();
-                if (t != null) {
-                    this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
-                }
-
+                completeWrite(write);
                 return;
             }
 
@@ -506,6 +492,19 @@ class BookKeeperLog implements DurableDataLog {
                 // to BookKeeper.
                 log.warn("{}: Not running WriteProcessor as part of callback due to BookKeeperLog being closed.", this.traceObjectId, ex);
             }
+        }
+    }
+
+    /**
+     * Completes the given Write and makes any necessary internal updates.
+     *
+     * @param write The write to complete.
+     */
+    private void completeWrite(Write write) {
+        Timer t = write.complete();
+        this.concurrencyManager.writeCompleted(write.data.getLength());
+        if (t != null) {
+            this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
         }
     }
 
