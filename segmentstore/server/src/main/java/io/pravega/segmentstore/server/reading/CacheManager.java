@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -51,6 +52,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private int oldestGeneration;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
+    private final SegmentStoreMetrics.CacheManager metrics;
 
     //endregion
 
@@ -65,12 +67,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public CacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
         Preconditions.checkNotNull(executorService, "executorService");
+
         this.policy = policy;
         this.clients = new HashSet<>();
         this.oldestGeneration = 0;
         this.currentGeneration = 0;
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
+        this.metrics = new SegmentStoreMetrics.CacheManager();
     }
 
     //endregion
@@ -88,6 +92,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 this.clients.clear();
             }
 
+            this.metrics.close();
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }
     }
@@ -202,6 +207,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
         } while (sizeReduction > 0 && oldestChanged);
+        this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
     }
 
     private CacheStatus collectStatus() {

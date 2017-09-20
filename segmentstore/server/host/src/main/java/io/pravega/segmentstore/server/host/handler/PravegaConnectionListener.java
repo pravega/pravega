@@ -9,20 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
-
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import java.security.cert.CertificateException;
-
-import javax.net.ssl.SSLException;
-
-import io.pravega.common.Exceptions;
-import io.pravega.shared.protocol.netty.AppendDecoder;
-import io.pravega.shared.protocol.netty.CommandDecoder;
-import io.pravega.shared.protocol.netty.CommandEncoder;
-import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -42,11 +30,23 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import java.security.cert.CertificateException;
+import javax.net.ssl.SSLException;
+
+import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
 public final class PravegaConnectionListener implements AutoCloseable {
+    //region Members
 
     private final boolean ssl;
     private final String host;
@@ -57,19 +57,42 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
+     *
+     * @param ssl                Whether to use SSL.
+     * @param port               The port to listen on.
+     * @param streamSegmentStore The SegmentStore to delegate all requests to.
+     */
+    @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
         this(ssl, "localhost", port, streamSegmentStore, null);
     }
 
+    /**
+     * Creates a new instance of the PravegaConnectionListener class.
+     *
+     * @param ssl                Whether to use SSL.
+     * @param host               The name of the host to listen to.
+     * @param port               The port to listen on.
+     * @param streamSegmentStore The SegmentStore to delegate all requests to.
+     * @param statsRecorder      (Optional) A StatsRecorder for Metrics.
+     */
     public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
                                      SegmentStatsRecorder statsRecorder) {
         this.ssl = ssl;
-        this.host = host;
+        this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
-        this.store = streamSegmentStore;
+        this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.statsRecorder = statsRecorder;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
     }
+
+    //endregion
 
     public void startListening() {
         // Configure SSL.

@@ -258,8 +258,8 @@ public class FileSystemStorage extends HealthReporter implements Storage {
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
-            Metrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.READ_BYTES.add(totalBytesRead);
+            FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+            FileSystemMetrics.READ_BYTES.add(totalBytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -330,8 +330,8 @@ public class FileSystemStorage extends HealthReporter implements Storage {
                     length -= bytesWritten;
                 }
             }
-            Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            Metrics.WRITE_BYTES.add(totalBytesWritten);
+            FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+            FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }

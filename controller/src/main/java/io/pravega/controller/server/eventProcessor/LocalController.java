@@ -40,7 +40,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 public class LocalController implements Controller {
 
@@ -317,7 +317,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        throw new NotImplementedException();
+        throw new NotImplementedException("getSuccessors");
     }
 
     @Override

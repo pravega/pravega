@@ -18,7 +18,7 @@ import io.pravega.shared.metrics.StatsLogger;
 /**
  * Defines all Metrics used by the HDFSStorage class.
  */
-final class Metrics {
+final class HDFSMetrics {
     private static final StatsLogger HDFS_LOGGER = MetricsProvider.createStatsLogger("hdfs");
     static final OpStatsLogger READ_LATENCY = HDFS_LOGGER.createStats(MetricsNames.STORAGE_READ_LATENCY);
     static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
