@@ -161,7 +161,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .with(BookKeeperConfig.ZK_METADATA_PATH, this.zkClient.get().getNamespace())
                 .build();
         @Cleanup
-        val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService(), null);
+        val factory = new BookKeeperLogFactory(bkConfig, this.zkClient.get(), executorService(), new HealthRequestProcessorImpl());
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&

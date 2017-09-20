@@ -118,7 +118,7 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.zkClient.start();
             return builder.withDataLogFactory(setup -> {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
-                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor(), null);
+                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor(), new HealthRequestProcessorImpl());
             });
         } else {
             // No Bookies -> InMemory Tier1.

@@ -13,6 +13,7 @@ package io.pravega.test.integration.selftest.adapters;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -106,7 +107,7 @@ class BookKeeperAdapter extends StoreAdapter {
         this.zkClient.start();
 
         // Create a BK client.
-        this.logFactory = new BookKeeperLogFactory(this.bkConfig, this.zkClient, this.executor, null);
+        this.logFactory = new BookKeeperLogFactory(this.bkConfig, this.zkClient, this.executor, new HealthRequestProcessorImpl());
         this.logFactory.initialize();
     }
 
