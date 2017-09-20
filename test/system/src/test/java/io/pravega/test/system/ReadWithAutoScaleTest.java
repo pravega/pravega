@@ -17,6 +17,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -51,22 +52,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import static java.time.Duration.ofSeconds;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
@@ -95,15 +92,23 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUris.get(0));
+                new BookkeeperDockerService("bookkeeper", zkUris.get(0)) : new BookkeeperService("bookkeeper", zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
                 : new PravegaControllerService("controller", zkUris.get(0));
         if (!conService.isRunning()) {
             conService.start(true);
@@ -113,7 +118,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

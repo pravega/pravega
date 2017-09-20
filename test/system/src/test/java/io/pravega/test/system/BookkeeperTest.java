@@ -34,15 +34,15 @@ public class BookkeeperTest {
      * @throws MarathonException if error in setup
      */
     @Environment
-    public void setup() throws MarathonException {
+    public static void setup() throws MarathonException {
         Service zk = Utils.isDockerLocalExecEnabled() ?
                 new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
         Service bk = Utils.isDockerLocalExecEnabled() ? 
-                new BookkeeperDockerService("bookkeeper") :
-                new BookkeeperService("zookeeper", zk.getServiceDetails().get(0));
+                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0)) :
+                new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -56,7 +56,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper"): new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
+        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper", null) : new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

@@ -31,7 +31,11 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -43,7 +47,6 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
@@ -68,6 +71,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public static void initialize() throws MarathonException, URISyntaxException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
+        startHDFSInstances();
         URI controllerUri = startPravegaControllerInstances(zkUri);
         startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
@@ -83,7 +87,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         // Verify controller is running.
         controllerInstance = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
@@ -98,7 +102,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());

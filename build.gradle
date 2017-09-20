@@ -508,10 +508,21 @@ project('test:system') {
             }
         }
         from sourceSets.test.output
+        //TODO: use exclude only for docker local execution
+        exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
     }
 
     //This is  used to invoke systemTests
+    //TODO: doFirst and doLast are not needed for jarvis execution
     task startSystemTests(type: Test) {
+
+            doFirst {
+                tasks.jar.execute()
+                exec {
+                    executable "./preTestScript.sh"
+                }
+            }
+
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
@@ -547,9 +558,9 @@ project('test:system') {
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
         systemProperty "testVersion", pravegaVersion
         systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
-                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
+                pravegaVersion + "/pravega-test-system-" + pravegaVersion + ".jar"
 
-        //onlyIf { dockerRegistryUrl && repoUrl }
+        onlyIf { dockerRegistryUrl && repoUrl }
     }
 }
 

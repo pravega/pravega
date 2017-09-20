@@ -10,6 +10,7 @@
 package io.pravega.test.system.framework;
 
 import com.google.common.collect.ImmutableMap;
+import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.Container;
@@ -19,7 +20,6 @@ import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.test.system.framework.docker.Client;
 import lombok.extern.slf4j.Slf4j;
 import java.lang.reflect.Method;
 import java.time.Duration;
@@ -35,8 +35,9 @@ import static org.junit.Assert.assertFalse;
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    public static final DockerClient CLIENT = Client.getDockerClient();
-    private static final String IMAGE = "java:8";
+    public static final DockerClient CLIENT = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
+
+    private static final String IMAGE = System.getProperty("dockerImageRegistry")+ "/java:8";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -46,6 +47,7 @@ public class DockerRemoteSequential implements TestExecutor {
         String className = testMethod.getDeclaringClass().getName();
         String methodName = testMethod.getName();
         String containerName = methodName + ".testJob";
+
         return CompletableFuture.runAsync(() -> {
             createContainer(containerName, className, methodName);
         }).thenCompose(v2 -> waitForJobCompletion(containerName))
@@ -54,9 +56,9 @@ public class DockerRemoteSequential implements TestExecutor {
                     if (ex != null) {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
-
                     }
-                });
+                }
+                );
     }
 
     @Override
@@ -96,10 +98,18 @@ public class DockerRemoteSequential implements TestExecutor {
             ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName, className), containerName);
             assertFalse(containerCreation.id().toString().equals(null));
 
-             final String id = containerCreation.id();
+             String id = containerCreation.id();
 
             // Inspect container
             final ContainerInfo info = CLIENT.inspectContainer(id);
+
+            //TODO: copy test.jar to the container
+            /*try {
+                final Path dockerDirectory = Paths.get(Resources.getResource(System.getProperty("user.dir")+ "/build/libs").toURI());
+                CLIENT.copyToContainer(dockerDirectory, id, "/data");
+            } catch(URISyntaxException | IOException e) {
+                log.error("Exception while copying test jar to the container {}", e);
+            }*/
 
             // Start container
             CLIENT.startContainer(id);
@@ -107,7 +117,6 @@ public class DockerRemoteSequential implements TestExecutor {
         } catch (DockerException | InterruptedException e) {
             log.error("exception in starting container {}", e);
         }
-
     }
 
     private ContainerConfig setContainerConfig(String methodName, String className) {
@@ -116,17 +125,16 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testMethodName", methodName);
         labels.put("testClassName", className);
 
-        HostConfig hostConfig = HostConfig.builder().appendBinds("/root/git/docker-framework/pravega/test/system/build/libs:/data")
-                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( System.getProperty("masterIp"), "2375" ) ) ) ).networkMode("host").build();
+        HostConfig hostConfig = HostConfig.builder().appendBinds(System.getProperty("user.dir") + "/build/libs:/data")
+                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( System.getProperty("masterIP"), "2375" ) ) ) ).networkMode("host").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("java -cp test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
-                        className + "#" + methodName + " > server.log 2>&1" )
-                .cmd("sh", "-c", "while :; do sleep 1; done")
+                .cmd("sh", "-c", "java -DdockerExecLocal="+ Utils.isDockerLocalExecEnabled()+ " -DmasterIP="+System.getProperty("masterIP")+ " -DskipServiceInstallation=" + Utils.isSkipServiceInstallationEnabled() + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                        className + "#" + methodName + " > "+  className + "#" + methodName + "server.log 2>&1" + "; exit $?")
                 .labels(labels)
                 .build();
 

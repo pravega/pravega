@@ -98,7 +98,7 @@ public class HDFSDockerService extends DockerBasedService {
         portConfigs.add(port6);
 
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("network-name").build())
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;

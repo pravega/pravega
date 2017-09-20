@@ -26,6 +26,8 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
+
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -38,12 +40,14 @@ public class PravegaControllerDockerService extends DockerBasedService {
 
     static final int CONTROLLER_PORT = 9092;
     private static final int REST_PORT = 10080;
+    private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 700.0;
 
-    public PravegaControllerDockerService(final String serviceName) {
+    public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
         super(serviceName);
+        this.zkUri = zkUri;
     }
 
     @Override
@@ -74,7 +78,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
 
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
-        String zk = "zookeeper" + ":" + ZKSERVICE_ZKPORT;
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", dockerClient.getHost()) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
@@ -104,7 +108,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         portConfigs.add(port1);
         portConfigs.add(port2);
         ServiceSpec spec = ServiceSpec.builder().name("controller").taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build())
+                .name(serviceName).networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;

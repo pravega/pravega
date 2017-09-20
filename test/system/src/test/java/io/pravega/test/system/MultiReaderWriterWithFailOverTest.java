@@ -34,6 +34,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -59,7 +60,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -68,7 +68,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiReaderWriterWithFailOverTest {
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
@@ -109,16 +108,24 @@ public class MultiReaderWriterWithFailOverTest {
 
         //2. Start 3 bookies
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUri);
+                new BookkeeperDockerService("bookkeeper", zkUri) : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("Bookkeeper service details: {}", bkUris);
 
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
         //3. start 3 instances of pravega controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
@@ -136,7 +143,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         //4.start 3 instances of pravega segmentstore
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
@@ -161,7 +168,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         // Verify controller is running.
         controllerInstance = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
@@ -176,7 +183,7 @@ public class MultiReaderWriterWithFailOverTest {
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());

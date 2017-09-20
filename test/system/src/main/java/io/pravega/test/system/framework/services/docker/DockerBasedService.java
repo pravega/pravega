@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
+import com.spotify.docker.client.messages.NetworkConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
@@ -38,7 +39,14 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     DockerBasedService(String serviceName) {
-        dockerClient = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIp")+ ":2375").build();
+        dockerClient = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
+        try {
+            if (dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName("docker-network")).isEmpty()) {
+                dockerClient.createNetwork(NetworkConfig.builder().driver("overlay").name("docker-network").build());
+            }
+        } catch (DockerException | InterruptedException e) {
+            log.error("unable to create network {}", e);
+        }
         this.serviceName = serviceName;
         }
 

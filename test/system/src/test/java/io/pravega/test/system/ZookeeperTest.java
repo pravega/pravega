@@ -34,8 +34,9 @@ public class ZookeeperTest {
      * This is used to setup the various services required by the system test framework.
      * @throws MarathonException if error in setup
      */
+
     @Environment
-    public void setup() throws MarathonException {
+    public static void setup() throws MarathonException {
 
         Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {

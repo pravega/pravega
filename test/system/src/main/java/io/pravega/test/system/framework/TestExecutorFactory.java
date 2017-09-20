@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import org.apache.commons.lang.NotImplementedException;
 
 public class TestExecutorFactory {

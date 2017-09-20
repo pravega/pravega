@@ -16,6 +16,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -37,9 +38,11 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -51,7 +54,6 @@ import java.util.UUID;
  * Test cases for deploying multiple segment stores.
  */
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiSegmentStoreTest {
 
@@ -74,7 +76,7 @@ public class MultiSegmentStoreTest {
         URI zkUri = zkUris.get(0);
         // 2. Check if bk is running, otherwise start it.
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper")
+                new BookkeeperDockerService("bookkeeper", zkUri)
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -83,9 +85,17 @@ public class MultiSegmentStoreTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.info("bookkeeper service details: {}", bkUris);
 
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
         // 3. Start controller.
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
@@ -96,7 +106,7 @@ public class MultiSegmentStoreTest {
 
         // 4. Start segment store.
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -117,7 +127,7 @@ public class MultiSegmentStoreTest {
 
         // Verify controller is running.
         this.controllerInstance = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
                 : new PravegaControllerService("controller", zkUris.get(0));
         Assert.assertTrue(this.controllerInstance.isRunning());
         List<URI> conURIs = this.controllerInstance.getServiceDetails();
@@ -125,7 +135,7 @@ public class MultiSegmentStoreTest {
 
         // Verify segment stores is running.
         this.segmentServiceInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conURIs.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conURIs.get(0));
         Assert.assertTrue(this.segmentServiceInstance.isRunning());
         Assert.assertEquals(1, this.segmentServiceInstance.getServiceDetails().size());

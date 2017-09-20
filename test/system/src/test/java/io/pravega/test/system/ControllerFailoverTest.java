@@ -22,6 +22,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -34,10 +35,8 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang.RandomStringUtils;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -51,7 +50,6 @@ import java.util.concurrent.ScheduledExecutorService;
  * Controller fail over system test.
  */
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
     private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";
@@ -74,7 +72,7 @@ public class ControllerFailoverTest {
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper")
+                new BookkeeperDockerService("bookkeeper", zkUri)
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -83,9 +81,17 @@ public class ControllerFailoverTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
         //3. start controller
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
@@ -93,7 +99,7 @@ public class ControllerFailoverTest {
 
         //4. start test controller instances
         Service testControllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME)
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, zkUri)
                 : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
         if (!testControllerService.isRunning()) {
             testControllerService.start(true);
@@ -107,7 +113,7 @@ public class ControllerFailoverTest {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -118,13 +124,16 @@ public class ControllerFailoverTest {
     }
 
     private static URI getTestControllerServiceURI() {
-        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null) : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         List<URI> ctlURIs = controllerService.getServiceDetails();
         return ctlURIs.get(0);
     }
 
     private static URI getControllerURI() {
-        Service controllerService = new PravegaControllerService("controller", null);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", null)
+                : new PravegaControllerService("controller", null);
         List<URI> ctlURIs = controllerService.getServiceDetails();
         return ctlURIs.get(0);
     }
@@ -132,7 +141,8 @@ public class ControllerFailoverTest {
 
     private static void stopTestControllerService() {
         log.info("Stopping test controller service");
-        Service controllerService = new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null) : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
         controllerService.stop();
     }
 

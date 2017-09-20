@@ -26,6 +26,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -50,7 +51,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -390,7 +390,7 @@ abstract class AbstractFailoverTests {
 
     static void startBookkeeperInstances(final URI zkUri) {
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUri);
+                new BookkeeperDockerService("bookkeeper", zkUri) : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -400,7 +400,7 @@ abstract class AbstractFailoverTests {
 
     static URI startPravegaControllerInstances(final URI zkUri) {
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
@@ -418,7 +418,7 @@ abstract class AbstractFailoverTests {
 
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) {
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
@@ -426,6 +426,15 @@ abstract class AbstractFailoverTests {
         segService.scaleService(3, true);
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
+    }
+
+    static void startHDFSInstances() {
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
     }
 
     static class ScaleOperationNotDoneException extends RuntimeException {

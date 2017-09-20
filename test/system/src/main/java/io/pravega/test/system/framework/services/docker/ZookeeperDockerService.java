@@ -86,7 +86,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("network-name").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("docker-network").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder()
                         .targetPort(ZKSERVICE_ZKPORT).protocol("TCP").build())
                         .build()).build();

@@ -16,6 +16,9 @@ import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
@@ -33,12 +36,10 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
@@ -57,7 +58,9 @@ public class MultiControllerTest {
      */
     @Environment
     public static void initialize() throws MarathonException {
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -65,19 +68,25 @@ public class MultiControllerTest {
         log.info("zookeeper service details: {}", zkUris);
 
         // Start multiple instances of the controller.
-        Service controller1 = new PravegaControllerService("multicontroller1", zkUris.get(0));
+        Service controller1 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller1", zkUris.get(0))
+                : new PravegaControllerService("multicontroller1", zkUris.get(0));
         if (!controller1.isRunning()) {
             controller1.start(true);
         }
         List<URI> conUris1 = controller1.getServiceDetails();
         log.info("Pravega Controller service instance 1 details: {}", conUris1);
-        Service controller2 = new PravegaControllerService("multicontroller2", zkUris.get(0));
+        Service controller2 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller2", zkUris.get(0))
+                :  new PravegaControllerService("multicontroller2", zkUris.get(0));
         if (!controller2.isRunning()) {
             controller2.start(true);
         }
         List<URI> conUris2 = controller2.getServiceDetails();
         log.info("Pravega Controller service instance 2 details: {}", conUris2);
-        Service controller3 = new PravegaControllerService("multicontroller3", zkUris.get(0));
+        Service controller3 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller3", zkUris.get(0))
+                : new PravegaControllerService("multicontroller3", zkUris.get(0));
         if (!controller3.isRunning()) {
             controller3.start(true);
         }
@@ -94,13 +103,19 @@ public class MultiControllerTest {
 
         // Fetch the controller instances.
         List<URI> conUris = new ArrayList<>();
-        controllerServiceInstance1 = new PravegaControllerService("multicontroller1", zkUris.get(0));
+        controllerServiceInstance1 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller1", zkUris.get(0))
+                : new PravegaControllerService("multicontroller1", zkUris.get(0));
         Assert.assertTrue(controllerServiceInstance1.isRunning());
         conUris.addAll(controllerServiceInstance1.getServiceDetails());
-        controllerServiceInstance2 = new PravegaControllerService("multicontroller2", zkUris.get(0));
+        controllerServiceInstance2 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller2", zkUris.get(0))
+                : new PravegaControllerService("multicontroller2", zkUris.get(0));
         Assert.assertTrue(controllerServiceInstance2.isRunning());
         conUris.addAll(controllerServiceInstance2.getServiceDetails());
-        controllerServiceInstance3 = new PravegaControllerService("multicontroller3", zkUris.get(0));
+        controllerServiceInstance3 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("multicontroller3", zkUris.get(0))
+                : new PravegaControllerService("multicontroller3", zkUris.get(0));
         Assert.assertTrue(controllerServiceInstance3.isRunning());
         conUris.addAll(controllerServiceInstance3.getServiceDetails());
         log.info("Pravega Controller service instance details: {}", conUris);

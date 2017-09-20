@@ -27,6 +27,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -94,7 +95,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled()
-                ? new BookkeeperDockerService("bookkeeper")
+                ? new BookkeeperDockerService("bookkeeper", zkUri)
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -103,9 +104,17 @@ public class AutoScaleTest extends AbstractScaleTests {
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
@@ -116,7 +125,7 @@ public class AutoScaleTest extends AbstractScaleTests {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

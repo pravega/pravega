@@ -24,14 +24,13 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import static io.pravega.test.system.framework.services.docker.PravegaControllerDockerService.CONTROLLER_PORT;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -40,12 +39,16 @@ import static org.junit.Assert.assertThat;
 public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
+    private final URI zkUri;
+    private final URI conUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 1000.0;
 
-    public PravegaSegmentStoreDockerService(final String serviceName) {
+    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI conUri) {
         super(serviceName);
+        this.zkUri = zkUri;
+        this.conUri = conUri;
     }
 
     @Override
@@ -77,8 +80,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         //set env
-        String zk = "zookeeper" + ":" + ZKSERVICE_ZKPORT;
-        String con = "controller" + ":" + CONTROLLER_PORT;
+        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
+        String con = conUri.toString();
         //System properties to configure SS service.
         String hostSystemProperties = setSystemProperty("pravegaservice.zkURL", zk) +
                 setSystemProperty("bookkeeper.zkAddress", zk) +
@@ -107,7 +110,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("network-name").build())
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().
                         targetPort(SEGMENTSTORE_PORT).protocol("TCP").build())
                         .build()).build();
