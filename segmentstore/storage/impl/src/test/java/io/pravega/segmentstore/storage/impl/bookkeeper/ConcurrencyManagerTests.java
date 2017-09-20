@@ -22,7 +22,7 @@ import org.junit.Test;
 public class ConcurrencyManagerTests {
     private static final int MIN_PARALLELISM = 1;
     private static final int MAX_PARALLELISM = 100;
-    private static final long TIME_INCREMENT = ConcurrencyManager.MIN_FREQUENCY_MILLIS * AbstractTimer.NANOS_TO_MILLIS;
+    private static final long TIME_INCREMENT = ConcurrencyManager.UPDATE_FREQUENCY_MILLIS * AbstractTimer.NANOS_TO_MILLIS;
 
     /**
      * Tests the ability to update the parallelism in response to increased observed throughput.
@@ -50,7 +50,7 @@ public class ConcurrencyManagerTests {
             previousTotalWriteLength = totalWriteLength;
             time.addAndGet(TIME_INCREMENT);
 
-            int newParallelism = m.updateParallelism();
+            int newParallelism = m.getOrUpdateParallelism();
             int expectedParallelism = Math.min(previousParallelism + 1, maxParallelism);
             Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
@@ -76,7 +76,7 @@ public class ConcurrencyManagerTests {
             previousTotalWriteLength += writeSize;
         }
         time.addAndGet(TIME_INCREMENT);
-        int previousParallelism = m.updateParallelism();
+        int previousParallelism = m.getOrUpdateParallelism();
 
         for (int i = 0; i < steps; i++) {
             // Record a bunch of writes, but make sure we always record significantly less than last time, otherwise no
@@ -90,7 +90,7 @@ public class ConcurrencyManagerTests {
             previousTotalWriteLength = totalWriteLength;
             time.addAndGet(TIME_INCREMENT);
 
-            int newParallelism = m.updateParallelism();
+            int newParallelism = m.getOrUpdateParallelism();
             int expectedParallelism = Math.max(previousParallelism - 1, MIN_PARALLELISM);
             Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
@@ -112,7 +112,7 @@ public class ConcurrencyManagerTests {
         int currentWriteSize = originalWriteSize;
         m.writeCompleted(originalWriteSize);
         time.addAndGet(TIME_INCREMENT);
-        final int expectedParallelism = m.updateParallelism();
+        final int expectedParallelism = m.getOrUpdateParallelism();
 
         for (int i = 0; i < steps; i++) {
             // Record a bunch of writes, but make sure we always record significantly less than last time, otherwise no
@@ -127,7 +127,7 @@ public class ConcurrencyManagerTests {
             m.writeCompleted(currentWriteSize);
             time.addAndGet(TIME_INCREMENT);
 
-            int newParallelism = m.updateParallelism();
+            int newParallelism = m.getOrUpdateParallelism();
             Assert.assertEquals("Unexpected new value of parallelism when decrease = " + decrease, expectedParallelism, newParallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
         }
@@ -146,18 +146,18 @@ public class ConcurrencyManagerTests {
         // Initial write, so we have something to compare against.
         m.writeCompleted(writeSize);
         time.addAndGet(TIME_INCREMENT);
-        int expectedParallelism = m.updateParallelism();
+        int expectedParallelism = m.getOrUpdateParallelism();
         for (int i = 0; i < steps; i++) {
             m.writeCompleted(writeSize);
             time.addAndGet(TIME_INCREMENT / steps - 1);
-            int parallelism = m.updateParallelism();
+            int parallelism = m.getOrUpdateParallelism();
             Assert.assertEquals("Unexpected new value of parallelism when no change was expected.", expectedParallelism, parallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
         }
 
         // Now do make sure those writes we accumulated didn't vanish.
         time.addAndGet(steps);
-        int parallelism = m.updateParallelism();
+        int parallelism = m.getOrUpdateParallelism();
         expectedParallelism++;
         Assert.assertEquals("Unexpected new value of parallelism when a change was expected.", expectedParallelism, parallelism);
         Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
@@ -177,14 +177,14 @@ public class ConcurrencyManagerTests {
         // Initial write, so we have something to compare against.
         m.writeCompleted(writeSize);
         time.addAndGet(TIME_INCREMENT);
-        m.updateParallelism();
+        m.getOrUpdateParallelism();
         for (int i = 0; i < steps; i++) {
             m.writeCompleted(writeSize);
         }
 
         // Now do make sure those writes we accumulated didn't vanish.
         time.addAndGet(ConcurrencyManager.STALE_MILLIS * AbstractTimer.NANOS_TO_MILLIS + 1);
-        int parallelism = m.updateParallelism();
+        int parallelism = m.getOrUpdateParallelism();
         Assert.assertEquals("Unexpected new value of parallelism when data is stale.", expectedParallelism, parallelism);
         Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
     }
@@ -204,13 +204,13 @@ public class ConcurrencyManagerTests {
         // Initial write, so we have something to compare against.
         m.writeCompleted(writeSize);
         time.addAndGet(TIME_INCREMENT);
-        int previousParallelism = m.updateParallelism();
+        int previousParallelism = m.getOrUpdateParallelism();
         int currentAge = 1;
         for (int i = 0; i < steps; i++) {
             m.writeCompleted(writeSize);
             time.addAndGet(TIME_INCREMENT);
 
-            int newParallelism = m.updateParallelism();
+            int newParallelism = m.getOrUpdateParallelism();
             int expectedParallelism = previousParallelism;
             if (currentAge >= ConcurrencyManager.MAX_STAGNATION_AGE) {
                 if (expectedParallelism == maxParallelism) {

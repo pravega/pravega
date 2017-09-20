@@ -29,9 +29,9 @@ class ConcurrencyManager {
     @VisibleForTesting
     static final double SIGNIFICANT_DIFFERENCE = 0.25;
     @VisibleForTesting
-    static final long MIN_FREQUENCY_MILLIS = 1000;
+    static final long UPDATE_FREQUENCY_MILLIS = 1000;
     @VisibleForTesting
-    static final long STALE_MILLIS = MIN_FREQUENCY_MILLIS * 10;
+    static final long STALE_MILLIS = UPDATE_FREQUENCY_MILLIS * 10;
     @VisibleForTesting
     static final int MAX_STAGNATION_AGE = 20;
     private final int minParallelism;
@@ -73,7 +73,7 @@ class ConcurrencyManager {
         this.recentTotalWrittenLength = 0;
         this.recentWriteCount = 0;
         this.lastSnapshot = new AtomicReference<>();
-        resetSnapshot();
+        resetSnapshot(this.timeSupplier.get());
     }
 
     //endregion
@@ -95,7 +95,7 @@ class ConcurrencyManager {
     /**
      * Gets a value indicating the current (most recent) degree of parallelism.
      *
-     * @return The result
+     * @return The current degree of parallelism.
      */
     int getCurrentParallelism() {
         return this.lastSnapshot.get().parallelism;
@@ -103,27 +103,35 @@ class ConcurrencyManager {
 
     /**
      * Updates the degree of parallelism (if needed), based on information collected since the last time this method was called.
-     * Rules:
+     * Notes:
      * * Only changes something if throughput changed significantly since the last time.
      * * Changes the degree of parallelism in the same direction as throughput.
      * ** Exception is if both throughput and the fill ratio are declining, in which case nothing is done.
      *
      * @return The degree of parallelism, whether it was updated or not.
      */
-    int updateParallelism() {
+    int getOrUpdateParallelism() {
         // Calculate the most recent throughput and Fill Ratio (of those items that have just been written).
         final long time = this.timeSupplier.get();
-        final Snapshot lastSnapshot = this.lastSnapshot.get();
-        final long elapsedMillis = (time - lastSnapshot.timeStamp) / AbstractTimer.NANOS_TO_MILLIS;
-        if (elapsedMillis < MIN_FREQUENCY_MILLIS) {
-            // No need to do any change.
-            return lastSnapshot.parallelism;
-        } else if (elapsedMillis >= STALE_MILLIS) {
-            // Last snapshot is too old. We can't make any good determination.
-            resetSnapshot();
-            return this.lastSnapshot.get().parallelism;
+        final long elapsedMillis = (time - this.lastSnapshot.get().timeStamp) / AbstractTimer.NANOS_TO_MILLIS;
+        if (elapsedMillis >= STALE_MILLIS) {
+            // Too long since the last update; the data we have is no longer relevant. Reset.
+            resetSnapshot(time);
+        } else if (elapsedMillis >= UPDATE_FREQUENCY_MILLIS) {
+            // Enough time elapsed since the last update; update the snapshot.
+            updateSnapshot(time, elapsedMillis);
         }
 
+        return this.lastSnapshot.get().parallelism;
+    }
+
+    /**
+     * Updates the current snapshot based on the current data.
+     *
+     * @param time          The current time, in millis.
+     * @param elapsedMillis The elapsed time, in millis, since the last time this method ran.
+     */
+    private void updateSnapshot(long time, long elapsedMillis) {
         final int recentCount;
         final long recentLength;
         synchronized (this) {
@@ -135,6 +143,7 @@ class ConcurrencyManager {
 
         final double recentThroughput = (double) recentLength / elapsedMillis;
         final double recentFillRatio = WriteQueue.calculateFillRatio(recentLength, recentCount);
+        final Snapshot lastSnapshot = this.lastSnapshot.get();
         final double throughputDifference = recentThroughput - lastSnapshot.throughput;
 
         int parallelism = lastSnapshot.parallelism;
@@ -164,13 +173,12 @@ class ConcurrencyManager {
             age = 0;
         }
 
-        // Update stats and reset counters.
+        // Update snapshot with the latest stats.
         this.lastSnapshot.set(new Snapshot(recentFillRatio, recentThroughput, time, parallelism, age + 1));
-        return parallelism;
     }
 
-    private void resetSnapshot() {
-        this.lastSnapshot.set(new Snapshot(0, 0, this.timeSupplier.get(), Math.min(this.minParallelism * 2, this.maxParallelism), 1));
+    private void resetSnapshot(long time) {
+        this.lastSnapshot.set(new Snapshot(0, 0, time, Math.min(this.minParallelism * 2, this.maxParallelism), 1));
     }
 
     //endregion

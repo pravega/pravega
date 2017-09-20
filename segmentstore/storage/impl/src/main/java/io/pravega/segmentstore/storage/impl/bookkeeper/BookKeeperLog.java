@@ -332,7 +332,7 @@ class BookKeeperLog implements DurableDataLog {
 
         // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
-        final int parallelism = this.concurrencyManager.updateParallelism();
+        final int parallelism = this.concurrencyManager.getOrUpdateParallelism();
 
         // Get the writes to execute from the queue.
         List<Write> toExecute = this.writes.getWritesToExecute(parallelism, maxTotalSize);
