@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.health.HealthReporter;
-import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -47,12 +46,15 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -98,12 +100,27 @@ public class FileSystemStorage extends HealthReporter implements Storage {
      * @param executor The executor to use for running async operations.
      */
     public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
-        super("segmentstore/storage/fs", new String[] {"ruok"});
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.closed = new AtomicBoolean(false);
         this.config = config;
         this.executor = executor;
+    }
+
+    @Override
+    public Map<String, Consumer<DataOutputStream>> createHandlers() {
+        Map<String, Consumer<DataOutputStream>> retVal = new HashMap<>();
+        retVal.put("ruok", this::handleRuok);
+        retVal.put("conf", this::printConf);
+        return retVal;
+    }
+
+    private void printConf(DataOutputStream dataOutputStream) {
+        try {
+            dataOutputStream.writeBytes(this.config.toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     //endregion
@@ -422,23 +439,6 @@ public class FileSystemStorage extends HealthReporter implements Storage {
         }
 
         return retVal;
-    }
-    //endregion
-
-    //region
-    @Override
-    public void execute(String cmd, DataOutputStream out) {
-        switch (cmd) {
-            case "ruok":
-                try {
-                    out.writeChars("imok");
-                } catch (IOException e) {
-                    log.warn("Exception reporting health");
-                }
-                break;
-            default:
-                throw new NoSuchHealthCommand(cmd);
-        }
     }
     //endregion
 }

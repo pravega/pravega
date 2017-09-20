@@ -14,14 +14,17 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.DataOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class HealthRequestProcessorTests {
     @Test
     public void testHealthReporter() throws IOException, NoSuchHealthProcessor, NoSuchHealthCommand {
-        HealthReporter root = new TestHealthReporterImpl("root", new String[]{"hi", "hello"});
+        HealthReporter root = new TestHealthReporterImpl();
         HealthRequestProcessorImpl processor = new HealthRequestProcessorImpl();
 
         processor.registerHealthProcessor("root", root);
@@ -54,23 +57,28 @@ public class HealthRequestProcessorTests {
     }
 
     static class TestHealthReporterImpl extends HealthReporter {
+        @Override
+            public Map<String, Consumer<DataOutputStream>> createHandlers() {
+                Map<String, Consumer<DataOutputStream>> handlersMap = new HashMap<>();
+                handlersMap.put("ruok", this::handleRuok);
+                handlersMap.put("hi", this::hiHandler);
+                handlersMap.put("hello", this::helloHandler);
+                return handlersMap;
+            }
 
-        public TestHealthReporterImpl(String id, String[] commands) {
-            super(id, commands);
+        private void helloHandler(DataOutputStream dataOutputStream) {
+            try {
+                dataOutputStream.writeBytes("hi");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        @Override
-        public void execute(String cmd, DataOutputStream out) {
+        private void hiHandler(DataOutputStream dataOutputStream) {
             try {
-                if (cmd.equals("hi")) {
-                    out.writeBytes("hello");
-                } else if (cmd.equals("hello")) {
-                    out.writeBytes("hi");
-                } else {
-                    throw new NoSuchHealthCommand(cmd);
-                }
+                dataOutputStream.writeBytes("hello");
             } catch (IOException e) {
-                throw new HealthReporterException(e);
+                throw new RuntimeException(e);
             }
         }
     }

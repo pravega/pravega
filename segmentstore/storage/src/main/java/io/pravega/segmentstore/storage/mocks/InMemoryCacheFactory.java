@@ -14,9 +14,6 @@ import io.pravega.common.health.HealthReporter;
 import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
-
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.annotation.concurrent.GuardedBy;
@@ -36,7 +33,6 @@ public class InMemoryCacheFactory extends HealthReporter implements CacheFactory
     private boolean closed;
 
     public InMemoryCacheFactory(HealthRequestProcessor healthProcessor) {
-        super("segmentstore/inmemcache/", new String[]{"ruok"});
         this.healthProcessor = healthProcessor;
     }
 
@@ -69,19 +65,4 @@ public class InMemoryCacheFactory extends HealthReporter implements CacheFactory
         }
     }
 
-    @Override
-    public void execute(String cmd, DataOutputStream out) {
-        switch (cmd) {
-            case "ruok":
-                try {
-                    out.writeChars("imok");
-                } catch (IOException e) {
-                    log.warn("Error while reporting health");
-                }
-                break;
-            default:
-                log.warn("Unhandled command {}", cmd);
-        }
-
-    }
 }

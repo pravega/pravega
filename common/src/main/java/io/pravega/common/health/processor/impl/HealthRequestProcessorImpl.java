@@ -11,13 +11,14 @@ package io.pravega.common.health.processor.impl;
 
 import com.google.common.base.Strings;
 import io.pravega.common.health.HealthReporter;
+import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.health.NoSuchHealthProcessor;
 import io.pravega.common.health.processor.HealthRequestProcessor;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -39,7 +40,12 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
         if (!Strings.isNullOrEmpty(target)) {
             HealthReporter reporter = reporterMap.get(target);
             if (reporter != null) {
-                reporter.execute(cmd, opStr);
+                Consumer<DataOutputStream> handler = reporter.getHandlers().get(cmd);
+                if (handler != null) {
+                    handler.accept(new DataOutputStream(writer));
+                } else {
+                    throw new NoSuchHealthCommand(cmd);
+                }
             } else {
                 throw new NoSuchHealthProcessor(target);
             }
@@ -49,7 +55,7 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
                     reporterMap.forEach( (id, reporter) -> {
                         try {
                             opStr.writeBytes(id + " { ");
-                        Arrays.stream(reporter.listCommands()).forEach(cmds -> {
+                            reporter.listCommands().forEach(cmds -> {
                             try {
                                 opStr.writeBytes(cmds + " ");
                             } catch (IOException e) {

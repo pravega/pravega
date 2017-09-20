@@ -13,11 +13,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.common.health.HealthReporter;
-import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -97,7 +95,6 @@ class HDFSStorage extends HealthReporter implements Storage {
      * @param executor The executor to use for running async operations.
      */
     HDFSStorage(HDFSStorageConfig config, Executor executor) {
-        super("segmentstore/storage/hdfs", new String[] {"ruok"});
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -271,22 +268,5 @@ class HDFSStorage extends HealthReporter implements Storage {
         Preconditions.checkState(this.context != null, "HDFSStorage is not initialized.");
     }
 
-    //endregion
-
-    //region
-    @Override
-    public void execute(String cmd, DataOutputStream out) {
-        switch (cmd) {
-            case "ruok":
-                try {
-                    out.writeChars("imok");
-                } catch (IOException e) {
-                    log.warn("Exception reporting health");
-                }
-                break;
-            default:
-                throw new NoSuchHealthCommand(cmd);
-        }
-    }
     //endregion
 }

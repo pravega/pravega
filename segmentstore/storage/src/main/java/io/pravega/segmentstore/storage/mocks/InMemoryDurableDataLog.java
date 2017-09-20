@@ -23,8 +23,6 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.io.ByteArrayInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Iterator;
@@ -66,8 +64,6 @@ class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
     }
 
     InMemoryDurableDataLog(EntryCollection entries, Supplier<Duration> appendDelayProvider, ScheduledExecutorService executorService) {
-        super("segmentstore/inmemlog/", new String[] {"ruok"});
-
         this.entries = Preconditions.checkNotNull(entries, "entries");
         this.appendDelayProvider = Preconditions.checkNotNull(appendDelayProvider, "appendDelayProvider");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
@@ -194,21 +190,7 @@ class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
         Preconditions.checkState(this.initialized, "InMemoryDurableDataLog is not initialized.");
     }
 
-    @Override
-    public void execute(String cmd, DataOutputStream out) {
-        switch (cmd) {
-            case "ruok":
-                try {
-                    out.writeChars("imok");
-                } catch (IOException e) {
-                    log.warn("Error while reporting health");
-                }
-                break;
-            default:
-                log.warn("Unhandled command {}", cmd);
-        }
 
-    }
 
     //region ReadResultIterator
 

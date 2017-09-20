@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.health.HealthReporter;
-import io.pravega.common.health.HealthReporterException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -37,8 +36,11 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -66,7 +68,6 @@ public final class ServiceStarter extends HealthReporter {
     //region Constructor
 
     public ServiceStarter(ServiceBuilderConfig config, Options options) {
-        super("segmentstore", new String[]{"ruok", "conf"});
         this.builderConfig = config;
         this.serviceConfig = this.builderConfig.getConfig(ServiceConfig::builder);
         this.serviceBuilder = createServiceBuilder(options);
@@ -266,28 +267,26 @@ public final class ServiceStarter extends HealthReporter {
         }
     }
 
+    //endregion
+
+    //Health reporter executor
+
     @Override
-    public void execute(String cmd, DataOutputStream out) {
-        try {
-            switch (cmd) {
-                case "ruok":
-                    out.writeChars("imok");
-                    break;
-                case "conf":
-                    this.builderConfig.forEach((prop, val) -> {
-                        try {
-                            out.writeChars(prop.toString() + " : " + val.toString() + "\n");
-                        } catch (IOException e) {
-                            log.warn("Error while writing the property");
-                        }
-                    });
-                    break;
-                default:
-                    log.warn("Unexpected command {}", cmd);
+    public Map<String, Consumer<DataOutputStream>> createHandlers() {
+        Map<String, Consumer<DataOutputStream>> handlerMap = new HashMap<>();
+        handlerMap.put("ruok", this::handleRuok);
+        handlerMap.put("conf", this::printConf);
+        return handlerMap;
+    }
+
+    private void printConf(DataOutputStream dataOutputStream) {
+        this.builderConfig.forEach((prop, val) -> {
+            try {
+                dataOutputStream.writeChars(prop.toString() + " : " + val.toString() + "\n");
+            } catch (IOException e) {
+                log.warn("Error while writing the property");
             }
-        } catch (IOException e) {
-            throw new HealthReporterException(e);
-        }
+        });
     }
 
     //endregion

@@ -18,7 +18,6 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.health.HealthReporter;
-import io.pravega.common.health.NoSuchHealthCommand;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -31,8 +30,6 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.segmentstore.storage.WriteTooLongException;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -110,7 +107,6 @@ class BookKeeperLog extends HealthReporter implements DurableDataLog {
      * @param executorService An Executor to use for async operations.
      */
     BookKeeperLog(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
-        super("segmentstore/bklog/" + logId, new String[] {"ruok"});
         Preconditions.checkArgument(logId >= 0, "logId must be a non-negative integer.");
 
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
@@ -783,24 +779,5 @@ class BookKeeperLog extends HealthReporter implements DurableDataLog {
         }
     }
 
-
-
-    //endregion
-
-    //region
-    @Override
-    public void execute(String cmd, DataOutputStream out) {
-        switch (cmd) {
-            case "ruok":
-                try {
-                    out.writeChars("imok");
-                } catch (IOException e) {
-                    log.warn("Exception reporting health");
-                }
-                break;
-            default:
-                throw new NoSuchHealthCommand(cmd);
-        }
-    }
     //endregion
 }
