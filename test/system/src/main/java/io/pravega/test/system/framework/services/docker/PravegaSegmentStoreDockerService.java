@@ -10,6 +10,7 @@
 
 package io.pravega.test.system.framework.services.docker;
 
+import com.google.common.base.Strings;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
@@ -28,6 +29,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -39,6 +41,9 @@ import static org.junit.Assert.assertThat;
 public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     private static final int SEGMENTSTORE_PORT = 12345;
+    private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
+    private static final String ENV_SEPARATOR = ";;";
+    private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private final URI conUri;
     private int instances = 1;
@@ -83,21 +88,28 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         String con = conUri.toString();
         //System properties to configure SS service.
-        String hostSystemProperties = setSystemProperty("pravegaservice.zkURL", zk) +
-                setSystemProperty("bookkeeper.zkAddress", zk) +
-                setSystemProperty("hdfs.hdfsUrl", "hdfs:8020") +
+        String hostSystemProperties =
                 setSystemProperty("autoScale.muteInSeconds", "120") +
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
-                setSystemProperty("autoScale.controllerUri", con) +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
+                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000))+
+                        setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx900m";
+        String env3 = "ZK_URL=" + zk;
+        String env4 = "BK_ZK_URL=" + zk;
+        String env5 = "CONTROLLER_URL=" + con;
         List<String> stringList = new ArrayList<>();
         stringList.add(env1);
         stringList.add(env2);
+        getCustomEnvVars(stringList, SEGMENTSTORE_EXTRA_ENV);
+        stringList.add(env3);
+        stringList.add(env4);
+        stringList.add(env5);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
@@ -115,5 +127,23 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         targetPort(SEGMENTSTORE_PORT).protocol("TCP").build())
                         .build()).build();
         return spec;
+    }
+
+    private void getCustomEnvVars(List<String> stringList, String segmentstoreExtraEnv) {
+        log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
+        if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
+            Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
+                String[] pair = str.split(KEY_VALUE_SEPARATOR);
+                if (pair.length != 2) {
+                    log.warn("Key Value not present {}", str);
+                } else {
+                    stringList.add(pair[0].toString() + "=" + pair[1].toString());
+                }
+            });
+        } else {
+            // Set HDFS as the default for Tier2.
+            stringList.add("HDFS_URL=" + "hdfs:8020");
+            stringList.add("TIER2_STORAGE=HDFS");
+        }
     }
 }
