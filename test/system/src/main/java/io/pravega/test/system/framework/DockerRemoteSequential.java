@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Resources;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
@@ -22,11 +21,8 @@ import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -111,7 +107,7 @@ public class DockerRemoteSequential implements TestExecutor {
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
                 CLIENT.copyToContainer(dockerDirectory, id, "/data");
-            } catch (IOException | DockerException| InterruptedException e) {
+            } catch (IOException | DockerException | InterruptedException e) {
                 log.error("Exception while copying test jar to the container {}", e);
             }
 

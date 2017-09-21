@@ -509,7 +509,17 @@ project('test:system') {
             }
         }
         from sourceSets.test.output
-        //TODO: use exclude only for docker local execution
+    }
+
+    task testJarForDocker(type: Jar) {
+        archiveName = "test-collection.jar"
+        from {
+            (configurations.runtime).collect {
+                it.isDirectory() ? it : zipTree(it)
+            }
+        }
+        from sourceSets.test.output
+        from sourceSets.main.output
         exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
     }
 
@@ -518,7 +528,7 @@ project('test:system') {
     task startSystemTests(type: Test) {
 
             doFirst {
-                tasks.jar.execute()
+                tasks.testJarForDocker.execute()
                 exec {
                     executable "./preTestScript.sh"
                 }
