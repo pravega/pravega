@@ -29,7 +29,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
