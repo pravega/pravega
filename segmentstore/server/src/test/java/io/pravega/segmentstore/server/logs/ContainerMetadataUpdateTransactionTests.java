@@ -106,9 +106,9 @@ public class ContainerMetadataUpdateTransactionTests {
                 0, appendOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(appendOp, "call to preProcess in recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state in recovery mode.",
-                SEGMENT_LENGTH, txn1.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, txn1.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata in recovery mode.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
 
         // When everything is OK (no recovery mode).
         metadata.exitRecoveryMode();
@@ -118,9 +118,9 @@ public class ContainerMetadataUpdateTransactionTests {
                 SEGMENT_LENGTH, appendOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.",
-                SEGMENT_LENGTH, txn2.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, txn2.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
 
         // When StreamSegment is merged (via transaction).
         StreamSegmentAppendOperation transactionAppendOp = new StreamSegmentAppendOperation(SEALED_TRANSACTION_ID, DEFAULT_APPEND_DATA, null);
@@ -176,17 +176,17 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof MetadataUpdateException);
 
         Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception.",
-                SEGMENT_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
 
         // When all is good.
         txn.preProcessOperation(appendOp);
         txn.acceptOperation(appendOp);
         Assert.assertEquals("acceptOperation did not update the transaction.",
-                SEGMENT_LENGTH + appendOp.getData().length, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH + appendOp.getData().length, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
     }
 
     /**
@@ -199,16 +199,16 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn = createUpdateTransaction(metadata);
 
         // Append #1 (at offset 0).
-        long offset = metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength();
+        long offset = metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength();
         StreamSegmentAppendOperation appendOp = createAppendWithOffset(offset);
         txn.preProcessOperation(appendOp);
         Assert.assertEquals("Unexpected StreamSegmentOffset after call to preProcess in non-recovery mode.",
                 offset, appendOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.",
-                offset, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                offset, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.",
-                offset, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                offset, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         txn.acceptOperation(appendOp);
 
         // Append #2 (after Append #1)
@@ -219,9 +219,9 @@ public class ContainerMetadataUpdateTransactionTests {
                 offset, appendOp.getStreamSegmentOffset());
         checkNoSequenceNumberAssigned(appendOp, "call to preProcess in non-recovery mode");
         Assert.assertEquals("preProcess(Append) seems to have changed the Updater internal state.",
-                offset, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                offset, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("preProcess(Append) seems to have changed the metadata.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         txn.acceptOperation(appendOp);
 
         // Append #3 (wrong offset)
@@ -543,7 +543,7 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof MetadataUpdateException);
 
         // In recovery mode, the updater does not set the length; it just validates that it has one.
-        recoveryMergeOp.setLength(metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).getDurableLogLength());
+        recoveryMergeOp.setLength(metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).getLength());
         txn1.preProcessOperation(recoveryMergeOp);
         AssertExtensions.assertLessThan("Unexpected Target StreamSegmentOffset after call to preProcess in recovery mode.",
                 0, recoveryMergeOp.getStreamSegmentOffset());
@@ -624,9 +624,9 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof MetadataUpdateException);
 
         Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception (parent segment).",
-                SEGMENT_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata (parent segment).",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         txn.clear(); // This would naturally happen in case of a failure, so we need to simulate this here too.
 
         // When all is good.
@@ -637,9 +637,9 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("acceptOperation updated the metadata (Transaction).",
                 metadata.getStreamSegmentMetadata(SEALED_TRANSACTION_ID).isMerged());
         Assert.assertEquals("acceptOperation did not update the transaction.",
-                SEGMENT_LENGTH + SEALED_TRANSACTION_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH + SEALED_TRANSACTION_LENGTH, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
-                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getDurableLogLength());
+                SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
     }
 
     //endregion
@@ -677,8 +677,8 @@ public class ContainerMetadataUpdateTransactionTests {
         val updaterMetadata = txn2.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation (in transaction).",
                 mapOp.getLength(), updaterMetadata.getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation (in transaction).",
-                mapOp.getLength(), updaterMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected Length after call to acceptOperation (in transaction).",
+                mapOp.getLength(), updaterMetadata.getLength());
         Assert.assertEquals("Unexpected value for isSealed after call to acceptOperation (in transaction).",
                 mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("acceptOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
@@ -702,9 +702,9 @@ public class ContainerMetadataUpdateTransactionTests {
                 () -> txn2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
-        val durableLogLength = segmentMetadata.getDurableLogLength() + 5;
+        val length = segmentMetadata.getLength() + 5;
         val storageLength = segmentMetadata.getStorageLength() + 1;
-        segmentMetadata.setDurableLogLength(durableLogLength);
+        segmentMetadata.setLength(length);
 
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
@@ -718,8 +718,8 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.commit(metadata);
         Assert.assertEquals("Unexpected StorageLength after call to acceptOperation with remap (post-commit).",
                 storageLength, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to acceptOperation with remap (post-commit).",
-                durableLogLength, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getDurableLogLength());
+        Assert.assertEquals("Unexpected Length after call to acceptOperation with remap (post-commit).",
+                length, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
     }
 
     /**
@@ -763,8 +763,8 @@ public class ContainerMetadataUpdateTransactionTests {
         val updaterMetadata = txn3.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
         Assert.assertEquals("Unexpected StorageLength after call to processMetadataOperation (in transaction).",
                 mapOp.getLength(), updaterMetadata.getStorageLength());
-        Assert.assertEquals("Unexpected DurableLogLength after call to processMetadataOperation (in transaction).",
-                mapOp.getLength(), updaterMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected Length after call to processMetadataOperation (in transaction).",
+                mapOp.getLength(), updaterMetadata.getLength());
         Assert.assertEquals("Unexpected value for isSealed after call to processMetadataOperation (in transaction).",
                 mapOp.isSealed(), updaterMetadata.isSealed());
         Assert.assertNull("processMetadataOperation modified the underlying metadata.", metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()));
@@ -1111,7 +1111,7 @@ public class ContainerMetadataUpdateTransactionTests {
         long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_TRANSACTION_LENGTH;
 
         SegmentMetadata parentMetadata = targetMetadata.getStreamSegmentMetadata(SEGMENT_ID);
-        Assert.assertEquals("Unexpected DurableLogLength in metadata after commit.", expectedLength, parentMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected Length in metadata after commit.", expectedLength, parentMetadata.getLength());
         Assert.assertTrue("Unexpected value for isSealed in metadata after commit.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Parent after commit.", expectedLastUsedParent, parentMetadata);
 
@@ -1182,7 +1182,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Verify metadata is untouched and that the updater has truly rolled back.
         SegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
-        Assert.assertEquals("Unexpected DurableLogLength in metadata after rollback.", expectedLength, parentMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected Length in metadata after rollback.", expectedLength, parentMetadata.getLength());
         Assert.assertFalse("Unexpected value for isSealed in metadata after rollback.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Parent after rollback.", 0, parentMetadata);
 
@@ -1192,7 +1192,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Now the updater
         parentMetadata = txn.getStreamSegmentMetadata(SEGMENT_ID);
-        Assert.assertEquals("Unexpected DurableLogLength in transaction after rollback.", expectedLength, parentMetadata.getDurableLogLength());
+        Assert.assertEquals("Unexpected Length in transaction after rollback.", expectedLength, parentMetadata.getLength());
         Assert.assertFalse("Unexpected value for isSealed in transaction after rollback.", parentMetadata.isSealed());
         checkLastKnownSequenceNumber("Unexpected lastUsed for Parent (txn) after rollback.", 0, parentMetadata);
 
@@ -1265,16 +1265,16 @@ public class ContainerMetadataUpdateTransactionTests {
     private UpdateableContainerMetadata createMetadata() {
         UpdateableContainerMetadata metadata = createBlankMetadata();
         UpdateableSegmentMetadata segmentMetadata = metadata.mapStreamSegmentId(SEGMENT_NAME, SEGMENT_ID);
-        segmentMetadata.setDurableLogLength(SEGMENT_LENGTH);
-        segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from DurableLogOffset.
+        segmentMetadata.setLength(SEGMENT_LENGTH);
+        segmentMetadata.setStorageLength(SEGMENT_LENGTH - 1); // Different from Length.
 
         segmentMetadata = metadata.mapStreamSegmentId(SEALED_TRANSACTION_NAME, SEALED_TRANSACTION_ID, SEGMENT_ID);
-        segmentMetadata.setDurableLogLength(SEALED_TRANSACTION_LENGTH);
+        segmentMetadata.setLength(SEALED_TRANSACTION_LENGTH);
         segmentMetadata.setStorageLength(SEALED_TRANSACTION_LENGTH);
         segmentMetadata.markSealed();
 
         segmentMetadata = metadata.mapStreamSegmentId(NOTSEALED_TRANSACTION_NAME, NOTSEALED_TRANSACTION_ID, SEGMENT_ID);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
         return metadata;

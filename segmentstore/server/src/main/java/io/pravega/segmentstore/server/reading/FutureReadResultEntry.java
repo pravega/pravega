@@ -13,7 +13,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 
 /**
  * Read Result Entry for data that is not yet available in the StreamSegment (for an offset that is beyond the
- * StreamSegment's DurableLogLength)
+ * StreamSegment's Length)
  */
 class FutureReadResultEntry extends ReadResultEntryBase {
     /**

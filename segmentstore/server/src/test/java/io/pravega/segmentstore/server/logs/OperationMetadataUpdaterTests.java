@@ -306,7 +306,7 @@ public class OperationMetadataUpdaterTests {
         if (referenceMetadata != null) {
             referenceMetadata.getStreamSegmentMetadata(transactionId).markMerged();
             val rsm = referenceMetadata.getStreamSegmentMetadata(parentSegmentId);
-            rsm.setDurableLogLength(rsm.getDurableLogLength() + op.getLength());
+            rsm.setLength(rsm.getLength() + op.getLength());
         }
     }
 
@@ -336,7 +336,7 @@ public class OperationMetadataUpdaterTests {
         process(op, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.getStreamSegmentMetadata(segmentId);
-            rsm.setDurableLogLength(rsm.getDurableLogLength() + length);
+            rsm.setLength(rsm.getLength() + length);
             val attributes = new HashMap<UUID, Long>();
             op.getAttributeUpdates().forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
             rsm.updateAttributes(attributes);
@@ -351,7 +351,7 @@ public class OperationMetadataUpdaterTests {
         process(mapOp, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId());
-            rsm.setDurableLogLength(0);
+            rsm.setLength(0);
             rsm.setStorageLength(0);
         }
 
@@ -366,7 +366,7 @@ public class OperationMetadataUpdaterTests {
         process(mapOp, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId(), parentSegmentId);
-            rsm.setDurableLogLength(0);
+            rsm.setLength(0);
             rsm.setStorageLength(0);
         }
 

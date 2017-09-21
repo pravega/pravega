@@ -508,7 +508,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
         // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
@@ -587,7 +587,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
 
         Duration shortTimeout = Duration.ofMillis(30);
 
@@ -1199,7 +1199,7 @@ public class DurableLogTests extends OperationLogTestBase {
             long storageOffset = 0;
             for (long segmentId : streamSegmentIds) {
                 val sm = metadata1.getStreamSegmentMetadata(segmentId);
-                sm.setStorageLength(Math.min(storageOffset, sm.getDurableLogLength()));
+                sm.setStorageLength(Math.min(storageOffset, sm.getLength()));
                 storageOffset++;
                 if (sm.isSealed() && storageOffset % 2 == 0) {
                     sm.markSealedInStorage();

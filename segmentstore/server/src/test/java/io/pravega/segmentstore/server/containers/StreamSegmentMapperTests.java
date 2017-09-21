@@ -224,7 +224,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No metadata was created for StreamSegment " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
-                Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getDurableLogLength());
+                Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for StreamSegment " + name, expectedSeal, sm.isSealed());
 
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
@@ -243,7 +243,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No metadata was created for Transaction " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
-                Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getDurableLogLength());
+                Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for Transaction " + name, expectedSeal, sm.isSealed());
 
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
@@ -458,7 +458,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             ((StreamSegmentMapOperation) op).setStreamSegmentId(segmentId);
             UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(segmentName, segmentId);
             segmentMetadata.setStorageLength(0);
-            segmentMetadata.setDurableLogLength(0);
+            segmentMetadata.setLength(0);
             addInvoked.complete(null);
             return initialAddFuture;
         };
@@ -631,7 +631,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
-                segmentMetadata.setDurableLogLength(mapOp.getLength());
+                segmentMetadata.setLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }
@@ -645,7 +645,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
-                segmentMetadata.setDurableLogLength(mapOp.getLength());
+                segmentMetadata.setLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }

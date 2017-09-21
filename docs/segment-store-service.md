@@ -76,7 +76,7 @@ Each Segment Container needs to keep per-segment metadata, which it uses to keep
 -   **Name** the name of the Segment.
 -   **Id**: Internally assigned unique Segment Id. This is used to refer to Segments, which is preferred to the Name.
 -   **Storage Length**: the highest offset of the data that exists in Tier-2 Storage.
--   **Durable Log Length**: the highest offset of the committed data in Tier-1 Storage.
+-   **Length**: the highest offset of the committed data in Tier-1 Storage.
 -   **Last Modified**: the timestamp of the last processed (and acknowledged) append.
 -   **IsSealed:** whether the Segment is closed for appends (this value may not have been applied to Tier-2 Storage yet).
 -   **IsSealedInStorage**: whether the Segment is closed for appends (and this has been persisted in Tier-2 Storage).
