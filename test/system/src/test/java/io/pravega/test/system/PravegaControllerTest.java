@@ -43,7 +43,7 @@ public class PravegaControllerTest {
             zk.start(true);
         }
         Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
@@ -59,7 +59,7 @@ public class PravegaControllerTest {
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", null)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);

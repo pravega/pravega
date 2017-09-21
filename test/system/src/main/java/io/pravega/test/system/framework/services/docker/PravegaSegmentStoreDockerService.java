@@ -25,7 +25,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,16 +42,12 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
     private static final String ENV_SEPARATOR = ";;";
     private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
-    private final URI zkUri;
-    private final URI conUri;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 1000.0;
 
-    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI conUri) {
+    public PravegaSegmentStoreDockerService(final String serviceName) {
         super(serviceName);
-        this.zkUri = zkUri;
-        this.conUri = conUri;
     }
 
     @Override
@@ -84,8 +79,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         //set env
-        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        String con = conUri.toString();
+        String zk = "zookeeper:" + ZKSERVICE_ZKPORT;
+        String con = "controller" + CONTROLLER_PORT;
         //System properties to configure SS service.
         String hostSystemProperties =
                 setSystemProperty("autoScale.muteInSeconds", "120") +

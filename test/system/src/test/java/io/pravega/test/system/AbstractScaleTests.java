@@ -46,7 +46,7 @@ abstract class AbstractScaleTests {
 
     private URI createControllerURI() {
         Service conService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaControllerDockerService("controller", null)
+                new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);

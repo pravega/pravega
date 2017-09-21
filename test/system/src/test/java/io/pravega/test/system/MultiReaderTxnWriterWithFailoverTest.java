@@ -128,7 +128,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //2. Start 3 bookies
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri)
+                new BookkeeperDockerService("bookkeeper")
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -146,7 +146,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //3. start 3 instances of pravega controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
@@ -164,7 +164,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         //4.start 3 instances of pravega segmentstore
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI)
+                new PravegaSegmentStoreDockerService("segmentstore")
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
@@ -189,7 +189,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         // Verify controller is running.
         controllerInstance = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
@@ -204,7 +204,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect)
+                new PravegaSegmentStoreDockerService("segmentstore")
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());

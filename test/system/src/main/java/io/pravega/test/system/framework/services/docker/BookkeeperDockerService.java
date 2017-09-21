@@ -24,8 +24,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,14 +38,12 @@ import static org.junit.Assert.assertThat;
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
-    private final URI zkUri;
     private int instances = 3;
     private double cpu = 0.1;
     private double mem = 1024.0;
 
-    public BookkeeperDockerService(String serviceName, final URI zkUri) {
+    public BookkeeperDockerService(String serviceName) {
         super(serviceName);
-        this.zkUri = zkUri;
     }
 
     @Override
@@ -87,7 +83,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
 
-        String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
+        String zk = "zookeeper:" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;
         String env2 = "ZK=" + zk;

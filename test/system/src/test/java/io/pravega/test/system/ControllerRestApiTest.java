@@ -116,7 +116,7 @@ public class ControllerRestApiTest {
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService =  Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri)
+                new BookkeeperDockerService("bookkeeper")
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -135,7 +135,7 @@ public class ControllerRestApiTest {
 
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
@@ -146,7 +146,7 @@ public class ControllerRestApiTest {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore")
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

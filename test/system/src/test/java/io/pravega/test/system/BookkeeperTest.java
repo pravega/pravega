@@ -41,7 +41,7 @@ public class BookkeeperTest {
             zk.start(true);
         }
         Service bk = Utils.isDockerLocalExecEnabled() ? 
-                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0)) :
+                new BookkeeperDockerService("bookkeeper") :
                 new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
@@ -56,7 +56,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper", null)
+        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper")
                 : new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);

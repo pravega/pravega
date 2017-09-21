@@ -392,7 +392,7 @@ abstract class AbstractFailoverTests {
 
     static void startBookkeeperInstances(final URI zkUri) {
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri) : new BookkeeperService("bookkeeper", zkUri);
+                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -402,7 +402,7 @@ abstract class AbstractFailoverTests {
 
     static URI startPravegaControllerInstances(final URI zkUri) {
         Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
@@ -420,7 +420,7 @@ abstract class AbstractFailoverTests {
 
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) {
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI)
+                new PravegaSegmentStoreDockerService("segmentstore")
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);

@@ -88,7 +88,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         // Verify controller is running.
         controllerInstance = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
+                ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
@@ -103,7 +103,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect)
+                new PravegaSegmentStoreDockerService("segmentstore")
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());

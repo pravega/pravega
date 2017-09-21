@@ -32,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 public abstract class DockerBasedService  implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
+    static final int CONTROLLER_PORT = 9092;
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     DockerClient dockerClient;

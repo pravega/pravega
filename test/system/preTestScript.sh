@@ -8,4 +8,5 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-docker swarm init
+# TODO: advertise address should not be hard coded.
+docker swarm init --advertise-addr 127.0.0.1

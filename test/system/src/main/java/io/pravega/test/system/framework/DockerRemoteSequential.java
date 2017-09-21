@@ -38,9 +38,9 @@ import static org.junit.Assert.assertFalse;
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    public static final DockerClient CLIENT = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
-
-    private static final String IMAGE = System.getProperty("dockerImageRegistry")+ "/java:8";
+    public final static DockerClient CLIENT = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
+    private final static String IMAGE = System.getProperty("dockerImageRegistry")+ "/java:8";
+    public String id;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -52,10 +52,10 @@ public class DockerRemoteSequential implements TestExecutor {
         String containerName = methodName + ".testJob";
 
         return CompletableFuture.runAsync(() -> {
-            createContainer(containerName, className, methodName);
+            startTest(containerName, className, methodName);
         }).thenCompose(v2 -> waitForJobCompletion(containerName))
                 .whenComplete((v, ex) -> {
-                    deleteContainer(containerName); //delete container once execution is complete.
+            stopContainer(containerName); //stop container once execution is complete.
                     if (ex != null) {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
@@ -94,7 +94,7 @@ public class DockerRemoteSequential implements TestExecutor {
         return value;
     }
 
-    private void createContainer(String containerName, String className, String methodName) {
+    private String startTest(String containerName, String className, String methodName) {
 
         try {
             CLIENT.pull(IMAGE);
@@ -102,7 +102,7 @@ public class DockerRemoteSequential implements TestExecutor {
             ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName, className), containerName);
             assertFalse(containerCreation.id().toString().equals(null));
 
-             String id = containerCreation.id();
+              id = containerCreation.id();
 
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
@@ -120,6 +120,7 @@ public class DockerRemoteSequential implements TestExecutor {
         } catch (DockerException | InterruptedException e) {
             log.error("exception in starting container {}", e);
         }
+        return id;
     }
 
     private ContainerConfig setContainerConfig(String methodName, String className) {
@@ -144,17 +145,17 @@ public class DockerRemoteSequential implements TestExecutor {
         return containerConfig;
     }
 
-    private void deleteContainer(String containerName) {
+    private void stopContainer(String containerName) {
         try {
             List<Container> containers = CLIENT.listContainers(DockerClient.ListContainersParam.allContainers());
             for (int i = 0; i < containers.size(); i++) {
                 ContainerInfo info = CLIENT.inspectContainer(containers.get(i).id());
                 if (info.name().equals(containerName)) {
-                    CLIENT.removeContainer(info.id());
+                    CLIENT.stopContainer(info.id(), 0);
                 }
             }
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to get service list {}", e);
+            log.error("unable to delete conatiner {}", e);
         }
 
     }
