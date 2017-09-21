@@ -74,7 +74,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     
     @Override
     public ReaderGroup createReaderGroup(String groupName, ReaderGroupConfig config, Set<String> streams) {
-        log.info("Creating reader group: {} for streams: {} with config: {}", groupName, Arrays.toString(streams.toArray()), config);
+        log.info("Creating reader group: {} for streams: {} with configuration: {}", groupName, Arrays.toString(streams.toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
                                                                                   .scope(scope)
