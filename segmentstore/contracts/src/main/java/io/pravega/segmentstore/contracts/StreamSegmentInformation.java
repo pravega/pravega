@@ -9,10 +9,13 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
+import lombok.Builder;
 import lombok.Getter;
 
 /**
@@ -23,6 +26,8 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Getter
     private final String name;
+    @Getter
+    private final long startOffset;
     @Getter
     private final long length;
     @Getter
@@ -39,34 +44,27 @@ public class StreamSegmentInformation implements SegmentProperties {
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentInformation class with no attributes.
+     * Creates a new instance of the StreamSegmentInformation class.
      *
-     * @param streamSegmentName The name of the StreamSegment.
-     * @param length            The length of the StreamSegment.
-     * @param isSealed          Whether the StreamSegment is sealed (for modifications).
-     * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
-     * @param lastModified      The last time the StreamSegment was modified.
+     * @param name         The name of the StreamSegment.
+     * @param startOffset  The first available offset in this StreamSegment.
+     * @param length       The length of the StreamSegment.
+     * @param sealed       Whether the StreamSegment is sealed (for modifications).
+     * @param deleted      Whether the StreamSegment is deleted (does not exist).
+     * @param attributes   The attributes of this StreamSegment.
+     * @param lastModified The last time the StreamSegment was modified.
      */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, ImmutableDate lastModified) {
-        this(streamSegmentName, length, isSealed, isDeleted, null, lastModified);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentInformation class with attributes.
-     *
-     * @param streamSegmentName The name of the StreamSegment.
-     * @param length            The length of the StreamSegment.
-     * @param isSealed          Whether the StreamSegment is sealed (for modifications).
-     * @param isDeleted         Whether the StreamSegment is deleted (does not exist).
-     * @param attributes        The attributes of this StreamSegment.
-     * @param lastModified      The last time the StreamSegment was modified.
-     */
-    public StreamSegmentInformation(String streamSegmentName, long length, boolean isSealed, boolean isDeleted, Map<UUID, Long> attributes, ImmutableDate lastModified) {
-        this.name = streamSegmentName;
+    @Builder
+    private StreamSegmentInformation(String name, long startOffset, long length, boolean sealed, boolean deleted,
+                                    Map<UUID, Long> attributes, ImmutableDate lastModified) {
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
+        Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
+        this.name = Exceptions.checkNotNullOrEmpty(name, "name");
+        this.startOffset = startOffset;
         this.length = length;
-        this.sealed = isSealed;
-        this.deleted = isDeleted;
-        this.lastModified = lastModified;
+        this.sealed = sealed;
+        this.deleted = deleted;
+        this.lastModified = lastModified == null ? new ImmutableDate() : lastModified;
         this.attributes = getAttributes(attributes);
     }
 
@@ -78,6 +76,7 @@ public class StreamSegmentInformation implements SegmentProperties {
      */
     public StreamSegmentInformation(SegmentProperties baseProperties, Map<UUID, Long> attributes) {
         this.name = baseProperties.getName();
+        this.startOffset = baseProperties.getStartOffset();
         this.length = baseProperties.getLength();
         this.sealed = baseProperties.isSealed();
         this.deleted = baseProperties.isDeleted();
@@ -89,7 +88,8 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Override
     public String toString() {
-        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());
+        return String.format("Name = %s, StartOffset = %d, Length = %d, Sealed = %s, Deleted = %s", getName(),
+                getStartOffset(), getLength(), isSealed(), isDeleted());
     }
 
     private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {

@@ -9,14 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.FailingRequestProcessor;
-import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
-import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
-import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
-import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -24,8 +18,12 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.netty.buffer.Unpooled;
-
+import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.FailingRequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
+import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -313,7 +310,7 @@ public class AppendProcessorTest {
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                new StreamSegmentInformation(streamSegmentName, 0, false, false, Collections.EMPTY_MAP, new ImmutableDate()));
+                StreamSegmentInformation.builder().name(streamSegmentName).build());
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
         verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
@@ -331,8 +328,7 @@ public class AppendProcessorTest {
         Map<UUID, Long> map = new HashMap<>();
         map.put(clientId, 100L);
         map.put(EVENT_COUNT, 100L);
-        propsFuture = CompletableFuture.completedFuture(new StreamSegmentInformation(streamSegmentName, 0, false, false,
-                                                                                     map, new ImmutableDate()));
+        propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).build());
 
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
@@ -353,8 +349,7 @@ public class AppendProcessorTest {
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                new StreamSegmentInformation(streamSegmentName, 0, false, false,
-                        Collections.singletonMap(clientId, 100L), new ImmutableDate()));
+                StreamSegmentInformation.builder().name(streamSegmentName).attributes(Collections.singletonMap(clientId, 100L)).build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
@@ -399,8 +394,7 @@ public class AppendProcessorTest {
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                new StreamSegmentInformation(streamSegmentName, 0, false, false,
-                        Collections.singletonMap(clientId, eventNumber), new ImmutableDate()));
+                StreamSegmentInformation.builder().name(streamSegmentName).attributes(Collections.singletonMap(clientId, eventNumber)).build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);

@@ -52,6 +52,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private final int containerId;
     @Getter
+    private long startOffset;
+    @Getter
     private long length;
     private final long baseStorageLength;
     private long storageLength;
@@ -83,6 +85,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.parentId = baseMetadata.getParentId();
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
+        this.startOffset = baseMetadata.getStartOffset();
         this.length = baseMetadata.getLength();
         this.baseStorageLength = baseMetadata.getStorageLength();
         this.storageLength = -1;
@@ -130,6 +133,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public void setStorageLength(long value) {
         this.storageLength = value;
+        this.isChanged = true;
+    }
+
+    @Override
+    public void setStartOffset(long value) {
+        this.startOffset = value;
         this.isChanged = true;
     }
 
@@ -589,6 +598,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                 target.markSealedInStorage();
             }
         }
+
+        // Update StartOffset after (potentially) updating Sealed status and its length, since the Segment must be Sealed
+        // prior to truncating it, and the Start Offset must be less than or equal to Length.
+        target.setStartOffset(this.startOffset);
 
         if (this.merged) {
             target.markMerged();

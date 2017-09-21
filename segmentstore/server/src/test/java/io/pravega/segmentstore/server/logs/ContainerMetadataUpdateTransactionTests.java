@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -708,8 +707,12 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
-        val updateMap = new StreamSegmentMapOperation(new StreamSegmentInformation(mapOp.getStreamSegmentName(),
-                storageLength, true, false, createAttributes(), new ImmutableDate()));
+        val updateMap = new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+                .name(mapOp.getStreamSegmentName())
+                .length(storageLength)
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
         updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
         txn2.preProcessOperation(updateMap);
         txn2.acceptOperation(updateMap);
@@ -791,7 +794,11 @@ public class ContainerMetadataUpdateTransactionTests {
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
         val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
-                new StreamSegmentInformation(mapOp.getStreamSegmentName(), mapOp.getLength() + 1, true, false, createAttributes(), new ImmutableDate()));
+                StreamSegmentInformation.builder().name(mapOp.getStreamSegmentName())
+                        .length(mapOp.getLength() + 1)
+                        .sealed(true)
+                        .attributes(createAttributes())
+                        .build());
         updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
         txn3.preProcessOperation(updateMap);
         txn3.acceptOperation(updateMap);
@@ -883,7 +890,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                new StreamSegmentInformation(newSegmentName, SEGMENT_LENGTH, false, false, new ImmutableDate()));
+                StreamSegmentInformation.builder().name(newSegmentName).length(SEGMENT_LENGTH).build());
         processOperation(mapOp, txn, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, createAttributeUpdates()), txn, seqNo::incrementAndGet);
         processOperation(checkpoint2, txn, seqNo::incrementAndGet);
@@ -1316,7 +1323,12 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(name, SEGMENT_LENGTH, true, false, createAttributes(), new ImmutableDate()));
+        return new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+                .name(name)
+                .length(SEGMENT_LENGTH)
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
     }
 
     private TransactionMapOperation createTransactionMap(long parentId) {
@@ -1324,7 +1336,12 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private TransactionMapOperation createTransactionMap(long parentId, String name) {
-        return new TransactionMapOperation(parentId, new StreamSegmentInformation(name, SEALED_TRANSACTION_LENGTH, true, false, createAttributes(), new ImmutableDate()));
+        return new TransactionMapOperation(parentId, StreamSegmentInformation.builder()
+                .name(name)
+                .length(SEALED_TRANSACTION_LENGTH)
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
     }
 
     private MetadataCheckpointOperation createMetadataCheckpoint() {

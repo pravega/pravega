@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
@@ -84,6 +83,6 @@ class CreateOperation extends FileSystemOperation<String> implements Callable<Se
         }
 
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
-        return new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate());
+        return StreamSegmentInformation.builder().name(segmentName).build();
     }
 }
