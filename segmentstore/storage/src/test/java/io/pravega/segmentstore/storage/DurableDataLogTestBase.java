@@ -129,6 +129,31 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to execute reads after recovery, immediately followed by writes.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public void testReadWriteRecovery() throws Exception {
+        final int iterationCount = 4;
+        Object context = createSharedContext();
+        TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        for (int i = 0; i < iterationCount; i++) {
+            try (DurableDataLog log = createDurableDataLog(context)) {
+                log.initialize(TIMEOUT);
+                verifyReads(log, writeData);
+                writeData.putAll(populate(log, getWriteCount()));
+            }
+        }
+
+        // One last recovery at the end.
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
+            verifyReads(log, writeData);
+        }
+    }
+
+    /**
      * Tests the ability to truncate from a DurableDataLog.
      *
      * @throws Exception If one got thrown.
