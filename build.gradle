@@ -524,16 +524,57 @@ project('test:system') {
     }
 
     //This is  used to invoke systemTests
-    //TODO: doFirst and doLast are not needed for jarvis execution
     task startSystemTests(type: Test) {
 
-            doFirst {
-                tasks.testJarForDocker.execute()
-                exec {
-                    executable "./preTestScript.sh"
-                }
-            }
+        ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
+        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
+        description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
+        testClassesDir = sourceSets.test.output.classesDir
+        classpath = sourceSets.test.runtimeClasspath
+
+        systemProperty "test_collection_jar_path", "$jar.archivePath.path"
+        systemProperty "execType", System.getProperty("execType")
+        systemProperty "dockerExecLocal", System.getProperty("dockerExecLocal")
+        systemProperty "masterIP", System.getProperty("masterIP")
+        systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        if (System.getProperty("execType") == null) {
+            systemProperty "execType", "REMOTE_SEQUENTIAL"
+        }
+        if (System.getProperty("masterIP") == null) {
+            systemProperty "masterIP", "INVALID_MASTER_IP"
+        }
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+
+        if (System.getProperty("dockerExecLocal") == null) {
+            systemProperty "dockerExecLocal", "false"
+        }
+        if (System.getProperty("skipServiceInstallation") == null) {
+            //skipServiceInstallation by default.
+            systemProperty "skipServiceInstallation", "true"
+        }
+        maxParallelForks = 1
+        systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
+        systemProperty "testVersion", pravegaVersion
+        systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
+                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
+
+        onlyIf { dockerRegistryUrl && repoUrl }
+    }
+
+    //This is  used to invoke docker based systemTests
+    task startSystemTestsWithDocker(type: Test) {
+        doFirst {
+            tasks.testJarForDocker.execute()
+            exec {
+                executable "./preTestScript.sh"
+            }
+        }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
