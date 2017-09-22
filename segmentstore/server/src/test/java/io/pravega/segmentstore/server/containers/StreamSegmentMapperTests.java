@@ -212,7 +212,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
         Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
-        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName).length(getInitialLength.apply(segmentName)).sealed(isSealed.test(segmentName)).build());
+        setupStorageGetHandler(context, storageSegments, segmentName ->  StreamSegmentInformation.builder().name(segmentName).length( getInitialLength.apply(segmentName)).sealed( isSealed.test(segmentName)).build());
 
         // First, map all the parents (stand-alone segments).
         for (String name : storageSegments) {

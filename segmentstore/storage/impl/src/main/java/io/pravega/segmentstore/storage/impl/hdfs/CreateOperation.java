@@ -17,7 +17,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.hadoop.fs.Path;

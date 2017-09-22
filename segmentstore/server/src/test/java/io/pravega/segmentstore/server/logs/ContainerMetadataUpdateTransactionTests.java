@@ -794,10 +794,10 @@ public class ContainerMetadataUpdateTransactionTests {
         // StreamSegmentName already exists and we try to map with the same id. Verify that we are able to update its
         // StorageLength (if different).
         val updateMap = new TransactionMapOperation(mapOp.getParentStreamSegmentId(),
-                StreamSegmentInformation.builder().name(mapOp.getStreamSegmentName())
-                        .length(mapOp.getLength() + 1)
-                        .sealed(true)
-                        .attributes(createAttributes())
+                 StreamSegmentInformation.builder().name(mapOp.getStreamSegmentName())
+                        .length( mapOp.getLength() + 1)
+                        .sealed( true)
+                        .attributes( createAttributes())
                         .build());
         updateMap.setStreamSegmentId(mapOp.getStreamSegmentId());
         txn3.preProcessOperation(updateMap);
@@ -890,7 +890,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         // Map another StreamSegment, and add an append
         StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                StreamSegmentInformation.builder().name(newSegmentName).length(SEGMENT_LENGTH).build());
+                 StreamSegmentInformation.builder().name(newSegmentName).length( SEGMENT_LENGTH).build());
         processOperation(mapOp, txn, seqNo::incrementAndGet);
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, createAttributeUpdates()), txn, seqNo::incrementAndGet);
         processOperation(checkpoint2, txn, seqNo::incrementAndGet);
@@ -1323,11 +1323,11 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     private StreamSegmentMapOperation createMap(String name) {
-        return new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+        return new StreamSegmentMapOperation( StreamSegmentInformation.builder()
                 .name(name)
-                .length(SEGMENT_LENGTH)
-                .sealed(true)
-                .attributes(createAttributes())
+                .length( SEGMENT_LENGTH)
+                .sealed( true)
+                .attributes( createAttributes())
                 .build());
     }
 

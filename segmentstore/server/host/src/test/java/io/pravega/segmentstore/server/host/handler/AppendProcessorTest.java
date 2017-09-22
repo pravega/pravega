@@ -328,7 +328,7 @@ public class AppendProcessorTest {
         Map<UUID, Long> map = new HashMap<>();
         map.put(clientId, 100L);
         map.put(EVENT_COUNT, 100L);
-        propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).build());
+        propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).attributes(map).build());
 
         when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
@@ -349,7 +349,8 @@ public class AppendProcessorTest {
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder().name(streamSegmentName).attributes(Collections.singletonMap(clientId, 100L)).build());
+                 StreamSegmentInformation.builder().name(streamSegmentName).attributes(
+                        Collections.singletonMap(clientId, 100L)).build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
@@ -394,7 +395,8 @@ public class AppendProcessorTest {
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                StreamSegmentInformation.builder().name(streamSegmentName).attributes(Collections.singletonMap(clientId, eventNumber)).build());
+                 StreamSegmentInformation.builder().name(streamSegmentName).attributes(
+                        Collections.singletonMap(clientId, eventNumber)).build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);
