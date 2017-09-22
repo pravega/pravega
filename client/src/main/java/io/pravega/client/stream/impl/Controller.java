@@ -26,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Controller APIs.
  */
-public interface Controller {
+public interface Controller extends AutoCloseable {
 
     // Controller Apis for administrative action for streams
 

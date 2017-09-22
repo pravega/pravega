@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
@@ -92,11 +94,15 @@ public class ControllerImpl implements Controller {
 
     // The executor supplied by the appication to handle internal retries.
     private final ScheduledExecutorService executor;
+
     // Flag to indicate if the client is closed.
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
+
+    // io.grpc.Channel used by the grpc client for Controller Service.
+    private final ManagedChannel channel;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -137,7 +143,8 @@ public class ControllerImpl implements Controller {
                 .throwingOn(Exception.class);
 
         // Create Async RPC client.
-        this.client = ControllerServiceGrpc.newStub(channelBuilder.build());
+        this.channel = channelBuilder.build();
+        this.client = ControllerServiceGrpc.newStub(this.channel);
     }
 
     @Override
@@ -808,6 +815,13 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (!closed.getAndSet(true)) {
+            this.channel.shutdownNow(); // Initiates a shutdown of channel.
+        }
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
