@@ -41,6 +41,7 @@ public class SegmentStateTests {
             SegmentState deserialized = SegmentState.deserialize(new DataInputStream(serialization.getReader()));
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
+            Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());
             AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
         }
     }
@@ -51,7 +52,12 @@ public class SegmentStateTests {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(attributeCount,
-                StreamSegmentInformation.builder().name(Integer.toString(attributeCount)).attributes(attributes).build());
+        return new SegmentState(attributeCount, StreamSegmentInformation
+                .builder()
+                .name(Integer.toString(attributeCount))
+                .startOffset(attributeCount)
+                .length(attributeCount + 1)
+                .attributes(attributes)
+                .build());
     }
 }

@@ -308,17 +308,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param operation The Operation.
      * @throws BadOffsetException              If the operation's Offset is not between the current StartOffset and current
      *                                         EndOffset (SegmentLength - 1).
-     * @throws StreamSegmentNotSealedException If the operation cannot be processed because the StreamSegment is not sealed.
      * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the
      *                                         StreamSegment or Container (ex: Segment is a Transaction).
      */
-    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException, StreamSegmentNotSealedException,
-            MetadataUpdateException {
+    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException, MetadataUpdateException {
         ensureSegmentId(operation);
-        if (!this.sealed) {
-            throw new StreamSegmentNotSealedException(this.name);
-        }
-
         if (isTransaction()) {
             throw new MetadataUpdateException(this.containerId, "Cannot truncate a Transaction Segment: " + operation);
         }
@@ -625,6 +619,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         target.setLastUsed(this.lastUsed);
         target.updateAttributes(this.attributeValues);
         target.setLength(this.length);
+
+        // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
+        target.setStartOffset(this.startOffset);
         if (this.storageLength >= 0) {
             // Only update this if it really was set. Otherwise we might revert back to an old value if the Writer
             // has already made progress on it.
@@ -638,9 +635,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             }
         }
 
-        // Update StartOffset after (potentially) updating Sealed status and its length, since the Segment must be Sealed
-        // prior to truncating it, and the Start Offset must be less than or equal to Length.
-        target.setStartOffset(this.startOffset);
         if (this.merged) {
             target.markMerged();
         }

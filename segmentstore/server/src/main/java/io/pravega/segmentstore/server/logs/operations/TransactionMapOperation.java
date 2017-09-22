@@ -9,12 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.server.AttributeSerializer;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.logs.SerializationException;
-import io.pravega.segmentstore.server.AttributeSerializer;
-import com.google.common.base.Preconditions;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -90,6 +89,12 @@ public class TransactionMapOperation extends MetadataOperation implements Stream
     @Override
     public String getStreamSegmentName() {
         return this.streamSegmentName;
+    }
+
+    @Override
+    public long getStartOffset() {
+        // Transactions cannot be truncated, so don't bother with StartOffset here.
+        return 0;
     }
 
     @Override

@@ -69,19 +69,20 @@ public class StreamSegmentInformation implements SegmentProperties {
     }
 
     /**
-     * Creates a new instance of the StreamSegmentInformation class from a base SegmentProperties with replacement attributes.
+     * Creates a new StreamSegmentInformationBuilder with information already populated from the given SegmentpProperties.
      *
-     * @param baseProperties The SegmentProperties to copy. Attributes will be ignored.
-     * @param attributes     The attributes of this StreamSegment.
+     * @param base The SegmentProperties to use as a base.
+     * @return The Builder.
      */
-    public StreamSegmentInformation(SegmentProperties baseProperties, Map<UUID, Long> attributes) {
-        this.name = baseProperties.getName();
-        this.startOffset = baseProperties.getStartOffset();
-        this.length = baseProperties.getLength();
-        this.sealed = baseProperties.isSealed();
-        this.deleted = baseProperties.isDeleted();
-        this.lastModified = baseProperties.getLastModified();
-        this.attributes = getAttributes(attributes);
+    public static StreamSegmentInformationBuilder from(SegmentProperties base) {
+        return StreamSegmentInformation.builder()
+                                       .name(base.getName())
+                                       .startOffset(base.getStartOffset())
+                                       .length(base.getLength())
+                                       .sealed(base.isSealed())
+                                       .deleted(base.isDeleted())
+                                       .lastModified(base.getLastModified())
+                                       .attributes(base.getAttributes());
     }
 
     //endregion

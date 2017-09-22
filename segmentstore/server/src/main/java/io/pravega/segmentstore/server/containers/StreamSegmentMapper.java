@@ -382,7 +382,7 @@ public class StreamSegmentMapper {
                             parentSegmentId.set(id);
                             return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
                         })
-                        .thenCompose(transInfo -> retrieveAttributes(transInfo, timer.getRemaining()))
+                        .thenCompose(transInfo -> retrieveState(transInfo, timer.getRemaining()))
                         .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining())),
                 transactionSegmentName);
     }
@@ -413,7 +413,7 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         withFailureHandler(this.storage
                         .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
-                        .thenComposeAsync(si -> retrieveAttributes(si, timer.getRemaining()), this.executor)
+                        .thenComposeAsync(si -> retrieveState(si, timer.getRemaining()), this.executor)
                         .thenComposeAsync(si -> submitToOperationLogWithRetry(si, ContainerMetadata.NO_STREAM_SEGMENT_ID, timer.getRemaining()), this.executor),
                 streamSegmentName);
     }
@@ -434,19 +434,20 @@ public class StreamSegmentMapper {
         // Merge updates into the existing attributes.
         Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
         attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
-        return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, new StreamSegmentInformation(source, attributes));
+        return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID,
+                StreamSegmentInformation.from(source).attributes(attributes).build());
     }
 
     /**
-     * Fetches the attributes for the given source segment and returns a new SegmentProperties with the same information
-     * as the given source, but the attributes fetched from the SegmentStateStore.
+     * Fetches a saved state (if any) for the given source segment and returns a new SegmentInfo containing the same
+     * information as the given source, but containing attributes fetched from the SegmentStateStore, as well as an updated
+     * StartOffset.
      *
      * @param source  A SegmentProperties describing the Segment to fetch attributes for.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain a new instance of the SegmentProperties with the
-     * same information as source, but with attributes attached.
+     * @return A CompletableFuture that, when completed, will contain a SegmentInfo with the retrieved information.
      */
-    private CompletableFuture<SegmentInfo> retrieveAttributes(SegmentProperties source, Duration timeout) {
+    private CompletableFuture<SegmentInfo> retrieveState(SegmentProperties source, Duration timeout) {
         return this.stateStore
                 .get(source.getName(), timeout)
                 .thenApply(state -> {
@@ -462,7 +463,11 @@ public class StreamSegmentMapper {
                                         state.getSegmentName())));
                     }
 
-                    return new SegmentInfo(state.getSegmentId(), new StreamSegmentInformation(source, state.getAttributes()));
+                    SegmentProperties props = StreamSegmentInformation.from(source)
+                                                                      .attributes(state.getAttributes())
+                                                                      .startOffset(state.getStartOffset())
+                                                                      .build();
+                    return new SegmentInfo(state.getSegmentId(), props);
                 });
     }
 

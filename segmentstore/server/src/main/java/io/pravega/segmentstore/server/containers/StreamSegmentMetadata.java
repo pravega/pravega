@@ -214,7 +214,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             return;
         }
 
-        Preconditions.checkState(this.sealed, "Cannot set Start Offset for non-sealed Segment.");
         Preconditions.checkState(!isTransaction(), "Cannot set Start Offset for a Transaction.");
         Exceptions.checkArgument(value >= 0, "value", "StartOffset must be a non-negative number.");
         Exceptions.checkArgument(value >= this.startOffset, "value", "New StartOffset cannot be smaller than the previous one.");
@@ -286,6 +285,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
         setLength(base.getLength());
+
+        // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
+        setStartOffset(base.getStartOffset());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
 
@@ -296,9 +298,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             }
         }
 
-        // Update StartOffset after (potentially) updating Sealed status and its length, since the Segment must be Sealed
-        // prior to truncating it, and the Start Offset must be less than or equal to Length.
-        setStartOffset(base.getStartOffset());
         if (base.isMerged()) {
             markMerged();
         }
