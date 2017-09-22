@@ -45,7 +45,8 @@ public interface SegmentProperties {
     long getStartOffset();
 
     /**
-     * Gets a value indicating the full, readable length of the StreamSegment.
+     * Gets a value indicating the full, readable length of the StreamSegment. This includes the range of bytes that are
+     * inaccessible due to them being before the StartOffset.
      */
     long getLength();
 

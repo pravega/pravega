@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperati
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.io.DataInputStream;
@@ -328,6 +329,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 SegmentMetadataUpdateTransaction transactionMetadata = getSegmentUpdateTransaction(mbe.getTransactionSegmentId());
                 transactionMetadata.preProcessAsTransactionSegment(mbe);
                 segmentMetadata.preProcessAsParentSegment(mbe, transactionMetadata);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
             }
         } else if (operation instanceof MetadataOperation) {
             if (operation instanceof StreamSegmentMapOperation) {
@@ -374,6 +377,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 transactionMetadata.acceptAsTransactionSegment(mto);
                 transactionMetadata.setLastUsed(operation.getSequenceNumber());
                 segmentMetadata.acceptAsParentSegment(mto, transactionMetadata);
+            } else if (operation instanceof StreamSegmentTruncateOperation) {
+                segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
             }
         } else if (operation instanceof MetadataOperation) {
             if (operation instanceof MetadataCheckpointOperation) {
@@ -799,7 +804,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         stream.writeBoolean(sm.isDeleted());
         // S10. LastModified.
         stream.writeLong(sm.getLastModified().getTime());
-        // S11. Attributes.
+        // S11. StartOffset
+        stream.writeLong(sm.getStartOffset());
+        // S12. Attributes.
         AttributeSerializer.serialize(sm.getAttributes(), stream);
     }
 
@@ -840,8 +847,9 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         // S10. LastModified.
         ImmutableDate lastModified = new ImmutableDate(stream.readLong());
         metadata.setLastModified(lastModified);
-
-        // S11. Attributes.
+        // S11. StartOffset
+        metadata.setStartOffset(stream.readLong());
+        // S12. Attributes.
         val attributes = AttributeSerializer.deserialize(stream);
         metadata.updateAttributes(attributes);
     }

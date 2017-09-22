@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -25,6 +26,7 @@ import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
 import java.util.Collections;
@@ -275,7 +277,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     /**
      * Pre-processes a StreamSegmentSealOperation.
-     * After this method returns, the operation will have its egmentLength property set to the current length of the Segment.
+     * After this method returns, the operation will have its SegmentLength property set to the current length of the Segment.
      *
      * @param operation The Operation.
      * @throws StreamSegmentSealedException If the Segment is already sealed.
@@ -301,17 +303,45 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
+     * Pre-processes a StreamSegmentTruncateOperation.
+     *
+     * @param operation The Operation.
+     * @throws BadOffsetException              If the operation's Offset is not between the current StartOffset and current
+     *                                         EndOffset (SegmentLength - 1).
+     * @throws StreamSegmentNotSealedException If the operation cannot be processed because the StreamSegment is not sealed.
+     * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the
+     *                                         StreamSegment or Container (ex: Segment is a Transaction).
+     */
+    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException, StreamSegmentNotSealedException,
+            MetadataUpdateException {
+        ensureSegmentId(operation);
+        if (!this.sealed) {
+            throw new StreamSegmentNotSealedException(this.name);
+        }
+
+        if (isTransaction()) {
+            throw new MetadataUpdateException(this.containerId, "Cannot truncate a Transaction Segment: " + operation);
+        }
+
+        if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() >= this.length) {
+            throw new BadOffsetException(this.name, String.format("Truncation Offset must be at least %d and less than %d, given %d.",
+                    this.startOffset, this.length, operation.getStreamSegmentOffset()));
+        }
+    }
+
+    /**
      * Pre-processes the given MergeTransactionOperation as a Parent Segment.
      * After this method returns, the operation will have its TargetSegmentOffset set to the length of the Parent Segment.
      *
      * @param operation           The operation to pre-process.
      * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
-     * @throws StreamSegmentSealedException If the parent stream is already sealed.
-     * @throws MetadataUpdateException      If the operation cannot be processed because of the current state of the metadata.
-     * @throws IllegalArgumentException     If the operation is for a different Segment.
+     * @throws StreamSegmentSealedException    If the parent stream is already sealed.
+     * @throws StreamSegmentNotSealedException If the transaction segment is not sealed.
+     * @throws MetadataUpdateException If the operation cannot be processed because of the current state of the metadata.
+     * @throws IllegalArgumentException        If the operation is for a different Segment.
      */
     void preProcessAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata)
-            throws StreamSegmentSealedException, MetadataUpdateException {
+            throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
         ensureSegmentId(operation);
 
         if (this.sealed) {
@@ -326,8 +356,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         // Check that the Transaction has been properly sealed and has its length set.
         if (!transactionMetadata.isSealed()) {
-            throw new MetadataUpdateException(this.containerId,
-                    "Transaction Segment to be merged needs to be sealed: " + operation.toString());
+            throw new StreamSegmentNotSealedException(this.name);
         }
 
         long transLength = operation.getLength();
@@ -346,11 +375,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * Pre-processes the given operation as a Transaction Segment.
      *
      * @param operation The operation
-     * @throws IllegalArgumentException     If the operation is for a different stream segment.
-     * @throws MetadataUpdateException      If the Segment is not sealed.
-     * @throws StreamSegmentMergedException If the Segment is already merged.
+     * @throws IllegalArgumentException        If the operation is for a different stream segment.
+     * @throws StreamSegmentNotSealedException If the Segment is not sealed.
+     * @throws StreamSegmentMergedException    If the Segment is already merged.
      */
-    void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws MetadataUpdateException, StreamSegmentMergedException {
+    void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws StreamSegmentNotSealedException, StreamSegmentMergedException {
         Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
                 "operation", "Invalid Operation Transaction Segment Id.");
 
@@ -359,8 +388,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         if (!this.sealed) {
-            throw new MetadataUpdateException(this.containerId,
-                    "Transaction Segment to be merged needs to be sealed: " + operation);
+            throw new StreamSegmentNotSealedException(this.name);
         }
 
         if (!this.recoveryMode) {
@@ -465,7 +493,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Accepts a SegmentSealOperation in the metadata.
+     * Accepts a StreamSegmentSealOperation in the metadata.
      *
      * @param operation The operation to accept.
      * @throws MetadataUpdateException  If the operation hasn't been pre-processed.
@@ -487,6 +515,17 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             }
         });
 
+        this.isChanged = true;
+    }
+
+    /**
+     * Accepts a StreamSegmentTruncateOperation in the metadata.
+     *
+     * @param operation The operation to accept.
+     */
+    void acceptOperation(StreamSegmentTruncateOperation operation) {
+        ensureSegmentId(operation);
+        this.startOffset = operation.getStreamSegmentOffset();
         this.isChanged = true;
     }
 
@@ -602,7 +641,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         // Update StartOffset after (potentially) updating Sealed status and its length, since the Segment must be Sealed
         // prior to truncating it, and the Start Offset must be less than or equal to Length.
         target.setStartOffset(this.startOffset);
-
         if (this.merged) {
             target.markMerged();
         }

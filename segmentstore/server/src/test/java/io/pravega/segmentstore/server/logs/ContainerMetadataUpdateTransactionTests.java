@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -35,6 +36,7 @@ import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.test.common.AssertExtensions;
@@ -517,6 +519,124 @@ public class ContainerMetadataUpdateTransactionTests {
 
     //endregion
 
+    //region StreamSegmentTruncate
+
+    /**
+     * Tests the preProcess method with StreamSegmentTruncate operations.
+     * Scenarios:
+     * * Recovery Mode
+     * * Non-recovery mode
+     * * Invalid states or arguments (Segment not sealed, bad offsets, Transaction Segment).
+     */
+    @Test
+    public void testPreProcessStreamSegmentTruncate() throws Exception {
+        final UpdateableContainerMetadata metadata = createMetadata();
+        val op1 = createTruncate(0);
+
+        // Segment not sealed.
+        metadata.enterRecoveryMode();
+        val txn1 = createUpdateTransaction(metadata);
+        AssertExtensions.assertThrows(
+                "preProcess did not throw when Segment is sealed (recovery).",
+                () -> txn1.preProcessOperation(op1),
+                ex -> ex instanceof StreamSegmentNotSealedException);
+
+        metadata.exitRecoveryMode();
+        val txn2 = createUpdateTransaction(metadata);
+        AssertExtensions.assertThrows(
+                "preProcess did not throw when Segment is sealed (non-recovery).",
+                () -> txn2.preProcessOperation(op1),
+                ex -> ex instanceof StreamSegmentNotSealedException);
+
+        // Mark the segment as sealed.
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).markSealed();
+
+        // When trying to truncate beyond last offset.
+        val txn3 = createUpdateTransaction(metadata);
+        AssertExtensions.assertThrows(
+                "preProcess did not throw when offset is too large.",
+                () -> txn3.preProcessOperation(createTruncate(SEGMENT_LENGTH)),
+                ex -> ex instanceof BadOffsetException);
+
+        // Actually truncate the segment, and re-verify bounds.
+        val op2 = createTruncate(SEGMENT_LENGTH / 2);
+        txn3.preProcessOperation(op2);
+        txn3.acceptOperation(op2);
+        txn3.commit(metadata);
+
+        AssertExtensions.assertThrows(
+                "preProcess did not throw when offset is too small (on truncated segment).",
+                () -> txn3.preProcessOperation(createTruncate(op2.getStreamSegmentOffset() - 1)),
+                ex -> ex instanceof BadOffsetException);
+        AssertExtensions.assertThrows(
+                "preProcess did not throw when offset is too large (on truncated segment).",
+                () -> txn3.preProcessOperation(createTruncate(SEGMENT_LENGTH)),
+                ex -> ex instanceof BadOffsetException);
+
+        // For a transaction
+        AssertExtensions.assertThrows(
+                "preProcess did not throw for a Transaction Segment.",
+                () -> txn3.preProcessOperation(new StreamSegmentTruncateOperation(SEALED_TRANSACTION_ID, SEALED_TRANSACTION_LENGTH / 2)),
+                ex -> ex instanceof MetadataUpdateException);
+
+        // Now verify that a valid offset does work (not throwing means the test passes).
+        txn3.preProcessOperation(createTruncate(op2.getStreamSegmentOffset()));
+        txn3.preProcessOperation(createTruncate(op2.getStreamSegmentOffset() + 1));
+    }
+
+    /**
+     * Tests the acceptOperation method with StreamSegmentTruncate operations.
+     */
+    @Test
+    public void testAcceptStreamSegmentTruncate() throws Exception {
+        val metadata = createMetadata();
+        val append = createAppendNoOffset();
+        val seal = createSeal();
+        final long truncateOffset = SEGMENT_LENGTH + append.getLength() / 2;
+        val truncate = createTruncate(truncateOffset);
+
+        // Apply all operations in order, in the same transaction. This helps verify that, should these operations happen
+        // concurrently, they are applied to the metadata in the correct order.
+        val txn1 = createUpdateTransaction(metadata);
+        for (Operation o : Arrays.asList(append, seal, truncate)) {
+            txn1.preProcessOperation(o);
+            txn1.acceptOperation(o);
+        }
+
+        // Attempt some more invalid truncate operations.
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a truncate operation with wrong offset (smaller).",
+                () -> txn1.preProcessOperation(createTruncate(truncateOffset - 1)),
+                ex -> ex instanceof BadOffsetException);
+        AssertExtensions.assertThrows(
+                "preProcessOperation accepted a truncate operation with wrong offset (larger).",
+                () -> txn1.preProcessOperation(createTruncate(truncateOffset + append.getLength())),
+                ex -> ex instanceof BadOffsetException);
+
+        // Verify the Update Transaction has been updated, but the metadata has not yet been touched.
+        val sm = metadata.getStreamSegmentMetadata(SEGMENT_ID);
+        Assert.assertEquals("Unexpected StartOffset in UpdateTransaction.",
+                truncateOffset, txn1.getStreamSegmentMetadata(SEGMENT_ID).getStartOffset());
+        Assert.assertEquals("Unexpected StartOffset in Metadata pre-commit.", 0, sm.getStartOffset());
+
+        // Commit and verify that the metadata has been correctly updated.
+        txn1.commit(metadata);
+        Assert.assertEquals("Unexpected StartOffset in Metadata post-commit.", truncateOffset, sm.getStartOffset());
+        Assert.assertEquals("Unexpected Length in Metadata post-commit.",
+                append.getStreamSegmentOffset() + append.getLength(), sm.getLength());
+        Assert.assertTrue("Unexpected Sealed status in Metadata post-commit.", sm.isSealed());
+
+        // Verify single truncate operation (check to see that it reads from actual metadata if needed).
+        val op2 = createTruncate(truncateOffset + 1);
+        val txn2 = createUpdateTransaction(metadata);
+        txn2.preProcessOperation(op2);
+        txn2.acceptOperation(op2);
+        txn2.commit(metadata);
+        Assert.assertEquals("Unexpected StartOffset in Metadata post-commit (second).", op2.getStreamSegmentOffset(), sm.getStartOffset());
+    }
+
+    //endregion
+
     //region MergeTransactionOperation
 
     /**
@@ -590,7 +710,7 @@ public class ContainerMetadataUpdateTransactionTests {
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is not sealed.",
                 () -> txn2.preProcessOperation(mergeNonSealed),
-                ex -> ex instanceof MetadataUpdateException);
+                ex -> ex instanceof StreamSegmentNotSealedException);
 
         // When Transaction is already merged.
         txn2.preProcessOperation(mergeOp);
@@ -873,9 +993,11 @@ public class ContainerMetadataUpdateTransactionTests {
         String newSegmentName = "NewSegmentId";
         AtomicLong seqNo = new AtomicLong();
 
-        // Create a non-empty metadata.
+        // Create a non-empty metadata, and in addition, seal a segment and truncate it.
         this.timeProvider.setElapsedMillis(1234);
         UpdateableContainerMetadata metadata = createMetadata();
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).markSealed();
+        metadata.getStreamSegmentMetadata(SEGMENT_ID).setStartOffset(SEGMENT_LENGTH / 2);
         val txn = createUpdateTransaction(metadata);
 
         // Checkpoint 1: original metadata.
@@ -1312,6 +1434,10 @@ public class ContainerMetadataUpdateTransactionTests {
 
     private StreamSegmentSealOperation createSeal() {
         return new StreamSegmentSealOperation(SEGMENT_ID);
+    }
+
+    private StreamSegmentTruncateOperation createTruncate(long offset) {
+        return new StreamSegmentTruncateOperation(SEGMENT_ID, offset);
     }
 
     private MergeTransactionOperation createMerge() {
