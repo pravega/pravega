@@ -103,4 +103,11 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
         FutureHelpers.await(result);
         return result;
     }
+
+    @Override
+    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+        CompletableFuture<Long> result = impl.truncateStreamSegment(streamSegmentName, offset, timeout);
+        FutureHelpers.await(result);
+        return result;
+    }
 }

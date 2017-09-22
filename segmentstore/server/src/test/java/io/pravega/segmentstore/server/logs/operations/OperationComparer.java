@@ -103,13 +103,15 @@ public class OperationComparer {
             assertSame(message, (CachedStreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
         } else if (expected instanceof MergeTransactionOperation) {
             assertSame(message, (MergeTransactionOperation) expected, (MergeTransactionOperation) actual);
+        } else if (expected instanceof StreamSegmentTruncateOperation) {
+            assertSame(message, (StreamSegmentTruncateOperation) expected, (StreamSegmentTruncateOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
     }
 
     private void assertSame(String message, StreamSegmentSealOperation expected, StreamSegmentSealOperation actual) {
-        Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
+        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, StreamSegmentAppendOperation expected, StreamSegmentAppendOperation actual) {
@@ -151,6 +153,10 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(), actual.getTransactionSegmentId());
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
+    }
+
+    private void assertSame(String message, StreamSegmentTruncateOperation expected, StreamSegmentTruncateOperation actual) {
+        Assert.assertEquals(message + " Unexpected StreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }
 
     private void assertSame(String message, MetadataOperation expected, MetadataOperation actual) {
