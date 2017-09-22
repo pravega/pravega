@@ -64,7 +64,6 @@ import lombok.extern.slf4j.Slf4j;
 @RunWith(SystemTestRunner.class)
 public class ReaderCheckpointTest {
 
-
     private static final long READ_TIMEOUT = SECONDS.toMillis(30);
     private static final int RANDOM_SUFFIX = new Random().nextInt(Integer.MAX_VALUE);
     private static final String SCOPE = "scope" + RANDOM_SUFFIX;
@@ -127,7 +126,7 @@ public class ReaderCheckpointTest {
     }
 
     @Test
-    public void checkPointTest() throws Exception {
+    public void readerCheckpointTest() throws Exception {
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
@@ -172,8 +171,7 @@ public class ReaderCheckpointTest {
         readerGroup.resetReadersToCheckpoint(checkPoint100);
         readEventsAndVerify(100, endExclusive);
 
-        //clean up
-        readerGroupManager.deleteReaderGroup(READER_GROUP_NAME);
+        readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up
     }
 
     private void readEventsAndVerify(int startInclusive, int endExclusive) {
