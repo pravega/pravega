@@ -306,16 +306,21 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         appendData(segmentIds, segmentContents, context);
 
         // Truncate all segments at their mid-points.
-        for (long segmentId : segmentIds) {
-            val sm = context.metadata.getStreamSegmentMetadata(segmentId);
+        for (int i = 0; i < segmentIds.size(); i++) {
+            val sm = context.metadata.getStreamSegmentMetadata(segmentIds.get(i));
             sm.setStartOffset(sm.getLength() / 2);
+            if (i % 2 == 0) {
+                sm.setStorageLength(sm.getStartOffset());
+            } else {
+                sm.setStorageLength(sm.getStartOffset() / 2);
+            }
         }
 
         // Check all the appended data. This includes verifying access to already truncated offsets.
         checkReadIndex("PostTruncate", segmentContents, context);
         checkReadIndexDirect(segmentContents, context);
 
-        // Verify that truncated data is eligible for eviction, by checking that at least one Cache Entry is being removed.
+        //         Verify that truncated data is eligible for eviction, by checking that at least one Cache Entry is being removed.
         for (long segmentId : segmentIds) {
             val sm = context.metadata.getStreamSegmentMetadata(segmentId);
             sm.setStorageLength(sm.getLength()); // We need to set this in order to verify cache evictions.
@@ -1197,8 +1202,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private void checkReadIndexDirect(HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         for (long segmentId : segmentContents.keySet()) {
-            long startOffset = context.metadata.getStreamSegmentMetadata(segmentId).getStartOffset();
-            long segmentLength = context.metadata.getStreamSegmentMetadata(segmentId).getLength();
+            val sm = context.metadata.getStreamSegmentMetadata(segmentId);
+            long segmentLength = sm.getLength();
+            long startOffset = Math.min(sm.getStartOffset(), sm.getStorageLength());
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
 
             if (startOffset > 0) {

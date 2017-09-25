@@ -14,14 +14,21 @@ import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import lombok.Getter;
 
 /**
  * Log Operation that indicates a StreamSegment is to be truncated.
  */
-public class StreamSegmentTruncateOperation extends StorageOperation {
+public class StreamSegmentTruncateOperation extends MetadataOperation implements SegmentOperation {
     //region Members
 
     private static final byte CURRENT_VERSION = 0;
+    @Getter
+    private long streamSegmentId;
+    /**
+     * The Offset at which to truncate the StreamSegment.
+     */
+    @Getter
     private long streamSegmentOffset;
 
     //endregion
@@ -35,8 +42,9 @@ public class StreamSegmentTruncateOperation extends StorageOperation {
      * @param offset          The Offset at which to truncate.
      */
     public StreamSegmentTruncateOperation(long streamSegmentId, long offset) {
-        super(streamSegmentId);
+        super();
         Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
+        this.streamSegmentId = streamSegmentId;
         this.streamSegmentOffset = offset;
     }
 
@@ -47,16 +55,6 @@ public class StreamSegmentTruncateOperation extends StorageOperation {
     //endregion
 
     //region Operation Implementation
-
-    @Override
-    public long getStreamSegmentOffset() {
-        return this.streamSegmentOffset;
-    }
-
-    @Override
-    public long getLength() {
-        return 0;
-    }
 
     @Override
     protected OperationType getOperationType() {
@@ -73,7 +71,7 @@ public class StreamSegmentTruncateOperation extends StorageOperation {
     @Override
     protected void deserializeContent(DataInputStream source) throws IOException, SerializationException {
         readVersion(source, CURRENT_VERSION);
-        setStreamSegmentId(source.readLong());
+        this.streamSegmentId = source.readLong();
         this.streamSegmentOffset = source.readLong();
     }
 
