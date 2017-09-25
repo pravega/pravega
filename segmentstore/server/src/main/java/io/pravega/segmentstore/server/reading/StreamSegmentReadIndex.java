@@ -200,9 +200,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
                 // 2. Every single byte in the entry has to exist in Storage.
+                // In addition, we are free to evict (regardless of Generation, but still subject to the above rules) if
+                // every single byte in the entry has been truncated out.
+                long lastOffset = entry.getLastStreamSegmentOffset();
                 boolean canRemove = entry.isDataEntry()
-                        && entry.getLastStreamSegmentOffset() <= this.metadata.getStorageLength()
-                        && entry.getGeneration() < oldestGeneration;
+                        && lastOffset <= this.metadata.getStorageLength()
+                        && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
                     toRemove.add(entry);
                 }
@@ -580,6 +583,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
         Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(), "startOffset must refer to an offset beyond the Segment's StorageLength offset.");
         Preconditions.checkArgument(startOffset + length <= this.metadata.getLength(), "startOffset+length must be less than the length of the Segment.");
+        Preconditions.checkArgument(startOffset >= this.metadata.getStartOffset(), "startOffset is before the Segment's StartOffset.");
 
         // Get the first entry. This one is trickier because the requested start offset may not fall on an entry boundary.
         CompletableReadResultEntry nextEntry;
@@ -638,33 +642,40 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
         Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
-        Exceptions.checkArgument(canReadAtOffset(startOffset, true), "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
+        Exceptions.checkArgument(checkReadAvailability(startOffset, true) == ReadAvailability.Available,
+                "startOffset", "Unable to read at this offset (%s). Either it is before StartOffset (%s) " +
+                        "or Segment is sealed and it is beyond the last offset of the StreamSegment (%s).", startOffset,
+                this.metadata.getStartOffset(), this.metadata.getLength() - 1);
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
         return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);
     }
 
     /**
-     * Determines whether the given offset is valid for reading, given the current state of the segment.
+     * Determines the availability of reading at a particular offset, given the state of a segment.
      *
      * @param offset              The offset to check.
      * @param lastOffsetInclusive If true, it will consider the last offset of the segment as a valid offset, otherwise
      *                            it will only validate offsets before the last offset in the segment.
-     * @return If the segment is not sealed, returns 'true'. Otherwise, returns true if the given offset is before the
-     * last offset (or on as well, if lastOffsetInclusive is true). Returns false in any other case.
+     * @return A ReadAvailability based on the Segment's current state and the given offset. This will return Available
+     * unless the given offset is before the Segment's StartOffset or beyond its Length and the Segment is Sealed.
      */
-    private boolean canReadAtOffset(long offset, boolean lastOffsetInclusive) {
+    private ReadAvailability checkReadAvailability(long offset, boolean lastOffsetInclusive) {
         // We can only read at a particular offset if:
+        // * The offset is not before the Segment's StartOffset
+        // AND
         // * The segment is not sealed (we are allowed to do a future read) OR
         // * The segment is sealed and we are not trying to read at or beyond the last offset (based on input).
-        if (this.metadata.isSealed()) {
-            return lastOffsetInclusive
-                    ? offset <= this.metadata.getLength()
-                    : offset < this.metadata.getLength();
+        if (offset < this.metadata.getStartOffset()) {
+            return ReadAvailability.BeforeStartOffset;
+        } else if (this.metadata.isSealed()) {
+            return offset < (this.metadata.getLength() + (lastOffsetInclusive ? 1 : 0))
+                    ? ReadAvailability.Available
+                    : ReadAvailability.BeyondLastOffset;
         }
 
-        // Not sealed: we can have future reads as well.
-        return true;
+        // Offset is in a valid range.
+        return ReadAvailability.Available;
     }
 
     /**
@@ -688,39 +699,43 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             return null;
         }
 
-        // Check to see if we are trying to read beyond the last offset of a sealed StreamSegment.
-        if (!canReadAtOffset(resultStartOffset, false)) {
-            return new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
-        }
-
-        // Look up an entry in the index that contains our requested start offset.
         CompletableReadResultEntry result = null;
-        synchronized (this.lock) {
-            ReadIndexEntry indexEntry = this.indexEntries.getFloor(resultStartOffset);
-            if (indexEntry == null) {
-                // No data in the index or we have at least one entry and the ResultStartOffset is before the Start Offset
-                // of the first entry in the index. Use the metadata to figure out whether to return a Storage or Future Read.
-                result = createDataNotAvailableRead(resultStartOffset, maxLength);
-            } else {
-                // We have an entry. Let's see if it's valid or not.
-                if (resultStartOffset > indexEntry.getLastStreamSegmentOffset()) {
-                    // ResultStartOffset is beyond the End Offset of this entry. This means either:
-                    // 1. This is the last entry and ResultStartOffset is after it. OR
-                    // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
-                    return createDataNotAvailableRead(resultStartOffset, maxLength);
-                } else if (indexEntry.isDataEntry()) {
-                    // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
-                    result = createMemoryRead(indexEntry, resultStartOffset, maxLength, true);
-                } else if (indexEntry instanceof RedirectIndexEntry) {
-                    // ResultStartOffset is after the StartOffset and before the End Offset of this entry, but this
-                    // is a Redirect; reissue the request to the appropriate index.
-                    result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry);
+        // Check to see if we are trying to read beyond the last offset of a sealed StreamSegment.
+        ReadAvailability ra = checkReadAvailability(resultStartOffset, false);
+        if (ra == ReadAvailability.BeyondLastOffset) {
+            result = new EndOfStreamSegmentReadResultEntry(resultStartOffset, maxLength);
+        } else if (ra == ReadAvailability.BeforeStartOffset) {
+            result = new TruncatedReadResultEntry(resultStartOffset, maxLength, this.metadata.getStartOffset());
+        } else {
+            // Look up an entry in the index that contains our requested start offset.
+            synchronized (this.lock) {
+                ReadIndexEntry indexEntry = this.indexEntries.getFloor(resultStartOffset);
+                if (indexEntry == null) {
+                    // No data in the index or we have at least one entry and the ResultStartOffset is before the Start Offset
+                    // of the first entry in the index. Use the metadata to figure out whether to return a Storage or Future Read.
+                    result = createDataNotAvailableRead(resultStartOffset, maxLength);
+                } else {
+                    // We have an entry. Let's see if it's valid or not.
+                    if (resultStartOffset > indexEntry.getLastStreamSegmentOffset()) {
+                        // ResultStartOffset is beyond the End Offset of this entry. This means either:
+                        // 1. This is the last entry and ResultStartOffset is after it. OR
+                        // 2. We have a gap in our entries, and ResultStartOffset is somewhere in there.
+                        result = createDataNotAvailableRead(resultStartOffset, maxLength);
+                    } else if (indexEntry.isDataEntry()) {
+                        // ResultStartOffset is after the StartOffset and before the End Offset of this entry.
+                        result = createMemoryRead(indexEntry, resultStartOffset, maxLength, true);
+                    } else if (indexEntry instanceof RedirectIndexEntry) {
+                        // ResultStartOffset is after the StartOffset and before the End Offset of this entry, but this
+                        // is a Redirect; reissue the request to the appropriate index.
+                        result = createRedirectedRead(resultStartOffset, maxLength, (RedirectIndexEntry) indexEntry);
+                    }
                 }
             }
         }
 
         // Just before exiting, check we are returning something. We should always return something if we coded this correctly.
-        assert result != null : String.format("Reached the end of getSingleReadResultEntry(id=%d, offset=%d, length=%d) with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength);
+        assert result != null : String.format("Reached the end of getSingleReadResultEntry(id=%d, offset=%d, length=%d) "
+                + "with no plausible result in sight. This means we missed a case.", this.metadata.getId(), resultStartOffset, maxLength);
         return result;
     }
 
@@ -776,7 +791,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private CacheReadResultEntry getSingleMemoryReadResultEntry(long resultStartOffset, int maxLength) {
         Exceptions.checkNotClosed(this.closed, this);
 
-        if (maxLength > 0 && canReadAtOffset(resultStartOffset, false)) {
+        if (maxLength > 0 && checkReadAvailability(resultStartOffset, false) == ReadAvailability.Available) {
             // Look up an entry in the index that contains our requested start offset.
             synchronized (this.lock) {
                 ReadIndexEntry indexEntry = this.indexEntries.get(resultStartOffset);
@@ -974,6 +989,27 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             return result;
         }
+    }
+
+    //endregion
+
+    //region ReadAvailability
+
+    private enum ReadAvailability {
+        /**
+         * The current position is OK for reading.
+         */
+        Available,
+
+        /**
+         * The current position is beyond the last readable offset of the Segment.
+         */
+        BeyondLastOffset,
+
+        /**
+         * The current position is before the first readable offset of the Segment.
+         */
+        BeforeStartOffset
     }
 
     //endregion
