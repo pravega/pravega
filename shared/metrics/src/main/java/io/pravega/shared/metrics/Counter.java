@@ -14,7 +14,7 @@ package io.pravega.shared.metrics;
  * functions on a Long. Metrics like the number of topics, persist queue size
  * etc. should use this.
  */
-public interface Counter {
+public interface Counter extends Metric {
     /**
      * Clear this stat.
      */
@@ -41,9 +41,4 @@ public interface Counter {
      * Get the value associated with this stat.
      */
     long get();
-
-    /**
-     * Gets name.
-     */
-    String getName();
 }

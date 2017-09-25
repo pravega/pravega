@@ -324,21 +324,9 @@ public class MultiReaderTxnWriterWithFailoverTest {
 
     private void closeReadersAndWriters() {
         log.info("Closing writers");
-        writerList.forEach(writer -> {
-            try {
-                writer.close();
-            } catch (Throwable e) {
-                log.error("Error closing writer", e);
-            }
-        });
+        writerList.forEach(writer -> writer.close());
         log.info("Closing readers");
-        readerList.forEach(reader -> {
-            try {
-                reader.close();
-            } catch (Throwable e) {
-                log.error("Error closing reader", e);
-            }
-        });
+        readerList.forEach(reader -> reader.close());
     }
 
     private void performFailoverTest() {

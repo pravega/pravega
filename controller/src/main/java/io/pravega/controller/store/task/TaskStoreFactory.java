@@ -11,7 +11,7 @@ package io.pravega.controller.store.task;
 
 import io.pravega.controller.store.client.StoreClient;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,7 +28,7 @@ public class TaskStoreFactory {
             case InMemory:
                 return new InMemoryTaskMetadataStore(executor);
             default:
-                throw new NotImplementedException();
+                throw new NotImplementedException(storeClient.getType().toString());
         }
     }
 

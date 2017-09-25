@@ -10,8 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
+import io.grpc.Server;
 import io.grpc.Status;
-import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -101,7 +101,7 @@ public class ControllerImplTest {
 
     // Test implementation for simulating the server responses.
     private ControllerServiceImplBase testServerImpl;
-    private ServerImpl testGRPCServer = null;
+    private Server testGRPCServer = null;
 
     private int serverPort;
 
@@ -609,7 +609,7 @@ public class ControllerImplTest {
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
-        ServerImpl testServer = NettyServerBuilder.forPort(serverPort2)
+        Server testServer = NettyServerBuilder.forPort(serverPort2)
                 .addService(testServerImpl)
                 .permitKeepAliveTime(5, TimeUnit.SECONDS)
                 .build()
@@ -1082,7 +1082,6 @@ public class ControllerImplTest {
     
     @Test
     public void testCutpointSuccessors() throws Exception {
-        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);

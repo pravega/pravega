@@ -46,7 +46,7 @@ import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Assert;
 import org.junit.Test;
