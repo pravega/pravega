@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -40,10 +39,11 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public abstract class SerializedRequestHandler<T extends ControllerEvent> implements RequestHandler<T> {
 
+    protected final ScheduledExecutorService executor;
+
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
-    protected ScheduledExecutorService executor;
 
     @Override
     public final CompletableFuture<Void> process(final T streamEvent) {

@@ -12,11 +12,60 @@ package io.pravega.shared.controller.event;
 import java.util.concurrent.CompletableFuture;
 
 public interface RequestProcessor {
+
+    /**
+     * Method to process abort txn event.
+     *
+     * @param abortEvent abort event
+     * @return
+     */
     CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent);
+
+    /**
+     * Method to process commit txn event.
+     *
+     * @param commitEvent commit event
+     * @return
+     */
     CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent);
+
+    /**
+     * Method to process auto scale event.
+     *
+     * @param autoScaleEvent auto scale event.
+     * @return
+     */
     CompletableFuture<Void> processAutoScaleRequest(AutoScaleEvent autoScaleEvent);
+
+    /**
+     * Method to process scale operation event.
+     *
+     * @param scaleOpEvent scale operation event.
+     * @return
+     */
     CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent);
+
+    /**
+     * Method to process update stream event.
+     *
+     * @param updateStreamEvent update stream event.
+     * @return
+     */
     CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent);
+
+    /**
+     * Method to process seal stream event.
+     *
+     * @param sealStreamEvent stream stream event.
+     * @return
+     */
     CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent);
+
+    /**
+     * Method to process delete stream event.
+     *
+     * @param deleteStreamEvent delete stream event.
+     * @return
+     */
     CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent);
 }

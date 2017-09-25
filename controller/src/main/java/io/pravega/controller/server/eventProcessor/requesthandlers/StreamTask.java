@@ -14,6 +14,18 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import java.util.concurrent.CompletableFuture;
 
 public interface StreamTask<T extends ControllerEvent> {
+
+    /**
+     * Method to process the supplied event.
+     * @param event event to process
+     * @return future of processing
+     */
     CompletableFuture<Void> execute(T event);
+
+    /**
+     * Method to write back event into the stream.
+     * @param event event to write back.
+     * @return future of processing
+     */
     CompletableFuture<Void> writeBack(T event);
 }
