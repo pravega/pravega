@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.server.ControllerServerException;
 

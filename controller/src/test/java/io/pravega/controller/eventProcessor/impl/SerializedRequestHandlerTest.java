@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
@@ -32,12 +32,11 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
     public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
         SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
             @Override
-            CompletableFuture<Void> processEvent(TestEvent event) {
+            public CompletableFuture<Void> processEvent(TestEvent event) {
                 orderOfProcessing.compute(event.getKey(), (x, y) -> {
                     if (y == null) {
                         y = new ArrayList<>();
@@ -165,6 +164,11 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         @Override
         public String getKey() {
             return String.format("%s/%s", scope, stream);
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return CompletableFuture.completedFuture(null);
         }
 
         public void complete() {

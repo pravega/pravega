@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -19,6 +19,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -32,13 +33,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.withRetries;
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
 
 /**
  * Request handler for scale requests in scale-request-stream.
  */
 @Slf4j
-public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
+public class AutoScaleTask {
 
     private static final long REQUEST_VALIDITY_PERIOD = Duration.ofMinutes(10).toMillis();
 
@@ -46,9 +47,9 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
     private final StreamMetadataStore streamMetadataStore;
     private final ScheduledExecutorService executor;
 
-    public AutoScaleRequestHandler(final StreamMetadataTasks streamMetadataTasks,
-                                   final StreamMetadataStore streamMetadataStore,
-                                   final ScheduledExecutorService executor) {
+    public AutoScaleTask(final StreamMetadataTasks streamMetadataTasks,
+                         final StreamMetadataStore streamMetadataStore,
+                         final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
@@ -57,8 +58,7 @@ public class AutoScaleRequestHandler implements RequestHandler<AutoScaleEvent> {
         this.executor = executor;
     }
 
-    @Override
-    public CompletableFuture<Void> process(final AutoScaleEvent request) {
+    public CompletableFuture<Void> execute(final AutoScaleEvent request) {
         if (!(request.getTimestamp() + REQUEST_VALIDITY_PERIOD > System.currentTimeMillis())) {
             // request no longer valid. Ignore.
             // log, because a request was fetched from the stream after its validity expired.

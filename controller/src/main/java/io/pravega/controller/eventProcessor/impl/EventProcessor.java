@@ -27,7 +27,7 @@ public abstract class EventProcessor<T extends ControllerEvent> {
     }
 
     @FunctionalInterface
-    public interface Writer<T> {
+    public interface Writer<T extends ControllerEvent> {
         CompletableFuture<Void> write(T event);
     }
 

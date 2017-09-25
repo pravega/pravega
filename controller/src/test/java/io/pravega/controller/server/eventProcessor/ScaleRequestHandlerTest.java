@@ -22,6 +22,9 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -33,8 +36,10 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -138,9 +143,9 @@ public class ScaleRequestHandlerTest {
 
     @Test(timeout = 20000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
-        ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
-        RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler, executor);
+        AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, executor);
         // Send number of splits = 1
         AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
         CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
