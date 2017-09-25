@@ -430,7 +430,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         } else {
             log.debug("scale conflict for stream {}/{} with segments to seal {}", scope, name, sealedSegments);
 
-            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleStartException());
+            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleConflictException());
         }
     }
 

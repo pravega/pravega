@@ -7,11 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -20,6 +21,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.controller.event.AbortEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
@@ -79,7 +81,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
     }
 
     @Override
-    protected CompletableFuture<Void> processEvent(AbortEvent event) {
+    public CompletableFuture<Void> processEvent(AbortEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
         int epoch = event.getEpoch();

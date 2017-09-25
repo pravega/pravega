@@ -10,6 +10,7 @@
 package io.pravega.shared.controller.event;
 
 import java.io.Serializable;
+import java.util.concurrent.CompletableFuture;
 
 public interface ControllerEvent extends Serializable {
     /**
@@ -17,4 +18,6 @@ public interface ControllerEvent extends Serializable {
      * @return return the routing key that should be used.
      */
     String getKey();
+
+    CompletableFuture<Void> process(RequestProcessor processor);
 }

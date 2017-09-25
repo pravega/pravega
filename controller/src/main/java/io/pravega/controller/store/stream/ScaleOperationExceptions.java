@@ -28,6 +28,9 @@ public class ScaleOperationExceptions {
     public static class ScaleStartException extends ScaleOperationException implements RetryableException {
     }
 
+    public static class ScaleConflictException extends ScaleOperationException {
+    }
+
     public static class ScalePostException extends ScaleOperationException implements RetryableException {
     }
 

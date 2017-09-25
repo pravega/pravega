@@ -9,23 +9,19 @@
  */
 package io.pravega.shared.controller.event;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Data
-public class AutoScaleEvent implements ControllerEvent {
-    public static final byte UP = (byte) 0;
-    public static final byte DOWN = (byte) 1;
-    private static final long serialVersionUID = 1L;
-
+@AllArgsConstructor
+public class AbortEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
-    private final int segmentNumber;
-    private final byte direction;
-    private final long timestamp;
-    private final int numOfSplits;
-    private final boolean silent;
+    private final int epoch;
+    private final UUID txid;
 
     @Override
     public String getKey() {
@@ -34,6 +30,6 @@ public class AutoScaleEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processAutoScaleRequest(this);
+        return processor.processAbortTxnRequest(this);
     }
 }
