@@ -12,22 +12,24 @@ package io.pravega.test.system.framework;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
-    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = Utils.isDockerLocalExecEnabled() ?
-             new DockerRemoteSequential() : new RemoteSequential();
+    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
+    private static final TestExecutor DOCKER_EXECUTOR = new DockerRemoteSequential();
 
     public enum TestExecutorType {
         LOCAL,
+        DOCKER_BASED,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: Yet to be implemented.
     }
 
     public static TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
+            case DOCKER_BASED :
+                return DOCKER_EXECUTOR;
             case REMOTE_SEQUENTIAL:
                 return MARATHON_SEQUENTIAL_EXECUTOR;
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
-            case LOCAL:
             default:
                 throw new IllegalArgumentException("Invalid Executor specified: " + type);
         }

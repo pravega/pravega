@@ -534,7 +534,6 @@ project('test:system') {
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
-        systemProperty "dockerExecLocal", System.getProperty("dockerExecLocal")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
@@ -548,10 +547,6 @@ project('test:system') {
         }
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
-        }
-
-        if (System.getProperty("dockerExecLocal") == null) {
-            systemProperty "dockerExecLocal", "false"
         }
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
@@ -583,7 +578,6 @@ project('test:system') {
 
         systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
-        systemProperty "dockerExecLocal", System.getProperty("dockerExecLocal")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
@@ -597,10 +591,6 @@ project('test:system') {
         }
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
-        }
-
-        if (System.getProperty("dockerExecLocal") == null) {
-            systemProperty "dockerExecLocal", "false"
         }
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
