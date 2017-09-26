@@ -196,7 +196,8 @@ public class ReaderCheckpointTest {
     }
 
     private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String readerId) {
-        CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(() -> readEvents(readerId), readerExecutor);
+        CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(
+                () -> readEvents(readerId), readerExecutor);
         FutureHelpers.exceptionListener(result,
                 t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
         return result;
