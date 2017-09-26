@@ -101,7 +101,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                                 "/opt/bk_all/entrypoint.sh")
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
-                        .env(stringList).build())
+                        .env(stringList).args("bookkeeper").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())

@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -72,14 +73,15 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             //list the service with filter 'serviceName'
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             List<Service> serviceList = dockerClient.listServices(criteria);
+
             for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
-                if (!serviceId.isEmpty()) {
+                Service service = dockerClient.inspectService(serviceId);
+                if (service.spec().mode().replicated().replicas() == dockerClient.listContainers(DockerClient.ListContainersParam.filter("args", serviceName)).size()) {
                     value = true;
                     break;
                 }
             }
-
         } catch (DockerException | InterruptedException e) {
             log.error("unable to list docker services {}", e);
         }
@@ -125,7 +127,10 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).build());
             String updateState = dockerClient.inspectService(serviceId).updateStatus().state();
             log.info(" update state {}", updateState);
-        } catch (DockerException | InterruptedException e) {
+            if (wait) {
+                waitUntilServiceRunning().get();
+            }
+        } catch (ExecutionException | DockerException | InterruptedException e) {
             log.error("unable to scale service {}", e);
         }
     }
