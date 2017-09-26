@@ -536,7 +536,7 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn = createUpdateTransaction(metadata);
         AssertExtensions.assertThrows(
                 "preProcess did not throw when offset is too large.",
-                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH)),
+                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
                 ex -> ex instanceof BadOffsetException);
 
         // Actually truncate the segment, and re-verify bounds.
@@ -551,7 +551,7 @@ public class ContainerMetadataUpdateTransactionTests {
                 ex -> ex instanceof BadOffsetException);
         AssertExtensions.assertThrows(
                 "preProcess did not throw when offset is too large (on truncated segment).",
-                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH)),
+                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
                 ex -> ex instanceof BadOffsetException);
 
         // For a transaction
@@ -563,6 +563,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // Now verify that a valid offset does work (not throwing means the test passes).
         txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset()));
         txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset() + 1));
+        txn.preProcessOperation(createTruncate(SEGMENT_LENGTH));
     }
 
     /**
@@ -614,6 +615,14 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.acceptOperation(op2);
         txn2.commit(metadata);
         Assert.assertEquals("Unexpected StartOffset in Metadata post-commit (second).", op2.getStreamSegmentOffset(), sm.getStartOffset());
+
+        // Verify truncating the entire segment.
+        val op3 = createTruncate(sm.getLength());
+        val txn3 = createUpdateTransaction(metadata);
+        txn3.preProcessOperation(op3);
+        txn3.acceptOperation(op3);
+        txn3.commit(metadata);
+        Assert.assertEquals("Unexpected StartOffset in Metadata when truncating entire segment.", sm.getLength(), sm.getStartOffset());
     }
 
     //endregion

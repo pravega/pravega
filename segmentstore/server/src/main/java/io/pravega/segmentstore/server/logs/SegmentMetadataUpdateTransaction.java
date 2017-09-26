@@ -317,8 +317,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new MetadataUpdateException(this.containerId, "Cannot truncate a Transaction Segment: " + operation);
         }
 
-        if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() >= this.length) {
-            throw new BadOffsetException(this.name, String.format("Truncation Offset must be at least %d and less than %d, given %d.",
+        if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() > this.length) {
+            throw new BadOffsetException(this.name, String.format("Truncation Offset must be at least %d and at most %d, given %d.",
                     this.startOffset, this.length, operation.getStreamSegmentOffset()));
         }
     }
