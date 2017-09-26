@@ -128,12 +128,18 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    @Task(name = "updateConfig", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, config, null},
-                () -> updateStreamConfigBody(scope, stream, config, contextOpt));
+        // 1. get configuration
+        // 2. post event with configuration update + version
+        // 3. set state to updating
+        // 4. respond to client that update is being processed
+
+        // when update stream event is picked, update task is performed.
+        // 1. check state is updating. else postpone [predicate(time, numberOfAttempts)]
+        // 2. get configuration. If configuration.version == input.version -> perform update
+        // else idempotent check: configuration.version = input.version + 1 && configuration.config == input.configuration.
+        // 3. notify segment store about updated configuration
+        // 4. set state to active.
     }
 
     /**
@@ -144,12 +150,17 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    @Task(name = "sealStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, null},
-                () -> sealStreamBody(scope, stream, contextOpt));
+        // 1. post event for seal.
+        // 2. set state to sealing
+        // 3. return with seal initiated.
+
+        // when seal stream task is picked, if the state is sealing, process sealing, else postpone.
+        // 1. check state sealing. else postpone [predicate(time, numberOfAttempts)]
+        // 2. seal stream workflow
+        // Note: this can encounter a case with segment table having extra segments. That is ignorable anyway as this will use history table.
+        // get active segments.. seal those segments.. extra segments in segment table become no-op.
+        // 3. set status sealed.
     }
 
     /**
@@ -160,13 +171,15 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return delete status.
      */
-    @Task(name = "deleteStream", version = "1.0", resource = "{scope}/{stream}")
     public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
                                                                      final OperationContext contextOpt) {
-        return execute(
-                new Resource(scope, stream),
-                new Serializable[]{scope, stream, null},
-                () -> deleteStreamBody(scope, stream, contextOpt));
+        // 1. get state..
+        // if sealed post event for delete
+        // else fail
+
+        // when delete event is picked up, it performs delete stream task which should delete the stream.
+        // 1. verify state == sealed || stream Not Found
+        // 2. delete stream workflow
     }
 
     /**
@@ -185,6 +198,14 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Integer> segmentsToSeal,
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
+        // 1. post event
+        // 2. create segments in segment table
+        // 3. respond to the client
+
+        // when scale event is picked
+        // 1. if `this` scale is not started, postpone
+        // 2. if another scale is running, conflict, postpone
+        // 3. if state != sealed, try set state to scaling. else fail.
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
         return postScale(event).thenCompose(x ->
                 streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
@@ -334,7 +355,7 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(response -> streamMetadataStore.setState(scaleInput.getScope(), scaleInput.getStream(), State.SCALING, context, executor)
                         .thenApply(updated -> response))
                 .thenCompose(response -> notifyNewSegments(scaleInput.getScope(), scaleInput.getStream(), response.getSegmentsCreated(), context)
-                        .thenCompose(x -> {
+                        .thenCompose(x ->  {
                             assert !response.getSegmentsCreated().isEmpty();
 
                             long scaleTs = response.getSegmentsCreated().get(0).getStart();
