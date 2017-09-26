@@ -320,15 +320,16 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         checkReadIndex("PostTruncate", segmentContents, context);
         checkReadIndexDirect(segmentContents, context);
 
-        //         Verify that truncated data is eligible for eviction, by checking that at least one Cache Entry is being removed.
+        // Verify that truncated data is eligible for eviction, by checking that at least one Cache Entry is being removed.
         for (long segmentId : segmentIds) {
             val sm = context.metadata.getStreamSegmentMetadata(segmentId);
             sm.setStorageLength(sm.getLength()); // We need to set this in order to verify cache evictions.
         }
+
         HashSet<CacheKey> removedKeys = new HashSet<>();
         context.cacheFactory.cache.removeCallback = removedKeys::add;
         context.cacheManager.applyCachePolicy();
-        AssertExtensions.assertGreaterThan("", 0, removedKeys.size());
+        AssertExtensions.assertGreaterThan("Expected at least one cache entry to be removed.", 0, removedKeys.size());
     }
 
     /**
