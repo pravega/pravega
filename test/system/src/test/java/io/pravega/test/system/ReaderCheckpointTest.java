@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -50,6 +51,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -69,6 +71,7 @@ public class ReaderCheckpointTest {
     private static final String SCOPE = "scope" + RANDOM_SUFFIX;
     private static final String STREAM = "checkPointTestStream";
     private static final String READER_GROUP_NAME = "checkpointTest" + RANDOM_SUFFIX;
+    private static final int NUMBER_OF_READERS = 3; //this matches the number of segments in the stream
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
@@ -77,7 +80,9 @@ public class ReaderCheckpointTest {
     private final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder().build();
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "checkPointExecutor");
     private final StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                                        .scalingPolicy(ScalingPolicy.fixed(1)).build();
+                                                                        .scalingPolicy(ScalingPolicy.fixed(NUMBER_OF_READERS)).build();
+    private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(NUMBER_OF_READERS,
+            "readerCheckpointTest-reader");
 
     private URI controllerURI;
 
@@ -176,11 +181,28 @@ public class ReaderCheckpointTest {
 
     private void readEventsAndVerify(int startInclusive, int endExclusive) {
         log.info("Read and Verify events between [{},{})", startInclusive, endExclusive);
-        List<EventRead<Integer>> eventsRead = readEvents();
+        final List<CompletableFuture<List<EventRead<Integer>>>> readResults = new ArrayList<>();
+
+        //start reading using configured number of readers
+        for (int i = 0; i < NUMBER_OF_READERS; i++) {
+            readResults.add(asyncReadEvents("reader-" + i));
+        }
+
+        //results from all readers
+        List<List<EventRead<Integer>>> results = FutureHelpers.allOfWithResults(readResults).join();
+        List<EventRead<Integer>> eventsRead = results.stream().flatMap(List::stream).collect(Collectors.toList());
+
         verifyEvents(eventsRead, startInclusive, endExclusive);
     }
 
-    private void verifyEvents(List<EventRead<Integer>> events, int startInclusive, int endExclusive) {
+    private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String readerId) {
+        CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(() -> readEvents(readerId), readerExecutor);
+        FutureHelpers.exceptionListener(result,
+                t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
+        return result;
+    }
+
+    private void verifyEvents(final List<EventRead<Integer>> events, int startInclusive, int endExclusive) {
 
         Supplier<Stream<Integer>> streamSupplier = () -> events.stream().map(i -> i.getEvent()).sorted();
         IntSummaryStatistics stats = streamSupplier.get().collect(Collectors.summarizingInt(value -> value));
@@ -193,15 +215,15 @@ public class ReaderCheckpointTest {
                 streamSupplier.get().distinct().count());
     }
 
-    private <T extends Serializable> List<EventRead<T>> readEvents() {
+    private <T extends Serializable> List<EventRead<T>> readEvents(final String readerId) {
         List<EventRead<T>> events = new ArrayList<>();
 
         try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
-             EventStreamReader<T> reader = clientFactory.createReader("reader",
+             EventStreamReader<T> reader = clientFactory.createReader(readerId,
                      READER_GROUP_NAME,
                      new JavaSerializer<T>(),
                      readerConfig)) {
-            log.info("Reading events from {}/{}", SCOPE, STREAM);
+            log.info("Reading events from {}/{} with readerId: {}", SCOPE, STREAM, readerId);
             EventRead<T> event = null;
             do {
                 try {
@@ -211,25 +233,24 @@ public class ReaderCheckpointTest {
                         events.add(event);
                     }
                 } catch (ReinitializationRequiredException e) {
-                    log.error("Exception while reading event", e);
+                    log.error("Exception while reading event using readerId: {}", readerId, e);
                     fail("Reinitialization Exception is not expected");
                 }
             } while (event.getEvent() != null);
-            log.info("No more events from {}/{}", SCOPE, STREAM);
-        }
+            log.info("No more events from {}/{} for readerId: {}", SCOPE, STREAM, readerId);
+        } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
         return events;
     }
 
-    private <T extends Serializable> void writeEvents(List<T> events) {
+    private <T extends Serializable> void writeEvents(final List<T> events) {
         try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
                      new JavaSerializer<T>(),
                      EventWriterConfig.builder().build())) {
             for (T event : events) {
-                String routingKey = "constantKey"; // constant routing key
+                String routingKey = String.valueOf(event);
                 log.info("Writing message: {} with routing-key: {} to stream {}", event, routingKey, STREAM);
                 writer.writeEvent(routingKey, event);
-                writer.flush();
             }
         }
     }
