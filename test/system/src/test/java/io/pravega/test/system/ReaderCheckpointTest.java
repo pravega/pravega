@@ -145,7 +145,7 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(startInclusive, endExclusive);
 
         //initiate checkpoint100
-        Checkpoint checkPoint100 = readerGroup.initiateCheckpoint("batch100", executor).get();
+        Checkpoint checkPoint100 = createCheckPointAndVerify(readerGroup, "batch100");
 
         //write and read events 100 to 200
         startInclusive = 100;
@@ -159,7 +159,7 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(100, endExclusive);
 
         //initiate checkpoint200
-        Checkpoint checkPoint200 = readerGroup.initiateCheckpoint("batch200", executor).get();
+        Checkpoint checkPoint200 = createCheckPointAndVerify(readerGroup, "batch200");
 
         //write and read events 200 to 300
         startInclusive = 200;
@@ -177,6 +177,28 @@ public class ReaderCheckpointTest {
         readEventsAndVerify(100, endExclusive);
 
         readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up
+    }
+
+    private Checkpoint createCheckPointAndVerify(final ReaderGroup readerGroup, final String checkPointName) {
+        log.info("Create and verify check point {}", checkPointName);
+        String readerId = "checkPointReader";
+        CompletableFuture<Checkpoint> checkpoint = null;
+
+        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+             EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
+                     new JavaSerializer<Integer>(), readerConfig)) {
+
+            checkpoint = readerGroup.initiateCheckpoint(checkPointName, executor); //create checkpoint
+
+            //verify checkpoint event.
+            EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
+            assertTrue("Read for Checkpoint event", (event != null) && (event.isCheckpoint()));
+            assertEquals("CheckPoint Name", checkPointName, event.getCheckpointName());
+        } catch (ReinitializationRequiredException e) {
+            log.error("Exception while reading event using readerId: {}", readerId, e);
+            fail("Reinitialization Exception is not expected");
+        }
+        return checkpoint.join();
     }
 
     private void readEventsAndVerify(int startInclusive, int endExclusive) {
