@@ -123,6 +123,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
+        testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
