@@ -114,7 +114,7 @@ public class EndToEndStatsTest {
         }
         assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
 
-        Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
+        Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }

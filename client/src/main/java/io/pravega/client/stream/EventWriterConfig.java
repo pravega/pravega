@@ -23,12 +23,22 @@ public class EventWriterConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
-
+    /**
+     * The maximum amount of time, in milliseconds, which a transaction can run before it is considered failed.
+     */
+    private final long transactionTimeoutTime;
+    /**
+     * The maximum amount of time, in milliseconds after a scale operation has been initiated before a transaction is timedout. 
+     */
+    private final long transactionTimeoutScaleGracePeriod;
+    
     public static final class EventWriterConfigBuilder {
         private int initalBackoffMillis = 1;
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
+        private long transactionTimeoutTime = 60 * 60 * 1000;
+        private long transactionTimeoutScaleGracePeriod = 0;
     }
     
 }

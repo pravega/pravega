@@ -60,19 +60,16 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     CompletableFuture<Void> writeEvent(String routingKey, Type event);
 
     /**
-     * Start a new transaction on this stream.
+     * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
+     * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
      * 
      * @param transactionTimeout The number of milliseconds after now, that if commit has not been called by, the
      *            transaction may be aborted. Note that this should not be set unnecessarily high, as having long running
      *            transactions may interfere with a streams to scale in response to a change in rate. For this reason
      *            streams may configure an upper limit to this value.
-     * @param maxExecutionTime The maximum amount of time, in milliseconds, until which transaction timeout may be
-     *                         increased via the pingTransaction API.
-     * @param scaleGracePeriod The maximum amount of time, in milliseconds, until which transacition may remain active,
-     *                         after a scale operation has been initiated on the underlying stream.
      * @return A transaction through which multiple events can be written atomically.
      */
-    Transaction<Type> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod);
+    Transaction<Type> beginTxn();
 
     /**
      * Returns a previously created transaction.

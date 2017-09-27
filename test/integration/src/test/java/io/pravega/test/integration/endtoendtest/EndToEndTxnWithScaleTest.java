@@ -114,8 +114,8 @@ public class EndToEndTxnWithScaleTest {
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
+                EventWriterConfig.builder().transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
+        Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
         transaction.commit();
 
@@ -129,7 +129,7 @@ public class EndToEndTxnWithScaleTest {
 
         assertTrue(result);
 
-        transaction = test.beginTxn(5000, 3600000, 29000);
+        transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest2");
         transaction.commit();
         @Cleanup

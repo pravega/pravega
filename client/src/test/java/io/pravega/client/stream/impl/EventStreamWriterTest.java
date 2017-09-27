@@ -338,7 +338,7 @@ public class EventStreamWriterTest {
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
                 config, new InlineExecutor());
-        Transaction<String> txn = writer.beginTxn(0, 0, 0);
+        Transaction<String> txn = writer.beginTxn();
         txn.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
@@ -372,7 +372,7 @@ public class EventStreamWriterTest {
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
                 config, new InlineExecutor());
-        Transaction<String> txn = writer.beginTxn(0, 0, 0);
+        Transaction<String> txn = writer.beginTxn();
         outputStream.invokeSealedCallBack();
         try {
             txn.writeEvent("Foo");

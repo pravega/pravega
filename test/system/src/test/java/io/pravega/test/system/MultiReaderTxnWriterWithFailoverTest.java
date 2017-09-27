@@ -39,7 +39,6 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -75,6 +74,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
     private static final int NUM_READERS = 5;
     private static final int NUM_EVENTS_PER_TRANSACTION = 50;
     private static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
+    private static final int TXN_TIMEOUT = 3600000;
     private static final int WRITER_MAX_RETRY_ATTEMPTS = 15;
     //Duration for which the system test waits for writes/reads to happen post failover.
     //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
@@ -235,7 +235,7 @@ public class MultiReaderTxnWriterWithFailoverTest {
                 final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                         new JavaSerializer<Long>(),
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
-                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).transactionTimeoutTime(TXN_TIMEOUT).build());
                 writerList.add(writer);
             }
 
@@ -394,29 +394,11 @@ public class MultiReaderTxnWriterWithFailoverTest {
                                                         final AtomicBoolean stopWriteFlag, final AtomicLong eventWriteCount) {
         return CompletableFuture.runAsync(() -> {
             while (!stopWriteFlag.get()) {
-                Transaction<Long> txnDebugReference = null;
+                Transaction<Long> transaction = null;
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
-                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000);
-                    txnDebugReference = transaction;
-
-                    // Sets a recurrent delayed task to ping the txn. It exits when the
-                    // txn completes and no longer needs pinging
-                    FutureHelpers.loop(() -> !txnIsDone.get(), () -> {
-                        return FutureHelpers.delayedTask(() -> {
-                            if (transaction.checkStatus() == Transaction.Status.OPEN) {
-                                FutureHelpers.runOrFail(() -> {
-                                    transaction.ping(5000);
-                                    return null;
-                                }, new CompletableFuture<Void>());
-                            } else {
-                                txnIsDone.set(true);
-                            }
-
-                            return null;
-                        }, Duration.ofMillis(2000), executorService);
-                    }, executorService);
+                    transaction = writer.beginTxn();
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = data.incrementAndGet();
@@ -435,8 +417,8 @@ public class MultiReaderTxnWriterWithFailoverTest {
                     // caught here.
                     txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: ", e);
-                    if (txnDebugReference != null) {
-                        log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());
+                    if (transaction != null) {
+                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
                     }
                     writerErrorRef.set(e);
                     return;
