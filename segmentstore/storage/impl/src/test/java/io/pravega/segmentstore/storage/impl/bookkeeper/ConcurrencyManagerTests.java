@@ -189,6 +189,36 @@ public class ConcurrencyManagerTests {
         Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
     }
 
+    /**
+     * Verifies that the parallelism stays constant if MinParallelism == MaxParallelism.
+     */
+    @Test
+    public void testMinMaxEquals() {
+        final int parallelism = 10;
+        final int steps = parallelism + 1;
+        final int writeSize = BookKeeperConfig.MAX_APPEND_LENGTH / 10;
+        val time = new AtomicLong(0);
+        val m = new ConcurrencyManager(parallelism, parallelism, time::get);
+        Assert.assertEquals("Unexpected initial parallelism.", parallelism, m.getCurrentParallelism());
+        long previousTotalWriteLength = 1;
+        for (int i = 0; i < steps; i++) {
+            // Record a bunch of writes, but make sure we always record significantly more than last time, otherwise the
+            // algorithm wouldn't have triggered anyway.
+            long totalWriteLength = 0;
+            while (totalWriteLength < 1 + (1 + ConcurrencyManager.SIGNIFICANT_DIFFERENCE) * previousTotalWriteLength) {
+                m.writeCompleted(writeSize);
+                totalWriteLength += writeSize;
+            }
+
+            previousTotalWriteLength = totalWriteLength;
+            time.addAndGet(TIME_INCREMENT);
+
+            int newParallelism = m.getOrUpdateParallelism();
+            Assert.assertEquals("Not expecting parallelism to change.", parallelism, newParallelism);
+            Assert.assertEquals("Not expecting parallelism to change.", parallelism, m.getCurrentParallelism());
+        }
+    }
+
     private ConcurrencyManager create(Supplier<Long> timeSupplier) {
         return new ConcurrencyManager(MIN_PARALLELISM, MAX_PARALLELISM, timeSupplier);
     }
