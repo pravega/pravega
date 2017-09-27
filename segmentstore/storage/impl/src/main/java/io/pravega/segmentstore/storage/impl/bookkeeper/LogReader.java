@@ -118,9 +118,19 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
         LedgerMetadata metadata = this.metadata.getLedger(address.getLedgerId());
         assert metadata != null : "no LedgerMetadata could be found with valid LedgerAddress " + address;
+        val allMetadatas = this.metadata.getLedgers();
 
         // Open the ledger.
-        val ledger = Ledgers.openRead(metadata.getLedgerId(), this.bookKeeper, this.config);
+        LedgerHandle ledger;
+        if (allMetadatas.size() == 0 || metadata == allMetadatas.get(allMetadatas.size() - 1)) {
+            // This is our last ledger (the active one); we need to make sure open it without recovery since otherwise we
+            // we would fence ourselves out.
+            ledger = Ledgers.openRead(metadata.getLedgerId(), this.bookKeeper, this.config);
+        } else {
+            // Older ledger. Open with recovery to make sure any uncommitted fragments will be recovered. Since we do our
+            // Log fencing based on the last Ledger, open-fencing this Ledger will not have any adverse effects.
+            ledger = Ledgers.openFence(metadata.getLedgerId(), this.bookKeeper, this.config);
+        }
 
         long lastEntryId = ledger.getLastAddConfirmed();
         if (lastEntryId < address.getEntryId()) {
@@ -130,9 +140,15 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
             return;
         }
 
+        ReadLedger previousLedger;
         try {
             val reader = Exceptions.handleInterrupted(() -> ledger.readEntries(address.getEntryId(), lastEntryId));
+            previousLedger = this.currentLedger;
             this.currentLedger = new ReadLedger(metadata, ledger, reader);
+            if (previousLedger != null) {
+                // Close previous ledger handle.
+                Ledgers.close(previousLedger.handle);
+            }
         } catch (Exception ex) {
             Ledgers.close(ledger);
             close();
