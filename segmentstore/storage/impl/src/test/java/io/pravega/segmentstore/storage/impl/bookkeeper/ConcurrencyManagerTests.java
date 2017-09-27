@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
@@ -22,7 +22,7 @@ import org.junit.Test;
 public class ConcurrencyManagerTests {
     private static final int MIN_PARALLELISM = 1;
     private static final int MAX_PARALLELISM = 100;
-    private static final long TIME_INCREMENT = ConcurrencyManager.UPDATE_FREQUENCY_MILLIS * AbstractTimer.NANOS_TO_MILLIS;
+    private static final long TIME_INCREMENT = ConcurrencyManager.UPDATE_PERIOD_MILLIS * AbstractTimer.NANOS_TO_MILLIS;
 
     /**
      * Tests the ability to update the parallelism in response to increased observed throughput.
@@ -187,47 +187,6 @@ public class ConcurrencyManagerTests {
         int parallelism = m.getOrUpdateParallelism();
         Assert.assertEquals("Unexpected new value of parallelism when data is stale.", expectedParallelism, parallelism);
         Assert.assertEquals("Unexpected value from getCurrentParallelism.", parallelism, m.getCurrentParallelism());
-    }
-
-    /**
-     * Tests the ability to nudge the degree of parallelism in either direction if it gets stuck at the same value for too
-     * long.
-     */
-    @Test
-    public void testStagnation() {
-        final int maxParallelism = 5;
-        final int steps = maxParallelism * ConcurrencyManager.MAX_STAGNATION_AGE * 2 + 1;
-        final int writeSize = 12345;
-        val time = new AtomicLong(0);
-        val m = new ConcurrencyManager(MIN_PARALLELISM, maxParallelism, time::get);
-
-        // Initial write, so we have something to compare against.
-        m.writeCompleted(writeSize);
-        time.addAndGet(TIME_INCREMENT);
-        int previousParallelism = m.getOrUpdateParallelism();
-        int currentAge = 1;
-        for (int i = 0; i < steps; i++) {
-            m.writeCompleted(writeSize);
-            time.addAndGet(TIME_INCREMENT);
-
-            int newParallelism = m.getOrUpdateParallelism();
-            int expectedParallelism = previousParallelism;
-            if (currentAge >= ConcurrencyManager.MAX_STAGNATION_AGE) {
-                if (expectedParallelism == maxParallelism) {
-                    expectedParallelism--;
-                } else {
-                    expectedParallelism++;
-                }
-                currentAge = 1;
-            } else {
-                currentAge++;
-            }
-
-            Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
-            Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
-            previousParallelism = newParallelism;
-        }
-
     }
 
     private ConcurrencyManager create(Supplier<Long> timeSupplier) {

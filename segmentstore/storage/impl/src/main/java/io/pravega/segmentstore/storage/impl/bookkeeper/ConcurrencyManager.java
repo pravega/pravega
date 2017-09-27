@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
@@ -26,13 +26,11 @@ class ConcurrencyManager {
     //region Members
 
     @VisibleForTesting
-    static final double SIGNIFICANT_DIFFERENCE = 0.25;
+    static final double SIGNIFICANT_DIFFERENCE = 0.1;
     @VisibleForTesting
-    static final long UPDATE_FREQUENCY_MILLIS = 1000;
+    static final long UPDATE_PERIOD_MILLIS = 5000; // At most once every 5s.
     @VisibleForTesting
-    static final long STALE_MILLIS = UPDATE_FREQUENCY_MILLIS * 10;
-    @VisibleForTesting
-    static final int MAX_STAGNATION_AGE = 20;
+    static final long STALE_MILLIS = UPDATE_PERIOD_MILLIS * 12; // After 60s of no activity, reset all stats.
     private final int minParallelism;
     private final int maxParallelism;
     private final Supplier<Long> timeSupplier;
@@ -113,6 +111,11 @@ class ConcurrencyManager {
      * @return The degree of parallelism, whether it was updated or not.
      */
     int getOrUpdateParallelism() {
+        if (this.minParallelism == this.maxParallelism) {
+            // Min == Max, so the parallelism will never change.
+            return getCurrentParallelism();
+        }
+
         final long time = this.timeSupplier.get();
         synchronized (this.snapshotLock) {
             // Calculate the most recent throughput and Fill Ratio (of those items that have just been written).
@@ -120,7 +123,7 @@ class ConcurrencyManager {
             if (elapsedMillis >= STALE_MILLIS) {
                 // Too long since the last update; the data we have is no longer relevant. Reset.
                 resetSnapshot(time);
-            } else if (elapsedMillis >= UPDATE_FREQUENCY_MILLIS) {
+            } else if (elapsedMillis >= UPDATE_PERIOD_MILLIS) {
                 // Enough time elapsed since the last update; update the snapshot.
                 updateSnapshot(time, elapsedMillis);
             }
@@ -166,24 +169,13 @@ class ConcurrencyManager {
             parallelism = Math.min(this.maxParallelism, parallelism + 1);
         }
 
-        int age = this.lastSnapshot.age;
-        if (parallelism == this.lastSnapshot.parallelism && age >= MAX_STAGNATION_AGE) {
-            // If we have been stuck at this degree of parallelism for too long, nudge the parallelism up or down by a bit.
-            parallelism = MathHelpers.minMax(parallelism + (parallelism == this.maxParallelism ? -1 : 1), this.minParallelism, this.maxParallelism);
-        }
-
-        if (parallelism != this.lastSnapshot.parallelism) {
-            // Degree of parallelism changed - reset age.
-            age = 0;
-        }
-
         // Update snapshot with the latest stats.
-        this.lastSnapshot = new Snapshot(recentFillRatio, recentThroughput, time, parallelism, age + 1);
+        this.lastSnapshot = new Snapshot(recentFillRatio, recentThroughput, time, parallelism);
     }
 
     @GuardedBy("snapshotLock")
     private void resetSnapshot(long time) {
-        this.lastSnapshot = new Snapshot(0, 0, time, Math.min(this.minParallelism * 2, this.maxParallelism), 1);
+        this.lastSnapshot = new Snapshot(0, 0, time, Math.min(this.minParallelism * 4, this.maxParallelism));
     }
 
     //endregion
@@ -196,12 +188,11 @@ class ConcurrencyManager {
         final double throughput;
         final long timeStamp;
         final int parallelism;
-        final int age;
 
         @Override
         public String toString() {
-            return String.format("Throughput = %.1f B/ms, FillRatio = %.2f, Parallelism = %d, Age = %d",
-                    this.throughput, this.fillRatio, this.parallelism, this.age);
+            return String.format("Throughput = %.1f B/ms, FillRatio = %.2f, Parallelism = %d",
+                    this.throughput, this.fillRatio, this.parallelism);
         }
     }
 
