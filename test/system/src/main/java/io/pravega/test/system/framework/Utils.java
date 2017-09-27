@@ -41,7 +41,7 @@ public class Utils {
 
     public static boolean isDockerLocalExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
-        return dockerConfig.trim().equalsIgnoreCase("DOCKER") ?  true : false;
+        return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
 
     }
 }

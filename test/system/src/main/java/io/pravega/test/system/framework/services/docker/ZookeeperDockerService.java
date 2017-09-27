@@ -81,7 +81,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE).command("/opt/zookeeper/bin/zkServer.sh", "start-foreground")
                         .healthcheck(ContainerConfig.Healthcheck.create(null,
-                                1000000000L, 1000000000L, 3)).args("zookeeper").build())
+                                1000000000L, 1000000000L, 3)).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())

@@ -570,13 +570,11 @@ project('test:system') {
             }
         }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
-        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
 
-        description 'Used to invoke system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
+        description 'Used to invoke docker based system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'
         testClassesDir = sourceSets.test.output.classesDir
         classpath = sourceSets.test.runtimeClasspath
 
-        systemProperty "test_collection_jar_path", "$jar.archivePath.path"
         systemProperty "execType", System.getProperty("execType")
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
@@ -598,11 +596,8 @@ project('test:system') {
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
-        systemProperty "testVersion", pravegaVersion
-        systemProperty "testArtifactUrl", "${repoUrl}/io/pravega/pravega-test-system/" +
-                pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
-        onlyIf { dockerRegistryUrl && repoUrl }
+        onlyIf { dockerRegistryUrl }
     }
 }
 

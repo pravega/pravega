@@ -76,8 +76,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
 
             for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
-                Service service = dockerClient.inspectService(serviceId);
-                if (service.spec().mode().replicated().replicas() == dockerClient.listContainers(DockerClient.ListContainersParam.filter("args", serviceName)).size()) {
+                if (!serviceId.isEmpty()) {
                     value = true;
                     break;
                 }
@@ -126,7 +125,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             String serviceId = dockerClient.listServices(criteria).get(0).id();
             dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).build());
             String updateState = dockerClient.inspectService(serviceId).updateStatus().state();
-            log.info(" update state {}", updateState);
+            log.info("update state {}", updateState);
             if (wait) {
                 waitUntilServiceRunning().get();
             }

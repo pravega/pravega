@@ -21,6 +21,8 @@ import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
+import org.junit.Assert;
+
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -104,6 +106,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 CLIENT.copyToContainer(dockerDirectory, id, "/data");
             } catch (IOException | DockerException | InterruptedException e) {
                 log.error("Exception while copying test jar to the container ", e);
+                Assert.fail("Unable to copy test jar to the container.Test failure");
             }
 
             // Inspect container
@@ -114,6 +117,7 @@ public class DockerRemoteSequential implements TestExecutor {
 
         } catch (DockerException | InterruptedException e) {
             log.error("exception in starting container ", e);
+            Assert.fail("Unable to start the container to invoke the test.Test failure");
         }
         return id;
     }
@@ -132,7 +136,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DdockerExecLocal="+ Utils.isDockerLocalExecEnabled()+ " -DmasterIP="+System.getProperty("masterIP")+ " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                .cmd("sh", "-c", "java -DmasterIP="+System.getProperty("masterIP")+ " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
                         className + "#" + methodName + " > "+  className + "#" + methodName + "server.log 2>&1" + "; exit $?")
                 .labels(labels)
                 .build();

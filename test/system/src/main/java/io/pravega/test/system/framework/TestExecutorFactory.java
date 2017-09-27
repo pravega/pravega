@@ -17,14 +17,14 @@ public class TestExecutorFactory {
 
     public enum TestExecutorType {
         LOCAL,
-        DOCKER_BASED,
+        DOCKER,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: Yet to be implemented.
     }
 
     public static TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
-            case DOCKER_BASED :
+            case DOCKER:
                 return DOCKER_EXECUTOR;
             case REMOTE_SEQUENTIAL:
                 return MARATHON_SEQUENTIAL_EXECUTOR;

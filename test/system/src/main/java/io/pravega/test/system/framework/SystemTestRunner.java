@@ -60,7 +60,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         } else {
             //read the type of testExecutor from system property. This is sent by the gradle task. By default
             //the tests are executed locally.
-            TestExecutorType executionType = TestExecutorType.valueOf(System.getProperty("execType", "LOCAL"));
+            TestExecutorType executionType = TestExecutorType.valueOf(Utils.getConfig("execType", "LOCAL"));
             invokeTest(notifier, executionType, method);
         }
     }
