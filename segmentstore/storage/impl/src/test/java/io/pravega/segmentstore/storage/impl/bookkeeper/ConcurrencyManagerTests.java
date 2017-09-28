@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.AbstractTimer;
+import io.pravega.common.MathHelpers;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import lombok.val;
@@ -80,7 +81,7 @@ public class ConcurrencyManagerTests {
         }
         time.addAndGet(TIME_INCREMENT);
         int previousParallelism = m.getOrUpdateParallelism();
-
+        boolean previousDecrease = false;
         for (int i = 0; i < steps; i++) {
             // Record a bunch of writes, but make sure we always record significantly less than last time, otherwise no
             // change would happen.
@@ -94,53 +95,7 @@ public class ConcurrencyManagerTests {
             time.addAndGet(TIME_INCREMENT);
 
             int newParallelism = m.getOrUpdateParallelism();
-            int expectedParallelism = Math.max(previousParallelism - 1, MIN_PARALLELISM);
-            Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
-            Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
-            previousParallelism = newParallelism;
-        }
-    }
-
-    /**
-     * Tests the ability to update the parallelism in response to decreased observed throughput, and increasing latency.
-     */
-    @Test
-    public void testDecreasingThroughputHigherLatency() {
-        final int steps = 5;
-        final int writeSize = BookKeeperConfig.MAX_APPEND_LENGTH / 10;
-        final long initialWriteLength = 10 * writeSize;
-        val time = new AtomicLong(0);
-        val m = create(time::get);
-
-        // Initial setup - this will end up increasing the parallelism a bit, so we want to exclude it from our tests.
-        long previousTotalWriteLength = 0;
-        long latency = steps * 1000;
-        while (previousTotalWriteLength < initialWriteLength) {
-            m.writeCompleted(writeSize, latency);
-            previousTotalWriteLength += writeSize;
-        }
-        time.addAndGet(TIME_INCREMENT);
-        int previousParallelism = m.getOrUpdateParallelism();
-
-        boolean previousDecrease = false;
-        for (int i = 0; i < steps; i++) {
-            // Record a bunch of writes, but make sure we always record significantly less than last time, otherwise no
-            // change would happen.
-            long totalWriteLength = 0;
-            latency -= latency * ConcurrencyManager.SIGNIFICANT_DIFFERENCE + 10;
-            while (totalWriteLength + writeSize < (1 - ConcurrencyManager.SIGNIFICANT_DIFFERENCE) * previousTotalWriteLength) {
-                m.writeCompleted(writeSize, latency);
-                totalWriteLength += writeSize;
-            }
-
-            previousTotalWriteLength = totalWriteLength;
-            time.addAndGet(TIME_INCREMENT);
-
-            // Latency always decreases significantly. If the previous change was a downward adjustment, then we are now
-            // expecting an upward adjustment.
-            int expectedParallelism = previousParallelism + (previousDecrease ? 1 : -1);
-            expectedParallelism = Math.max(expectedParallelism, MIN_PARALLELISM);
-            int newParallelism = m.getOrUpdateParallelism();
+            int expectedParallelism = MathHelpers.minMax(previousParallelism + (previousDecrease ? 1 : -1), MIN_PARALLELISM, MAX_PARALLELISM);
             Assert.assertEquals("Unexpected new value of parallelism.", expectedParallelism, newParallelism);
             Assert.assertEquals("Unexpected value from getCurrentParallelism.", newParallelism, m.getCurrentParallelism());
             previousDecrease = newParallelism < previousParallelism;

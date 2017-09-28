@@ -123,8 +123,8 @@ class ConcurrencyManager {
      * How it works:
      * * Compares Throughput and Latency in the period that just ended with the period before (normalizes based on interval duration).
      * * If Throughput increases, the Parallelism is increased.
-     * * If Throughput decreases, the Parallelism is decreased. An exception is if Latency also decreased and the last
-     * action we took prior to this was to decrease Parallelism, in which case the Parallelism is increased.
+     * * If Throughput decreases, the Parallelism is decreased. An exception is if the last action we took prior to this
+     * was to decrease Parallelism, in which case the Parallelism is increased.
      * * If Throughput does not change (significantly), then the Parallelism is changed in the opposite direction
      * in which Latency changed.
      * * If we were unable to change Parallelism for a long time, it will be automatically decreased in an effort
@@ -183,10 +183,10 @@ class ConcurrencyManager {
         if (significantThroughputChange) {
             // Throughput changed significantly. Adjust parallelism in the same direction as throughput change.
             delta = (int) Math.signum(throughputDifference);
-            if (throughputDifference < 0 && significantLatencyChange && recentLatency < this.lastSnapshot.latency && this.lastSnapshot.delta < 0) {
-                // Special case: If throughput decreased, and so did latency, and the last action we took was a decrease,
-                // then we should revert that action and increase again. It is very likely the decrease in throughput was a
-                // result of us lowering the parallelism.
+            if (throughputDifference < 0 && this.lastSnapshot.delta < 0) {
+                // Special case: If throughput decreased, and the last action we took was a decrease, then we should
+                // revert that action and increase again. It is very likely the decrease in throughput was a result of
+                // us lowering the parallelism.
                 delta = 1;
             }
         } else if (significantLatencyChange) {
