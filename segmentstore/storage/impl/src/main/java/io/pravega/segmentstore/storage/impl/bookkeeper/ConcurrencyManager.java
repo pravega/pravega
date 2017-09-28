@@ -109,10 +109,26 @@ class ConcurrencyManager {
 
     /**
      * Updates the degree of parallelism (if needed), based on information collected since the last time this method was called.
-     * Notes:
-     * * Only changes something if throughput changed significantly since the last time.
-     * * Changes the degree of parallelism in the same direction as throughput.
-     * ** Exception is if both throughput and the fill ratio are declining, in which case nothing is done.
+     * General Notes:
+     * * If Min and Max Parallelism are the same, this method doesn't change anything.
+     * * Only attempts to change something if enough time passed since the last call to this method that made a change.
+     * * Any change to Parallelism will be done in increments of 1 (either up or down).
+     *
+     * Important Observations:
+     * * BookKeeper (BK) write throughput and latency, for a constant write size, will increase with the degree of parallelism
+     * until a certain point, after which throughput plateaus and latency starts to rise at a higher rate.
+     * * The optimal degree of parallelism varies based on a number of factors, such as write size, cluster configuration
+     * and cluster load/network capacity.
+     *
+     * How it works:
+     * * Compares Throughput and Latency in the period that just ended with the period before (normalizes based on interval duration).
+     * * If Throughput increases, the Parallelism is increased.
+     * * If Throughput decreases, the Parallelism is decreased. An exception is if Latency also decreased and the last
+     * action we took prior to this was to decrease Parallelism, in which case the Parallelism is increased.
+     * * If Throughput does not change (significantly), then the Parallelism is changed in the opposite direction
+     * in which Latency changed.
+     * * If we were unable to change Parallelism for a long time, it will be automatically decreased in an effort
+     * to get out of a local optimum where it may have been stuck.
      *
      * @return The degree of parallelism, whether it was updated or not.
      */
@@ -139,7 +155,7 @@ class ConcurrencyManager {
     }
 
     /**
-     * Updates the current snapshot based on the current data.
+     * Updates the current snapshot based on the current data. See getOrUpdateParallelism() documentation for how this works.
      *
      * @param time          The current time, in millis.
      * @param elapsedMillis The elapsed time, in millis, since the last time this method ran.
