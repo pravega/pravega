@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -75,7 +76,7 @@ import org.apache.hadoop.fs.FileSystem;
  * details in the code for each.
  */
 @Slf4j
-class HDFSStorage implements Storage {
+class HDFSStorage extends HealthReporter implements Storage {
     //region Members
 
     private final Executor executor;

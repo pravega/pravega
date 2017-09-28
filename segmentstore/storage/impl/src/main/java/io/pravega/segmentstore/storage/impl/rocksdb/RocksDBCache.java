@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.Cache;
@@ -33,7 +34,7 @@ import org.rocksdb.WriteOptions;
  * RocksDB-backed Cache.
  */
 @Slf4j
-class RocksDBCache implements Cache {
+class RocksDBCache extends HealthReporter implements Cache {
     //region Members
 
     private static final String FILE_PREFIX = "cache_";
@@ -250,6 +251,5 @@ class RocksDBCache implements Cache {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.database.get() != null, "%s has not been initialized.", this.logId);
     }
-
     //endregion
 }

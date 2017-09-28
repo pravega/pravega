@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ImmutableDate;
@@ -698,7 +699,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()));
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
@@ -711,7 +712,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         try (
@@ -766,7 +767,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Setup a DurableLog and start it.
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
@@ -777,7 +778,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         try (
@@ -877,7 +878,7 @@ public class DurableLogTests extends OperationLogTestBase {
         final long truncatedSeqNo = Integer.MAX_VALUE;
         // Setup a DurableLog and start it.
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()));
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
@@ -886,7 +887,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         val metadata1 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         SegmentProperties originalSegmentInfo;
@@ -966,14 +967,14 @@ public class DurableLogTests extends OperationLogTestBase {
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
         AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         @Cleanup
@@ -1083,14 +1084,14 @@ public class DurableLogTests extends OperationLogTestBase {
         AtomicReference<TestDurableDataLog> dataLog = new AtomicReference<>();
         AtomicReference<Boolean> truncationOccurred = new AtomicReference<>();
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()), dataLog::set);
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         @Cleanup
@@ -1169,14 +1170,14 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a DurableLog and start it.
         @Cleanup
-        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
+        TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl()));
         @Cleanup
         Storage storage = new InMemoryStorage(executorService());
         storage.initialize(1);
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
+        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
         @Cleanup
         CacheManager cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), executorService());
         @Cleanup
@@ -1358,9 +1359,9 @@ public class DurableLogTests extends OperationLogTestBase {
         ContainerSetup(ScheduledExecutorService executorService) {
             this.dataLog = new AtomicReference<>();
             this.executorService = executorService;
-            this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
+            this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService, new HealthRequestProcessorImpl()), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new InMemoryCacheFactory();
+            this.cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
             this.storage = new InMemoryStorage(this.executorService);
             this.storage.initialize(1);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);

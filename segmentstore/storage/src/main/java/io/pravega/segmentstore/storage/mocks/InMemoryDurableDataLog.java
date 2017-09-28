@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.OrderedItemProcessor;
@@ -36,12 +37,14 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * In-Memory Mock for DurableDataLog. Contents is destroyed when object is garbage collected.
  */
 @ThreadSafe
-class InMemoryDurableDataLog implements DurableDataLog {
+@Slf4j
+class InMemoryDurableDataLog extends HealthReporter implements DurableDataLog {
     static final Supplier<Duration> DEFAULT_APPEND_DELAY_PROVIDER = () -> Duration.ZERO; // No delay.
     private static final int DEFAULT_WRITE_CONCURRENCY = 10; // TODO: consider making configurable (if there's a need).
     private final EntryCollection entries;
@@ -186,6 +189,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(this.initialized, "InMemoryDurableDataLog is not initialized.");
     }
+
+
 
     //region ReadResultIterator
 

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -33,8 +34,13 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -45,7 +51,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
  * Starts the Pravega Service.
  */
 @Slf4j
-public final class ServiceStarter {
+public final class ServiceStarter extends HealthReporter {
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -69,6 +75,7 @@ public final class ServiceStarter {
 
     private ServiceBuilder createServiceBuilder(Options options) {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
+
         if (options.bookKeeper) {
             attachBookKeeper(builder);
         }
@@ -116,6 +123,7 @@ public final class ServiceStarter {
                 this.serviceConfig.getListeningPort(), service, statsRecorder);
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
+
         log.info("StreamSegmentService started.");
     }
 
@@ -150,12 +158,12 @@ public final class ServiceStarter {
     }
 
     private void attachBookKeeper(ServiceBuilder builder) {
-        builder.withDataLogFactory(setup ->
-                new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor()));
+        builder.withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getExecutor(), setup.getHealthProcessor()));
+
     }
 
     private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
+        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), setup.getHealthProcessor()));
     }
 
     private void attachStorage(ServiceBuilder builder) {
@@ -166,15 +174,15 @@ public final class ServiceStarter {
                 switch (storageChoice) {
                     case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor(), setup.getHealthProcessor());
 
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor(), setup.getHealthProcessor());
 
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor(), setup.getHealthProcessor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());
@@ -232,6 +240,7 @@ public final class ServiceStarter {
             config.forEach((key, value) -> log.info("{} = {}", key, value));
             serviceStarter.set(new ServiceStarter(config, Options.builder()
                     .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
+
         } catch (Throwable e) {
             log.error("Could not create a Service with default config, Aborting.", e);
             System.exit(1);
@@ -257,6 +266,28 @@ public final class ServiceStarter {
         } finally {
             serviceStarter.get().shutdown();
         }
+    }
+
+    //endregion
+
+    //Health reporter executor
+
+    @Override
+    public Map<String, Consumer<DataOutputStream>> createHandlers() {
+        Map<String, Consumer<DataOutputStream>> handlerMap = new HashMap<>();
+        handlerMap.put("ruok", this::handleRuok);
+        handlerMap.put("conf", this::printConf);
+        return handlerMap;
+    }
+
+    private void printConf(DataOutputStream dataOutputStream) {
+        this.builderConfig.forEach((prop, val) -> {
+            try {
+                dataOutputStream.writeChars(prop.toString() + " : " + val.toString() + "\n");
+            } catch (IOException e) {
+                log.warn("Error while writing the property");
+            }
+        });
     }
 
     //endregion

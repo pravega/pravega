@@ -17,6 +17,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.SequentialAsyncProcessor;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -75,7 +76,7 @@ import org.apache.zookeeper.data.Stat;
  */
 @Slf4j
 @ThreadSafe
-class BookKeeperLog implements DurableDataLog {
+class BookKeeperLog extends HealthReporter implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;

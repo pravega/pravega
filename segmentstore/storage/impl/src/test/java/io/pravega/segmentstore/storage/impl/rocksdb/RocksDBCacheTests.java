@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.rocksdb;
 
 import com.google.common.io.Files;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheTestBase;
 import java.io.File;
@@ -33,7 +34,7 @@ public class RocksDBCacheTests extends CacheTestBase {
     public void setUp() {
         this.tempDir.set(Files.createTempDir());
         this.config.set(RocksDBConfig.builder().with(RocksDBConfig.DATABASE_DIR, tempDir.get().getAbsolutePath()).build());
-        this.factory.set(new RocksDBCacheFactory(this.config.get()));
+        this.factory.set(new RocksDBCacheFactory(this.config.get(), new HealthRequestProcessorImpl()));
     }
 
     @After

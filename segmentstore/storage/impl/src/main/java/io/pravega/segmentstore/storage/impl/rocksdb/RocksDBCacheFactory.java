@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.rocksdb;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import com.google.common.base.Preconditions;
@@ -31,6 +32,7 @@ public class RocksDBCacheFactory implements CacheFactory {
     private final HashMap<String, RocksDBCache> caches;
     private final RocksDBConfig config;
     private final AtomicBoolean closed;
+    private final HealthRequestProcessor healthRequestProcessor;
 
     //endregion
 
@@ -40,13 +42,15 @@ public class RocksDBCacheFactory implements CacheFactory {
      * Creates a new instance of the RocksDBCacheFactory class.
      *
      * @param config The configuration to use.
+     * @param healthRequestProcessor the processor for sending health requests to the cache implementation.
      */
-    public RocksDBCacheFactory(RocksDBConfig config) {
+    public RocksDBCacheFactory(RocksDBConfig config, HealthRequestProcessor healthRequestProcessor) {
         Preconditions.checkNotNull(config, "config");
 
         this.config = config;
         this.caches = new HashMap<>();
         this.closed = new AtomicBoolean();
+        this.healthRequestProcessor = healthRequestProcessor;
 
         RocksDB.loadLibrary();
         log.info("{}: Initialized.", LOG_ID);
@@ -86,6 +90,7 @@ public class RocksDBCacheFactory implements CacheFactory {
             result = this.caches.get(id);
             if (result == null) {
                 result = new RocksDBCache(id, this.config, this::cacheClosed);
+                healthRequestProcessor.registerHealthProcessor("segmentstore/cache/" + id, result);
                 this.caches.put(id, result);
                 isNew = true;
             }
@@ -103,6 +108,5 @@ public class RocksDBCacheFactory implements CacheFactory {
             this.caches.remove(cacheId);
         }
     }
-
     //endregion
 }

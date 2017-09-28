@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
@@ -34,7 +35,7 @@ public class InMemoryDurableDataLogTests extends DurableDataLogTestBase {
 
     @Before
     public void setUp() {
-        this.factory = new InMemoryDurableDataLogFactory(executorService());
+        this.factory = new InMemoryDurableDataLogFactory(executorService(), new HealthRequestProcessorImpl());
     }
 
     @After

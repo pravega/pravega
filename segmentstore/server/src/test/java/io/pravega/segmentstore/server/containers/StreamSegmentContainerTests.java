@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
@@ -1369,9 +1370,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         TestContext(ContainerConfig config) {
             this.storageFactory = new InMemoryStorageFactory(executorService());
-            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
+            this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService(), new HealthRequestProcessorImpl());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
-            this.cacheFactory = new InMemoryCacheFactory();
+            this.cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,

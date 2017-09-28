@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.host;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
+import io.pravega.common.health.processor.HealthRequestProcessor;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -78,9 +80,10 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
 
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
+        HealthRequestProcessor healthProcessor = new HealthRequestProcessorImpl();
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder), healthProcessor))
                 .withStorageFactory(setup -> {
                     StorageFactory f = new LocalExtendedS3StorageFactory(
                             setup.getConfig(ExtendedS3StorageConfig::builder),
@@ -88,7 +91,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                        bookkeeper.getZkClient(), setup.getExecutor()));
+                        bookkeeper.getZkClient(), setup.getExecutor(), healthProcessor));
     }
 
 

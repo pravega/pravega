@@ -37,6 +37,9 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageTypes.INMEMORY.toString());
+    public static final Property<Boolean> ENABLE_HEALTHREPORTING = Property.named("enableHealthReporting", false);
+    public static final Property<String> HEALTH_REPORTER_IPADDRESS = Property.named("healthReporterIPAddress", "localhost");
+    public static final Property<Integer> HEALTH_REPORTER_PORT = Property.named("HealthReporterPort", 7070);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -130,6 +133,24 @@ public class ServiceConfig {
     @Getter
     private final String storageImplementation;
 
+    /**
+     * Enable health reporting (RUOK)
+     */
+    @Getter
+    private final boolean enableHealthReporting;
+
+    /**
+     * IP address for the healthreporter to bind to.
+     */
+    @Getter
+    private final String healthReporterIPAddress;
+
+    /**
+     * Port for the healthreporter to bind to.
+     */
+    @Getter
+    private final int healthReporterPort;
+
     //endregion
 
     //region Constructor
@@ -171,6 +192,10 @@ public class ServiceConfig {
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
+
+        this.enableHealthReporting = properties.getBoolean(ENABLE_HEALTHREPORTING);
+        this.healthReporterIPAddress = properties.get(HEALTH_REPORTER_IPADDRESS);
+        this.healthReporterPort = properties.getInt(HEALTH_REPORTER_PORT);
     }
 
     /**

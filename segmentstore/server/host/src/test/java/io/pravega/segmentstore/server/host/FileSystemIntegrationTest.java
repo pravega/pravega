@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import io.pravega.common.health.processor.HealthRequestProcessor;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -65,16 +67,17 @@ public class FileSystemIntegrationTest extends StreamSegmentStoreTestBase {
 
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig builderConfig) {
+        HealthRequestProcessor healthProcessor = new HealthRequestProcessorImpl();
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder), healthProcessor))
                 .withStorageFactory(setup -> {
                     StorageFactory f = new FileSystemStorageFactory(
-                            setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor());
+                            setup.getConfig(FileSystemStorageConfig::builder), setup.getExecutor(), new HealthRequestProcessorImpl());
                     return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
-                                                            bookkeeper.getZkClient(), setup.getExecutor()));
+                                                            bookkeeper.getZkClient(), setup.getExecutor(), healthProcessor));
     }
 
     //endregion

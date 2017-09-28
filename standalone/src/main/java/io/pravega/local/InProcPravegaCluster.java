@@ -240,6 +240,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     .include(System.getProperties())
                     .include(ServiceConfig.builder()
                                           .with(ServiceConfig.CONTAINER_COUNT, containerCount)
+                                          .with(ServiceConfig.ENABLE_HEALTHREPORTING, true)
                                           .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                                           .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
                                           .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])

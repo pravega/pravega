@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,7 +51,7 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
 
     private static class PermanentDurableDataLogFactory extends InMemoryDurableDataLogFactory {
         PermanentDurableDataLogFactory(ScheduledExecutorService executorService) {
-            super(executorService);
+            super(executorService, new HealthRequestProcessorImpl());
         }
 
         @Override

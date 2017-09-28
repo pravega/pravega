@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.HealthRequestProcessor;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerManager;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -44,6 +45,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
     @GuardedBy("handles")
     private final HashMap<Integer, ContainerHandle> handles;
     private final AtomicBoolean closed;
+    private final HealthRequestProcessor healthProcessor;
 
     //endregion
 
@@ -55,18 +57,20 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
      * @param containerRegistry        The SegmentContainerRegistry to manage.
      * @param segmentToContainerMapper A SegmentToContainerMapper that is used to determine the configuration of the cluster
      *                                 (i.e., number of containers).
+     * @param healthProcessor           Health processor to report health.
      * @throws NullPointerException     If containerRegistry is null.
      * @throws NullPointerException     If segmentToContainerMapper is null.
      * @throws NullPointerException     If logger is null.
      * @throws IllegalArgumentException If containerRegistry already has Containers registered in it.
      */
-    public LocalSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
+    public LocalSegmentContainerManager(SegmentContainerRegistry containerRegistry, SegmentToContainerMapper segmentToContainerMapper, HealthRequestProcessor healthProcessor) {
         Preconditions.checkNotNull(containerRegistry, "containerRegistry");
         Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
         Exceptions.checkArgument(containerRegistry.getContainerCount() == 0, "containerRegistry", "containerRegistry already has containers registered.");
 
         this.registry = containerRegistry;
         this.segmentToContainerMapper = segmentToContainerMapper;
+        this.healthProcessor = healthProcessor;
         this.handles = new HashMap<>();
         this.closed = new AtomicBoolean();
     }

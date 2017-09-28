@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -89,7 +90,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
+                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder), null))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     SingletonStorageFactory factory = new SingletonStorageFactory(setup.getExecutor());
@@ -117,11 +118,11 @@ class SegmentStoreAdapter extends StoreAdapter {
             this.zkClient.start();
             return builder.withDataLogFactory(setup -> {
                 BookKeeperConfig bkConfig = setup.getConfig(BookKeeperConfig::builder);
-                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor());
+                return new BookKeeperLogFactory(bkConfig, this.zkClient, setup.getExecutor(), new HealthRequestProcessorImpl());
             });
         } else {
             // No Bookies -> InMemory Tier1.
-            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()));
+            return builder.withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor(), new HealthRequestProcessorImpl()));
         }
     }
 

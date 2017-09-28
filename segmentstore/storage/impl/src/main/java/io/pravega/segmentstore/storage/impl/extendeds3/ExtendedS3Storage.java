@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.health.HealthReporter;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -78,7 +79,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtendedS3Storage implements Storage {
+public class ExtendedS3Storage extends HealthReporter implements Storage {
 
     //region members
 
@@ -490,5 +491,4 @@ public class ExtendedS3Storage implements Storage {
     }
 
     //endregion
-
 }

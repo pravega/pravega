@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
+import io.pravega.common.health.processor.impl.HealthRequestProcessorImpl;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
@@ -633,7 +634,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.cacheFactory = new InMemoryCacheFactory();
+            this.cacheFactory = new InMemoryCacheFactory(new HealthRequestProcessorImpl());
             this.storage = new InMemoryStorage(executorService());
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
