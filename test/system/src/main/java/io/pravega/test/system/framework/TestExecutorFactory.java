@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework;
 
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
