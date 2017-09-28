@@ -124,27 +124,6 @@ public class SelfTestRunner {
     private static ServiceBuilderConfig.Builder getDefaultServiceBuilderConfig() {
         return ServiceBuilderConfig
                 .builder()
-                .include(TestConfig.builder()
-                                   // Test params.
-                                   .with(TestConfig.PRODUCER_COUNT, 100)
-                                   .with(TestConfig.PRODUCER_PARALLELISM, 10) // How many concurrent ops per producer
-                                   .with(TestConfig.OPERATION_COUNT, 1000000)
-                                   .with(TestConfig.STREAM_COUNT, 2)
-                                   .with(TestConfig.CONTAINER_COUNT, 2)
-                                   .with(TestConfig.MIN_APPEND_SIZE, 30)
-                                   .with(TestConfig.MAX_APPEND_SIZE, 1000)
-                                   .with(TestConfig.TEST_TYPE, TestConfig.TestType.SegmentStore.toString())
-
-                                   // Transaction setup.
-                                   .with(TestConfig.MAX_TRANSACTION_SIZE, 20)
-                                   .with(TestConfig.TRANSACTION_FREQUENCY, Integer.MAX_VALUE)
-
-                                   // Test setup.
-                                   .with(TestConfig.THREAD_POOL_SIZE, 80)
-                                   .with(TestConfig.TIMEOUT_MILLIS, 3000)
-
-                                   // Tier1
-                                   .with(TestConfig.BOOKIE_COUNT, 1))
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 30))
                 .include(DurableLogConfig.builder()

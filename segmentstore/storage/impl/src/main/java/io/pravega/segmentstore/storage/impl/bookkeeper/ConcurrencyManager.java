@@ -26,17 +26,21 @@ class ConcurrencyManager {
     //region Members
 
     @VisibleForTesting
-    static final double SIGNIFICANT_DIFFERENCE = 0.1;
+    static final double SIGNIFICANT_DIFFERENCE = 0.25; // Changes below this will be ignored.
     @VisibleForTesting
-    static final long UPDATE_PERIOD_MILLIS = 5000; // At most once every 5s.
+    static final long UPDATE_PERIOD_MILLIS = 1000; // Min interval for updates.
     @VisibleForTesting
-    static final long STALE_MILLIS = UPDATE_PERIOD_MILLIS * 12; // After 60s of no activity, reset all stats.
+    static final long STALE_MILLIS = UPDATE_PERIOD_MILLIS * 15; // Reset all stats if no activity in this interval.
+    @VisibleForTesting
+    static final int MAX_STAGNATION_AGE = 10;
     private final int minParallelism;
     private final int maxParallelism;
     private final Supplier<Long> timeSupplier;
     private final Object snapshotLock = new Object();
     @GuardedBy("this")
     private long recentTotalWrittenLength;
+    @GuardedBy("this")
+    private long recentTotalLatencyMillis;
     @GuardedBy("this")
     private int recentWriteCount;
     @GuardedBy("snapshotLock")
@@ -81,12 +85,14 @@ class ConcurrencyManager {
     /**
      * Records the fact that a write with the given length has just completed successfully.
      *
-     * @param writeLength The length of the write that completed.
+     * @param writeLength   The length of the write that completed.
+     * @param elapsedMillis The amount of time, in millis, that this write took to complete.
      */
-    void writeCompleted(int writeLength) {
+    void writeCompleted(int writeLength, long elapsedMillis) {
         synchronized (this) {
             this.recentWriteCount++;
             this.recentTotalWrittenLength += writeLength;
+            this.recentTotalLatencyMillis += elapsedMillis;
         }
     }
 
@@ -140,42 +146,59 @@ class ConcurrencyManager {
      */
     @GuardedBy("snapshotLock")
     private void updateSnapshot(long time, long elapsedMillis) {
-        final int recentCount;
-        final long recentLength;
+        final double recentThroughput;
+        final long recentLatency;
         synchronized (this) {
-            recentCount = this.recentWriteCount;
-            recentLength = this.recentTotalWrittenLength;
+            recentThroughput = (double) this.recentTotalWrittenLength / elapsedMillis;
+            recentLatency = this.recentWriteCount == 0 ? 0 : this.recentTotalLatencyMillis / this.recentWriteCount;
             this.recentWriteCount = 0;
             this.recentTotalWrittenLength = 0;
+            this.recentTotalLatencyMillis = 0;
         }
 
-        final double recentThroughput = (double) recentLength / elapsedMillis;
-        final double recentFillRatio = WriteQueue.calculateFillRatio(recentLength, recentCount);
         final double throughputDifference = recentThroughput - this.lastSnapshot.throughput;
+        final long latencyDifference = recentLatency - this.lastSnapshot.latency;
+        boolean significantThroughputChange = Math.abs(throughputDifference / this.lastSnapshot.throughput) >= SIGNIFICANT_DIFFERENCE;
+        boolean significantLatencyChange = this.lastSnapshot.latency == 0
+                ? latencyDifference != 0
+                : Math.abs((double) latencyDifference / this.lastSnapshot.latency) >= SIGNIFICANT_DIFFERENCE;
 
-        int parallelism = this.lastSnapshot.parallelism;
-        if (Math.abs(throughputDifference / this.lastSnapshot.throughput) >= SIGNIFICANT_DIFFERENCE) {
-            // Throughput changed significantly.
-            // But first, check for a special case. If both Throughput and Fill Ratio are decreasing, then most likely the
-            // former is a result of the latter. As such, don't do anything, in that case.
-            boolean fillRatioDecreased = (recentFillRatio - this.lastSnapshot.fillRatio) <= -SIGNIFICANT_DIFFERENCE;
-            if (throughputDifference > 0 || !fillRatioDecreased) {
-                // Either the throughput increased or the Fill Ratio did not decrease significantly.
-                // Change the parallelism in the same direction as Throughput.
-                // Update the degree of parallelism, but make sure we don't exceed the given bounds.
-                parallelism = MathHelpers.minMax(parallelism + (int) Math.signum(throughputDifference), this.minParallelism, this.maxParallelism);
+        int delta = 0;
+        if (significantThroughputChange) {
+            // Throughput changed significantly. Adjust parallelism in the same direction as throughput change.
+            delta = (int) Math.signum(throughputDifference);
+            if (throughputDifference < 0 && significantLatencyChange && recentLatency < this.lastSnapshot.latency && this.lastSnapshot.delta < 0) {
+                // Special case: If throughput decreased, and so did latency, and the last action we took was a decrease,
+                // then we should revert that action and increase again. It is very likely the decrease in throughput was a
+                // result of us lowering the parallelism.
+                delta = 1;
             }
-        } else if (parallelism == this.minParallelism) {
-            parallelism = Math.min(this.maxParallelism, parallelism + 1);
+        } else if (significantLatencyChange) {
+            // Throughput did not change significantly; if Latency did, then adjust in the opposite direction of the latency change.
+            delta = -(int) Math.signum(latencyDifference);
+        }
+
+        int age = this.lastSnapshot.age;
+        if (delta == 0 && age >= MAX_STAGNATION_AGE) {
+            // If we have been stuck at this degree of parallelism for too long, nudge the parallelism down to trigger a
+            // change, except if we have been stuck at the min parallelism, in which case we want to nudge up.
+            delta = this.lastSnapshot.parallelism == this.minParallelism ? 1 : -1;
+        }
+
+        if (delta != 0) {
+            // Degree of parallelism changed - reset age.
+            age = 0;
         }
 
         // Update snapshot with the latest stats.
-        this.lastSnapshot = new Snapshot(recentFillRatio, recentThroughput, time, parallelism);
+        int parallelism = MathHelpers.minMax(this.lastSnapshot.parallelism + delta, this.minParallelism, this.maxParallelism);
+        delta = parallelism - this.lastSnapshot.parallelism; // Recalculate actual change.
+        this.lastSnapshot = new Snapshot(recentThroughput, recentLatency, time, parallelism, delta, age + 1);
     }
 
     @GuardedBy("snapshotLock")
     private void resetSnapshot(long time) {
-        this.lastSnapshot = new Snapshot(0, 0, time, Math.min(this.minParallelism * 4, this.maxParallelism));
+        this.lastSnapshot = new Snapshot(0, 0, time, Math.min(this.minParallelism * 2, this.maxParallelism), 0, 1);
     }
 
     //endregion
@@ -184,15 +207,17 @@ class ConcurrencyManager {
 
     @RequiredArgsConstructor
     private static class Snapshot {
-        final double fillRatio;
         final double throughput;
+        final long latency;
         final long timeStamp;
         final int parallelism;
+        final int delta;
+        final int age;
 
         @Override
         public String toString() {
-            return String.format("Throughput = %.1f B/ms, FillRatio = %.2f, Parallelism = %d",
-                    this.throughput, this.fillRatio, this.parallelism);
+            return String.format("TPut=%.1fBps, Latency=%dms, Parallelism=%d, Age=%d",
+                    this.throughput, this.latency, this.parallelism, this.age);
         }
     }
 

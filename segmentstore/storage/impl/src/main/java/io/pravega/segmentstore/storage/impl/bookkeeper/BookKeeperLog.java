@@ -502,7 +502,7 @@ class BookKeeperLog implements DurableDataLog {
      */
     private void completeWrite(Write write) {
         Timer t = write.complete();
-        this.concurrencyManager.writeCompleted(write.data.getLength());
+        this.concurrencyManager.writeCompleted(write.data.getLength(), t == null ? 0 : t.getElapsedMillis());
         if (t != null) {
             this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
         }
