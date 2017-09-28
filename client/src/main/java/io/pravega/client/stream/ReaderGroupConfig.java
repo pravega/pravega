@@ -12,15 +12,13 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+import lombok.Data;
 
+@Data
 @Builder
-@EqualsAndHashCode
 public class ReaderGroupConfig implements Serializable {
-   @Getter
+
    private final Sequence startingPosition;
-   @Getter
    private final long groupRefreshTimeMillis;
 
    public static final class ReaderGroupConfigBuilder {

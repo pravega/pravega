@@ -349,8 +349,10 @@ public class AppendProcessorTest {
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                 StreamSegmentInformation.builder().name(streamSegmentName).attributes(
-                        Collections.singletonMap(clientId, 100L)).build());
+                StreamSegmentInformation.builder()
+                        .name(streamSegmentName)
+                        .attributes(Collections.singletonMap(clientId, 100L))
+                        .build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
@@ -394,9 +396,10 @@ public class AppendProcessorTest {
     }
 
     private void setupGetStreamSegmentInfo(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
-        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
-                 StreamSegmentInformation.builder().name(streamSegmentName).attributes(
-                        Collections.singletonMap(clientId, eventNumber)).build());
+        CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(StreamSegmentInformation.builder()
+                .name(streamSegmentName)
+                .attributes(Collections.singletonMap(clientId, eventNumber))
+                .build());
 
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT))
                 .thenReturn(propsFuture);

@@ -18,12 +18,15 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.URI;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A stream manager. Used to bootstrap the client.
  */
+@Slf4j
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
@@ -43,6 +46,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                         .scope(scopeName)
@@ -55,6 +59,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
+        log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                         .scope(scopeName)
                         .streamName(streamName)
