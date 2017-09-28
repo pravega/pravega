@@ -47,7 +47,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
                 dockerClient.createNetwork(NetworkConfig.builder().driver("overlay").name("docker-network").build());
             }
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to create network {}", e);
+            log.error("Unable to create network {}", e);
         }
         this.serviceName = serviceName;
         }
@@ -61,7 +61,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             List<Service> serviceList = dockerClient.listServices(criteria);
             serviceId = serviceList.get(0).id();
         }  catch (DockerException | InterruptedException  e) {
-            log.error("unable to get service id {}", e);
+            log.error("Unable to get service id {}", e);
         }
         return serviceId;
     }
@@ -82,7 +82,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
                 }
             }
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to list docker services {}", e);
+            log.error("Unable to list docker services {}", e);
         }
         return value;
     }
@@ -112,7 +112,7 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
                 uriList.add(uri);
             }
         }  catch (InterruptedException | DockerException e) {
-            log.error("unable to list service details {}", e);
+            log.error("Unable to list service details {}", e);
         }
         return uriList;
     }

@@ -9,10 +9,15 @@
  */
 package io.pravega.test.system.framework;
 
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
+    @Getter(lazy = true)
     private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
+
+    @Getter(lazy = true)
     private static final TestExecutor DOCKER_EXECUTOR = new DockerRemoteSequential();
 
     public enum TestExecutorType {
@@ -25,9 +30,9 @@ public class TestExecutorFactory {
     public static TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
             case DOCKER:
-                return DOCKER_EXECUTOR;
+                return getDOCKER_EXECUTOR();
             case REMOTE_SEQUENTIAL:
-                return MARATHON_SEQUENTIAL_EXECUTOR;
+                return getMARATHON_SEQUENTIAL_EXECUTOR();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:

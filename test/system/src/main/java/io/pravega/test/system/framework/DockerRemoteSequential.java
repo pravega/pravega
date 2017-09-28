@@ -136,7 +136,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DmasterIP="+System.getProperty("masterIP")+ " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                .cmd("sh", "-c", "java -DmasterIP="+ LoginClient.MESOS_MASTER + " -DexecType="+getConfig("execType", "LOCAL")+ " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
                         className + "#" + methodName + " > "+  className + "#" + methodName + "server.log 2>&1" + "; exit $?")
                 .labels(labels)
                 .build();
