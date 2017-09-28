@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -585,7 +584,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
 
         SegmentProperties getInfo() {
             synchronized (this.lock) {
-                return new StreamSegmentInformation(this.name, this.length, this.sealed, false, new ImmutableDate());
+                return StreamSegmentInformation.builder().name(this.name).length(this.length).sealed(this.sealed).build();
             }
         }
 

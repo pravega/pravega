@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import java.io.DataInputStream;
@@ -53,6 +52,6 @@ public class SegmentStateTests {
         }
 
         return new SegmentState(attributeCount,
-                new StreamSegmentInformation(Integer.toString(attributeCount), 0, false, false, attributes, new ImmutableDate()));
+                StreamSegmentInformation.builder().name(Integer.toString(attributeCount)).attributes(attributes).build());
     }
 }
