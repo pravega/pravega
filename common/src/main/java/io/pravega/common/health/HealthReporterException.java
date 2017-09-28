@@ -11,9 +11,6 @@ package io.pravega.common.health;
 
 import java.io.IOException;
 
-/**
- * Created by kandha on 9/7/17.
- */
 public class HealthReporterException extends RuntimeException {
     public HealthReporterException(IOException e) {
     }

@@ -17,16 +17,43 @@ import io.pravega.common.health.processor.HealthRequestProcessor;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class HealthRequestProcessorImpl extends HealthRequestProcessor {
+public class HealthRequestProcessorImpl extends HealthReporter implements HealthRequestProcessor {
     private final ConcurrentHashMap<String, HealthReporter> reporterMap = new ConcurrentHashMap<>();
 
     public HealthRequestProcessorImpl() {
         super();
+    }
+
+    @Override
+    public Map<String, Consumer<DataOutputStream>> createHandlers() {
+        Map<String, Consumer<DataOutputStream>> handlersMap = new HashMap<>();
+        handlersMap.put("tgts", this::handleTgts);
+        return handlersMap;
+    }
+
+    private void handleTgts(DataOutputStream dataOutputStream) {
+        reporterMap.forEach( (id, reporter) -> {
+            try {
+                dataOutputStream.writeBytes(id + " { ");
+                reporter.listCommands().forEach(cmds -> {
+                    try {
+                        dataOutputStream.writeBytes(cmds + " ");
+                    } catch (IOException e) {
+                        log.warn("Exception while writing");
+                    }
+                });
+                dataOutputStream.writeBytes(" } \n");
+            } catch (IOException e) {
+                log.warn("Error while writing health");
+            }
+        });
     }
 
     @Override
@@ -48,28 +75,6 @@ public class HealthRequestProcessorImpl extends HealthRequestProcessor {
                 }
             } else {
                 throw new NoSuchHealthProcessor(target);
-            }
-        } else {
-            switch (cmd) {
-                case "tgts":
-                    reporterMap.forEach( (id, reporter) -> {
-                        try {
-                            opStr.writeBytes(id + " { ");
-                            reporter.listCommands().forEach(cmds -> {
-                            try {
-                                opStr.writeBytes(cmds + " ");
-                            } catch (IOException e) {
-                                log.warn("Exception while writing");
-                            }
-                        });
-                            opStr.writeBytes(" } \n");
-                        } catch (IOException e) {
-                            log.warn("Error while writing health");
-                        }
-                    });
-                    break;
-                    default:
-                        log.warn("Unknown cmd {}", cmd);
             }
         }
     }

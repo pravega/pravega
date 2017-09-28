@@ -15,7 +15,7 @@ import io.pravega.common.health.NoSuchHealthProcessor;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class NullRequestProcessor extends HealthRequestProcessor {
+public class NullRequestProcessor implements HealthRequestProcessor {
 
     @Override
     public void registerHealthProcessor(String id, HealthReporter reporter) {

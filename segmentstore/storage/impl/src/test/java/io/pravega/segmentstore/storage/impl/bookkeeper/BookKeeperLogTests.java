@@ -294,6 +294,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
     /**
      * Tests the ability to retry writes when ZooKeeper fails.
+     */
     @Test
     public void testAppendTransientZooKeeperFailure() throws Exception {
         TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
@@ -339,7 +340,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
             verifyReads(log, writeData);
         }
     }
-     */
 
     /**
      * Tests the ability to retry writes when Bookies fail.

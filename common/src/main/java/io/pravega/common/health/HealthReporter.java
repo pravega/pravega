@@ -19,7 +19,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Represents an hierarchical entity which can report its health.
+ * Represents a hierarchical entity which can report its health.
  * Each health reporter should have an unique id under its parents.
  */
 @Slf4j
