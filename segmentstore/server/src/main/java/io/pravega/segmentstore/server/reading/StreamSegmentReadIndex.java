@@ -255,7 +255,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * Gets the length of the Segment this ReadIndex refers to.
      */
     long getSegmentLength() {
-        return this.metadata.getDurableLogLength();
+        return this.metadata.getLength();
     }
 
     private CacheKey getCacheKey(ReadIndexEntry entry) {
@@ -286,7 +286,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(this.recoveryMode, "Read Index is not in recovery mode.");
         Preconditions.checkNotNull(newMetadata, "newMetadata");
         Exceptions.checkArgument(newMetadata.getId() == this.metadata.getId(), "newMetadata", "New Metadata StreamSegmentId is different from existing one.");
-        Exceptions.checkArgument(newMetadata.getDurableLogLength() == this.metadata.getDurableLogLength(), "newMetadata", "New Metadata DurableLogLength is different from existing one.");
+        Exceptions.checkArgument(newMetadata.getLength() == this.metadata.getLength(), "newMetadata", "New Metadata Length is different from existing one.");
         Exceptions.checkArgument(newMetadata.getStorageLength() == this.metadata.getStorageLength(), "newMetadata", "New Metadata StorageLength is different from existing one.");
         Exceptions.checkArgument(newMetadata.isSealed() == this.metadata.isSealed(), "newMetadata", "New Metadata Sealed Flag is different from existing one.");
         Exceptions.checkArgument(newMetadata.isMerged() == this.metadata.isMerged(), "newMetadata", "New Metadata Merged Flag is different from existing one.");
@@ -307,7 +307,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param offset The offset within the StreamSegment to append at.
      * @param data   The range of bytes to append.
      * @throws NullPointerException     If data is null.
-     * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
+     * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's Length.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
     void append(long offset, byte[] data) {
@@ -320,11 +320,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Metadata check can be done outside the write lock.
-        // Adding at the end means that we always need to "catch-up" with DurableLogLength. Check to see if adding
+        // Adding at the end means that we always need to "catch-up" with Length. Check to see if adding
         // this entry will make us catch up to it or not.
-        long durableLogLength = this.metadata.getDurableLogLength();
+        long length = this.metadata.getLength();
         long endOffset = offset + data.length;
-        Exceptions.checkArgument(endOffset <= durableLogLength, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, durableLogLength);
+        Exceptions.checkArgument(endOffset <= length, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, length);
 
         // Then append an entry for it in the ReadIndex. It's ok to insert into the cache outside of the lock here,
         // since there is no chance of competing with another write request for the same offset at the same time.
@@ -342,7 +342,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * @param sourceStreamSegmentIndex The Read Index to begin merging.
      * @throws NullPointerException     If data is null.
      * @throws IllegalStateException    If the current StreamSegment is a child StreamSegment.
-     * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's DurableLogLength.
+     * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's Length.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that is already merged.
      * @throws IllegalArgumentException If sourceStreamSegmentIndex refers to a StreamSegment that has a different parent
@@ -365,11 +365,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
 
         // Metadata check can be done outside the write lock.
-        // Adding at the end means that we always need to "catch-up" with DurableLogLength. Check to see if adding
+        // Adding at the end means that we always need to "catch-up" with Length. Check to see if adding
         // this entry will make us catch up to it or not.
         long ourLength = getSegmentLength();
         long endOffset = offset + sourceLength;
-        Exceptions.checkArgument(endOffset <= ourLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Durable Log Length (%d).", offset, endOffset, ourLength);
+        Exceptions.checkArgument(endOffset <= ourLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, ourLength);
 
         // Check and record the merger (optimistically).
         RedirectIndexEntry newEntry = new RedirectIndexEntry(offset, sourceStreamSegmentIndex);
@@ -539,7 +539,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             log.trace("{}: triggerFutureReads (Offset = {}, Type = {}).", this.traceObjectId, r.getStreamSegmentOffset(), entry.getType());
             if (entry.getType() == ReadResultEntryType.EndOfStreamSegment) {
                 // We have attempted to read beyond the end of the stream. Fail the read request with the appropriate message.
-                r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getDurableLogLength())));
+                r.fail(new StreamSegmentSealedException(String.format("StreamSegment has been sealed at offset %d. There can be no more reads beyond this offset.", this.metadata.getLength())));
             } else {
                 if (!entry.getContent().isDone()) {
                     // Normally, all Future Reads are served from Cache, since they reflect data that has just been appended.
@@ -579,7 +579,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number");
         Preconditions.checkArgument(startOffset >= this.metadata.getStorageLength(), "startOffset must refer to an offset beyond the Segment's StorageLength offset.");
-        Preconditions.checkArgument(startOffset + length <= this.metadata.getDurableLogLength(), "startOffset+length must be less than the length of the Segment.");
+        Preconditions.checkArgument(startOffset + length <= this.metadata.getLength(), "startOffset+length must be less than the length of the Segment.");
 
         // Get the first entry. This one is trickier because the requested start offset may not fall on an entry boundary.
         CompletableReadResultEntry nextEntry;
@@ -659,8 +659,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // * The segment is sealed and we are not trying to read at or beyond the last offset (based on input).
         if (this.metadata.isSealed()) {
             return lastOffsetInclusive
-                    ? offset <= this.metadata.getDurableLogLength()
-                    : offset < this.metadata.getDurableLogLength();
+                    ? offset <= this.metadata.getLength()
+                    : offset < this.metadata.getLength();
         }
 
         // Not sealed: we can have future reads as well.
