@@ -65,6 +65,7 @@ abstract class AbstractFailoverTests {
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
     static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    static final int SCALE_WAIT_ITERATIONS = 12;
 
     final String readerName = "reader";
     Service controllerInstance;
@@ -468,7 +469,7 @@ abstract class AbstractFailoverTests {
     }
 
     void waitForScaling(String scope) {
-        for (int waitCounter = 0; waitCounter < 12; waitCounter++) {
+        for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
             StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).join();
             testState.currentNumOfSegments.set(streamSegments.getSegments().size());
             if (testState.currentNumOfSegments.get() == 2) {

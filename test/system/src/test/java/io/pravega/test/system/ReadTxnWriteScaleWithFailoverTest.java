@@ -55,8 +55,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
-    private final String scope = "testReadTxnWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testReadTxnWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testReadTxnWriteScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
@@ -101,9 +101,9 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
-                "ReadTxnWriteAndScaleWithFailoverTest-main");
+                "ReadTxnWriteScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                "ReadTxnWriteAndScaleWithFailoverTest-controller");
+                "ReadTxnWriteScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
@@ -175,7 +175,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, SCALE_STREAM); //cleanup if validation is successful.
-        log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
+        log.info("Test {} succeeds ", "ReadTxnWriteScaleWithFailover");
     }
 
 }

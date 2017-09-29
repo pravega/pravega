@@ -42,7 +42,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ReadTxnWriteAutoScaleFailoverTest extends AbstractFailoverTests {
+public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int INIT_NUM_WRITERS = 2;
     private static final int ADD_NUM_WRITERS = 2;
@@ -51,11 +51,11 @@ public class ReadTxnWriteAutoScaleFailoverTest extends AbstractFailoverTests {
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
-    private final String scope = "testReadTxnWriteAndAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testReadTxnWriteAndAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testReadTxnWriteAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String readerGroupName = "testReadTxnWriteAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
+            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
 
@@ -97,9 +97,9 @@ public class ReadTxnWriteAutoScaleFailoverTest extends AbstractFailoverTests {
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS + 1,
-                "ReadTxnWriteAndScaleWithFailoverTest-main");
+                "ReadTxnWriteAutoScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                "ReadTxnWriteAndScaleWithFailoverTest-controller");
+                "ReadTxnWriteAutoScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
@@ -108,7 +108,7 @@ public class ReadTxnWriteAutoScaleFailoverTest extends AbstractFailoverTests {
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
         testState.txnWrite.set(true);
-        createScopeAndStream(scope, SCALE_STREAM, config, controllerURIDirect);
+        createScopeAndStream(scope, AUTO_SCALE_STREAM, config, controllerURIDirect);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -165,6 +165,7 @@ public class ReadTxnWriteAutoScaleFailoverTest extends AbstractFailoverTests {
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, AUTO_SCALE_STREAM); //cleanup if validation is successful.
+        log.info("Test {} succeeds ", "ReadTxnWriteAutoScaleWithFailover");
     }
 
 }
