@@ -264,7 +264,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.operationLog.addHandler = op -> {
             addInvoked.join();
             // Need to set SegmentId on operation.
-            StreamSegmentMapOperation sop = ((StreamSegmentMapOperation) op);
+            StreamSegmentMapOperation sop = (StreamSegmentMapOperation) op;
             UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(segmentName, segmentId);
             segmentMetadata.setStorageLength(sop.getLength());
             segmentMetadata.setLength(metadataLength);
