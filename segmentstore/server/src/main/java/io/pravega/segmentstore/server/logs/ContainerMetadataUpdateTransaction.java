@@ -479,8 +479,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
     private void updateMetadata(StreamSegmentMapping mapping, UpdateableSegmentMetadata metadata) {
         metadata.setStorageLength(mapping.getLength());
 
-        // DurableLogLength must be at least StorageLength.
-        metadata.setDurableLogLength(Math.max(mapping.getLength(), metadata.getDurableLogLength()));
+        // Length must be at least StorageLength.
+        metadata.setLength(Math.max(mapping.getLength(), metadata.getLength()));
         if (mapping.isSealed()) {
             // MapOperations represent the state of the Segment in Storage. If it is sealed in storage, both
             // Seal flags need to be set.
@@ -785,8 +785,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         stream.writeLong(sm.getParentId());
         // S3. Name.
         stream.writeUTF(sm.getName());
-        // S4. DurableLogLength.
-        stream.writeLong(sm.getDurableLogLength());
+        // S4. Length.
+        stream.writeLong(sm.getLength());
         // S5. StorageLength.
         stream.writeLong(sm.getStorageLength());
         // S6. Merged.
@@ -813,8 +813,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         UpdateableSegmentMetadata metadata = getOrCreateSegmentUpdateTransaction(name, segmentId, parentId);
 
-        // S4. DurableLogLength.
-        metadata.setDurableLogLength(stream.readLong());
+        // S4. Length.
+        metadata.setLength(stream.readLong());
         // S5. StorageLength.
         metadata.setStorageLength(stream.readLong());
         // S6. Merged.

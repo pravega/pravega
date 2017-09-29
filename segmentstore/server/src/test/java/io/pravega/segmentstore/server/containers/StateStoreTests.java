@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -109,8 +108,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(segmentName.hashCode(),
-                new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate()));
+        return new SegmentState(segmentName.hashCode(), StreamSegmentInformation.builder().name(segmentName).attributes(attributes).build());
     }
 
     //region InMemoryStateStoreTests

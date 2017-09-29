@@ -62,7 +62,8 @@ public final class Config {
 
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
-        entries.forEach(entry -> log.debug("{} = {}", entry.getKey(), entry.getValue()));
+        log.info("Controller configuration:");
+        entries.forEach(entry -> log.info("{} = {}", entry.getKey(), entry.getValue()));
     }
 
     //REST server configuration

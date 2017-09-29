@@ -10,14 +10,12 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -62,7 +60,7 @@ class GetInfoOperation extends FileSystemOperation<String> implements Callable<S
                 throw fnf;
             }
 
-            result = new StreamSegmentInformation(segmentName, length, isSealed, false, new ImmutableDate());
+            result = StreamSegmentInformation.builder().name(segmentName).length(length).sealed(isSealed).build();
         } while (result == null);
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, segmentName, result);
         return result;
