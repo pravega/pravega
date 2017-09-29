@@ -475,7 +475,6 @@ abstract class AbstractFailoverTests {
                 log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
                 //Scaling operation did not happen, wait
                 Exceptions.handleInterrupted(() -> Thread.sleep(10000));
-                throw new ScaleOperationNotDoneException();
             }
             if (testState.currentNumOfSegments.get() > 2) {
                 //scale operation successful.
@@ -533,10 +532,7 @@ abstract class AbstractFailoverTests {
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
     }
-
-    static class ScaleOperationNotDoneException extends RuntimeException {
-    }
-
+    
     static class TxnNotCompleteException extends RuntimeException {
     }
 
