@@ -467,15 +467,15 @@ abstract class AbstractFailoverTests {
         readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 
-    void waitForScaling(String scope) throws InterruptedException, ExecutionException {
+    void waitForScaling(String scope) {
         for (int waitCounter = 0; waitCounter < 12; waitCounter++) {
-            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).get();
+            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).join();
             testState.currentNumOfSegments.set(streamSegments.getSegments().size());
             if (testState.currentNumOfSegments.get() == 2) {
                 log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
                 //Scaling operation did not happen, wait
                 Exceptions.handleInterrupted(() -> Thread.sleep(10000));
-                throw new AbstractFailoverTests.ScaleOperationNotDoneException();
+                throw new ScaleOperationNotDoneException();
             }
             if (testState.currentNumOfSegments.get() > 2) {
                 //scale operation successful.
