@@ -818,7 +818,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (!closed.getAndSet(true)) {
             this.channel.shutdownNow(); // Initiates a shutdown of channel.
         }

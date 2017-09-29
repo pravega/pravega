@@ -333,6 +333,6 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
     }
 }

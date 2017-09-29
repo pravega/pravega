@@ -430,7 +430,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
     }
 }
 

@@ -254,4 +254,11 @@ public interface Controller extends AutoCloseable {
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
 
+    /**
+     * Closes controller client.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
+
 }
