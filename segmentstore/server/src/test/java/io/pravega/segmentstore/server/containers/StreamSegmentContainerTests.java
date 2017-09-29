@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ConfigHelpers;
 import io.pravega.segmentstore.server.OperationLog;
@@ -964,10 +965,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         String txn1 = localContainer.createTransaction(segment3, UUID.randomUUID(), null, TIMEOUT).join();
 
         // Activate one segment.
-        localContainer.getStreamSegmentInfo(segment2, false, TIMEOUT).join();
+        activateSegment(segment2, localContainer).join();
 
         // Activate the transaction; this should fill up the metadata (itself + parent).
-        localContainer.getStreamSegmentInfo(txn1, false, TIMEOUT).join();
+        activateSegment(txn1, localContainer).join();
 
         // Verify the transaction's parent has been activated.
         Assert.assertNotNull("Transaction's parent has not been activated.",
@@ -977,12 +978,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Verify we cannot activate any other segment.
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> localContainer.getStreamSegmentInfo(segment1, false, TIMEOUT),
+                () -> activateSegment(segment1, localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT),
+                () -> activateSegment(segment0, localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         // Test the ability to forcefully evict items from the metadata when there is pressure and we need to register something new.
@@ -1340,9 +1341,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void activateAllSegments(Collection<String> segmentNames, TestContext context) {
         val futures = segmentNames.stream()
-                                  .map(s -> context.container.getStreamSegmentInfo(s, false, TIMEOUT))
+                                  .map(s -> activateSegment(s, context.container))
                                   .collect(Collectors.toList());
         FutureHelpers.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
+        return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 
     @SneakyThrows
