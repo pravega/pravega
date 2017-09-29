@@ -268,7 +268,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(segmentName, segmentId);
             segmentMetadata.setStorageLength(sop.getLength());
             segmentMetadata.setLength(metadataLength);
-            segmentMetadata.updateAttributes(sop.getAttributes());
+            segmentMetadata.updateAttributes(expectedAttributes);
             if (sop.isSealed()) {
                 segmentMetadata.markSealed();
             }
