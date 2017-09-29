@@ -190,8 +190,14 @@ class ConcurrencyManager {
                 delta = 1;
             }
         } else if (significantLatencyChange) {
-            // Throughput did not change significantly; if Latency did, then adjust in the opposite direction of the latency change.
-            delta = -(int) Math.signum(latencyDifference);
+            // Throughput did not change significantly, but Latency did.
+            if (this.lastSnapshot.delta == 0) {
+                // No previous change: move in the opposite direction of the latency change.
+                delta = -(int) Math.signum(latencyDifference);
+            } else {
+                // Move in the same direction as the last time if latency decreased (or opposite if latency increased).
+                delta = this.lastSnapshot.delta * -(int) Math.signum(latencyDifference);
+            }
         }
 
         int age = this.lastSnapshot.age;

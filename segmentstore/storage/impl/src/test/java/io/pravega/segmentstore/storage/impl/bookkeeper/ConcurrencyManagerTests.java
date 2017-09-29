@@ -120,6 +120,7 @@ public class ConcurrencyManagerTests {
         time.addAndGet(TIME_INCREMENT);
         int expectedParallelism = m.getOrUpdateParallelism();
 
+        int lastDelta = 1;
         for (int i = 0; i < steps; i++) {
             // Determine whether to decrease or increase throughput (both directions would be insignificant).
             boolean decreaseThroughput = i % 2 == 0;
@@ -140,7 +141,16 @@ public class ConcurrencyManagerTests {
 
             int newParallelism = m.getOrUpdateParallelism();
             if (significantLatencyChange) {
-                expectedParallelism += decreaseLatency ? 1 : -1; // Changes in the opposite order to latency change.
+                int adj = decreaseLatency ? 1 : -1;
+                if (lastDelta == 0) {
+                    lastDelta = adj; // Changes in the opposite order to latency change.
+                } else {
+                    lastDelta = lastDelta * adj; // Changes in the opposite order to latency change and last ajustment.
+                }
+
+                expectedParallelism += lastDelta;
+            } else {
+                lastDelta = 0; // No change. Keep track of that.
             }
 
             String type = String.format("Tput %s, Latency %s %ssignificantly.",
