@@ -22,6 +22,10 @@ public interface TruncateableStorage extends Storage {
      * in the segment with anything, nor does it "shift" the remaining data to the beginning. After this operation is
      * complete, any attempt to access the truncated data will result in an exception.
      *
+     * Notes:
+     * * Depending on implementation, this may not truncate at the exact offset. It may truncate at some point prior to
+     * the given offset, but it will never truncate beyond the offset.
+     *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param offset            The offset in the StreamSegment to truncate to.
      * @param timeout           Timeout for the operation.

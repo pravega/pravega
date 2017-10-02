@@ -165,6 +165,7 @@ project('segmentstore:contracts') {
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')

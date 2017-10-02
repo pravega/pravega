@@ -24,6 +24,11 @@ public final class StreamSegmentNameUtils {
     private static final String STATE_SUFFIX = "$state";
 
     /**
+     * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
+     */
+    private static final String HEADER_SUFFIX = "$header";
+
+    /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
@@ -87,5 +92,18 @@ public final class StreamSegmentNameUtils {
     public static String getStateSegmentName(String segmentName) {
         Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX), "segmentName is already a state segment name");
         return segmentName + STATE_SUFFIX;
+    }
+
+    /**
+     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing its Rollover
+     * information.
+     * Existence of this file should also indicate that a Segment with this file has a rollover policy in place.
+     *
+     * @param segmentName The name of the Segment to get the Header segment name for.
+     * @return The result.
+     */
+    public static String getHeaderSegmentName(String segmentName) {
+        Preconditions.checkArgument(!segmentName.contains(HEADER_SUFFIX), "segmentName is already a segment header name");
+        return segmentName + HEADER_SUFFIX;
     }
 }

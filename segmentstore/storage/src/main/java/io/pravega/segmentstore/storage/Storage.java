@@ -44,8 +44,8 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
-     * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
+     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
