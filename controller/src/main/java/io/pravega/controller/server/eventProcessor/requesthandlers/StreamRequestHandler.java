@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
@@ -100,7 +101,10 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
                                                                                T event,
                                                                                Predicate<Throwable> writeBackPredicate) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        task.execute(event)
+        Retry.withExpBackoff(100, 10, 5, 10000)
+                .retryingOn(TaskExceptions.StartException.class)
+                .throwingOn(Exception.class)
+                .runAsync(() -> task.execute(event), executor)
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
                         Throwable cause = ExceptionHelpers.getRealException(e);

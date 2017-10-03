@@ -19,7 +19,8 @@ public class UpdateStreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
     private final int version;
-    private final Controller.StreamConfig config;
+    private final Controller.ScalingPolicy scalingPolicy;
+    private final Controller.RetentionPolicy retentionPolicy;
 
     @Override
     public String getKey() {

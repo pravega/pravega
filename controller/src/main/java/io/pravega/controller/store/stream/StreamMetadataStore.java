@@ -97,7 +97,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<State> getState(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<State> getState(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
 
     /**
      * Creates a new scope with the given name.
@@ -148,7 +148,7 @@ public interface StreamMetadataStore {
      * @param executor      callers executor
      * @return boolean indicating whether the stream was updated
      */
-    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfiguration configuration,
+    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfigWithVersion configuration,
                                                    final OperationContext context,
                                                    final Executor executor);
 
@@ -164,6 +164,19 @@ public interface StreamMetadataStore {
     CompletableFuture<StreamConfiguration> getConfiguration(final String scope, final String name,
                                                             final OperationContext context,
                                                             final Executor executor);
+
+    /**
+     * Fetches the current stream configuration.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return current stream configuration.
+     */
+    CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion(final String scope, final String name,
+                                                                           final OperationContext context,
+                                                                           final Executor executor);
 
     /**
      * Set the stream state to sealed.

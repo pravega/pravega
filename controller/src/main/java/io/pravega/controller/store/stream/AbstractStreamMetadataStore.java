@@ -171,9 +171,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<State> getState(final String scope, final String name,
+                                             final boolean ignoreCached,
                                              final OperationContext context,
                                              final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getState(), executor);
+        return withCompletion(getStream(scope, name, context).getState(ignoreCached), executor);
     }
 
     /**
@@ -243,7 +244,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Boolean> updateConfiguration(final String scope,
                                                           final String name,
-                                                          final StreamConfiguration configuration,
+                                                          final StreamConfigWithVersion configuration,
                                                           final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
     }
@@ -256,8 +257,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion(final String scope,
+                                                                                  final String name,
+                                                                                  final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getConfigurationWithVersion(), executor);
+    }
+
+    @Override
     public CompletableFuture<Boolean> isSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getState().thenApply(state -> state.equals(State.SEALED)), executor);
+        return withCompletion(getStream(scope, name, context).getState(true).thenApply(state -> state.equals(State.SEALED)), executor);
     }
 
     @Override
@@ -283,7 +291,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor) {
         final Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getState()
+        return withCompletion(stream.getState(true)
                         .thenComposeAsync(state -> {
                             if (State.SEALED.equals(state)) {
                                 return CompletableFuture.completedFuture(Collections.<Integer>emptyList());

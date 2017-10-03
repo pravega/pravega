@@ -106,7 +106,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Synchronized
     public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
                                                           final String streamName,
-                                                          final StreamConfiguration configuration,
+                                                          final StreamConfigWithVersion configuration,
                                                           final OperationContext context,
                                                           final Executor executor) {
         if (scopes.containsKey(scopeName)) {

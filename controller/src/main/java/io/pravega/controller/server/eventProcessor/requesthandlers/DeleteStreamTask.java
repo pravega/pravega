@@ -10,13 +10,16 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -42,14 +45,29 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final DeleteStreamEvent request) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        // TODO: implement delete stream task (issue 1738)
-        // 1. check precondition
-        // 2. set state deleting
-        // 3. delete
-        return result;
+        String scope = request.getScope();
+        String stream = request.getStream();
+        return streamMetadataStore.isSealed(scope, stream, context, executor)
+                .thenComposeAsync(sealed -> {
+                    if (!sealed) {
+                        return FutureHelpers.failedFuture(new RuntimeException("Stream not sealed"));
+                    }
+                    return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
+                            .thenComposeAsync(count ->
+                                    streamMetadataTasks.notifyDeleteSegments(scope, stream, count)
+                                            .thenComposeAsync(x ->
+                                                    streamMetadataStore.deleteStream(scope, stream, context,
+                                                            executor), executor));
+                }, executor)
+                .exceptionally(e -> {
+                    if (e instanceof StoreException.DataNotFoundException) {
+                        return null;
+                    }
+
+                    throw new CompletionException(e);
+                });
     }
 
     @Override
