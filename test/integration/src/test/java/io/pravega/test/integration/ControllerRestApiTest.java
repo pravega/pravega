@@ -237,10 +237,8 @@ public class ControllerRestApiTest {
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
         URI controllerUri = SETUP_UTILS.getControllerUri();
         @Cleanup("shutdown")
-        InlineExecutor executor = new InlineExecutor();
-        final Controller controller = new ControllerImpl(controllerUri,
-                                                         ControllerImplConfig.builder().retryAttempts(1).build(), executor);
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        InlineExecutor inlineExecutor = new InlineExecutor();
+        try (StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor))) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -259,7 +257,7 @@ public class ControllerRestApiTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
+        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),
                     new HashSet<>(Arrays.asList(testStream1, testStream2)));
@@ -310,5 +308,9 @@ public class ControllerRestApiTest {
         log.info("Get readergroup properties successful");
 
         log.info("Test restApiTests passed successfully!");
+    }
+
+    private Controller createController(URI controllerUri, InlineExecutor executor) {
+        return new ControllerImpl(controllerUri, ControllerImplConfig.builder().retryAttempts(1).build(), executor);
     }
 }
