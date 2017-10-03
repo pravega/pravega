@@ -53,7 +53,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
     private final String scope = "testReadTxnWriteAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadTxnWriteAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
-    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
             .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
