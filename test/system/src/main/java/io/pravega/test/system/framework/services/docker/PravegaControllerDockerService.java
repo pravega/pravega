@@ -103,7 +103,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         PortConfig port2 = PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).protocol("TCP").build();
         portConfigs.add(port1);
         portConfigs.add(port2);
-        ServiceSpec spec = ServiceSpec.builder().name("controller").taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+        ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .name(serviceName).networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();

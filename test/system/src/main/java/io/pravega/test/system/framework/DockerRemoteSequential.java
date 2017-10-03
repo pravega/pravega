@@ -129,7 +129,7 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testClassName", className);
 
         HostConfig hostConfig = HostConfig.builder()
-                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( System.getProperty("masterIP"), "2375" ) ) ) ).networkMode("host").build();
+                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( LoginClient.MESOS_MASTER, "2375" ) ) ) ).networkMode("host").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)

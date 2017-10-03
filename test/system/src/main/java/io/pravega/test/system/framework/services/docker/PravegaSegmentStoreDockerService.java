@@ -80,7 +80,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         //set env
         String zk = "zookeeper:" + ZKSERVICE_ZKPORT;
-        String con = "controller" + CONTROLLER_PORT;
+        String con = "controller:" + CONTROLLER_PORT;
         //System properties to configure SS service.
         String hostSystemProperties =
                 setSystemProperty("autoScale.muteInSeconds", "120") +
