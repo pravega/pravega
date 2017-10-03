@@ -18,14 +18,13 @@ import feign.Response;
 import feign.auth.BasicAuthRequestInterceptor;
 import feign.gson.GsonEncoder;
 import lombok.Data;
-
+import mesosphere.client.common.ModelUtils;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import java.util.Collection;
 
 import static io.pravega.test.system.framework.Utils.getConfig;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static mesosphere.marathon.client.utils.ModelUtils.GSON;
 
 /**
  * This class is used to handle the Authentication with the authentication-service.
@@ -46,7 +45,7 @@ public class LoginClient {
     public static String getAuthToken(final String loginURL) {
 
         Login client = Feign.builder().client(getClientHostVerificationDisabled())
-                .encoder(new GsonEncoder(GSON))
+                .encoder(new GsonEncoder(ModelUtils.GSON))
                 .target(Login.class, loginURL);
 
         Response response = client.login(new AuthRequest(getUsername(), getPassword(), "LOCAL"));

@@ -227,7 +227,7 @@ public class ExtendedS3Storage implements Storage {
                 config.getRoot() + streamSegmentName);
 
         AccessControlList acls = client.getObjectAcl(config.getBucket(), config.getRoot() + streamSegmentName);
-        boolean canWrite = acls.getGrants().stream().anyMatch((grant) -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
+        boolean canWrite = acls.getGrants().stream().anyMatch(grant -> grant.getPermission().compareTo(Permission.WRITE) >= 0);
         StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName,
                 result.getContentLength(), !canWrite, false,
                 new ImmutableDate(result.getLastModified().toInstant().toEpochMilli()));

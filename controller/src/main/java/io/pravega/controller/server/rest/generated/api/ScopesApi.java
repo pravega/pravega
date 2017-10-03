@@ -8,16 +8,16 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.jaxrs.*;
 
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
-import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.StreamProperty;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupProperty;
-import io.pravega.controller.server.rest.generated.model.ScalingEventList;
 import io.pravega.controller.server.rest.generated.model.ReaderGroupsList;
+import io.pravega.controller.server.rest.generated.model.ScalingEventList;
+import io.pravega.controller.server.rest.generated.model.ScopeProperty;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
+import io.pravega.controller.server.rest.generated.model.StreamProperty;
+import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
-import io.pravega.controller.server.rest.generated.model.StreamState;
 
 import java.util.List;
 import io.pravega.controller.server.rest.generated.api.NotFoundException;
@@ -27,10 +27,12 @@ import java.io.InputStream;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 
+import javax.servlet.ServletConfig;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.*;
+import javax.validation.constraints.*;
 
 @Path("/scopes")
 
@@ -38,7 +40,28 @@ import javax.ws.rs.*;
 @io.swagger.annotations.Api(description = "the scopes API")
 
 public class ScopesApi  {
-   private final ScopesApiService delegate = ScopesApiServiceFactory.getScopesApi();
+   private final ScopesApiService delegate;
+
+   public ScopesApi(@Context ServletConfig servletContext) {
+      ScopesApiService delegate = null;
+
+      if (servletContext != null) {
+         String implClass = servletContext.getInitParameter("ScopesApi.implementation");
+         if (implClass != null && !"".equals(implClass.trim())) {
+            try {
+               delegate = (ScopesApiService) Class.forName(implClass).newInstance();
+            } catch (Exception e) {
+               throw new RuntimeException(e);
+            }
+         } 
+      }
+
+      if (delegate == null) {
+         delegate = ScopesApiServiceFactory.getScopesApi();
+      }
+
+      this.delegate = delegate;
+   }
 
     @POST
     

@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.marathon;
 
-import io.pravega.test.system.framework.LoginClient;
 import feign.Feign;
 import feign.Logger;
 import feign.RequestInterceptor;
@@ -20,12 +19,12 @@ import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
-import mesosphere.marathon.client.Marathon;
-import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
-import mesosphere.marathon.client.utils.MarathonException;
-import mesosphere.marathon.client.utils.ModelUtils;
-
+import io.pravega.test.system.framework.LoginClient;
 import java.util.Calendar;
+import mesosphere.client.common.ModelUtils;
+import mesosphere.marathon.client.Marathon;
+import mesosphere.marathon.client.MarathonException;
+import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.SERVICE_UNAVAILABLE;

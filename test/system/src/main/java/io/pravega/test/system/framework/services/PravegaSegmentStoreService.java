@@ -13,13 +13,13 @@ import com.google.common.base.Strings;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -130,7 +130,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
 
         //Environment variables to configure SS service.
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
         map.put("CONTROLLER_URL", conUri.toString());
@@ -152,7 +152,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         return app;
     }
 
-    private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
+    private void getCustomEnvVars(Map<String, Object> map, String segmentstoreExtraEnv) {
         log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
         if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
             Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {

@@ -141,7 +141,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Synchronized
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            return scopes.get(scopeName).listStreamsInScope().thenApply((streams) -> {
+            return scopes.get(scopeName).listStreamsInScope().thenApply(streams -> {
                 if (streams.isEmpty()) {
                     scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);

@@ -312,7 +312,8 @@ class ZKCheckpointStore implements CheckpointStore {
         } catch (KeeperException.NoNodeException e) {
             // Return empty list for KeeperException.NoNodeException.
             return Collections.emptyList();
-        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException e) {
+        } catch (KeeperException.ConnectionLossException | KeeperException.OperationTimeoutException
+                | KeeperException.SessionExpiredException e) {
             throw new CheckpointStoreException(CheckpointStoreException.Type.Connectivity, e);
         } catch (Exception e) {
             throw new CheckpointStoreException(e);
