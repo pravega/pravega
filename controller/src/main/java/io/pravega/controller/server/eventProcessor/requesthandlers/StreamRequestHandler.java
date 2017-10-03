@@ -11,7 +11,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;

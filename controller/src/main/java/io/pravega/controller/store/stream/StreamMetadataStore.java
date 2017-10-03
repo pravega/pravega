@@ -93,6 +93,7 @@ public interface StreamMetadataStore {
      *
      * @param scope scope name
      * @param name stream name
+     * @param ignoreCached ignore cached value and fetch from store.
      * @param context operation context
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.

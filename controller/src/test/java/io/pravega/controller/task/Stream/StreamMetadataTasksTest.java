@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.server.ControllerService;
@@ -153,6 +154,8 @@ public class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+
+        sealStreamTask.execute((SealStreamEvent) requestEventWriter.getEvent()).get();
 
         //a sealed stream should have zero active/current segments
         assertEquals(0, consumer.getCurrentSegments(SCOPE, stream1).get().size());

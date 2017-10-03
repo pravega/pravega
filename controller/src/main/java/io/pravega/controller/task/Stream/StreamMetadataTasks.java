@@ -166,7 +166,14 @@ public class StreamMetadataTasks extends TaskBase {
         SealStreamEvent event = new SealStreamEvent(scope, stream);
         return writeEvent(event)
                 // 2. set state to sealing
-                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.SEALING, contextOpt, executor))
+                .thenCompose(x -> streamMetadataStore.getState(scope, stream, false, contextOpt, executor))
+                .thenCompose(state -> {
+                    if (state.equals(State.SEALED)) {
+                        return CompletableFuture.completedFuture(true);
+                    } else {
+                        return streamMetadataStore.setState(scope, stream, State.SEALING, contextOpt, executor);
+                    }
+                })
                 // 3. return with seal initiated.
                 .handle((result, ex) -> {
                     if (ex != null) {
