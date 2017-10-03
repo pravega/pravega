@@ -165,7 +165,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, AUTO_SCALE_STREAM); //cleanup if validation is successful.
-        log.info("Test {} succeeds ", "ReadTxnWriteAutoScaleWithFailover");
+        log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
     }
 
 }

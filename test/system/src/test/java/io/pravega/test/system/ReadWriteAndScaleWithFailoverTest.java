@@ -31,6 +31,7 @@ import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -47,6 +48,7 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
@@ -154,8 +156,11 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         Map<Double, Double> keyRanges = new HashMap<>();
-        keyRanges.put(0.0, 0.5);
-        keyRanges.put(0.5, 1.0);
+        keyRanges.put(0.0, 0.2);
+        keyRanges.put(0.2, 0.4);
+        keyRanges.put(0.4, 0.6);
+        keyRanges.put(0.6, 0.8);
+        keyRanges.put(0.8, 1.0);
 
         CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
                 Collections.singletonList(0),
@@ -193,6 +198,6 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, SCALE_STREAM); //cleanup if validation is successful.
-        log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
+        log.info("Test ReadWriteAndScaleWithFailover succeeds");
     }
 }
