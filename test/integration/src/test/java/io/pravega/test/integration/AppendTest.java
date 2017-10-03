@@ -131,8 +131,8 @@ public class AppendTest {
         assertEquals(Long.MIN_VALUE, (long) ack.getPreviousEventNumber());
     }
 
-    @Test
-    public void multipleAppends() throws Exception {
+    @Test(timeout = 10000)
+    public void testMultipleAppends() throws Exception {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
