@@ -25,6 +25,7 @@ service ControllerService {
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
+    rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
     rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
@@ -237,13 +238,29 @@ message ScaleRequest {
 
 message ScaleResponse {
     enum ScaleStreamStatus {
-        SUCCESS = 0;
+        STARTED = 0;
         FAILURE = 1;
         PRECONDITION_FAILED = 2;
-        TXN_CONFLICT = 3;
     }
     ScaleStreamStatus status = 1;
     repeated SegmentRange segments = 2;
+    int32 epoch = 3;
+}
+
+message ScaleStatusRequest {
+    StreamInfo streamInfo = 1;
+    int32 epoch = 2;
+}
+
+message ScaleStatusResponse {
+    enum ScaleStatus {
+        IN_PROGRESS = 0;
+        SUCCESS = 1;
+        INVALID_INPUT = 2;
+        INTERNAL_ERROR = 3;
+    }
+
+    ScaleStatus status = 1;
 }
 
 message SegmentRanges {

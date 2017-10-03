@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.segmentstore.server.ServiceListeners;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -32,6 +31,7 @@ import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -441,9 +441,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         Function<UpdateableSegmentMetadata, Operation> createAppend = segment -> {
             StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), data, null);
-            append.setStreamSegmentOffset(segment.getDurableLogLength());
+            append.setStreamSegmentOffset(segment.getLength());
             context.dataSource.recordAppend(append);
-            segment.setDurableLogLength(segment.getDurableLogLength() + data.length);
+            segment.setLength(segment.getLength() + data.length);
             return new CachedStreamSegmentAppendOperation(append);
         };
 
@@ -549,7 +549,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
             Assert.assertEquals("Setup error: Not expecting a Transaction segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
 
-            Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getDurableLogLength(), metadata.getStorageLength());
+            Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getLength(), metadata.getStorageLength());
             Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
 
             SegmentProperties sp = context.storage.getStreamSegmentInfo(metadata.getName(), TIMEOUT).join();
@@ -575,10 +575,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             // Create the Merge Op
             MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
             op.setLength(transactionMetadata.getLength());
-            op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
+            op.setStreamSegmentOffset(parentMetadata.getLength());
 
             // Update metadata
-            parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata.getDurableLogLength());
+            parentMetadata.setLength(parentMetadata.getLength() + transactionMetadata.getLength());
             transactionMetadata.markMerged();
 
             // Process the merge op
@@ -603,7 +603,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
             segmentMetadata.markSealed();
             StreamSegmentSealOperation sealOp = new StreamSegmentSealOperation(segmentId);
-            sealOp.setStreamSegmentOffset(segmentMetadata.getDurableLogLength());
+            sealOp.setStreamSegmentOffset(segmentMetadata.getLength());
             context.dataSource.add(sealOp);
         }
     }
@@ -640,9 +640,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private void appendData(UpdateableSegmentMetadata segmentMetadata, int appendId, int writeId, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         byte[] data = getAppendData(segmentMetadata.getName(), segmentMetadata.getId(), appendId, writeId);
 
-        // Make sure we increase the DurableLogLength prior to appending; the Writer checks for this.
-        long offset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(offset + data.length);
+        // Make sure we increase the Length prior to appending; the Writer checks for this.
+        long offset = segmentMetadata.getLength();
+        segmentMetadata.setLength(offset + data.length);
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, null);
         op.setStreamSegmentOffset(offset);
         context.dataSource.recordAppend(op);
@@ -718,7 +718,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     private void initializeSegment(long segmentId, TestContext context) {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        metadata.setDurableLogLength(0);
+        metadata.setLength(0);
         metadata.setStorageLength(0);
         context.storage.create(metadata.getName(), TIMEOUT).join();
     }

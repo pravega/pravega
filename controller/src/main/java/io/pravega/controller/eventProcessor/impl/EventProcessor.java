@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.Position;
@@ -72,7 +73,8 @@ public abstract class EventProcessor<T extends ControllerEvent> {
      * Returns a stream writer that can be used to write events to the underlying event stream.
      * @return a stream writer that can be used to write events to the underlying event stream.
      */
-    protected Writer<T> getSelfWriter() {
+    @VisibleForTesting
+    public Writer<T> getSelfWriter() {
         return selfWriter;
     }
 }

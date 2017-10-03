@@ -25,9 +25,47 @@ public final class MetricsNames {
     public static final String STORAGE_READ_BYTES = "tier2_read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = "tier2_write_bytes";        // Counter
 
-    //DurableLog stats
-    public static final String TIER1_WRITE_LATENCY = "tier1_datalog_write_latency"; // Timer
-    public static final String TIER1_WRITE_BYTES = "tier1_datalog_write_bytes";     // Counter
+    //Cache (RocksDB) stats
+    public static final String CACHE_INSERT_LATENCY = "cache_insert_latency";
+    public static final String CACHE_GET_LATENCY = "cache_get_latency";
+
+    //DurableDataLog (Tier1) stats
+    public static final String BK_TOTAL_WRITE_LATENCY = "bookkeeper_total_write_latency"; // Including Queue
+    public static final String BK_WRITE_LATENCY = "bookkeeper_write_latency";  // Exclusively the write to BK.
+    public static final String BK_WRITE_BYTES = "bookkeeper_write_bytes";
+    public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";
+    public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill";
+    public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";
+
+    //Container-specific metrics
+    public static final String CONTAINER_APPEND_COUNT = "container_append_count";
+    public static final String CONTAINER_APPEND_OFFSET_COUNT = "container_append_offset_count";
+    public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = "container_update_attributes_count";
+    public static final String CONTAINER_READ_COUNT = "container_read_count";
+    public static final String CONTAINER_GET_INFO_COUNT = "container_get_info_count";
+    public static final String CONTAINER_CREATE_SEGMENT_COUNT = "container_create_segment_count";
+    public static final String CONTAINER_DELETE_SEGMENT_COUNT = "container_delete_segment_count";
+    public static final String CONTAINER_CREATE_TXN_COUNT = "container_create_txn_count";
+    public static final String CONTAINER_MERGE_TXN_COUNT = "container_merge_txn_count";
+    public static final String CONTAINER_SEAL_COUNT = "container_seal_count";
+    public static final String PROCESS_OPERATIONS_LATENCY = "process_operations_latency";
+    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "process_operations_batch_size";
+    public static final String OPERATION_QUEUE_SIZE = "operation_queue_size";
+    public static final String OPERATION_PROCESSOR_IN_FLIGHT = "operation_processor_in_flight";
+    public static final String OPERATION_QUEUE_WAIT_TIME = "operation_queue_wait_time";
+    public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "operation_processor_delay_ms";
+    public static final String OPERATION_COMMIT_LATENCY = "operation_commit_latency_ms";
+    public static final String OPERATION_LATENCY = "operation_latency_ms";
+    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "operation_commit_metadata_txn_count";
+    public static final String OPERATION_COMMIT_MEMORY_LATENCY = "operation_commit_memory_latency_ms";
+    public static final String OPERATION_LOG_SIZE = "operation_log_size";
+    public static final String ACTIVE_SEGMENT_COUNT = "active_segments";
+
+    // General metrics
+    public static final String CACHE_TOTAL_SIZE_BYTES = "cache_size_bytes";
+    public static final String CACHE_GENERATION_SPREAD = "cache_gen";
+    public static final String THREAD_POOL_QUEUE_SIZE = "thread_pool_queue_size";
+    public static final String THREAD_POOL_ACTIVE_THREADS = "thread_pool_active_threads";
 
     // Metrics in Controller
     // Stream request counts (Static)
@@ -58,6 +96,11 @@ public final class MetricsNames {
 
     public static String nameFromSegment(String metric, String segmentName) {
         String name = metric + "." + segmentName;
+        return escapeSpecialChar(name);
+    }
+
+    public static String nameFromContainer(String metric, int containerId) {
+        String name = metric + "." + containerId;
         return escapeSpecialChar(name);
     }
 }

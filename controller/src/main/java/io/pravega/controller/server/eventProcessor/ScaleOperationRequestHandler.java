@@ -41,9 +41,13 @@ public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent
         this.executor = executor;
     }
 
+    @Override
     public CompletableFuture<Void> process(final ScaleOpEvent request) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
+
+        log.info("starting scale request for {}/{} segments {} to new ranges {}", request.getScope(), request.getStream(),
+                request.getSegmentsToSeal(), request.getNewRanges());
 
         streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context)
                 .whenCompleteAsync((res, e) -> {

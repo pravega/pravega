@@ -477,7 +477,7 @@ public class StreamMetaDataTests {
 
         // Test to get non-existent scope
         when(mockControllerService.getScope("scope2")).thenReturn(CompletableFuture.supplyAsync(() -> {
-            throw new StoreException.DataNotFoundException();
+            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope2");
         }));
         response = client.target(resourceURI2).request().buildGet().invoke();
         assertEquals("Get non existent scope", 404, response.getStatus());
@@ -562,7 +562,7 @@ public class StreamMetaDataTests {
 
         // Test for list streams for invalid scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 404, response.getStatus());
@@ -605,13 +605,13 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to list large number of streams.
-        streamsList = Collections.nCopies(1000, streamConfiguration1);
+        streamsList = Collections.nCopies(50000, streamConfiguration1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
         final StreamsList streamsList2 = response.readEntity(StreamsList.class);
-        assertEquals("List count", 200, streamsList2.getStreams().size());
+        assertEquals("List count", 50000, streamsList2.getStreams().size());
         response.close();
     }
 
@@ -716,7 +716,7 @@ public class StreamMetaDataTests {
                 queryParam("to", toDateTime).request().buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
-        final List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
+        List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
                 new GenericType<List<ScaleMetadata>>() { });
         assertEquals("List Size", 3, scaleMetadataListResponse.size());
         scaleMetadataListResponse.forEach(data -> {
@@ -727,9 +727,22 @@ public class StreamMetaDataTests {
             });
         });
 
+        // Test for large number of scaling events.
+        scaleMetadataList.clear();
+        scaleMetadataList.addAll(Collections.nCopies(50000, scaleMetadata3));
+        when(mockControllerService.getScaleRecords(scope1, stream1)).
+                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        response = client.target(resourceURI).queryParam("from", fromDateTime).
+                queryParam("to", toDateTime).request().buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 200, response.getStatus());
+        assertTrue(response.bufferEntity());
+        scaleMetadataListResponse = response.readEntity(
+                new GenericType<List<ScaleMetadata>>() { });
+        assertEquals("List Size", 50000, scaleMetadataListResponse.size());
+
         // Test for getScalingEvents for invalid scope/stream.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, ""));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream1"));
         when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request().buildGet().invoke();
@@ -796,7 +809,7 @@ public class StreamMetaDataTests {
 
         // Test for list reader groups for non-existing scope.
         final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
-        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND));
+        completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Reader Groups response code", 404, response.getStatus());
@@ -811,14 +824,14 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to list large number of reader groups.
-        streamsList = Collections.nCopies(1000, readerGroup1);
+        streamsList = Collections.nCopies(50000, readerGroup1);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
                 CompletableFuture.completedFuture(streamsList));
         response = client.target(resourceURI).request().buildGet().invoke();
         assertEquals("List Reader Groups response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
         final ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
-        assertEquals("List count", 200, readerGroupsList.getReaderGroups().size());
+        assertEquals("List count", 50000, readerGroupsList.getReaderGroups().size());
         response.close();
     }
 

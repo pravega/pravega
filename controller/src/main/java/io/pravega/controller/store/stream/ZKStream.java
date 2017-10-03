@@ -19,7 +19,7 @@ import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.TableHelper;
-import org.apache.commons.lang.SerializationUtils;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.HashMap;
@@ -163,7 +163,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
                     if (!x) {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND);
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
                     }
                 });
     }
@@ -323,7 +323,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
             if (opt.isPresent()) {
                 return Integer.parseInt(opt.get().getKey());
             } else {
-                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, txId.toString());
+                throw StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString());
             }
         });
     }

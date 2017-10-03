@@ -10,10 +10,9 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.common.util.AsyncMap;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -22,6 +21,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -34,33 +34,38 @@ import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -93,7 +98,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext();
         HashSet<String> storageSegments = new HashSet<>();
         setupStorageCreateHandler(context, storageSegments);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName).build());
 
         // Create some Segments and Transaction and verify they are properly created and registered.
         for (int i = 0; i < segmentCount; i++) {
@@ -111,43 +116,62 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if there are Storage and/or OperationLog Failures.
+     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if the Segment already exists (partially
+     * or fully).
      */
     @Test
-    public void testCreateNewStreamSegmentWithFailures() {
+    public void testCreateSegmentAlreadyExists() {
+        final String segmentName = "NewSegment";
+        testCreateAlreadyExists(segmentName, (mapper, attributes) -> mapper.createNewStreamSegment(segmentName, attributes, TIMEOUT));
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentMapper to create a new Transaction if the Transaction already exists (partially
+     * or fully).
+     */
+    @Test
+    public void testCreateTransactionAlreadyExists() {
+        final String parentSegmentName = "NewSegment";
+        final UUID txnId = UUID.randomUUID();
+        final String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentSegmentName, txnId);
+        testCreateAlreadyExists(
+                txnName,
+                (mapper, attributes) ->
+                        // Create Parent if not exists.
+                        mapper.createNewStreamSegment(parentSegmentName, null, TIMEOUT)
+                              .exceptionally(ex -> {
+                                  if (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentExistsException) {
+                                      return null;
+                                  }
+                                  throw new CompletionException(ex);
+                              })
+                              .thenCompose(v -> mapper.createNewTransactionStreamSegment(parentSegmentName, txnId, attributes, TIMEOUT))
+        );
+    }
+
+    /**
+     * Tests the ability of the StreamSegmentMapper to create a new StreamSegment if there are Storage and/or OperationLog Failures.
+     * This tests failures other than StreamSegmentExistsException, which is handled in a different test.
+     */
+    @Test
+    public void testCreateSegmentWithFailures() {
         final String segmentName = "NewSegment";
 
         @Cleanup
         TestContext context = new TestContext();
 
-        // 1. Create fails with StreamSegmentExistsException.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
-        AssertExtensions.assertThrows(
-                "createNewStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
-                ex -> ex instanceof StreamSegmentExistsException);
-
-        // 2. Create fails with random exception.
+        // 1. Segment.
         context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
-        // Manually create the StreamSegment and test the Transaction creation.
-
-        // 3. Create-Transaction fails with StreamSegmentExistsException.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new StreamSegmentExistsException("intentional"));
+        // 2. Transaction.
+        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
         setupStorageGetHandler(context,
                 Collections.singleton(segmentName),
-                name -> new StreamSegmentInformation(name, 0, false, false, new ImmutableDate()));
-        AssertExtensions.assertThrows(
-                "createNewTransactionStreamSegment did not fail when Segment already exists.",
-                () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
-                ex -> ex instanceof StreamSegmentExistsException);
-
-        // 4. Create-Transaction fails with random exception.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
+                name -> StreamSegmentInformation.builder().name(name).build());
         AssertExtensions.assertThrows(
                 "createNewTransactionStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewTransactionStreamSegment(segmentName, UUID.randomUUID(), null, TIMEOUT),
@@ -188,7 +212,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
         Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, getInitialLength.apply(segmentName), isSealed.test(segmentName), false, new ImmutableDate()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName)
+                .length(getInitialLength.apply(segmentName))
+                .sealed(isSealed.test(segmentName))
+                .build());
 
         // First, map all the parents (stand-alone segments).
         for (String name : storageSegments) {
@@ -199,7 +226,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No metadata was created for StreamSegment " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
-                Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getDurableLogLength());
+                Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for StreamSegment " + name, expectedSeal, sm.isSealed());
 
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
@@ -218,7 +245,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No metadata was created for Transaction " + name, sm);
                 long expectedLength = getInitialLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
-                Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getDurableLogLength());
+                Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for Transaction " + name, expectedSeal, sm.isSealed());
 
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
@@ -249,7 +276,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         setupOperationLog(context);
-        setupStorageGetHandler(context, storageSegments, segmentName -> new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
+        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName).build());
 
         // Map all the segments, then delete them, then verify behavior.
         for (String name : storageSegments) {
@@ -291,7 +318,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IntentionalException);
 
         // 2a. StreamSegmentNotExists (Stand-Alone segment)
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
+        setupStorageGetHandler(context, storageSegments, sn -> StreamSegmentInformation.builder().name(sn).build());
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent stand-alone StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
@@ -317,7 +344,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         val badMapper = new StreamSegmentMapper(context.metadata, context.operationLog, testStateStore, context.noOpMetadataCleanup, context.storage, executorService());
         val segmentName2 = segmentName + "2";
         val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
-        context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
+        context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(sn).build());
         testStateStore.getHandler = () -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
 
         AssertExtensions.assertThrows(
@@ -336,16 +363,18 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithMetadataLimit() throws Exception {
+        // We use different "parent" segment names because it is possible that, if the test runs fast enough, and the
+        // StreamSegmentMapper does not clean up its state quickly enough, subsequent mapping attempts will piggyback
+        // on the first one, and thus not execute the test as desired.
         final String segmentName = "Segment";
-        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
+        final String transactionParent = "SegmentWithTxn";
+        final String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(transactionParent, UUID.randomUUID());
 
-        HashSet<String> storageSegments = new HashSet<>();
-        storageSegments.add(segmentName);
-        storageSegments.add(transactionName);
+        HashSet<String> storageSegments = new HashSet<>(Arrays.asList(segmentName, transactionParent, transactionName));
 
         @Cleanup
         TestContext context = new TestContext();
-        setupStorageGetHandler(context, storageSegments, name -> new StreamSegmentInformation(name, 0, false, false, new ImmutableDate()));
+        setupStorageGetHandler(context, storageSegments, name -> StreamSegmentInformation.builder().name(name).build());
 
         // 1. Verify the behavior when even after the retry we still cannot map.
         AtomicInteger exceptionCounter = new AtomicInteger();
@@ -355,13 +384,13 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
         Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times/"));
+                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
             return CompletableFuture.completedFuture(null);
         };
         val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
@@ -371,7 +400,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         exceptionCounter.set(0);
         cleanupInvoked.set(false);
         AssertExtensions.assertThrows(
-                "Unexpected outcome when trying to map a segment name to a full metadata that cannot be cleaned.",
+                "Unexpected outcome when trying to map a transaction to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(transactionName, TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
         Assert.assertEquals("Unexpected number of attempts to map.", 2, exceptionCounter.get());
@@ -398,6 +427,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability of the StreamSegmentMapper to generate/return the Id of an existing StreamSegment, with concurrent requests.
+     * Also tests the ability to execute such callbacks in the order in which they were received.
      */
     @Test
     public void testGetOrAssignStreamSegmentIdWithConcurrency() throws Exception {
@@ -405,14 +435,18 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // is driven by the same code for Transactions as well.
         final String segmentName = "Segment";
         final long segmentId = 12345;
+        final String firstResult = "first";
+        final String secondResult = "second";
+        final String thirdResult = "third";
 
         HashSet<String> storageSegments = new HashSet<>();
         storageSegments.add(segmentName);
 
         @Cleanup
         TestContext context = new TestContext();
-        setupStorageGetHandler(context, storageSegments, sn -> new StreamSegmentInformation(sn, 0, false, false, new ImmutableDate()));
-        CompletableFuture<Long> initialAddFuture = new CompletableFuture<>();
+        setupStorageGetHandler(context, storageSegments, sn -> StreamSegmentInformation.builder().name(sn).build());
+        CompletableFuture<Void> initialAddFuture = new CompletableFuture<>();
+        CompletableFuture<Void> addInvoked = new CompletableFuture<>();
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
             if (!(op instanceof StreamSegmentMapOperation)) {
@@ -424,19 +458,131 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
             // Need to set SegmentId on operation.
             ((StreamSegmentMapOperation) op).setStreamSegmentId(segmentId);
+            UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(segmentName, segmentId);
+            segmentMetadata.setStorageLength(0);
+            segmentMetadata.setLength(0);
+            addInvoked.complete(null);
             return initialAddFuture;
         };
 
-        CompletableFuture<Long> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
-        CompletableFuture<Long> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT);
-        Thread.sleep(20);
+        List<Integer> invocationOrder = Collections.synchronizedList(new ArrayList<>());
+
+        // Second call is designed to hit when the first call still tries to assign the id, hence we test normal queueing.
+        CompletableFuture<String> firstCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (first).", segmentId, (long) id);
+                    invocationOrder.add(1);
+                    return CompletableFuture.completedFuture(firstResult);
+                });
+
+        CompletableFuture<String> secondCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (second).", segmentId, (long) id);
+                    invocationOrder.add(2);
+                    return CompletableFuture.completedFuture(secondResult);
+                });
+
+        // Wait for the metadata to be updated properly.
+        addInvoked.join();
         Assert.assertFalse("getOrAssignStreamSegmentId (first call) returned before OperationLog finished.", firstCall.isDone());
         Assert.assertFalse("getOrAssignStreamSegmentId (second call) returned before OperationLog finished.", secondCall.isDone());
-        initialAddFuture.complete(1L);
-        long firstCallResult = firstCall.get(100, TimeUnit.MILLISECONDS);
-        long secondCallResult = secondCall.get(100, TimeUnit.MILLISECONDS);
 
-        Assert.assertEquals("Two concurrent calls to getOrAssignStreamSegmentId for the same StreamSegment returned different ids.", firstCallResult, secondCallResult);
+        // Third call is designed to hit after the metadata has been updated, but prior to the other callbacks being invoked.
+        // It verifies that even in that case it still executes in order.
+        CompletableFuture<String> thirdCall = context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT,
+                id -> {
+                    Assert.assertEquals("Unexpected SegmentId (second).", segmentId, (long) id);
+                    invocationOrder.add(3);
+                    return CompletableFuture.completedFuture(thirdResult);
+                });
+        initialAddFuture.complete(null);
+
+        Assert.assertEquals("Unexpected result from firstCall.", firstResult, firstCall.join());
+        Assert.assertEquals("Unexpected result from secondCall.", secondResult, secondCall.join());
+        Assert.assertEquals("Unexpected result from thirdCall.", thirdResult, thirdCall.join());
+        val expectedOrder = Arrays.asList(1, 2, 3);
+        AssertExtensions.assertListEquals("", expectedOrder, invocationOrder, Integer::equals);
+    }
+
+    /**
+     * General test for verifying behavior when a Segment/Transaction is attempted to be created but it already exists.
+     *
+     * @param segmentName   The name of the segment/transaction to create.
+     * @param createSegment A BiFunction that is given an instance of a StreamSegmentMapper and a Collection of AttributeUpdates
+     *                      that, when invoked, will create the given segment.
+     */
+    private void testCreateAlreadyExists(String segmentName, BiFunction<StreamSegmentMapper, Collection<AttributeUpdate>, CompletableFuture<?>> createSegment) {
+        final String stateSegmentName = StreamSegmentNameUtils.getStateSegmentName(segmentName);
+        final Map<UUID, Long> correctAttributes = Collections.singletonMap(UUID.randomUUID(), 123L);
+        final Collection<AttributeUpdate> correctAttributeUpdates =
+                correctAttributes.entrySet().stream()
+                                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                                 .collect(Collectors.toList());
+        final Map<UUID, Long> badAttributes = Collections.singletonMap(UUID.randomUUID(), 456L);
+        final Collection<AttributeUpdate> badAttributeUpdates =
+                badAttributes.entrySet().stream()
+                             .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.Replace, e.getValue()))
+                             .collect(Collectors.toList());
+
+        @Cleanup
+        TestContext context = new TestContext();
+        @Cleanup
+        val storage = new InMemoryStorage();
+        storage.initialize(1);
+        val store = new SegmentStateStore(storage, executorService());
+        val mapper = new StreamSegmentMapper(context.metadata, context.operationLog, store, context.noOpMetadataCleanup, storage, executorService());
+
+        // 1. Segment Exists, and so does State File (and it's not corrupted) -> Exception must be bubbled up.
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        AssertExtensions.assertThrows(
+                "createNewStreamSegment did not fail when Segment already exists.",
+                () -> createSegment.apply(mapper, badAttributeUpdates),
+                ex -> ex instanceof StreamSegmentExistsException);
+        val state1 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate correctly created segment",
+                correctAttributes, state1.getAttributes());
+
+        // 2. Segment Exists, but with empty State File: State file re-created & no exception bubbled up.
+        storage.openWrite(stateSegmentName)
+               .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+               .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+               .join();
+        Assert.assertNull("Expected a null SegmentState.", store.get(segmentName, TIMEOUT).join());
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        val state2 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (missing state file)",
+                correctAttributes, state2.getAttributes());
+
+        // 3. Segment Exists, but with corrupted State File: State file re-created & no exception bubbled up.
+        storage.openWrite(stateSegmentName)
+                .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+                .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+                .thenCompose(v -> storage.openWrite(stateSegmentName))
+                .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
+                .join();
+        AssertExtensions.assertThrows(
+                "Expected a DataCorruptionException when reading a corrupted State File.",
+                () -> store.get(segmentName, TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+        createSegment.apply(mapper, correctAttributeUpdates).join();
+        val state3 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after successful attempt to complete segment creation (corrupted state file)",
+                correctAttributes, state3.getAttributes());
+
+        // 4. Segment Exists with non-zero length, but with empty/corrupted State File: State File re-created and exception thrown.
+        storage.openWrite(stateSegmentName)
+               .thenCompose(handle -> storage.delete(handle, TIMEOUT))
+               .thenCompose(v -> storage.create(stateSegmentName, TIMEOUT))
+               .thenCompose(v -> storage.openWrite(segmentName))
+               .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
+               .join();
+        AssertExtensions.assertThrows(
+                "createNewStreamSegment did not fail when Segment already exists (non-zero length, missing state file).",
+                () -> createSegment.apply(mapper, correctAttributeUpdates),
+                ex -> ex instanceof StreamSegmentExistsException);
+        val state4 = store.get(segmentName, TIMEOUT).join();
+        AssertExtensions.assertMapEquals("Unexpected attributes after failed attempt to recreate segment with non-zero length",
+                correctAttributes, state4.getAttributes());
     }
 
     private String getName(long segmentId) {
@@ -458,7 +604,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             val attributes = createAttributes(count)
                     .stream()
                     .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-            val segmentInfo = new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate());
+            val segmentInfo = StreamSegmentInformation.builder().name(segmentName).attributes(attributes).build();
             context.stateStore.put(segmentName, new SegmentState(segmentId, segmentInfo), TIMEOUT).join();
         }
     }
@@ -487,7 +633,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
-                segmentMetadata.setDurableLogLength(mapOp.getLength());
+                segmentMetadata.setLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }
@@ -501,7 +647,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
-                segmentMetadata.setDurableLogLength(mapOp.getLength());
+                segmentMetadata.setLength(mapOp.getLength());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }
@@ -509,7 +655,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 segmentMetadata.updateAttributes(mapOp.getAttributes());
             }
 
-            return CompletableFuture.completedFuture(currentSeqNo);
+            return CompletableFuture.completedFuture(null);
         };
     }
 
@@ -520,7 +666,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                     return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
-                    return CompletableFuture.completedFuture(new StreamSegmentInformation(segmentName, 0, false, false, new ImmutableDate()));
+                    return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(segmentName).build());
                 }
             }
         };
@@ -568,10 +714,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
     //region TestOperationLog
 
     private static class TestOperationLog implements OperationLog {
-        Function<Operation, CompletableFuture<Long>> addHandler;
+        Function<Operation, CompletableFuture<Void>> addHandler;
 
         @Override
-        public CompletableFuture<Long> add(Operation operation, Duration timeout) {
+        public CompletableFuture<Void> add(Operation operation, Duration timeout) {
             return addHandler.apply(operation);
         }
 
@@ -687,37 +833,37 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public void initialize(long epoch) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         @Override

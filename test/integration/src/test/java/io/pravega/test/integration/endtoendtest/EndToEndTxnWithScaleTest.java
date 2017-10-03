@@ -35,9 +35,12 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.test.common.TestUtils;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -61,9 +64,13 @@ public class EndToEndTxnWithScaleTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
+    private ScheduledExecutorService executorService;
+
 
     @Before
     public void setUp() throws Exception {
+        executorService = Executors.newSingleThreadScheduledExecutor();
+
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -84,6 +91,7 @@ public class EndToEndTxnWithScaleTest {
 
     @After
     public void tearDown() throws Exception {
+        executorService.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -117,7 +125,7 @@ public class EndToEndTxnWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executorService).getFuture().get();
 
         assertTrue(result);
 

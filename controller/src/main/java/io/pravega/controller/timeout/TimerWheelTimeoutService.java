@@ -9,32 +9,31 @@
  */
 package io.pravega.controller.timeout;
 
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
-import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricsProvider;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.MetricsNames.TIMEDOUT_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.nameFromStream;
@@ -50,7 +49,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
     // region HashedWheelTimer parameters
 
-    private static final ThreadFactory THREAD_FACTORY = Executors.defaultThreadFactory();
+    private static final ThreadFactory THREAD_FACTORY = ExecutorServiceHelpers.getThreadFactory("TimerWheelService");
     private static final long TICK_DURATION = 400;
     private static final TimeUnit TIME_UNIT = TimeUnit.MILLISECONDS;
     private static final int TICKS_PER_WHEEL = 512;
@@ -142,9 +141,8 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             this.timeout = hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
         }
 
-        public TxnData updateLease(final String scope, final String stream, final UUID txnId, final long lease) {
-            return new TxnData(scope, stream, txnId, this.version, lease,
-                    this.maxExecutionTimeExpiry, this.scaleGracePeriod);
+        public TxnData updateLease(final String scope, final String stream, final UUID txnId, int version, final long lease) {
+            return new TxnData(scope, stream, txnId, version, lease, this.maxExecutionTimeExpiry, this.scaleGracePeriod);
         }
     }
 
@@ -210,7 +208,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, long lease) {
+    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease) {
 
         if (!this.isRunning()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build();
@@ -220,6 +218,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
         Preconditions.checkState(map.containsKey(key), "Stream not found in the map");
 
         final TxnData txnData = map.get(key);
+
+        if (txnData == null) {
+            throw new IllegalStateException(String.format("Transaction %s not added to timerWheelTimeoutService", txnId));
+        }
 
         if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build();
@@ -231,7 +233,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             Timeout timeout = txnData.getTimeout();
             boolean cancelSucceeded = timeout.cancel();
             if (cancelSucceeded) {
-                TxnData newTxnData = txnData.updateLease(scope, stream, txnId, lease);
+                TxnData newTxnData = txnData.updateLease(scope, stream, txnId, version, lease);
                 map.replace(key, txnData, newTxnData);
                 return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build();
             } else {

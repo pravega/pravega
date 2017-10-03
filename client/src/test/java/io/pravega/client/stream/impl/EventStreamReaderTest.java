@@ -26,12 +26,12 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -122,9 +122,11 @@ public class EventStreamReaderTest {
         Assert.assertEquals(segment2, readers.get(1).getSegmentId());
 
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint");
+        assertTrue(reader.readNextEvent(0).isCheckpoint());
+        Mockito.when(groupState.getCheckpoint()).thenReturn(null);
         Mockito.when(groupState.findSegmentToReleaseIfRequired()).thenReturn(segment2);
-        reader.readNextEvent(0);
-        reader.readNextEvent(0);
+        Mockito.when(groupState.releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong())).thenReturn(true);
+        assertFalse(reader.readNextEvent(0).isCheckpoint());
         Mockito.verify(groupState).releaseSegment(Mockito.eq(segment2), Mockito.anyLong(), Mockito.anyLong());
         readers = reader.getReaders();
         assertEquals(1, readers.size());

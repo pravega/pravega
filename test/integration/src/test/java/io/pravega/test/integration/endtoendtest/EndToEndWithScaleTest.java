@@ -34,9 +34,13 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -59,9 +63,11 @@ public class EndToEndWithScaleTest {
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
+    private ScheduledExecutorService executor;
 
     @Before
     public void setUp() throws Exception {
+        executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -82,13 +88,14 @@ public class EndToEndWithScaleTest {
 
     @After
     public void tearDown() throws Exception {
+        executor.shutdown();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
     }
 
-    @Test(timeout = 20000)
+    @Test(timeout = 30000)
     public void testScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
@@ -113,7 +120,7 @@ public class EndToEndWithScaleTest {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map).get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
         assertTrue(result);
         writer.writeEvent("0", "txntest2").get();
         @Cleanup

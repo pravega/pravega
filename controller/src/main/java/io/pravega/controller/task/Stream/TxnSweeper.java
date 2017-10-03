@@ -12,6 +12,7 @@ package io.pravega.controller.task.Stream;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
@@ -36,7 +37,8 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
  * Sweeper for transactions orphaned by failed controller processes.
  */
 @Slf4j
-public class TxnSweeper {
+public class TxnSweeper implements FailoverSweeper {
+
     private final StreamMetadataStore streamMetadataStore;
     private final StreamTransactionMetadataTasks transactionMetadataTasks;
     private final long maxTxnTimeoutMillis;
@@ -64,15 +66,17 @@ public class TxnSweeper {
         this.executor = executor;
     }
 
-    public boolean isReady() {
-        return transactionMetadataTasks.isReady();
-    }
-
     public void awaitInitialization() throws InterruptedException {
         transactionMetadataTasks.awaitInitialization();
     }
 
-    public CompletableFuture<Void> sweepFailedHosts(Supplier<Set<String>> activeHosts) {
+    @Override
+    public boolean isReady() {
+        return transactionMetadataTasks.isReady();
+    }
+
+    @Override
+    public CompletableFuture<Void> sweepFailedProcesses(Supplier<Set<String>> activeHosts) {
         if (!transactionMetadataTasks.isReady()) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
@@ -81,11 +85,12 @@ public class TxnSweeper {
         return hostsOwningTxns.thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
             log.info("Failed hosts {} have orphaned tasks", index);
-            return FutureHelpers.allOf(index.stream().map(this::sweepOrphanedTxns).collect(Collectors.toList()));
+            return FutureHelpers.allOf(index.stream().map(this::handleFailedProcess).collect(Collectors.toList()));
         }, executor);
     }
 
-    public CompletableFuture<Void> sweepOrphanedTxns(String failedHost) {
+    @Override
+    public CompletableFuture<Void> handleFailedProcess(String failedHost) {
         if (!transactionMetadataTasks.isReady()) {
             return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }

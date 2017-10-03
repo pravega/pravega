@@ -249,9 +249,12 @@ public class FileSystemStorage implements Storage {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
                 PosixFileAttributes.class);
-        StreamSegmentInformation information = new StreamSegmentInformation(streamSegmentName, attrs.size(),
-                !(attrs.permissions().contains(OWNER_WRITE)), false,
-                new ImmutableDate(attrs.creationTime().toMillis()));
+        StreamSegmentInformation information = StreamSegmentInformation.builder()
+                .name(streamSegmentName)
+                .length(attrs.size())
+                .sealed(!(attrs.permissions().contains(OWNER_WRITE)))
+                .lastModified(new ImmutableDate(attrs.creationTime().toMillis()))
+                .build();
 
         LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
         return information;
@@ -412,7 +415,9 @@ public class FileSystemStorage implements Storage {
             retVal = new IllegalArgumentException(e.getMessage());
         }
 
-        if (e instanceof AccessDeniedException) {
+        if (e instanceof AccessControlException
+                || e instanceof AccessDeniedException
+                || e instanceof NonWritableChannelException) {
             retVal = new StreamSegmentSealedException(segmentName, e);
         }
 

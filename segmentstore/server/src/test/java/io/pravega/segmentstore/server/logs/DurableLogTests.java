@@ -12,9 +12,7 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -26,6 +24,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -509,7 +508,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
         // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
@@ -588,7 +587,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
 
         Duration shortTimeout = Duration.ofMillis(30);
 
@@ -841,7 +840,7 @@ public class DurableLogTests extends OperationLogTestBase {
                         if (readCounter.incrementAndGet() > failReadAfter && readItem.getLength() > DataFrame.MIN_ENTRY_LENGTH_NEEDED) {
                             // Mangle with the payload and overwrite its contents with a DataFrame having a bogus
                             // previous sequence number.
-                            DataFrame df = new DataFrame(readItem.getLength());
+                            DataFrame df = DataFrame.ofSize(readItem.getLength());
                             df.seal();
                             ArrayView serialization = df.getData();
                             return new InjectedReadItem(serialization.getReader(), serialization.getLength(), readItem.getAddress());
@@ -1048,8 +1047,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that we can still queue operations to the DurableLog and they can be read.
             // In this case we'll just queue some StreamSegmentMapOperations.
-            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(
-                    new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
+            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name("foo").build());
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
@@ -1200,7 +1198,7 @@ public class DurableLogTests extends OperationLogTestBase {
             long storageOffset = 0;
             for (long segmentId : streamSegmentIds) {
                 val sm = metadata1.getStreamSegmentMetadata(segmentId);
-                sm.setStorageLength(Math.min(storageOffset, sm.getDurableLogLength()));
+                sm.setStorageLength(Math.min(storageOffset, sm.getLength()));
                 storageOffset++;
                 if (sm.isSealed() && storageOffset % 2 == 0) {
                     sm.markSealedInStorage();
@@ -1268,10 +1266,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
             Operation expectedOp = oc.operation;
-            long currentSeqNo = oc.completion.join();
-            Assert.assertEquals("Operation and its corresponding Completion Future have different Sequence Numbers.", currentSeqNo, expectedOp.getSequenceNumber());
-            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, currentSeqNo);
-            lastSeqNo = currentSeqNo;
+            AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
+            lastSeqNo = expectedOp.getSequenceNumber();
 
             // MemoryLog: verify that the operations match that of the expected list.
             Assert.assertTrue("No more items left to read from DurableLog. Expected: " + expectedOp, logIterator.hasNext());
@@ -1305,7 +1301,7 @@ public class DurableLogTests extends OperationLogTestBase {
         int index = 0;
         for (Operation o : operations) {
             index++;
-            CompletableFuture<Long> completionFuture;
+            CompletableFuture<Void> completionFuture;
             try {
                 completionFuture = durableLog.add(o, TIMEOUT);
             } catch (Exception ex) {
@@ -1412,7 +1408,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //endregion
 
-    // CorruptedDurableLog
+    //region CorruptedDurableLog
 
     private static class CorruptedDurableLog extends DurableLog {
         private static final AtomicInteger FAIL_AT_INDEX = new AtomicInteger();

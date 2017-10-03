@@ -23,7 +23,17 @@ public class NullDynamicLogger implements DynamicLogger {
     }
 
     @Override
+    public void freezeCounter(String name) {
+        // nop
+    }
+
+    @Override
     public <T extends Number> void reportGaugeValue(String name, T value) {
+        // nop
+    }
+
+    @Override
+    public void freezeGaugeValue(String name) {
         // nop
     }
 

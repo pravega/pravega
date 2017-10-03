@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -30,7 +29,7 @@ import org.junit.rules.Timeout;
  * Defines tests for a generic State Store (AsyncMap(String, SegmentState))
  */
 public abstract class StateStoreTests extends ThreadPooledTestSuite {
-    private static final Duration TIMEOUT = Duration.ofSeconds(10);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(10);
     private static final int ATTRIBUTE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
@@ -109,8 +108,7 @@ public abstract class StateStoreTests extends ThreadPooledTestSuite {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(segmentName.hashCode(),
-                new StreamSegmentInformation(segmentName, 0, false, false, attributes, new ImmutableDate()));
+        return new SegmentState(segmentName.hashCode(), StreamSegmentInformation.builder().name(segmentName).attributes(attributes).build());
     }
 
     //region InMemoryStateStoreTests

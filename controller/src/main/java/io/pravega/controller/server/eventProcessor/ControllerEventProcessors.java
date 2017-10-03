@@ -24,6 +24,7 @@ import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
+import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -55,7 +56,7 @@ import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
 @Slf4j
-public class ControllerEventProcessors extends AbstractIdleService {
+public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper {
 
     public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
     public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
@@ -82,7 +83,9 @@ public class ControllerEventProcessors extends AbstractIdleService {
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
-    private final RequestHandlerMultiplexer requestHandler;
+    private final RequestHandlerMultiplexer requestHandlerMultiplexer;
+    private final CommitEventProcessor commitEventProcessor;
+    private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
                                      final ControllerEventProcessorConfig config,
@@ -122,13 +125,63 @@ public class ControllerEventProcessors extends AbstractIdleService {
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
-        this.requestHandler = new RequestHandlerMultiplexer(new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
-                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor));
-
+        this.requestHandlerMultiplexer = new RequestHandlerMultiplexer(
+                new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
+                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor), executor);
+        this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
+        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
+                executor, segmentHelper, connectionFactory);
         this.executor = executor;
     }
 
-    public CompletableFuture<Void> notifyProcessFailure(String process) {
+    @Override
+    protected void startUp() throws Exception {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
+        try {
+            log.info("Starting controller event processors");
+            initialize();
+            log.info("Controller event processors startUp complete");
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
+        }
+    }
+
+    @Override
+    protected void shutDown() {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
+        try {
+            log.info("Stopping controller event processors");
+            stopEventProcessors();
+            log.info("Controller event processors shutDown complete");
+        } finally {
+            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
+        }
+    }
+
+    @Override
+    public boolean isReady() {
+        return isRunning();
+    }
+
+    @Override
+    public CompletableFuture<Void> sweepFailedProcesses(final Supplier<Set<String>> processes) {
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        if (this.commitEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.commitEventProcessors, processes));
+        }
+        if (this.abortEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
+        }
+        if (this.requestEventProcessors != null) {
+            futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
+        }
+        return FutureHelpers.allOf(futures);
+    }
+
+    @Override
+    public CompletableFuture<Void> handleFailedProcess(String process) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
         if (commitEventProcessors != null) {
@@ -160,30 +213,6 @@ public class ControllerEventProcessors extends AbstractIdleService {
             }, executor), RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
         }
         return FutureHelpers.allOf(futures);
-    }
-
-    @Override
-    protected void startUp() throws Exception {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
-        try {
-            log.info("Starting controller event processors");
-            initialize();
-            log.info("Controller event processors startUp complete");
-        } finally {
-            LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
-        }
-    }
-
-    @Override
-    protected void shutDown() {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "shutDown");
-        try {
-            log.info("Stopping controller event processors");
-            stopEventProcessors();
-            log.info("Controller event processors shutDown complete");
-        } finally {
-            LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
-        }
     }
 
     private CompletableFuture<Void> createStreams() {
@@ -237,21 +266,6 @@ public class ControllerEventProcessors extends AbstractIdleService {
             streamMetadataTasks.initializeStreamWriters(clientFactory, config.getRequestStreamName());
             streamTransactionMetadataTasks.initializeStreamWriters(clientFactory, config);
         }, executor);
-    }
-
-    public CompletableFuture<Void> handleOrphanedReaders(final Supplier<Set<String>> processes) {
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-        if (this.commitEventProcessors != null) {
-            futures.add(handleOrphanedReaders(this.commitEventProcessors, processes));
-        }
-        if (this.abortEventProcessors != null) {
-            futures.add(handleOrphanedReaders(this.abortEventProcessors, processes));
-        }
-        if (this.requestEventProcessors != null) {
-            futures.add(handleOrphanedReaders(this.requestEventProcessors, processes));
-        }
-        return FutureHelpers.allOf(futures);
     }
 
     private CompletableFuture<Void> handleOrphanedReaders(final EventProcessorGroup<? extends ControllerEvent> group,
@@ -348,7 +362,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(abortReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(ABORT_EVENT_SERIALIZER)
-                        .supplier(() -> new AbortEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> new ConcurrentEventProcessor<>(abortRequestHandler, executor))
                         .build();
 
         log.info("Creating abort event processors");
@@ -376,9 +390,7 @@ public class ControllerEventProcessors extends AbstractIdleService {
                         .config(requestReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(CONTROLLER_EVENT_SERIALIZER)
-                        .supplier(() -> new ConcurrentEventProcessor<>(
-                                requestHandler,
-                                executor))
+                        .supplier(() -> new ConcurrentEventProcessor<>(requestHandlerMultiplexer, executor))
                         .build();
 
         log.info("Creating request event processors");

@@ -14,28 +14,39 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.URI;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A stream manager. Used to bootstrap the client.
  */
+@Slf4j
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
 
+    private final ScheduledExecutorService executor; 
+    
     public StreamManagerImpl(URI controllerUri) {
-        this.controller = new ControllerImpl(controllerUri);
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
     }
 
     @VisibleForTesting
     public StreamManagerImpl(Controller controller) {
+        this.executor = null;
         this.controller = controller;
     }
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
+        log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
         return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                         .scope(scopeName)
@@ -48,6 +59,7 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
+        log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                         .scope(scopeName)
                         .streamName(streamName)
@@ -81,10 +93,10 @@ public class StreamManagerImpl implements StreamManager {
                 RuntimeException::new);
     }
 
-
     @Override
     public void close() {
-        //Nothing to close
+        if (this.executor != null) {
+            this.executor.shutdown();
+        }
     }
-
 }

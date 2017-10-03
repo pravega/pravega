@@ -85,7 +85,7 @@ public class StreamSegmentMetadataTests {
         StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
         baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setStorageLength(1233);
-        baseMetadata.setDurableLogLength(3235342);
+        baseMetadata.setLength(3235342);
         baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
         baseMetadata.markSealed();

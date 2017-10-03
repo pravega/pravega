@@ -9,20 +9,16 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
-
-import io.pravega.test.common.AssertExtensions;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Unit tests for CompletableOperation class.
  */
 public class CompletableOperationTests {
-    private static final long DEFAULT_SEQ_NO = Operation.NO_SEQUENCE_NUMBER;
     private static final long VALID_SEQ_NO = 1;
 
     /**
@@ -32,20 +28,20 @@ public class CompletableOperationTests {
     public void testComplete() {
         MetadataCheckpointOperation op = new MetadataCheckpointOperation();
 
-        AtomicLong callbackSeqNo = new AtomicLong(DEFAULT_SEQ_NO);
+        AtomicBoolean callback = new AtomicBoolean(false);
         AtomicBoolean failureCallbackCalled = new AtomicBoolean();
-        CompletableOperation co = new CompletableOperation(op, callbackSeqNo::set, ex -> failureCallbackCalled.set(true));
+        CompletableOperation co = new CompletableOperation(op, v -> callback.set(true), ex -> failureCallbackCalled.set(true));
 
         AssertExtensions.assertThrows("complete() succeeded even if Operation had no Sequence Number.",
                 co::complete,
                 ex -> ex instanceof IllegalStateException);
 
-        Assert.assertEquals("Success callback was invoked for illegal complete() call.", DEFAULT_SEQ_NO, callbackSeqNo.get());
+        Assert.assertFalse("Success callback was invoked for illegal complete() call.", callback.get());
         Assert.assertFalse("Failure callback was invoked for illegal complete() call.", failureCallbackCalled.get());
 
         op.setSequenceNumber(VALID_SEQ_NO);
         co.complete();
-        Assert.assertEquals("Success callback not invoked with the correct argument after valid complete() call.", VALID_SEQ_NO, callbackSeqNo.get());
+        Assert.assertTrue("Success callback not invoked after valid complete() call.", callback.get());
         Assert.assertFalse("Failure callback was invoked for valid complete() call.", failureCallbackCalled.get());
     }
 

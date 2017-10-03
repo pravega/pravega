@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.function.CallbackHelpers;
@@ -21,6 +22,7 @@ import io.pravega.common.util.SortedDeque;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -41,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +69,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final QueueProcessingState state;
     @GuardedBy("stateLock")
     private final DataFrameBuilder<Operation> dataFrameBuilder;
+    @Getter
+    private final SegmentStoreMetrics.OperationProcessor metrics;
 
     //endregion
 
@@ -90,6 +95,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.state = new QueueProcessingState(stateUpdater, checkpointPolicy);
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(this.durableDataLog, args);
+        this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
     }
 
     //endregion
@@ -124,6 +130,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         this.state.fail(ex, null);
+        this.metrics.close();
         super.doStop();
     }
 
@@ -171,8 +178,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
      * failed, it will contain the exception that caused the failure.
      * @throws IllegalContainerStateException If the OperationProcessor is not running.
      */
-    public CompletableFuture<Long> process(Operation operation) {
-        CompletableFuture<Long> result = new CompletableFuture<>();
+    public CompletableFuture<Void> process(Operation operation) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
         if (!isRunning()) {
             result.completeExceptionally(new IllegalContainerStateException("OperationProcessor is not running."));
         } else {
@@ -209,6 +216,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
         int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
         delayMillis = Math.min(delayMillis, 1000);
+        this.metrics.processingDelay(delayMillis);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
@@ -230,14 +238,18 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
         // Process the operations in the queue. This loop will ensure we do continuous processing in case new items
         // arrived while we were busy handling the current items.
+        Timer processTimer = new Timer();
+        int count = 0;
         while (!operations.isEmpty()) {
             try {
                 // Process the current set of operations.
                 while (!operations.isEmpty()) {
                     CompletableOperation o = operations.poll();
+                    this.metrics.operationQueueWaitTime(o.getTimer().getElapsedMillis());
                     try {
                         processOperation(o);
                         this.state.addPending(o);
+                        count++;
                     } catch (Throwable ex) {
                         ex = ExceptionHelpers.getRealException(ex);
                         this.state.failOperation(o, ex);
@@ -253,6 +265,11 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 // Check if there are more operations to process. If so, it's more efficient to process them now (no thread
                 // context switching, better DataFrame occupancy optimization) rather than by going back to run().
                 if (operations.isEmpty()) {
+                    // We have processed all operations in the queue: this is a good time to report metrics.
+                    this.metrics.currentState(this.operationQueue.size(), this.state.getPendingCount());
+                    this.metrics.processOperations(count, processTimer.getElapsedMillis());
+                    processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
+                    count = 0;
                     operations = this.operationQueue.poll(MAX_READ_AT_ONCE);
                     if (operations.isEmpty()) {
                         log.debug("{}: processOperations (Flush).", this.traceObjectId);
@@ -403,6 +420,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         /**
+         * Gets a value indicating the number of pending operations
+         *
+         * @return The count.
+         */
+        int getPendingCount() {
+            synchronized (stateLock) {
+                return this.pendingOperations.size();
+            }
+        }
+
+        /**
          * Callback for when a DataFrame has been Sealed and is ready to be written to the DurableDataLog.
          * Seals the current metadata UpdateTransaction and maps it to the given CommitArgs. This UpdateTransaction
          * marks a point in the OperationMetadataUpdater that corresponds to the state of the Log at the end of the
@@ -431,6 +459,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         void commit(DataFrameBuilder.CommitArgs commitArgs) {
             assert commitArgs.key() >= 0 : "DataFrameBuilder.CommitArgs does not have a key set";
             log.debug("{}: CommitSuccess ({}).", traceObjectId, commitArgs);
+            Timer timer = new Timer();
 
             List<CompletableOperation> toComplete = new ArrayList<>();
             Map<CompletableOperation, Throwable> toFail = new HashMap<>();
@@ -455,9 +484,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Commit any changes to the metadata.
+                    Timer memoryCommitTimer = new Timer();
                     boolean checkpointExists = this.metadataTransactions.removeLessThanOrEqual(commitArgs);
                     assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
-                    OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
+                    int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.key());
 
                     // Acknowledge all pending entries, in the order in which they are in the queue (ascending seq no).
                     while (!this.pendingOperations.isEmpty()
@@ -494,6 +524,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     this.highestCommittedDataFrame = addressSequence;
+                    metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
                 }
 
                 this.logUpdater.flush();
@@ -505,6 +536,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     // Only record the commit if we had no failures.
                     this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
                 }
+
+                metrics.operationsCompleted(toComplete, timer.getElapsed());
+                metrics.operationsFailed(toFail.keySet());
             }
         }
 

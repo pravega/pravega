@@ -9,6 +9,7 @@
  */
 package io.pravega.common.concurrent;
 
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
@@ -43,11 +44,14 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
         val count = new AtomicInteger();
         val wasInvoked = new Semaphore(0);
         val waitOn = new CompletableFuture<Void>();
-        val p = new SequentialAsyncProcessor(() -> {
-            count.incrementAndGet();
-            wasInvoked.release();
-            waitOn.join();
-        }, executorService());
+        val p = new SequentialAsyncProcessor(
+                () -> {
+                    count.incrementAndGet();
+                    wasInvoked.release();
+                    waitOn.join();
+                },
+                (ex, c) -> true,
+                executorService());
 
         // Invoke it a number of times.
         for (int i = 0; i < invocationCount; i++) {
@@ -62,5 +66,34 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
         waitOn.complete(null);
         wasInvoked.acquire();
         Assert.assertEquals("Unexpected number of final invocations.", 2, count.get());
+    }
+
+    /**
+     * Tests the runAsync() method with execution errors.
+     */
+    @Test(timeout = TIMEOUT_MILLIS)
+    public void testRunAsyncErrors() throws Exception {
+        final int expectedCount = 2;
+        val count = new AtomicInteger();
+        val finished = new CompletableFuture<Void>();
+        val p = new SequentialAsyncProcessor(
+                () -> {
+                    count.incrementAndGet();
+                    throw new IntentionalException();
+                },
+                (ex, c) -> {
+                    boolean done = count.get() >= expectedCount;
+                    if (done) {
+                        finished.complete(null);
+                    }
+                    return !done;
+                },
+                executorService());
+
+        // Invoke it once.
+        p.runAsync();
+
+        finished.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of final invocations.", expectedCount, count.get());
     }
 }

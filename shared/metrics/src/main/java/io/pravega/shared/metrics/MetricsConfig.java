@@ -38,7 +38,7 @@ public class MetricsConfig {
     public final static Property<Boolean> ENABLE_JMX_REPORTER = Property.named("enableJMXReporter", false);
     public final static Property<Boolean> ENABLE_GANGLIA_REPORTER = Property.named("enableGangliaReporter", false);
     public final static Property<Boolean> ENABLE_CONSOLE_REPORTER = Property.named("enableConsoleReporter", false);
-    private static final String COMPONENT_CODE = "metrics";
+    public static final String COMPONENT_CODE = "metrics";
 
     //endregion
 

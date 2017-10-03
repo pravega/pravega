@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.impl.hdfs;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.util.CollectionHelpers;
-import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;

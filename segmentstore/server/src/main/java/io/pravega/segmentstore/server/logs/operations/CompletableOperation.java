@@ -10,11 +10,13 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -26,7 +28,9 @@ public class CompletableOperation {
 
     private final Operation operation;
     private final Consumer<Throwable> failureHandler;
-    private final Consumer<Long> successHandler;
+    private final Consumer<Void> successHandler;
+    @Getter
+    private final Timer timer;
     private boolean done;
 
     //endregion
@@ -41,7 +45,7 @@ public class CompletableOperation {
      *                       If successful, the CompletableFuture will contain the Sequence Number of the Operation as its payload.
      * @throws IllegalArgumentException If the given callbackFuture is already done.
      */
-    public CompletableOperation(Operation operation, CompletableFuture<Long> callbackFuture) {
+    public CompletableOperation(Operation operation, CompletableFuture<Void> callbackFuture) {
         this(operation, callbackFuture::complete, callbackFuture::completeExceptionally);
         Exceptions.checkArgument(!callbackFuture.isDone(), "callbackFuture", "CallbackFuture is already done.");
     }
@@ -54,11 +58,12 @@ public class CompletableOperation {
      * @param failureHandler A consumer that will be invoked if this operation failed. The argument provided is the causing Exception for the failure.
      * @throws NullPointerException If operation is null.
      */
-    public CompletableOperation(Operation operation, Consumer<Long> successHandler, Consumer<Throwable> failureHandler) {
+    CompletableOperation(Operation operation, Consumer<Void> successHandler, Consumer<Throwable> failureHandler) {
         Preconditions.checkNotNull(operation, "operation");
         this.operation = operation;
         this.failureHandler = failureHandler;
         this.successHandler = successHandler;
+        this.timer = new Timer();
     }
 
     //endregion
@@ -82,7 +87,7 @@ public class CompletableOperation {
 
         this.done = true;
         if (this.successHandler != null) {
-            CallbackHelpers.invokeSafely(this.successHandler, seqNo, cex -> log.error("Success Callback invocation failure.", cex));
+            CallbackHelpers.invokeSafely(this.successHandler, null, cex -> log.error("Success Callback invocation failure.", cex));
         }
     }
 

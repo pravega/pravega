@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
@@ -19,7 +20,7 @@ import io.pravega.test.system.framework.metronome.model.v1.Restart;
 import io.pravega.test.system.framework.metronome.model.v1.Run;
 import feign.Response;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 
@@ -71,6 +73,8 @@ public class RemoteSequential implements TestExecutor {
                                 methodName);
 
                     }
+                    //Wait for a minute between tests runs.
+                    Exceptions.handleInterrupted(() -> TimeUnit.MINUTES.sleep(1));
                 });
     }
 

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.segment.StreamSegmentNameUtils;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -29,6 +28,7 @@ import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
@@ -152,7 +152,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 appendLength = remainingLength;
                 writtenLength += appendLength;
                 remainingLength = 0;
-                segmentMetadata.setDurableLogLength(writtenLength);
+                segmentMetadata.setLength(writtenLength);
             }
         }
 
@@ -210,13 +210,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         appendData(segmentIds, segmentContents, context);
 
         // Mark everything so far (minus a few bytes) as being written to storage.
-        segmentMetadata.setStorageLength(segmentMetadata.getDurableLogLength() - 100);
+        segmentMetadata.setStorageLength(segmentMetadata.getLength() - 100);
 
         // Now partially merge a second transaction
         final long mergedTxOffset = beginMergeTransaction(mergedTxId, segmentMetadata, segmentContents, context);
 
         // Add one more append after all of this.
-        final long endOfMergedDataOffset = segmentMetadata.getDurableLogLength();
+        final long endOfMergedDataOffset = segmentMetadata.getLength();
         byte[] appendData = new byte[randomAppendLength];
         new Random(0).nextBytes(appendData);
         appendSingleWrite(segmentId, appendData, context);
@@ -226,7 +226,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // * [0 .. StorageLength): no reads allowed.
         // * [StorageLength .. mergedTxOffset): should be fully available.
         // * [mergedTxOffset .. endOfMergedDataOffset): no reads allowed
-        // * [endOfMergedDataOffset .. DurableLogLength): should be fully available.
+        // * [endOfMergedDataOffset .. Length): should be fully available.
 
         // Verify we are not allowed to read from the range which has already been committed to Storage (invalid arguments).
         for (AtomicLong offset = new AtomicLong(0); offset.get() < segmentMetadata.getStorageLength(); offset.incrementAndGet()) {
@@ -279,7 +279,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         verifyReadResult.accept(segmentMetadata.getStorageLength(), mergedTxOffset);
 
         // Verify that we can read the cached data just after the merged transaction but before the end of the segment.
-        verifyReadResult.accept(endOfMergedDataOffset, segmentMetadata.getDurableLogLength());
+        verifyReadResult.accept(endOfMergedDataOffset, segmentMetadata.getLength());
     }
 
     /**
@@ -380,9 +380,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
                 byte[] data = getAppendData(segmentMetadata.getName(), segmentId, i, writeCount.incrementAndGet());
 
-                // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
-                long offset = segmentMetadata.getDurableLogLength();
-                segmentMetadata.setDurableLogLength(offset + data.length);
+                // Make sure we increase the Length prior to appending; the ReadIndex checks for this.
+                long offset = segmentMetadata.getLength();
+                segmentMetadata.setLength(offset + data.length);
                 context.readIndex.append(segmentId, offset, data);
                 recordAppend(segmentId, data, segmentContents);
                 triggerFutureReadsCallback.run();
@@ -449,13 +449,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         byte[] appendData = "foo".getBytes();
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        long segmentOffset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(segmentOffset + appendData.length);
+        long segmentOffset = segmentMetadata.getLength();
+        segmentMetadata.setLength(segmentOffset + appendData.length);
         context.readIndex.append(segmentId, segmentOffset, appendData);
 
         UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
-        long transactionOffset = transactionMetadata.getDurableLogLength();
-        transactionMetadata.setDurableLogLength(transactionOffset + appendData.length);
+        long transactionOffset = transactionMetadata.getLength();
+        transactionMetadata.setLength(transactionOffset + appendData.length);
         context.readIndex.append(transactionId, transactionOffset, appendData);
 
         // 1. Appends at wrong offsets.
@@ -508,8 +508,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalArgumentException);
 
         transactionMetadata.markSealed();
-        long mergeOffset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(mergeOffset + transactionMetadata.getLength());
+        long mergeOffset = segmentMetadata.getLength();
+        segmentMetadata.setLength(mergeOffset + transactionMetadata.getLength());
         context.readIndex.beginMerge(segmentId, mergeOffset, transactionId);
         AssertExtensions.assertThrows(
                 "append did not throw the correct exception when called on a Transaction that was already sealed.",
@@ -568,7 +568,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         long testSegmentId = segmentIds.get(0);
         UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(testSegmentId);
         sm.setStorageLength(1024 * 1024);
-        sm.setDurableLogLength(1024 * 1024);
+        sm.setLength(1024 * 1024);
 
         AssertExtensions.assertThrows(
                 "Unexpected exception when attempting to read beyond the Segment length in Storage.",
@@ -688,15 +688,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             val handle = context.storage.openWrite(sm.getName()).join();
             context.storage.write(handle, 0, new ByteArrayInputStream(preStorageData), preStorageData.length, TIMEOUT).join();
             sm.setStorageLength(preStorageData.length);
-            sm.setDurableLogLength(preStorageData.length);
+            sm.setLength(preStorageData.length);
         }
 
         // Callback that appends one entry at the end of the given segment id.
         Consumer<Long> appendOneEntry = segmentId -> {
             UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
             byte[] data = new byte[appendSize];
-            long offset = sm.getDurableLogLength();
-            sm.setDurableLogLength(offset + data.length);
+            long offset = sm.getLength();
+            sm.setLength(offset + data.length);
             context.readIndex.append(segmentId, offset, data);
         };
 
@@ -765,7 +765,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Now update the metadata and indicate that all the post-storage data has been moved to storage.
         segmentIds.forEach(segmentId -> {
             UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
-            sm.setStorageLength(sm.getDurableLogLength());
+            sm.setStorageLength(sm.getLength());
         });
 
         // We add one artificial entry, which we'll be touching forever and ever; this forces the CacheManager to
@@ -776,7 +776,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Now evict everything (whether by size of by aging out).
         for (int i = 0; i < cachePolicy.getMaxGenerations(); i++) {
             @Cleanup
-            ReadResult result = context.readIndex.read(readSegment.getId(), readSegment.getDurableLogLength() - appendSize, appendSize, TIMEOUT);
+            ReadResult result = context.readIndex.read(readSegment.getId(), readSegment.getLength() - appendSize, appendSize, TIMEOUT);
             result.next();
             context.cacheManager.applyCachePolicy();
         }
@@ -837,7 +837,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         appendSingleWrite(transactionId, transactionWriteData, context);
         val handle = context.storage.openWrite(transactionMetadata.getName()).join();
         context.storage.write(handle, 0, new ByteArrayInputStream(transactionWriteData), transactionWriteData.length, TIMEOUT).join();
-        transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
+        transactionMetadata.setStorageLength(transactionMetadata.getLength());
 
         // Write some data to the parent, and make sure it is more than what we write to the transaction (hence the 10).
         for (int i = 0; i < 10; i++) {
@@ -848,8 +848,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         // Seal & Begin-merge the transaction (do not seal in storage).
         transactionMetadata.markSealed();
-        long mergeOffset = parentMetadata.getDurableLogLength();
-        parentMetadata.setDurableLogLength(mergeOffset + transactionMetadata.getDurableLogLength());
+        long mergeOffset = parentMetadata.getLength();
+        parentMetadata.setLength(mergeOffset + transactionMetadata.getLength());
         context.readIndex.beginMerge(parentId, mergeOffset, transactionId);
         transactionMetadata.markMerged();
         writtenStream.write(transactionWriteData);
@@ -909,11 +909,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         appendSingleWrite(transactionId, writeData, context);
         val transactionWriteHandle = context.storage.openWrite(transactionMetadata.getName()).join();
         context.storage.write(transactionWriteHandle, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT).join();
-        transactionMetadata.setStorageLength(transactionMetadata.getDurableLogLength());
+        transactionMetadata.setStorageLength(transactionMetadata.getLength());
 
         // Seal & Begin-merge the transaction (do not seal in storage).
         transactionMetadata.markSealed();
-        parentMetadata.setDurableLogLength(transactionMetadata.getDurableLogLength());
+        parentMetadata.setLength(transactionMetadata.getLength());
         context.readIndex.beginMerge(parentId, 0, transactionId);
         transactionMetadata.markMerged();
 
@@ -934,7 +934,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.storage.seal(transactionWriteHandle, TIMEOUT).join();
         val parentWriteHandle = context.storage.openWrite(parentMetadata.getName()).join();
         context.storage.concat(parentWriteHandle, 0, transactionWriteHandle.getSegmentName(), TIMEOUT).join();
-        parentMetadata.setStorageLength(parentMetadata.getDurableLogLength());
+        parentMetadata.setStorageLength(parentMetadata.getLength());
 
         context.readIndex.completeMerge(parentId, transactionId);
 
@@ -995,9 +995,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     private void appendSingleWrite(long segmentId, byte[] data, TestContext context) {
         UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
 
-        // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
-        long offset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(offset + data.length);
+        // Make sure we increase the Length prior to appending; the ReadIndex checks for this.
+        long offset = segmentMetadata.getLength();
+        segmentMetadata.setLength(offset + data.length);
         context.readIndex.append(segmentId, offset, data);
     }
 
@@ -1009,15 +1009,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 byte[] data = getAppendData(sm.getName(), segmentId, i, writeId);
                 writeId++;
 
-                // Make sure we increase the DurableLogLength prior to appending; the ReadIndex checks for this.
+                // Make sure we increase the Length prior to appending; the ReadIndex checks for this.
                 long offset = context.storage.getStreamSegmentInfo(sm.getName(), TIMEOUT).join().getLength();
                 val handle = context.storage.openWrite(sm.getName()).join();
                 context.storage.write(handle, offset, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
 
                 // Update metadata appropriately.
                 sm.setStorageLength(offset + data.length);
-                if (sm.getStorageLength() > sm.getDurableLogLength()) {
-                    sm.setDurableLogLength(sm.getStorageLength());
+                if (sm.getStorageLength() > sm.getLength()) {
+                    sm.setLength(sm.getStorageLength());
                 }
 
                 recordAppend(segmentId, data, segmentContents);
@@ -1056,8 +1056,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         transactionMetadata.markSealed();
 
         // Update parent length.
-        long mergeOffset = parentMetadata.getDurableLogLength();
-        parentMetadata.setDurableLogLength(mergeOffset + transactionMetadata.getDurableLogLength());
+        long mergeOffset = parentMetadata.getLength();
+        parentMetadata.setLength(mergeOffset + transactionMetadata.getLength());
 
         // Do the ReadIndex merge.
         context.readIndex.beginMerge(parentMetadata.getId(), mergeOffset, transactionId);
@@ -1073,7 +1073,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private void checkReadIndex(String testId, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         for (long segmentId : segmentContents.keySet()) {
-            long segmentLength = context.metadata.getStreamSegmentMetadata(segmentId).getDurableLogLength();
+            long segmentLength = context.metadata.getStreamSegmentMetadata(segmentId).getLength();
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
 
             long expectedCurrentOffset = 0;
@@ -1175,7 +1175,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     private void initializeSegment(long segmentId, TestContext context) {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
-        metadata.setDurableLogLength(0);
+        metadata.setLength(0);
         metadata.setStorageLength(0);
     }
 

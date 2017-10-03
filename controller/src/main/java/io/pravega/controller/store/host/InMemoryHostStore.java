@@ -12,7 +12,7 @@ package io.pravega.controller.store.host;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.segment.SegmentToContainerMapper;
+import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.fault;
 
+import com.google.common.collect.Lists;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
@@ -38,7 +39,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -51,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -136,9 +137,8 @@ public class ControllerClusterListenerTest {
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Create ControllerClusterListener.
-        ControllerClusterListener clusterListener =
-                new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, Optional.of(txnSweeper), executor);
+        ControllerClusterListener clusterListener =  new ControllerClusterListener(host, clusterZK, executor,
+                Lists.newArrayList(taskSweeper, txnSweeper));
         clusterListener.startAsync();
 
         clusterListener.awaitRunning();
@@ -181,14 +181,14 @@ public class ControllerClusterListenerTest {
         TaskSweeper taskSweeper = spy(new TaskSweeper(taskStore, host.getHostId(), executor,
                 new TestTasks(taskStore, executor, host.getHostId())));
 
-        when(taskSweeper.sweepOrphanedTasks(any(Supplier.class))).thenAnswer(invocation -> {
+        when(taskSweeper.sweepFailedProcesses(any(Supplier.class))).thenAnswer(invocation -> {
             if (!taskSweep.isDone()) {
                 // we complete the future when this method is called for the first time.
                 taskSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
         });
-        when(taskSweeper.sweepOrphanedTasks(anyString())).thenAnswer(invocation -> {
+        when(taskSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
             if (!taskHostSweep1.isDone()) {
                 // we complete this future when task sweeper for a failed host is called for the first time.
                 taskHostSweep1.complete(null);
@@ -216,13 +216,13 @@ public class ControllerClusterListenerTest {
             return false;
         }).when(txnSweeper).isReady();
 
-        when(txnSweeper.sweepFailedHosts(any())).thenAnswer(invocation -> {
+        when(txnSweeper.sweepFailedProcesses(any())).thenAnswer(invocation -> {
             if (!txnSweep.isDone()) {
                 txnSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
         });
-        when(txnSweeper.sweepOrphanedTxns(anyString())).thenAnswer(invocation -> {
+        when(txnSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
             if (!txnHostSweep2.isDone()) {
                 txnHostSweep2.complete(null);
             }
@@ -230,8 +230,8 @@ public class ControllerClusterListenerTest {
         });
 
         // Create ControllerClusterListener.
-        ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, Optional.empty(),
-                        taskSweeper, Optional.of(txnSweeper), executor);
+        ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
+                Lists.newArrayList(taskSweeper, txnSweeper));
 
         clusterListener.startAsync();
         clusterListener.awaitRunning();
@@ -241,10 +241,10 @@ public class ControllerClusterListenerTest {
         log.info("task sweeper completed");
 
         // ensure only tasks are swept
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(any(Supplier.class));
-        verify(txnSweeper, times(0)).sweepFailedHosts(any());
-        verify(taskSweeper, times(0)).sweepOrphanedTasks(anyString());
-        verify(txnSweeper, times(0)).sweepOrphanedTxns(anyString());
+        verify(taskSweeper, times(1)).sweepFailedProcesses(any(Supplier.class));
+        verify(txnSweeper, times(0)).sweepFailedProcesses(any());
+        verify(taskSweeper, times(0)).handleFailedProcess(anyString());
+        verify(txnSweeper, times(0)).handleFailedProcess(anyString());
         validateAddedNode(host.getHostId());
 
         log.info("adding new host");
@@ -263,14 +263,14 @@ public class ControllerClusterListenerTest {
         log.info("task sweep for new host done");
 
         // verify that all tasks are not swept again.
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(any(Supplier.class));
+        verify(taskSweeper, times(1)).sweepFailedProcesses(any(Supplier.class));
         // verify that host specific sweep happens once.
-        verify(taskSweeper, times(1)).sweepOrphanedTasks(anyString());
+        verify(taskSweeper, atLeast(1)).handleFailedProcess(anyString());
         // verify that txns are not yet swept as txnsweeper is not yet ready.
-        verify(txnSweeper, times(0)).sweepFailedHosts(any());
-        verify(txnSweeper, times(0)).sweepOrphanedTxns(anyString());
+        verify(txnSweeper, times(0)).sweepFailedProcesses(any());
+        verify(txnSweeper, times(0)).handleFailedProcess(anyString());
         // verify that txn sweeper was checked to be ready. It would have found it not ready at this point
-        verify(txnSweeper, times(1)).isReady();
+        verify(txnSweeper, atLeast(1)).isReady();
 
         // Reset the mock to call real method on txnsweeper.isReady.
         doCallRealMethod().when(txnSweeper).isReady();
@@ -283,7 +283,7 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(txnSweep, 3000));
 
         // verify that post initialization txns are swept. And host specific txn sweep is also performed.
-        verify(txnSweeper, times(1)).sweepFailedHosts(any());
+        verify(txnSweeper, times(1)).sweepFailedProcesses(any());
 
         // now add another host
         newHost = new Host(hostName, 20, "newHost2");
@@ -296,8 +296,8 @@ public class ControllerClusterListenerTest {
         assertTrue(FutureHelpers.await(taskHostSweep2, 3000));
         assertTrue(FutureHelpers.await(txnHostSweep2, 3000));
 
-        verify(taskSweeper, times(2)).sweepOrphanedTasks(anyString());
-        verify(txnSweeper, times(1)).sweepOrphanedTxns(anyString());
+        verify(taskSweeper, atLeast(2)).handleFailedProcess(anyString());
+        verify(txnSweeper, atLeast(1)).handleFailedProcess(anyString());
 
         clusterListener.stopAsync();
         clusterListener.awaitTerminated();

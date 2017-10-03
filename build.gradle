@@ -54,11 +54,8 @@ allprojects {
 project('common') {
     dependencies {
         testCompile project(':test:testcommon')
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
@@ -78,9 +75,14 @@ def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
 
 project ('shared') {
     dependencies {
+        compile project(':common')
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile project(':test:testcommon')
     }
     javadoc {
         exclude 'io/pravega/shared/*'
@@ -130,6 +132,8 @@ project('client') {
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
         testCompile project(':test:testcommon')
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
 
     javadoc {
@@ -142,7 +146,7 @@ project('test:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -197,6 +201,7 @@ project('segmentstore:storage:impl') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
+        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -256,6 +261,18 @@ project('segmentstore:server:host') {
 }
 
 project('test:integration') {
+    apply plugin: 'application'
+    applicationName = "pravega-selftest"
+    mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
+
+    applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
+                                 "-Dlog.dir=PRAVEGA_APP_HOME/logs",
+                                 "-Dlog.name=selftest"]
+
+    applicationDistribution.from('src/config') {
+        into "conf"
+    }
+
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -279,12 +296,6 @@ project('test:integration') {
 
     task startServer(type: JavaExec) {
         main = "io.pravega.segmentstore.server.host.ServiceStarter"
-        classpath = sourceSets.main.runtimeClasspath
-        standardInput = System.in
-    }
-
-    task startServerInteractive(type: JavaExec) {
-        main = "io.pravega.segmentstore.server.host.InteractiveStreamSegmentStoreTester"
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
@@ -336,14 +347,19 @@ project('test:integration') {
         classpath = sourceSets.main.runtimeClasspath
         standardInput = System.in
     }
+
+    task selftest(type: JavaExec) {
+        main = "io.pravega.test.integration.selftest.SelfTestRunner"
+        classpath = sourceSets.main.runtimeClasspath
+        systemProperties System.getProperties()
+    }
 }
 
 project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3ControllerContractVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -390,10 +406,9 @@ project('controller') {
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-netty-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
-        testCompile group: 'org.glassfish.jersey.test-framework.providers', name: 'jersey-test-framework-provider-netty', version: jerseyVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
     }
 
@@ -508,6 +523,7 @@ project('test:system') {
         systemProperty "masterIP", System.getProperty("masterIP")
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"

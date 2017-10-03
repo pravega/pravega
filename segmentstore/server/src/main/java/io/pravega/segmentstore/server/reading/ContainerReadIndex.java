@@ -199,11 +199,11 @@ public class ContainerReadIndex implements ReadIndex {
                 // It is possible that between the time we got the pointer to the StreamSegmentReadIndex and when we got
                 // to invoking triggerFutureReads, the StreamSegmentReadIndex has already been closed. If this is the case,
                 // ignore the error.
-                // This is possible in the following scenario: for a Transaction, we have an Append, followed by a Merge;
-                // the Append makes this index eligible for triggering future reads, and the Merge (once committed to Storage)
+                // This is possible in the following scenario: for a Transaction, we have an Append/Seal, followed by a Merge;
+                // the Append/Seal makes this index eligible for triggering future reads, and the Merge (once committed to Storage)
                 // will close it. If the StorageWriter is sufficiently fast in comparison to the OperationProcessor callbacks
                 // (which could be the case for in-memory unit tests), it may trigger this condition.
-                if (getIndex(segmentId) == null) {
+                if (getIndex(segmentId) != null) {
                     throw ex;
                 } else {
                     log.debug("{}: triggerFutureReads: StreamSegmentId {} was skipped because it is no longer registered.",

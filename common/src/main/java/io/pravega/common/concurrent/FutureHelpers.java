@@ -84,10 +84,10 @@ public final class FutureHelpers {
      *                       of the Future from futureSupplier.
      * @param <T>            Return type of Future.
      */
-    public static <T> void completeAfter(Supplier<CompletableFuture<T>> futureSupplier, CompletableFuture<T> toComplete) {
+    public static <T> void completeAfter(Supplier<CompletableFuture<? extends T>> futureSupplier, CompletableFuture<T> toComplete) {
         Preconditions.checkArgument(!toComplete.isDone(), "toComplete is already completed.");
         try {
-            CompletableFuture<T> f = futureSupplier.get();
+            CompletableFuture<? extends T> f = futureSupplier.get();
 
             // Async termination.
             f.thenAccept(toComplete::complete);
@@ -108,6 +108,22 @@ public final class FutureHelpers {
      */
     public static <T> boolean isSuccessful(CompletableFuture<T> f) {
         return f.isDone() && !f.isCompletedExceptionally() && !f.isCancelled();
+    }
+    
+    /**
+     * If the future has failed returns the exception that caused it. Otherwise returns null.
+     * 
+     * @param <T> The Type of the future's result.
+     * @param future   The future to inspect.
+     * @return null or the exception that caused the Future to fail.
+     */
+    public static <T> Throwable getException(CompletableFuture<T> future) {
+        try {            
+            future.getNow(null);
+            return null;
+        } catch (Exception e) {
+            return ExceptionHelpers.getRealException(e);
+        }
     }
 
     /**
@@ -140,7 +156,7 @@ public final class FutureHelpers {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(ExceptionHelpers.unwrapIfRequired(e));
+            throw Lombok.sneakyThrow(ExceptionHelpers.getRealException(e));
         }
     }
 
@@ -173,12 +189,11 @@ public final class FutureHelpers {
     }
 
     /**
-     * Same as {@link #getAndHandleExceptions(Future, Function)} but with a timeout on get().
+     * Similar to {@link #getAndHandleExceptions(Future, Function)} but with an exception handler rather than a transforming function
+     * and a timeout on get().
      *
      * @param future               The future whose result is wanted
-     * @param exceptionConstructor This can be any function that either transforms an exception
-     *                             i.e. Passing RuntimeException::new will wrap the exception in a new RuntimeException.
-     *                             If null is returned from the function no exception will be thrown.
+     * @param handler              An exception handler
      * @param timeoutMillis        the timeout expressed in milliseconds before throwing {@link TimeoutException}
      * @param <ResultT>            Type of the result.
      * @param <ExceptionT>         Type of the Exception.
@@ -187,16 +202,12 @@ public final class FutureHelpers {
      */
     @SneakyThrows(InterruptedException.class)
     public static <ResultT, ExceptionT extends Exception> ResultT getAndHandleExceptions(Future<ResultT> future,
-                                                                                         Function<Throwable, ExceptionT> exceptionConstructor, long timeoutMillis) throws ExceptionT {
+                                                                                         Consumer<Throwable> handler, long timeoutMillis) throws ExceptionT {
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
-            ExceptionT result = exceptionConstructor.apply(e.getCause());
-            if (result == null) {
-                return null;
-            } else {
-                throw result;
-            }
+            handler.accept(e.getCause());
+            return null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw e;
@@ -249,6 +260,25 @@ public final class FutureHelpers {
                 CallbackHelpers.invokeSafely(exceptionListener, (E) ex, null);
             }
         });
+    }
+
+    /**
+     * Same as CompletableFuture.exceptionally(), except that it allows returning a CompletableFuture instead of a single value.
+     *
+     * @param future  The original CompletableFuture to attach an Exception Listener.
+     * @param handler A Function that consumes a Throwable and returns a CompletableFuture of the same type as the original one.
+     *                This Function will be invoked if the original Future completed exceptionally.
+     * @param <T>     Type of the value of the original Future.
+     * @return A new CompletableFuture that will be completed either with the result of future (if it completed normally),
+     * or with the result of handler when applied to the exception of future, should future complete exceptionally.
+     */
+    public static <T> CompletableFuture<? extends T> exceptionallyCompose(CompletableFuture<T> future, Function<Throwable, CompletableFuture<? extends T>> handler) {
+        return future.handle((r, ex) -> {
+            if (ex == null) {
+                return CompletableFuture.completedFuture(r);
+            }
+            return handler.apply(ex);
+        }).thenCompose(f -> f);
     }
 
     /**

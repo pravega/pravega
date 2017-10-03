@@ -575,7 +575,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         FlushResult result = new FlushResult();
         return FutureHelpers
                 .loop(
-                        this::exceedsThresholds,
+                        () -> !this.metadata.isDeleted() && exceedsThresholds(),
                         () -> flushPendingAppends(timer.getRemaining()),
                         result::withFlushResult,
                         executor)
@@ -648,6 +648,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         int length = (int) appendOp.getLength();
         InputStream data = this.dataSource.getAppendData(appendOp.getStreamSegmentId(), appendOp.getStreamSegmentOffset(), length);
         if (data == null) {
+            if (this.metadata.isDeleted()) {
+                // Segment was deleted - nothing more to do.
+                return new FlushArgs(null, 0);
+            }
             throw new DataCorruptionException(String.format("Unable to retrieve CacheContents for '%s'.", appendOp));
         }
 
@@ -714,7 +718,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
         FlushResult result = new FlushResult();
-        if (!transactionMetadata.isSealedInStorage() || transactionMetadata.getDurableLogLength() > transactionMetadata.getStorageLength()) {
+        if (!transactionMetadata.isSealedInStorage() || transactionMetadata.getLength() > transactionMetadata.getStorageLength()) {
             // Nothing to do. Given Transaction is not eligible for merger yet.
             LoggerHelpers.traceLeave(log, this.traceObjectId, "mergeWith", traceId, result);
             return CompletableFuture.completedFuture(result);
@@ -839,11 +843,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return this.storage
                 .getStreamSegmentInfo(this.metadata.getName(), timer.getRemaining())
                 .thenAccept(sp -> {
-                    if (sp.getLength() > this.metadata.getDurableLogLength()) {
+                    if (sp.getLength() > this.metadata.getLength()) {
                         // The length of the Segment in Storage is beyond what we have in our DurableLog. This is not
                         // possible in a correct scenario and is usually indicative of an internal bug or some other external
                         // actor altering the Segment. We cannot recover automatically from this situation.
-                        throw new CompletionException(new ReconciliationFailureException("Actual Segment length in Storage is larger than the Metadata DurableLogLength.", this.metadata, sp));
+                        throw new CompletionException(new ReconciliationFailureException("Actual Segment length in Storage is larger than the Metadata Length.", this.metadata, sp));
                     } else if (sp.getLength() < this.metadata.getStorageLength()) {
                         // The length of the Segment in Storage is less than what we thought it was. This is not possible
                         // in a correct scenario, and is usually indicative of an internal bug or a real data loss in Storage.
@@ -1104,23 +1108,23 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.", operation, this.lastAddedOffset, offset));
         }
 
-        // Check that the operation does not exceed the DurableLogLength of the StreamSegment.
-        if (offset + length > this.metadata.getDurableLogLength()) {
+        // Check that the operation does not exceed the Length of the StreamSegment.
+        if (offset + length > this.metadata.getLength()) {
             throw new DataCorruptionException(String.format(
-                    "Operation '%s' has at least one byte beyond its DurableLogLength. Offset = %d, Length = %d, DurableLogLength = %d.",
+                    "Operation '%s' has at least one byte beyond its Length. Offset = %d, Length = %d, Length = %d.",
                     operation,
                     offset,
                     length,
-                    this.metadata.getDurableLogLength()));
+                    this.metadata.getLength()));
         }
 
         if (operation instanceof StreamSegmentSealOperation) {
-            // For StreamSegmentSealOperations, we must ensure the offset of the operation is equal to the DurableLogLength for the segment.
-            if (this.metadata.getDurableLogLength() != offset) {
+            // For StreamSegmentSealOperations, we must ensure the offset of the operation is equal to the Length for the segment.
+            if (this.metadata.getLength() != offset) {
                 throw new DataCorruptionException(String.format(
-                        "Wrong offset for Operation '%s'. Expected: %d (DurableLogLength), actual: %d.",
+                        "Wrong offset for Operation '%s'. Expected: %d (Length), actual: %d.",
                         operation,
-                        this.metadata.getDurableLogLength(),
+                        this.metadata.getLength(),
                         offset));
             }
 

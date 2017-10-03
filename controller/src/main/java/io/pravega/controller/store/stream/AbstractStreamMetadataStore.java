@@ -154,6 +154,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, name, context).delete(), executor)
                 .thenApply(result -> {
                     DELETE_STREAM.reportSuccessValue(1);
+                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
+                    DYNAMIC_LOGGER.freezeGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_SPLITS, scope, name));
+                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_MERGES, scope, name));
                     return result;
                 });
     }
@@ -605,7 +609,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.whenCompleteAsync((r, e) -> {
             if (e != null) {
-                log.error("AbstractStreamMetadataStore exception: {}", e);
                 result.completeExceptionally(e);
             } else {
                 result.complete(r);

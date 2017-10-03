@@ -28,9 +28,10 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.AbortEvent;
-import io.pravega.controller.server.eventProcessor.AbortEventProcessor;
+import io.pravega.controller.server.eventProcessor.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.CommitEvent;
 import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
+import io.pravega.controller.server.eventProcessor.ConcurrentEventProcessor;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -71,6 +72,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -282,7 +284,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
         AssertExtensions.assertThrows("IllegalStateException before initialization",
-                txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")),
+                txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")),
                 ex -> ex instanceof IllegalStateException);
 
         // Initialize stream writers.
@@ -292,7 +294,7 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(txnTasks.isReady());
 
         // Sweep txns that were being managed by failedHost.
-        txnSweeper.sweepFailedHosts(() -> Collections.singleton("host")).join();
+        txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")).join();
 
         // Validate that sweeping completes correctly.
         Assert.assertEquals(0, streamStore.listHostsOwningTxn().join().size());
@@ -313,8 +315,8 @@ public class StreamTransactionMetadataTasksTest {
                 () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -401,8 +403,8 @@ public class StreamTransactionMetadataTasksTest {
                 () -> new CommitEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
                         connectionFactory, processedCommitEvents));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
-                () -> new AbortEventProcessor(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
-                        connectionFactory, processedAbortEvents));
+                () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, hostStore, executor, segmentHelperMock,
+                        connectionFactory, processedAbortEvents), executor));
 
         // Wait until the commit event is processed and ensure that the txn state is COMMITTED.
         CommitEvent commitEvent = processedCommitEvents.take();
@@ -418,6 +420,52 @@ public class StreamTransactionMetadataTasksTest {
         // even after transaction is committed (resp. aborted)
         assertEquals(TxnStatus.COMMITTED, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
         assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
+    }
+
+    @Test(timeout = 10000)
+    public void partialTxnCreationTest() {
+        // Create mock writer objects.
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
+
+        // Create transaction tasks.
+        txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
+                SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory);
+        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
+                abortWriter);
+
+        // Create ControllerService.
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
+
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+
+        // Create stream and scope
+        Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
+        Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0).join());
+
+        // Create partial transaction
+        final long lease = 10000;
+        final long maxExecutionTime = 10000;
+        final long scaleGracePeriod = 10000;
+
+        AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
+                txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod, null),
+                e -> e instanceof RuntimeException);
+
+        // Ensure that exactly one transaction is active on the stream.
+        Set<UUID> txns = streamStore.getActiveTxns(SCOPE, STREAM, null, executor).join().keySet();
+        assertEquals(1, txns.size());
+
+        // Ensure that transaction state is OPEN.
+        UUID txn1 = txns.stream().findFirst().get();
+        assertEquals(TxnStatus.OPEN, streamStore.transactionStatus(SCOPE, STREAM, txn1, null, executor).join());
+
+        // Ensure that timeout service knows about the transaction.
+        assertTrue(txnTasks.getTimeoutService().containsTxn(SCOPE, STREAM, txn1));
     }
 
     private <T extends ControllerEvent>
