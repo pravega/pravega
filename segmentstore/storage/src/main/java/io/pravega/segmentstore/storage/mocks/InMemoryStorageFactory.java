@@ -125,9 +125,9 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         }
 
         @Override
-        public CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout) {
+        public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
-            return this.baseStorage.truncate(streamSegmentName, offset, timeout);
+            return this.baseStorage.truncate(handle, offset, timeout);
         }
 
         @Override

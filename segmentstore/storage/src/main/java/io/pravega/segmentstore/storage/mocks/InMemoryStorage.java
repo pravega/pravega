@@ -228,9 +228,10 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> truncate(String segmentName, long offset, Duration timeout) {
+    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
         ensurePreconditions();
-        return CompletableFuture.runAsync(() -> getStreamSegmentData(segmentName).truncate(offset), this.executor);
+        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot truncate using a read-only handle.");
+        return CompletableFuture.runAsync(() -> getStreamSegmentData(handle.getSegmentName()).truncate(offset), this.executor);
     }
 
     /**

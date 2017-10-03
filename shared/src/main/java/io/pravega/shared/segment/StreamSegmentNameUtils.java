@@ -29,6 +29,11 @@ public final class StreamSegmentNameUtils {
     private static final String HEADER_SUFFIX = "$header";
 
     /**
+     * This is appended to the end of the Segment/Transaction name to indicate it represents a SubSegment.
+     */
+    private static final String OFFSET_SUFFIX = "$offset.";
+
+    /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
@@ -105,5 +110,17 @@ public final class StreamSegmentNameUtils {
     public static String getHeaderSegmentName(String segmentName) {
         Preconditions.checkArgument(!segmentName.contains(HEADER_SUFFIX), "segmentName is already a segment header name");
         return segmentName + HEADER_SUFFIX;
+    }
+
+    /**
+     * Gets the name of the SubSegment for the given Segment and Offset.
+     *
+     * @param segmentName The name of the Segment to get the SubSegment name for.
+     * @param offset      The starting offset of the SubSegment.
+     * @return The SubSegment name.
+     */
+    public static String getSubSegmentName(String segmentName, long offset) {
+        Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SubSegment name");
+        return segmentName + OFFSET_SUFFIX + Long.toString(offset);
     }
 }

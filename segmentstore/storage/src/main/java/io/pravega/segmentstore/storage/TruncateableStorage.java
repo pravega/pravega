@@ -26,14 +26,14 @@ public interface TruncateableStorage extends Storage {
      * * Depending on implementation, this may not truncate at the exact offset. It may truncate at some point prior to
      * the given offset, but it will never truncate beyond the offset.
      *
-     * @param streamSegmentName The full name of the StreamSegment.
-     * @param offset            The offset in the StreamSegment to truncate to.
-     * @param timeout           Timeout for the operation.
+     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
+     * @param offset  The offset in the StreamSegment to truncate to.
+     * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
      * it will contain the cause of the failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
      * </ul>
      */
-    CompletableFuture<Void> truncate(String streamSegmentName, long offset, Duration timeout);
+    CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout);
 }

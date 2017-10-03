@@ -43,10 +43,11 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
             s.create(SEGMENT_NAME, TIMEOUT).join();
 
             // Invalid segment name.
+            val readOnlyHandle = s.openRead(SEGMENT_NAME).join();
             AssertExtensions.assertThrows(
-                    "truncate() did not throw for invalid segment name.",
-                    () -> s.truncate(SEGMENT_NAME + "invalid", 0, TIMEOUT),
-                    ex -> ex instanceof StreamSegmentNotExistsException);
+                    "truncate() did not throw for read-only handle.",
+                    () -> s.truncate(readOnlyHandle, 0, TIMEOUT),
+                    ex -> ex instanceof IllegalArgumentException);
 
             // Populate some data in the segment.
             AtomicLong offset = new AtomicLong();
@@ -80,7 +81,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
 
     private void verifySmallTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
         while (truncatedLength.get() < 2 * WRITE_LENGTH) {
-            s.truncate(handle.getSegmentName(), truncatedLength.get(), TIMEOUT).join();
+            s.truncate(handle, truncatedLength.get(), TIMEOUT).join();
             if (truncatedLength.get() > 0) {
                 AssertExtensions.assertThrows(
                         "read() did not throw when attempting to read before truncation point (small truncate).",
@@ -94,7 +95,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
 
     private void verifyLargeTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
         truncatedLength.addAndGet(4 * WRITE_LENGTH);
-        s.truncate(handle.getSegmentName(), truncatedLength.get(), TIMEOUT).join();
+        s.truncate(handle, truncatedLength.get(), TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "read() did not throw when attempting to read before truncation point (large truncate).",
                 () -> s.read(handle, truncatedLength.get() - 1, new byte[1], 0, 1, TIMEOUT),
@@ -128,7 +129,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
     private void verifyDelete(SegmentHandle handle, TruncateableStorage s) {
         s.delete(handle, TIMEOUT).join();
         AssertExtensions.assertThrows("truncate() did not throw for a deleted StreamSegment.",
-                () -> s.truncate(handle.getSegmentName(), 0, TIMEOUT),
+                () -> s.truncate(handle, 0, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
     }
 

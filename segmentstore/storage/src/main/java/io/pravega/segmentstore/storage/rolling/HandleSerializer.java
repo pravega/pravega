@@ -1,23 +1,39 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.storage.rolling;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.function.Predicate;
+import lombok.SneakyThrows;
 import lombok.val;
 
 final class HandleSerializer {
+    private static final Charset ENCODING = Charsets.UTF_8;
     private static final String KEY_NAME = "name";
     private static final String KEY_POLICY_MAX_SIZE = "maxsize";
     private static final String KEY_VALUE_SEPARATOR = "=";
     private static final String SEPARATOR = "&";
 
-    static RollingStorageHandle deserialize(String serialization, SegmentHandle headerHandle) {
-        StringTokenizer st = new StringTokenizer(serialization, SEPARATOR, false);
+    static RollingSegmentHandle deserialize(byte[] serialization, SegmentHandle headerHandle) {
+        StringTokenizer st = new StringTokenizer(new String(serialization, ENCODING), SEPARATOR, false);
         Preconditions.checkArgument(st.hasMoreTokens(), "No separators in serialization.");
 
         // 1. Segment Name.
@@ -25,45 +41,49 @@ final class HandleSerializer {
         // 2. Policy Max Size.
         val policyEntry = parse(st.nextToken(), KEY_POLICY_MAX_SIZE::equals, HandleSerializer::isValidLong);
         // 3. SubSegments.
-        ArrayList<RollingStorageHandle.SubSegment> subSegments = new ArrayList<>();
+        ArrayList<SubSegment> subSegments = new ArrayList<>();
         long lastOffset = -1;
         while (st.hasMoreTokens()) {
             val entry = parse(st.nextToken(), HandleSerializer::isValidLong, HandleSerializer::nonEmpty);
-            RollingStorageHandle.SubSegment s = parse(entry);
+            SubSegment s = parse(entry);
             Preconditions.checkArgument(lastOffset < s.getStartOffset(), "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
             subSegments.add(s);
             lastOffset = s.getStartOffset();
         }
 
-        return new RollingStorageHandle(nameEntry.getValue(), headerHandle, new RollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
+        val result = new RollingSegmentHandle(nameEntry.getValue(), headerHandle, new RollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
+        result.setSerializedHeaderLength(serialization.length);
+        return result;
     }
 
     /**
      * Serializes a single SubSegment into a String
      */
-    static String serialize(RollingStorageHandle.SubSegment subSegment) {
+    static byte[] serialize(SubSegment subSegment) {
         return combine(Long.toString(subSegment.getStartOffset()), subSegment.getName());
     }
 
     /**
-     * Serializes an entire RollingStorageHandle into a new ByteArraySegment.
+     * Serializes an entire RollingSegmentHandle into a new ByteArraySegment.
      *
      * @param handle
      * @return
      */
-    static String serialize(RollingStorageHandle handle) {
-        StringBuilder sb = new StringBuilder();
-        //1. Segment Name.
-        sb.append(combine(KEY_NAME, handle.getSegmentName()));
-        //2. Policy Max Size.
-        sb.append(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
-        //3. SubSegments.
-        handle.forEachSubSegment(s -> sb.append(serialize(s)));
-        return sb.toString();
+    @SneakyThrows(IOException.class)
+    static ByteArraySegment serialize(RollingSegmentHandle handle) {
+        try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
+            //1. Segment Name.
+            os.write(combine(KEY_NAME, handle.getSegmentName()));
+            //2. Policy Max Size.
+            os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
+            //3. SubSegments.
+            handle.forEachSubSegment(subSegment -> os.write(serialize(subSegment)));
+            return os.getData();
+        }
     }
 
-    private static String combine(String key, String value) {
-        return key + KEY_VALUE_SEPARATOR + value + SEPARATOR;
+    private static byte[] combine(String key, String value) {
+        return (key + KEY_VALUE_SEPARATOR + value + SEPARATOR).getBytes(ENCODING);
     }
 
     private static Map.Entry<String, String> parse(String entry, Predicate<String> keyValidator, Predicate<String> valueValidator) {
@@ -78,8 +98,8 @@ final class HandleSerializer {
         return new AbstractMap.SimpleImmutableEntry<>(key, value);
     }
 
-    private static RollingStorageHandle.SubSegment parse(Map.Entry<String, String> entry) {
-        return new RollingStorageHandle.SubSegment(entry.getValue(), Long.parseLong(entry.getKey()));
+    private static SubSegment parse(Map.Entry<String, String> entry) {
+        return new SubSegment(entry.getValue(), Long.parseLong(entry.getKey()));
     }
 
     private static boolean nonEmpty(String s) {
