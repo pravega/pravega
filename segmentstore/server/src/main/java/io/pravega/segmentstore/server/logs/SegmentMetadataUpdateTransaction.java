@@ -52,7 +52,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private final int containerId;
     @Getter
-    private long durableLogLength;
+    private long length;
     private final long baseStorageLength;
     private long storageLength;
     @Getter
@@ -83,7 +83,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.parentId = baseMetadata.getParentId();
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
-        this.durableLogLength = baseMetadata.getDurableLogLength();
+        this.length = baseMetadata.getLength();
         this.baseStorageLength = baseMetadata.getStorageLength();
         this.storageLength = -1;
         this.sealed = baseMetadata.isSealed();
@@ -134,8 +134,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public void setDurableLogLength(long value) {
-        this.durableLogLength = value;
+    public void setLength(long value) {
+        this.length = value;
         this.isChanged = true;
     }
 
@@ -222,12 +222,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             long operationOffset = operation.getStreamSegmentOffset();
             if (operationOffset >= 0) {
                 // If the Operation already has an offset assigned, verify that it matches the current end offset of the Segment.
-                if (operationOffset != this.durableLogLength) {
-                    throw new BadOffsetException(this.name, this.durableLogLength, operationOffset);
+                if (operationOffset != this.length) {
+                    throw new BadOffsetException(this.name, this.length, operationOffset);
                 }
             } else {
                 // No pre-assigned offset. Put the Append at the end of the Segment.
-                operation.setStreamSegmentOffset(this.durableLogLength);
+                operation.setStreamSegmentOffset(this.length);
             }
 
             // Attribute validation.
@@ -287,7 +287,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.recoveryMode) {
             // Assign entry StreamSegment Length.
-            operation.setStreamSegmentOffset(this.durableLogLength);
+            operation.setStreamSegmentOffset(this.length);
         }
     }
 
@@ -329,7 +329,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.recoveryMode) {
             // Assign entry Segment offset and update Segment offset afterwards.
-            operation.setStreamSegmentOffset(this.durableLogLength);
+            operation.setStreamSegmentOffset(this.length);
         }
     }
 
@@ -355,7 +355,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         if (!this.recoveryMode) {
-            operation.setLength(this.durableLogLength);
+            operation.setLength(this.length);
         }
     }
 
@@ -432,13 +432,13 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      */
     void acceptOperation(StreamSegmentAppendOperation operation) throws MetadataUpdateException {
         ensureSegmentId(operation);
-        if (operation.getStreamSegmentOffset() != this.durableLogLength) {
+        if (operation.getStreamSegmentOffset() != this.length) {
             throw new MetadataUpdateException(this.containerId,
                     String.format("SegmentAppendOperation offset mismatch. Expected %d, actual %d.",
-                            this.durableLogLength, operation.getStreamSegmentOffset()));
+                            this.length, operation.getStreamSegmentOffset()));
         }
 
-        this.durableLogLength += operation.getData().length;
+        this.length += operation.getData().length;
         acceptAttributes(operation.getAttributeUpdates());
         this.isChanged = true;
     }
@@ -492,19 +492,19 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     void acceptAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata) throws MetadataUpdateException {
         ensureSegmentId(operation);
 
-        if (operation.getStreamSegmentOffset() != this.durableLogLength) {
+        if (operation.getStreamSegmentOffset() != this.length) {
             throw new MetadataUpdateException(containerId,
                     String.format("MergeTransactionOperation target offset mismatch. Expected %d, actual %d.",
-                            this.durableLogLength, operation.getStreamSegmentOffset()));
+                            this.length, operation.getStreamSegmentOffset()));
         }
 
         long transLength = operation.getLength();
-        if (transLength < 0 || transLength != transactionMetadata.durableLogLength) {
+        if (transLength < 0 || transLength != transactionMetadata.length) {
             throw new MetadataUpdateException(containerId,
                     "MergeTransactionOperation does not seem to have been pre-processed: " + operation.toString());
         }
 
-        this.durableLogLength += transLength;
+        this.length += transLength;
         this.isChanged = true;
     }
 
@@ -576,7 +576,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);
         target.updateAttributes(this.attributeValues);
-        target.setDurableLogLength(this.durableLogLength);
+        target.setLength(this.length);
         if (this.storageLength >= 0) {
             // Only update this if it really was set. Otherwise we might revert back to an old value if the Writer
             // has already made progress on it.
