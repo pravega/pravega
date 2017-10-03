@@ -28,7 +28,7 @@ public class EventWriterConfig implements Serializable {
      */
     private final long transactionTimeoutTime;
     /**
-     * The maximum amount of time, in milliseconds after a scale operation has been initiated before a transaction is timedout. 
+     * The maximum amount of time, in milliseconds after a scale operation has been initiated before a transaction is timed out. 
      */
     private final long transactionTimeoutScaleGracePeriod;
     
