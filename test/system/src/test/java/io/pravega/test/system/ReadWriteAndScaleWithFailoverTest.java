@@ -154,8 +154,11 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         Map<Double, Double> keyRanges = new HashMap<>();
-        keyRanges.put(0.0, 0.5);
-        keyRanges.put(0.5, 1.0);
+        keyRanges.put(0.0, 0.2);
+        keyRanges.put(0.2, 0.4);
+        keyRanges.put(0.4, 0.6);
+        keyRanges.put(0.6, 0.8);
+        keyRanges.put(0.8, 1.0);
 
         CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
                 Collections.singletonList(0),
@@ -193,6 +196,6 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, SCALE_STREAM); //cleanup if validation is successful.
-        log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
+        log.info("Test ReadWriteAndScaleWithFailover succeeds");
     }
 }
