@@ -72,6 +72,7 @@ project('common') {
 }
 
 def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
+def withoutSlf4jSimple = { exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
 project ('shared') {
     dependencies {
@@ -485,7 +486,7 @@ project('test:system') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion
+        compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutSlf4jSimple
         compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")

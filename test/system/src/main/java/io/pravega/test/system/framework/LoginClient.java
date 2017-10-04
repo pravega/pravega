@@ -25,7 +25,7 @@ import java.util.Collection;
 
 import static io.pravega.test.system.framework.Utils.getConfig;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static mesosphere.marathon.client.utils.ModelUtils.GSON;
+import static mesosphere.client.common.ModelUtils.GSON;
 
 /**
  * This class is used to handle the Authentication with the authentication-service.

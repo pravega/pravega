@@ -45,7 +45,6 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Assert;
@@ -59,6 +58,7 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import mesosphere.marathon.client.MarathonException;
 
 import java.net.URI;
 import java.net.URISyntaxException;

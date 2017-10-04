@@ -17,8 +17,9 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
+import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,7 +128,7 @@ public class PravegaControllerService extends MarathonBasedService {
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
+        app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
         healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
@@ -140,7 +141,7 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("controller"));

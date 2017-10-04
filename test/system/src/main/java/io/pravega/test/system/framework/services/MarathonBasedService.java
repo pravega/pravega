@@ -18,9 +18,11 @@ import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.GetAppResponse;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.LocalVolume;
+import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Result;
+import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
 
 import java.net.URI;
 import java.time.Duration;
@@ -135,7 +137,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     Volume createVolume(final String containerPath, final String hostPath, final String mode) {
-        Volume v = new Volume();
+        LocalVolume v = new LocalVolume();
         v.setContainerPath(containerPath);
         v.setHostPath(hostPath);
         v.setMode(mode);
@@ -195,5 +197,12 @@ public abstract class MarathonBasedService implements Service {
         return FutureHelpers.loop(() -> isDeploymentPresent(deploymentID), //condition
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
+    }
+
+    protected PortDefinition createPortDefinition(int port) {
+        PortDefinition pd = new PortDefinition();
+        pd.setPort(port);
+        pd.setProtocol("tcp");
+        return pd;
     }
 }

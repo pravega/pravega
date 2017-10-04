@@ -18,7 +18,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -110,11 +110,11 @@ public class BookkeeperService extends MarathonBasedService {
         Parameter element1 = new Parameter("env", "DLOG_EXTRA_OPTS=-Xms512m");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
-        app.setPorts(Arrays.asList(BK_PORT));
+        app.setPortDefinitions(Arrays.asList(createPortDefinition(BK_PORT)));
         app.setRequirePorts(true);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
         map.put("bookiePort", String.valueOf(BK_PORT));

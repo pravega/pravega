@@ -15,7 +15,8 @@ import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
