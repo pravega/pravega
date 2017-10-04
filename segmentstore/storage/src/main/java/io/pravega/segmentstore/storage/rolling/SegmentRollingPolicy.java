@@ -15,7 +15,7 @@ import lombok.Getter;
 /**
  * A generic rolling policy that can be applied to any Storage unit.
  */
-public final class RollingPolicy {
+public final class SegmentRollingPolicy {
     /**
      * Maximum length, as allowed by this Rolling Policy.
      */
@@ -27,7 +27,7 @@ public final class RollingPolicy {
      *
      * @param maxLength The maximum length as allowed by this Rolling Policy.
      */
-    public RollingPolicy(long maxLength) {
+    public SegmentRollingPolicy(long maxLength) {
         Preconditions.checkArgument(maxLength > 0, "maxLength must be a positive number.");
         this.maxLength = maxLength;
     }

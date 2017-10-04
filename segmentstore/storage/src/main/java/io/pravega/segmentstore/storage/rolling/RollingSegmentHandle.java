@@ -12,8 +12,8 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -27,11 +27,11 @@ class RollingSegmentHandle implements SegmentHandle {
     @Getter
     private final SegmentHandle headerHandle;
     @Getter
-    private final RollingPolicy rollingPolicy;
+    private final SegmentRollingPolicy rollingPolicy;
     @GuardedBy("this")
     private int serializedHeaderLength;
     @GuardedBy("this")
-    private final List<SubSegment> subSegments;
+    private List<SubSegment> subSegments;
     @GuardedBy("this")
     private boolean sealed;
     @GuardedBy("this")
@@ -49,7 +49,7 @@ class RollingSegmentHandle implements SegmentHandle {
      * @param rollingPolicy The Rolling Policy to apply for this Segment.
      * @param subSegments   A ordered list of initial SubSegments for this handle.
      */
-    RollingSegmentHandle(String segmentName, SegmentHandle headerHandle, RollingPolicy rollingPolicy, List<SubSegment> subSegments) {
+    RollingSegmentHandle(String segmentName, SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SubSegment> subSegments) {
         this.segmentName = Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
         this.headerHandle = Preconditions.checkNotNull(headerHandle, "headerHandle");
         this.rollingPolicy = Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
@@ -63,16 +63,24 @@ class RollingSegmentHandle implements SegmentHandle {
         return this.headerHandle.isReadOnly();
     }
 
-    synchronized void forEachSubSegment(Consumer<SubSegment> consumer) {
-        this.subSegments.forEach(consumer);
-    }
-
     synchronized void markSealed() {
-        this.sealed = true;
+        if (!this.sealed) {
+            this.sealed = true;
+            this.subSegments = Collections.unmodifiableList(this.subSegments);
+            setActiveSubSegmentHandle(null);
+        }
     }
 
     synchronized boolean isSealed() {
         return this.sealed;
+    }
+
+    synchronized List<SubSegment> subSegments() {
+        if (this.sealed) {
+            return this.subSegments;
+        } else {
+            return Collections.unmodifiableList(this.subSegments.subList(0, this.subSegments.size()));
+        }
     }
 
     synchronized void addSubSegment(SubSegment subSegment) {
@@ -85,12 +93,18 @@ class RollingSegmentHandle implements SegmentHandle {
         this.subSegments.add(subSegment);
     }
 
-    synchronized SubSegment getLastSubSegment() {
+    synchronized SubSegment firstSubSegment() {
+        return this.subSegments.size() == 0 ? null : this.subSegments.get(0);
+    }
+
+    synchronized SubSegment lastSubSegment() {
         return this.subSegments.size() == 0 ? null : this.subSegments.get(this.subSegments.size() - 1);
     }
 
     synchronized void setActiveSubSegmentHandle(SegmentHandle handle) {
-        Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active segment handle cannot be readonly.");
+        Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
+        Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(lastSubSegment().getName()),
+                "Active SubSegment handle must be for the last SubSegment.");
         this.activeSubSegmentHandle = handle;
     }
 

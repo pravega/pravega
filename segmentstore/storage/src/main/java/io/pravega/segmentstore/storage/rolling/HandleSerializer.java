@@ -46,12 +46,14 @@ final class HandleSerializer {
         while (st.hasMoreTokens()) {
             val entry = parse(st.nextToken(), HandleSerializer::isValidLong, HandleSerializer::nonEmpty);
             SubSegment s = parse(entry);
-            Preconditions.checkArgument(lastOffset < s.getStartOffset(), "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
+            Preconditions.checkArgument(lastOffset < s.getStartOffset(),
+                    "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
             subSegments.add(s);
             lastOffset = s.getStartOffset();
         }
 
-        val result = new RollingSegmentHandle(nameEntry.getValue(), headerHandle, new RollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
+        val result = new RollingSegmentHandle(nameEntry.getValue(), headerHandle,
+                new SegmentRollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
         result.setSerializedHeaderLength(serialization.length);
         return result;
     }
@@ -77,7 +79,7 @@ final class HandleSerializer {
             //2. Policy Max Size.
             os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
             //3. SubSegments.
-            handle.forEachSubSegment(subSegment -> os.write(serialize(subSegment)));
+            handle.subSegments().forEach(subSegment -> os.write(serialize(subSegment)));
             return os.getData();
         }
     }
@@ -94,7 +96,7 @@ final class HandleSerializer {
         Preconditions.checkArgument(keyValidator.test(key), "Invalid entry key for '%s'.", entry);
 
         String value = entry.substring(sp + 1);
-        Preconditions.checkArgument(valueValidator.test(key), "Invalid entry value for '%s'.", entry);
+        Preconditions.checkArgument(valueValidator.test(value), "Invalid entry value for '%s'.", entry);
         return new AbstractMap.SimpleImmutableEntry<>(key, value);
     }
 

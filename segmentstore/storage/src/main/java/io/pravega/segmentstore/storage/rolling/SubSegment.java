@@ -29,6 +29,8 @@ class SubSegment {
     private long length;
     @GuardedBy("this")
     private boolean sealed;
+    @GuardedBy("this")
+    private boolean exists = true;
 
     synchronized void markSealed() {
         this.sealed = true;
@@ -36,6 +38,14 @@ class SubSegment {
 
     synchronized boolean isSealed() {
         return this.sealed;
+    }
+
+    synchronized boolean exists() {
+        return this.exists;
+    }
+
+    synchronized void markInexistent() {
+        this.exists = false;
     }
 
     synchronized void increaseLength(int delta) {
