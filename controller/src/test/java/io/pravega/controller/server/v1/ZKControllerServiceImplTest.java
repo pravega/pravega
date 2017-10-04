@@ -18,10 +18,16 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.EventStreamWriterMock;
-import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
@@ -56,6 +62,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private CuratorFramework zkClient;
     private StoreClient storeClient;
     private StreamMetadataTasks streamMetadataTasks;
+    private StreamRequestHandler streamRequestHandler;
+
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
@@ -83,7 +91,14 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory);
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executorService));
+        this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
+                new SealStreamTask(streamMetadataTasks, streamStore, executorService),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
+                executorService);
+
+        streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory);

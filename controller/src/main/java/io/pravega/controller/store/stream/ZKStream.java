@@ -179,7 +179,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(new StreamConfigWithVersion(configuration, 0)))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 

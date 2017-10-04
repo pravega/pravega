@@ -9,17 +9,15 @@
  */
 package io.pravega.controller.task.Stream;
 
-import com.sun.xml.internal.ws.api.pipe.FiberContextSwitchInterceptor;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.mocks.ScaleEventStreamWriterMock;
+import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -48,9 +46,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
-import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -179,8 +175,8 @@ public class StreamMetadataTasksTest {
         assertTrue(configWithVersion.getVersion() == 0);
         // 1. happy day test
         // update.. should succeed
-        CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration,null);
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent((UpdateStreamEvent) requestEventWriter.eventQueue.take())));
+        CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
+        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.eventQueue.take())));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
         configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
@@ -194,7 +190,7 @@ public class StreamMetadataTasksTest {
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         // call update should fail without posting the event
-        updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration,null);
+        updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture.get());
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         AssertExtensions.assertThrows("", updateStreamTask.execute((UpdateStreamEvent) requestEventWriter.eventQueue.take()),
@@ -210,6 +206,7 @@ public class StreamMetadataTasksTest {
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration1, null);
 
+        ControllerEvent event1 = requestEventWriter.getEventQueue().take();
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
                 .streamName(stream1)
@@ -218,7 +215,7 @@ public class StreamMetadataTasksTest {
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture2 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration2, null);
 
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.eventQueue.take())));
+        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(event1)));
 
         assertFalse(FutureHelpers.await(updateStreamTask.execute((UpdateStreamEvent) requestEventWriter.eventQueue.take())));
 
@@ -228,7 +225,6 @@ public class StreamMetadataTasksTest {
         configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
         assertTrue(configWithVersion.getVersion() == 2);
         assertTrue(configWithVersion.getConfiguration().equals(streamConfiguration1));
-
     }
 
     @Test(timeout = 30000)
@@ -302,7 +298,7 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
                 Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.RequestProcessingNotEnabledException);
 
-        streamMetadataTasks.setRequestEventWriter(new ScaleEventStreamWriterMock(streamMetadataTasks, executor));
+        streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
