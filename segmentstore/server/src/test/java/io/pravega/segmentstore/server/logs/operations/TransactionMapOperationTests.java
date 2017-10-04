@@ -9,11 +9,10 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.common.util.ImmutableDate;
+import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import java.util.Random;
-
 import org.junit.Assert;
 
 /**
@@ -22,13 +21,13 @@ import org.junit.Assert;
 public class TransactionMapOperationTests extends OperationTestsBase<TransactionMapOperation> {
     @Override
     protected TransactionMapOperation createOperation(Random random) {
-        return new TransactionMapOperation(random.nextLong(), new StreamSegmentInformation(
-                super.getStreamSegmentName(random.nextLong()),
-                random.nextLong(),
-                random.nextBoolean(),
-                random.nextBoolean(),
-                StreamSegmentMapOperationTests.createAttributes(10),
-                new ImmutableDate()));
+        return new TransactionMapOperation(random.nextLong(), StreamSegmentInformation.builder()
+                .name(super.getStreamSegmentName(random.nextLong()))
+                .length(MathHelpers.abs(random.nextLong()))
+                .sealed(random.nextBoolean())
+                .deleted(random.nextBoolean())
+                .attributes(StreamSegmentMapOperationTests.createAttributes(10))
+                .build());
     }
 
     @Override

@@ -41,7 +41,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
-    private long durableLogLength;
+    private long length;
     @GuardedBy("this")
     private boolean sealed;
     @GuardedBy("this")
@@ -97,7 +97,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.deleted = false;
         this.merged = false;
         this.storageLength = -1;
-        this.durableLogLength = -1;
+        this.length = -1;
         this.attributes = new HashMap<>();
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
@@ -163,8 +163,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized long getDurableLogLength() {
-        return this.durableLogLength;
+    public synchronized long getLength() {
+        return this.length;
     }
 
     @Override
@@ -175,10 +175,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public String toString() {
         return String.format(
-                "Id = %d, StorageLength = %d, DLOffset = %d, Sealed(DL/S) = %s/%s, Deleted = %s, Name = %s",
+                "Id = %d, Length = %d, StorageLength = %d, Sealed(M/S) = %s/%s, Deleted = %s, Name = %s",
                 getId(),
+                getLength(),
                 getStorageLength(),
-                getDurableLogLength(),
                 isSealed(),
                 isSealedInStorage(),
                 isDeleted(),
@@ -199,12 +199,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void setDurableLogLength(long value) {
-        Exceptions.checkArgument(value >= 0, "value", "Durable Log Length must be a non-negative number.");
-        Exceptions.checkArgument(value >= this.durableLogLength, "value", "New Durable Log Length cannot be smaller than the previous one.");
+    public synchronized void setLength(long value) {
+        Exceptions.checkArgument(value >= 0, "value", "Length must be a non-negative number.");
+        Exceptions.checkArgument(value >= this.length, "value", "New Length cannot be smaller than the previous one.");
 
-        log.trace("{}: DurableLogLength changed from {} to {}.", this.traceObjectId, this.durableLogLength, value);
-        this.durableLogLength = value;
+        log.trace("{}: Length changed from {} to {}.", this.traceObjectId, this.length, value);
+        this.length = value;
     }
 
     @Override
@@ -260,7 +260,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
-        setDurableLogLength(base.getDurableLogLength());
+        setLength(base.getLength());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
 

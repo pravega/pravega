@@ -212,7 +212,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Create 2 more segments that can be used to verify MergeTransactionOperation.
         context.containerMetadata.mapStreamSegmentId(badParentName, badParentId);
         UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.mapStreamSegmentId(badTransactionName, badTransactionId, badParentId);
-        badTransactionMetadata.setDurableLogLength(0);
+        badTransactionMetadata.setLength(0);
         badTransactionMetadata.setStorageLength(0);
         context.storage.create(badTransactionMetadata.getName(), TIMEOUT).join();
 
@@ -257,7 +257,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "add() allowed a StreamSegmentAppendOperation.",
                 () -> {
-                    // We have the correct offset, but we did not increase the DurableLogLength.
+                    // We have the correct offset, but we did not increase the Length.
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(
                             parentAppend1.getStreamSegmentId(),
                             parentAppend1.getStreamSegmentOffset(),
@@ -274,18 +274,18 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "add() allowed an operation beyond the DurableLogOffset (offset).",
                 () -> {
-                    // We have the correct offset, but we did not increase the DurableLogLength.
+                    // We have the correct offset, but we did not increase the Length.
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
                 },
                 ex -> ex instanceof DataCorruptionException);
 
-        ((UpdateableSegmentMetadata) context.segmentAggregator.getMetadata()).setDurableLogLength(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
+        ((UpdateableSegmentMetadata) context.segmentAggregator.getMetadata()).setLength(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
         AssertExtensions.assertThrows(
                 "add() allowed an operation beyond the DurableLogOffset (offset+length).",
                 () -> {
-                    // We have the correct offset, but we the append exceeds the DurableLogLength by 1 byte.
+                    // We have the correct offset, but we the append exceeds the Length by 1 byte.
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
@@ -316,7 +316,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 () -> {
                     @Cleanup
                     SegmentAggregator badTransactionAggregator = new SegmentAggregator(badTransactionMetadata, context.dataSource, context.storage, DEFAULT_CONFIG, context.timer);
-                    badTransactionMetadata.setDurableLogLength(100);
+                    badTransactionMetadata.setLength(100);
                     badTransactionAggregator.initialize(TIMEOUT, executorService()).join();
 
                     StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
@@ -1444,9 +1444,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
         op.setLength(transactionMetadata.getLength());
-        op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
+        op.setStreamSegmentOffset(parentMetadata.getLength());
 
-        parentMetadata.setDurableLogLength(parentMetadata.getDurableLogLength() + transactionMetadata.getDurableLogLength());
+        parentMetadata.setLength(parentMetadata.getLength() + transactionMetadata.getLength());
         transactionMetadata.markMerged();
         return op;
     }
@@ -1457,7 +1457,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
         op.setLength(transactionMetadata.getLength());
-        op.setStreamSegmentOffset(parentMetadata.getDurableLogLength());
+        op.setStreamSegmentOffset(parentMetadata.getLength());
 
         return op;
     }
@@ -1471,7 +1471,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private StorageOperation generateSimpleSeal(long segmentId, TestContext context) {
         UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(segmentId);
         StreamSegmentSealOperation sealOp = new StreamSegmentSealOperation(segmentId);
-        sealOp.setStreamSegmentOffset(segmentMetadata.getDurableLogLength());
+        sealOp.setStreamSegmentOffset(segmentMetadata.getLength());
         sealOp.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
         return sealOp;
     }
@@ -1483,8 +1483,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
     private StorageOperation generateAppendAndUpdateMetadata(long segmentId, byte[] data, TestContext context) {
         UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(segmentId);
-        long offset = segmentMetadata.getDurableLogLength();
-        segmentMetadata.setDurableLogLength(offset + data.length);
+        long offset = segmentMetadata.getLength();
+        segmentMetadata.setLength(offset + data.length);
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, null);
         op.setStreamSegmentOffset(offset);
         op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
@@ -1496,7 +1496,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     private StorageOperation generateSimpleAppend(long segmentId, TestContext context) {
         byte[] data = "Append_Dummy".getBytes();
         UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(segmentId);
-        long offset = segmentMetadata.getDurableLogLength();
+        long offset = segmentMetadata.getLength();
         StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, null);
         op.setStreamSegmentOffset(offset);
         return op;
@@ -1623,7 +1623,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         private UpdateableSegmentMetadata initialize(UpdateableSegmentMetadata segmentMetadata) {
             segmentMetadata.setStorageLength(0);
-            segmentMetadata.setDurableLogLength(0);
+            segmentMetadata.setLength(0);
             return segmentMetadata;
         }
     }
