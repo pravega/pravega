@@ -35,6 +35,7 @@ import io.pravega.test.system.framework.services.docker.PravegaControllerDockerS
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -68,6 +69,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReaderCheckpointTest {
 

@@ -18,7 +18,8 @@ import io.pravega.test.system.framework.services.marathon.PravegaControllerServi
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class PravegaControllerTest {
 
