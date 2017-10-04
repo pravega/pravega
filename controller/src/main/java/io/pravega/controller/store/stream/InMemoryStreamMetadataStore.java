@@ -95,7 +95,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
             streams.remove(scopedStreamName);
             scopes.get(scopeName).removeStreamFromScope(streamName);
-            return CompletableFuture.completedFuture(null);
+            return super.deleteStream(scopeName, streamName, context, executor);
         } else {
             return FutureHelpers.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));

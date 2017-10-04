@@ -174,8 +174,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion() {
         return getConfigurationData()
-                .thenApply(data -> new StreamConfigWithVersion(SerializationUtils.deserialize(data.getData()),
-                        (Integer) data.getVersion()));
+                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
     }
 
     @Override

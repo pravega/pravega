@@ -9,24 +9,28 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.MetricsNames;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.metrics.StatsProvider;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.StreamConfiguration;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -41,11 +45,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.annotation.ParametersAreNonnullByDefault;
-
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
@@ -152,6 +151,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final OperationContext context,
                                                 final Executor executor) {
         return withCompletion(getStream(scope, name, context).delete(), executor)
+                .thenAccept(r -> cache.invalidate(new ImmutablePair<>(scope, name)))
                 .thenApply(result -> {
                     DELETE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));

@@ -59,9 +59,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
         String scope = request.getScope();
         String stream = request.getStream();
-        StreamConfiguration newConfig = StreamConfiguration.builder().scope(request.getScope())
-                .streamName(request.getStream()).scalingPolicy(ModelHelper.encode(request.getScalingPolicy()))
-                .retentionPolicy(ModelHelper.encode(request.getRetentionPolicy())).build();
+        StreamConfiguration newConfig = ModelHelper.encode(request.getStreamConfig());
 
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {

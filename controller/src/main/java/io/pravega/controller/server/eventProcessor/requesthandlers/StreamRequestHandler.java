@@ -100,7 +100,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
                                                                                T event,
                                                                                Predicate<Throwable> writeBackPredicate) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Retry.withExpBackoff(100, 10, 5, 10000)
+        Retry.withExpBackoff(100, 10, 6, 10000)
                 .retryingOn(TaskExceptions.StartException.class)
                 .throwingOn(Exception.class)
                 .runAsync(() -> task.execute(event), executor)
