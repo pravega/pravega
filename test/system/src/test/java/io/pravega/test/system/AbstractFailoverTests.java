@@ -20,10 +20,13 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -36,6 +39,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -66,6 +70,8 @@ abstract class AbstractFailoverTests {
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
+    static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    static final int SCALE_WAIT_ITERATIONS = 12;
 
     final String readerName = "reader";
     Service controllerInstance;
@@ -95,6 +101,8 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
+        final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
+        final AtomicBoolean txnWrite = new AtomicBoolean(false);
     }
 
     void performFailoverTest() {
@@ -188,6 +196,80 @@ abstract class AbstractFailoverTests {
         }
     }
 
+
+    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
+        return CompletableFuture.runAsync(() -> {
+            while (!testState.stopWriteFlag.get()) {
+                Transaction<Long> txnDebugReference = null;
+                AtomicBoolean txnIsDone = new AtomicBoolean(false);
+
+                try {
+                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000);
+                    txnDebugReference = transaction;
+
+                    // Sets a recurrent delayed task to ping the txn. It exits when the
+                    // txn completes and no longer needs pinging
+                    FutureHelpers.loop(() -> !txnIsDone.get(), () -> {
+                        return FutureHelpers.delayedTask(() -> {
+                            if (transaction.checkStatus() == Transaction.Status.OPEN) {
+                                FutureHelpers.runOrFail(() -> {
+                                    transaction.ping(5000);
+                                    return null;
+                                }, new CompletableFuture<Void>());
+                            } else {
+                                txnIsDone.set(true);
+                            }
+
+                            return null;
+                        }, Duration.ofMillis(2000), executorService);
+                    }, executorService);
+
+                    for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
+                        long value = testState.eventData.incrementAndGet();
+                        transaction.writeEvent(String.valueOf(value), value);
+                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
+                    }
+                    //commit Txn
+                    transaction.commit();
+                    txnIsDone.set(true);
+
+                    //wait for transaction to get committed
+                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
+                } catch (Throwable e) {
+                    // Given that we have retry logic both in the interaction with controller and
+                    // segment store, we should fail the test case in the presence of any exception
+                    // caught here.
+                    txnIsDone.set(true);
+                    log.warn("Exception while writing events in the transaction: ", e);
+                    if (txnDebugReference != null) {
+                        log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());
+                    }
+                    testState.getWriteException.set(e);
+                    return;
+                }
+            }
+        }, executorService);
+    }
+
+    CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
+                                                   final AtomicLong eventWriteCount) {
+
+        return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
+            Transaction.Status status = txn.checkStatus();
+            log.debug("Txn id {} status is {}", txn.getTxnId(), status);
+            if (status.equals(Transaction.Status.COMMITTED)) {
+                eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
+                log.info("Event write count: {}", eventWriteCount.get());
+            } else if (status.equals(Transaction.Status.ABORTED)) {
+                log.debug("Transaction with id: {} aborted", txn.getTxnId());
+            } else {
+                throw new TxnNotCompleteException();
+            }
+
+            return CompletableFuture.completedFuture(null);
+        }, executorService);
+    }
+
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
@@ -263,9 +345,16 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 writerList.add(tmpWriter);
-                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
-                writerFutureList.add(writerFuture);
+                if (!testState.txnWrite.get()) {
+                    final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    writerFutureList.add(writerFuture);
+                } else  {
+                    final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
+                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    writerFutureList.add(txnWriteFuture);
+                }
+
             }
         }).thenRun(() -> {
             testState.writers.addAll(writerFutureList);
@@ -325,9 +414,15 @@ abstract class AbstractFailoverTests {
                         EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                 .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                 newlyAddedWriterList.add(tmpWriter);
-                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events :", t));
-                newWritersFutureList.add(writerFuture);
+                if (!testState.txnWrite.get()) {
+                    final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    newWritersFutureList.add(writerFuture);
+                } else  {
+                    final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
+                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    newWritersFutureList.add(txnWriteFuture);
+                }
             }
         }).thenRun(() -> {
             testState.writers.addAll(newWritersFutureList);
@@ -377,6 +472,26 @@ abstract class AbstractFailoverTests {
         assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
         log.info("Deleting readergroup {}", readerGroupName);
         readerGroupManager.deleteReaderGroup(readerGroupName);
+    }
+
+    void waitForScaling(String scope) {
+        for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
+            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).join();
+            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
+            if (testState.currentNumOfSegments.get() == 2) {
+                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
+                //Scaling operation did not happen, wait
+                Exceptions.handleInterrupted(() -> Thread.sleep(10000));
+            }
+            if (testState.currentNumOfSegments.get() > 2) {
+                //scale operation successful.
+                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+                break;
+            }
+        }
+        if (testState.currentNumOfSegments.get() == 2) {
+            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
+        }
     }
 
 
@@ -439,7 +554,7 @@ abstract class AbstractFailoverTests {
         }
     }
 
-    static class ScaleOperationNotDoneException extends RuntimeException {
+    static class TxnNotCompleteException extends RuntimeException {
     }
 
 }

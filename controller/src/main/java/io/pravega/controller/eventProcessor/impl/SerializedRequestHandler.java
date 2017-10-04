@@ -7,10 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -38,13 +39,14 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public abstract class SerializedRequestHandler<T extends ControllerEvent> implements RequestHandler<T> {
 
+    protected final ScheduledExecutorService executor;
+
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
-    private final ExecutorService executor;
 
     @Override
-    public CompletableFuture<Void> process(final T streamEvent) {
+    public final CompletableFuture<Void> process(final T streamEvent) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         Work work = new Work(streamEvent, result);
         String key = streamEvent.getKey();
@@ -69,7 +71,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         return result;
     }
 
-    abstract CompletableFuture<Void> processEvent(final T event);
+    public abstract CompletableFuture<Void> processEvent(final T event);
 
     /**
      * Run method is called only if work queue is not empty. So we can safely do a workQueue.poll.

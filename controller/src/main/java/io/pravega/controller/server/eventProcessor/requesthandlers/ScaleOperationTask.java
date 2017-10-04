@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
@@ -15,6 +15,7 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
@@ -24,15 +25,15 @@ import java.util.concurrent.ScheduledExecutorService;
  * Request handler for performing scale operations received from requeststream.
  */
 @Slf4j
-public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent> {
+public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
     private final ScheduledExecutorService executor;
 
-    public ScaleOperationRequestHandler(final StreamMetadataTasks streamMetadataTasks,
-                                        final StreamMetadataStore streamMetadataStore,
-                                        final ScheduledExecutorService executor) {
+    public ScaleOperationTask(final StreamMetadataTasks streamMetadataTasks,
+                              final StreamMetadataStore streamMetadataStore,
+                              final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
@@ -42,7 +43,7 @@ public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent
     }
 
     @Override
-    public CompletableFuture<Void> process(final ScaleOpEvent request) {
+    public CompletableFuture<Void> execute(final ScaleOpEvent request) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
@@ -56,12 +57,22 @@ public class ScaleOperationRequestHandler implements RequestHandler<ScaleOpEvent
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
+                        log.warn("processing scale request for {}/{} segments {} failed {}", request.getScope(), request.getStream(),
+                                request.getSegmentsToSeal(), cause);
                         result.completeExceptionally(cause);
                     } else {
+                        log.info("scale request for {}/{} segments {} to new ranges {} completed successfully.", request.getScope(), request.getStream(),
+                                request.getSegmentsToSeal(), request.getNewRanges());
+
                         result.complete(null);
                     }
                 }, executor);
 
         return result;
+    }
+
+    @Override
+    public CompletableFuture<Void> writeBack(ScaleOpEvent event) {
+        return streamMetadataTasks.writeEvent(event);
     }
 }
