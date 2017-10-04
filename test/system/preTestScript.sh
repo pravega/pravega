@@ -8,54 +8,39 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-CLUSTER_NAME = $(CLUSTER_NAME:-null}
-MASTER_IP=$(masterIP:-127.0.0.1}
-MASTER_1=$(MASTER_1:-null)
-SLAVE_1=$(SLAVE_1:-null)
-SLAVE_2=$(SLAVE_2:-null)
-SLAVE_3=$(SLAVE_3:-null)
-SLAVE_4=$(SLAVE_4:-null)
-SLAVE_5=$(SLAVE_5:-null)
+CLUSTER_NAME=${CLUSTER_NAME:-0}
+MASTER_IP=${masterIP:-127.0.0.1}
+MASTER_1=${MASTER_1:-0}
 
-if($CLUSTER_NAME -eq null); then
+if [ $CLUSTER_NAME -eq 0 ]; then
   docker swarm init --advertise-addr $MASTER_IP
 else
   jarvis save $CLUSTER_NAME
-    if($MASTER_1 -ne null); then
+    if [ $MASTER_1 -ne 0 ]; then
       jarvis ssh master-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
       docker swarm init --advertise-addr $MASTER_1
-      TOKEN = $(docker swarm join-token worker)
+      TOKEN = `$(docker swarm join-token worker)`
       exit
-    fi
-    if($SLAVE_1 -ne null); then
       jarvis ssh slave-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
-      docker swarm join
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
+      echo $TOKEN
       exit
-    fi
-    if($SLAVE_2 -ne null); then
-      jarvis ssh slave-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
-      docker swarm join
+      jarvis ssh slave-2
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
+      echo $TOKEN
       exit
-    fi
-    if($SLAVE_3 -ne null); then
-      jarvis ssh slave-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
-      docker swarm join
+      jarvis ssh slave-3
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
+      decho $TOKEN
       exit
-    fi
-    if($SLAVE_3 -ne null); then
-      jarvis ssh slave-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
-      docker swarm join
+      jarvis ssh slave-4
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
+      echo $TOKEN
       exit
-    fi
-    if($SLAVE_5 -ne null); then
-      jarvis ssh slave-1
-      sed -i 's|live-restore": true | "live-restore": false' /etc/docker/daemon.json
-      docker swarm join
+      jarvis ssh slave-5
+      sed -i 's|"live-restore": true |"live-restore": false' /etc/docker/daemon.json
+      echo $TOKEN
       exit
     fi
 fi
