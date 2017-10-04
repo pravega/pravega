@@ -17,7 +17,6 @@ import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.PortDefinition;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.MarathonException;
 import java.net.URI;
