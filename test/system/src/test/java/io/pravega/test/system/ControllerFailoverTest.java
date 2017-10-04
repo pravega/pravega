@@ -40,10 +40,9 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
+import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -51,7 +50,6 @@ import org.junit.runner.RunWith;
  * Controller fail over system test.
  */
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
     private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";

@@ -36,12 +36,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
+import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.io.Serializable;
@@ -55,7 +54,6 @@ import java.util.UUID;
  * Test cases for deploying multiple segment stores.
  */
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiSegmentStoreTest {
 

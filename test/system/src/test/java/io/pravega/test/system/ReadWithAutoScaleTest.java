@@ -56,7 +56,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static java.time.Duration.ofSeconds;
@@ -65,7 +64,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
