@@ -1,31 +1,25 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.shared.controller.event;
 
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.Data;
 
 import java.util.concurrent.CompletableFuture;
 
 @Data
-public class AutoScaleEvent implements ControllerEvent {
-    public static final byte UP = (byte) 0;
-    public static final byte DOWN = (byte) 1;
-    private static final long serialVersionUID = 1L;
-
+public class UpdateStreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
-    private final int segmentNumber;
-    private final byte direction;
-    private final long timestamp;
-    private final int numOfSplits;
-    private final boolean silent;
+    private final int version;
+    private final Controller.StreamConfig config;
 
     @Override
     public String getKey() {
@@ -34,6 +28,6 @@ public class AutoScaleEvent implements ControllerEvent {
 
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
-        return processor.processAutoScaleRequest(this);
+        return processor.processUpdateStream(this);
     }
 }

@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
+import io.pravega.shared.controller.event.CommitEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
