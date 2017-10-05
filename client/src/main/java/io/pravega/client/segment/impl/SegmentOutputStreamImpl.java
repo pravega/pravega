@@ -332,11 +332,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
-            Long previousAckLevel = dataAppended.getPreviousEventNumber();
+            long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
-                if (previousAckLevel != null) {
-                    checkAckLevels(ackLevel, previousAckLevel);
-                }
+                checkAckLevels(ackLevel, previousAckLevel);
                 ackUpTo(ackLevel);
             } catch (Exception e) {
                 failConnection(e);
