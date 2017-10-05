@@ -22,14 +22,23 @@ import lombok.Getter;
 class RollingSegmentHandle implements SegmentHandle {
     //region Members
 
+    /**
+     * The name of the Segment for this Handle.
+     */
     @Getter
     private final String segmentName;
+    /**
+     * A pointer to the Handle for this Segment's Header.
+     */
     @Getter
     private final SegmentHandle headerHandle;
+    /**
+     * The Rolling Policy for this Segment.
+     */
     @Getter
     private final SegmentRollingPolicy rollingPolicy;
     @GuardedBy("this")
-    private int serializedHeaderLength;
+    private int headerLength;
     @GuardedBy("this")
     private List<SubSegment> subSegments;
     @GuardedBy("this")
@@ -58,11 +67,16 @@ class RollingSegmentHandle implements SegmentHandle {
 
     //endregion
 
+    //region Properties
+
     @Override
     public boolean isReadOnly() {
         return this.headerHandle.isReadOnly();
     }
 
+    /**
+     * Records the fact that the Segment represented by this Handle has been sealed.
+     */
     synchronized void markSealed() {
         if (!this.sealed) {
             this.sealed = true;
@@ -71,10 +85,28 @@ class RollingSegmentHandle implements SegmentHandle {
         }
     }
 
+    /**
+     * Gets a value indicating whether the Segment represented by this Handle is sealed.
+     */
     synchronized boolean isSealed() {
         return this.sealed;
     }
 
+    /**
+     * Gets a pointer to the last SubSegment.
+     *
+     * @return The last SubSegment, or null if no SubSegments exist.
+     */
+    synchronized SubSegment lastSubSegment() {
+        return this.subSegments.size() == 0 ? null : this.subSegments.get(this.subSegments.size() - 1);
+    }
+
+    /**
+     * Gets an unmodifiable List of all current SubSegments for this Handle. If the Segment is not sealed, a copy of the
+     * current SubSegments is returned (since they may change in the future).
+     *
+     * @return A List with SubSegments.
+     */
     synchronized List<SubSegment> subSegments() {
         if (this.sealed) {
             return this.subSegments;
@@ -83,24 +115,71 @@ class RollingSegmentHandle implements SegmentHandle {
         }
     }
 
-    synchronized void addSubSegment(SubSegment subSegment) {
+    /**
+     * Adds a new SubSegment.
+     *
+     * @param subSegment             The SubSegment to add. This SubSegment must be in continuity of any existing SubSegments.
+     * @param activeSubSegmentHandle The newly added SubSegment's write handle.
+     */
+    synchronized void addSubSegment(SubSegment subSegment, SegmentHandle activeSubSegmentHandle) {
         if (this.subSegments.size() > 0) {
             long expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
             Preconditions.checkArgument(subSegment.getStartOffset() == expectedOffset,
                     "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, subSegment.getStartOffset());
         }
 
+        // Update the SubSegment and its Handle atomically.
+        Preconditions.checkNotNull(activeSubSegmentHandle, "activeSubSegmentHandle");
+        Preconditions.checkArgument(!activeSubSegmentHandle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
+        Preconditions.checkArgument(activeSubSegmentHandle.getSegmentName().equals(lastSubSegment().getName()),
+                "Active SubSegment handle must be for the last SubSegment.");
+        this.activeSubSegmentHandle = activeSubSegmentHandle;
         this.subSegments.add(subSegment);
     }
 
-    synchronized SubSegment firstSubSegment() {
-        return this.subSegments.size() == 0 ? null : this.subSegments.get(0);
+    /**
+     * Adds multiple SubSegments.
+     *
+     * @param subSegments The SubSegments to add. These SubSegments must be in continuity of any existing SubSegments.
+     */
+    synchronized void addSubSegments(List<SubSegment> subSegments) {
+        if (this.subSegments.size() > 0) {
+            long expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
+            for (SubSegment s : subSegments) {
+                Preconditions.checkArgument(s.getStartOffset() == expectedOffset,
+                        "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, s.getStartOffset());
+                expectedOffset += s.getLength();
+            }
+        }
+
+        this.subSegments.addAll(subSegments);
+        this.activeSubSegmentHandle = null;
     }
 
-    synchronized SubSegment lastSubSegment() {
-        return this.subSegments.size() == 0 ? null : this.subSegments.get(this.subSegments.size() - 1);
+    /**
+     * Gets a value indicating the current length of the Segment, in bytes.
+     *
+     * @return The length.
+     */
+    synchronized long length() {
+        SubSegment lastSubSegment = lastSubSegment();
+        return lastSubSegment == null ? 0L : lastSubSegment.getLastOffset();
     }
 
+    /**
+     * Gets a pointer to the Active SubSegment Handle.
+     *
+     * @return The handle.
+     */
+    synchronized SegmentHandle getActiveSubSegmentHandle() {
+        return this.activeSubSegmentHandle;
+    }
+
+    /**
+     * Sets the Active SubSegment handle.
+     *
+     * @param handle The handle. Must not be read-only and for the last SubSegment.
+     */
     synchronized void setActiveSubSegmentHandle(SegmentHandle handle) {
         Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
         Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(lastSubSegment().getName()),
@@ -108,19 +187,32 @@ class RollingSegmentHandle implements SegmentHandle {
         this.activeSubSegmentHandle = handle;
     }
 
-    synchronized SegmentHandle getActiveSubSegmentHandle() {
-        return this.activeSubSegmentHandle;
+    /**
+     * Gets a value indicating the serialized length of the Header.
+     */
+    synchronized int getHeaderLength() {
+        return this.headerLength;
     }
 
-    synchronized int getSerializedHeaderLength() {
-        return this.serializedHeaderLength;
+    /**
+     * Sets the serialized length of the Header.
+     */
+    synchronized void setHeaderLength(int value) {
+        this.headerLength = value;
     }
 
-    synchronized void setSerializedHeaderLength(int value) {
-        this.serializedHeaderLength = value;
+    /**
+     * Increases the serialized length of the Header by the given value.
+     */
+    synchronized void increaseHeaderLength(int value) {
+        this.headerLength += value;
     }
 
-    synchronized void increaseSerializedHeaderLength(int value) {
-        this.serializedHeaderLength += value;
+    @Override
+    public synchronized String toString() {
+        return String.format("%s (%s, %s, SubSegments=%d", this.segmentName, this.sealed ? "Sealed" : "Not Sealed",
+                isReadOnly() ? "R" : "RW", this.subSegments.size());
     }
+
+    //endregion
 }

@@ -25,13 +25,29 @@ import java.util.function.Predicate;
 import lombok.SneakyThrows;
 import lombok.val;
 
+/**
+ * Serializes and deserializes RollingSegmentHandles.
+ */
 final class HandleSerializer {
+    //region Serialization Constants.
+
     private static final Charset ENCODING = Charsets.UTF_8;
     private static final String KEY_NAME = "name";
     private static final String KEY_POLICY_MAX_SIZE = "maxsize";
     private static final String KEY_VALUE_SEPARATOR = "=";
     private static final String SEPARATOR = "&";
 
+    //endregion
+
+    //region Serialization
+
+    /**
+     * Deserializes the given byte array into a RollingSegmentHandle.
+     *
+     * @param serialization The byte array to deserialize.
+     * @param headerHandle  The SegmentHandle for the Header file.
+     * @return A new instance of the RollingSegmentHandle class.
+     */
     static RollingSegmentHandle deserialize(byte[] serialization, SegmentHandle headerHandle) {
         StringTokenizer st = new StringTokenizer(new String(serialization, ENCODING), SEPARATOR, false);
         Preconditions.checkArgument(st.hasMoreTokens(), "No separators in serialization.");
@@ -54,12 +70,14 @@ final class HandleSerializer {
 
         val result = new RollingSegmentHandle(nameEntry.getValue(), headerHandle,
                 new SegmentRollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
-        result.setSerializedHeaderLength(serialization.length);
+        result.setHeaderLength(serialization.length);
         return result;
     }
 
     /**
-     * Serializes a single SubSegment into a String
+     * Serializes a single SubSegment.
+     * @param subSegment The SubSegment to serialize.
+     * @return A byte array containing the serialization.
      */
     static byte[] serialize(SubSegment subSegment) {
         return combine(Long.toString(subSegment.getStartOffset()), subSegment.getName());
@@ -68,8 +86,8 @@ final class HandleSerializer {
     /**
      * Serializes an entire RollingSegmentHandle into a new ByteArraySegment.
      *
-     * @param handle
-     * @return
+     * @param handle The RollingSegmentHandle to serialize.
+     * @return A ByteArraySegment with the serialization.
      */
     @SneakyThrows(IOException.class)
     static ByteArraySegment serialize(RollingSegmentHandle handle) {
@@ -116,4 +134,6 @@ final class HandleSerializer {
             return false;
         }
     }
+
+    ///endregion
 }

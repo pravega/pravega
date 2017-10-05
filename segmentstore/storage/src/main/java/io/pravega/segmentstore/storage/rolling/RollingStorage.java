@@ -10,9 +10,12 @@
 package io.pravega.segmentstore.storage.rolling;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -26,13 +29,17 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.TruncateableStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -106,25 +113,22 @@ public class RollingStorage implements Storage, TruncateableStorage {
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String segmentName, Duration timeout) {
         return open(segmentName, false, timeout)
-                .thenApply(handle -> {
-                    SubSegment last = handle.lastSubSegment();
-                    return StreamSegmentInformation
-                            .builder()
-                            .name(handle.getSegmentName())
-                            .sealed(handle.isSealed())
-                            .length(last == null ? 0L : last.getLastOffset())
-                            .startOffset(0L) // TODO: we can't get this reliably without calling exists on all SubSegments.
-                            .build();
-                });
+                .thenApply(handle -> StreamSegmentInformation
+                        .builder()
+                        .name(handle.getSegmentName())
+                        .sealed(handle.isSealed())
+                        .length(handle.length())
+                        .startOffset(0L) // TODO: we can't get this reliably without calling exists on all SubSegments.
+                        .build());
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String segmentName, Duration timeout) {
         // A Segment Exists only if its header file exists and is not empty.
         String headerFile = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
-        return this.baseStorage.getStreamSegmentInfo(headerFile, timeout)
-                               .thenApply(si -> si.getLength() > 0)
-                               .exceptionally(ex -> ignore(ex, StreamSegmentNotExistsException.class, false));
+        return recoverHeader(headerFile, timeout)
+                .thenApply(si -> si.getLength() > 0)
+                .exceptionally(ex -> ignore(ex, StreamSegmentNotExistsException.class, false));
 
     }
 
@@ -240,13 +244,100 @@ public class RollingStorage implements Storage, TruncateableStorage {
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
-        // OpenWrite source and Check source sealed.
-        // Verify source not truncated.
-        // Append contents of Source Handle (files) to targetHandle (files) and update header file. We do not rename source
-        // files.
-        //TODO: implement
-        return null;
+    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long targetOffset, String sourceSegment, Duration timeout) {
+        val th = asWritableHandle(targetHandle);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return open(sourceSegment, false, timer.getRemaining())
+                .thenComposeAsync(sh -> {
+                    // Verify target Segment (offset and not sealed).
+                    if (targetOffset != th.length()) {
+                        return FutureHelpers.failedFuture(new BadOffsetException(th.getSegmentName(), th.length(), targetOffset));
+                    }
+
+                    if (th.isSealed()) {
+                        return FutureHelpers.failedFuture(new StreamSegmentSealedException(th.getSegmentName()));
+                    }
+
+                    // We can only use a Segment as a concat source if it is Sealed.
+                    Preconditions.checkState(sh.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
+                            sourceSegment, th.getSegmentName());
+                    if (sh.length() == 0) {
+                        //Source is empty; do not bother with concatenation.
+                        return delete(sh, timer.getRemaining());
+                    }
+
+                    // We can only use a Segment as a concat source if all of its SubSegments exist.
+                    return refreshSubSegmentExistence(sh, timer.getRemaining())
+                            .thenComposeAsync(v -> {
+                                Preconditions.checkState(sh.subSegments().stream().allMatch(SubSegment::exists),
+                                        "Cannot use segment '%s' as concat source because it is truncated.", sh.getSegmentName());
+
+                                return concatSubSegments(th, sh, timer);
+                            });
+                }, this.executor);
+    }
+
+    private CompletableFuture<Void> concatSubSegments(RollingSegmentHandle target, RollingSegmentHandle source, TimeoutTimer timer) {
+        // TODO consider using native concat if the source
+        // Generate new SubSegment entries from the SubSegments of the Source Segment(but update their start offsets).
+        AtomicLong segmentOffset = new AtomicLong(target.length());
+        val newSubSegments = source.subSegments().stream()
+                .map(s -> s.withNewOffset(segmentOffset.getAndAdd(s.getLength())))
+                .collect(Collectors.toList());
+
+        AtomicInteger serializationLength = new AtomicInteger(0);
+        // TODO: findBugs complains about this not being closed. Write a new, friendlier InputStream.
+        val writeStream = new SequenceInputStream(Iterators.asEnumeration(newSubSegments.stream()
+                .map(s -> {
+                    byte[] ser = HandleSerializer.serialize(s);
+                    serializationLength.addAndGet(ser.length);
+                    return new ByteArrayInputStream(ser);
+                })
+                .collect(Collectors.toList()).iterator()));
+
+        long targetHeaderLength = target.getHeaderLength();
+
+        // The Concat operation is a bit tricky. We need to atomically concatenate the data, which means that no matter
+        // where we fail, the Source is either fully concat into the Target (and thus inaccessible) or it is not, in which
+        // case the Target is not touched and the Source is still accessible. In order to do this with the primitives in the
+        // Storage interface, we need to do a few things.
+        // 1. Seal previous active segment in the target.
+        // 2. Create a "merge" header file and serialize all of the updates there. This contains only the data that will be
+        // appended to the target's header file, with the correct merge offsets.
+        // 3. Delete source header file. The Source segment is still recoverable (since we have a merge file).
+        // 4. Concat "merge" header file. The "merge" header will cease to exist and the source data is now part of the
+        // target segment.
+        // 5. Update in-memory handle.
+        return sealActiveSubSegment(target, timer)
+                .thenCompose(v -> serializeMergeHeader(writeStream, serializationLength.get(), source.getHeaderHandle().getSegmentName(), timer))
+                .thenCompose(mergeHandle -> this.baseStorage.delete(source.getHeaderHandle(), timer.getRemaining())
+                        .exceptionally(ex -> ignore(ex, StreamSegmentNotExistsException.class))
+                        .thenCompose(v -> FutureHelpers.exceptionallyCompose(
+                                this.baseStorage.concat(target.getHeaderHandle(), targetHeaderLength, mergeHandle.getSegmentName(), timer.getRemaining()),
+                                ex -> this.baseStorage.delete(mergeHandle, timer.getRemaining())
+                                        .thenCompose(v2 -> FutureHelpers.failedFuture(ex)))))
+                .thenRun(() -> {
+                    target.increaseHeaderLength(serializationLength.get());
+                    target.addSubSegments(newSubSegments);
+                });
+    }
+
+    private CompletableFuture<SegmentHandle> serializeMergeHeader(InputStream contents, int length, String baseSegmentName, TimeoutTimer timer) {
+        String mergeName = StreamSegmentNameUtils.getMergeSegmentName(baseSegmentName);
+        return FutureHelpers.exceptionallyCompose(this.baseStorage.create(mergeName, timer.getRemaining()),
+                ex -> {
+                    if (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentExistsException) {
+                        return this.baseStorage.openWrite(mergeName)
+                                .thenCompose(h -> this.baseStorage.delete(h, timer.getRemaining()))
+                                .thenCompose(v -> this.baseStorage.create(mergeName, timer.getRemaining()));
+                    } else {
+                        return FutureHelpers.failedFuture(ex);
+                    }
+                })
+                .thenCompose(v -> this.baseStorage.openWrite(mergeName))
+                .thenCompose(mergeHandle -> this.baseStorage.write(mergeHandle, 0, contents, length, timer.getRemaining())
+                        .thenCompose(v -> this.baseStorage.seal(mergeHandle, timer.getRemaining()))
+                        .thenApply(v -> mergeHandle));
     }
 
     @Override
@@ -257,8 +348,27 @@ public class RollingStorage implements Storage, TruncateableStorage {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return seal(handle, timer.getRemaining())
                 .exceptionally(ex -> ignore(ex, StreamSegmentSealedException.class))
-                .thenComposeAsync(v -> deleteSubSegments(h, s -> true, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> this.baseStorage.delete(h.getHeaderHandle(), timer.getRemaining()), this.executor);
+                .thenCompose(v -> deleteSubSegments(h, s -> true, timer.getRemaining()))
+                .thenCompose(v -> this.baseStorage.delete(h.getHeaderHandle(), timer.getRemaining()))
+                .handle((v, ex1) -> {
+                    // Regardless of whether we managed to delete the Header file, we need to delete the merge header file
+                    // in case that was still sticking around.
+                    if (ex1 != null && !(ExceptionHelpers.getRealException(ex1) instanceof StreamSegmentNotExistsException)) {
+                        return FutureHelpers.<Void>failedFuture(ex1);
+                    }
+
+                    return this.baseStorage.openWrite(StreamSegmentNameUtils.getMergeSegmentName(h.getHeaderHandle().getSegmentName()))
+                            .thenCompose(mh -> this.baseStorage.delete(mh, timer.getRemaining()))
+                            .exceptionally(ex2 -> {
+                                // If only one of these fails, then it's ok and expected, since most of the time only one
+                                // of them exists. However if both fail, we must report the exception.
+                                if (ex1 != null) {
+                                    throw new CompletionException(Exceptions.coalesce(ex1, ex2));
+                                }
+                                return null;
+                            });
+
+                }).thenAccept(Callbacks::doNothing);
     }
 
     //endregion
@@ -284,11 +394,11 @@ public class RollingStorage implements Storage, TruncateableStorage {
     //endregion
 
     private CompletableFuture<Integer> writeToActiveSubSegment(RollingSegmentHandle handle, long segmentOffset, InputStream data, int length, Duration timeout) {
-        SubSegment last = handle.lastSubSegment();
-        if (segmentOffset != last.getLastOffset()) {
-            return FutureHelpers.failedFuture(new BadOffsetException(handle.getSegmentName(), last.getLastOffset(), segmentOffset));
+        if (segmentOffset != handle.length()) {
+            return FutureHelpers.failedFuture(new BadOffsetException(handle.getSegmentName(), handle.length(), segmentOffset));
         }
 
+        SubSegment last = handle.lastSubSegment();
         long subSegmentOffset = segmentOffset - last.getStartOffset();
         int writeLength = (int) Math.min(length, handle.getRollingPolicy().getMaxLength() - last.getLength());
         assert writeLength > 0 : "non-positive write length";
@@ -308,36 +418,35 @@ public class RollingStorage implements Storage, TruncateableStorage {
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot rollover using a read-only handle.");
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
 
-        SegmentHandle activeSegment = handle.getActiveSubSegmentHandle();
-        if (activeSegment != null) {
-            // Non-empty Segment - which has an active sub-segment; seal it.
-            TimeoutTimer timer = new TimeoutTimer(timeout);
-            return this.baseStorage.seal(activeSegment, timer.getRemaining())
-                                   .thenComposeAsync(v -> {
-                                       handle.lastSubSegment().markSealed();
-                                       return createSubSegment(handle, timer.getRemaining());
-                                   }, this.executor);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return sealActiveSubSegment(handle, timer)
+                .thenComposeAsync(v -> createSubSegment(handle, timer.getRemaining()), this.executor);
+    }
+
+    private CompletableFuture<Void> sealActiveSubSegment(RollingSegmentHandle handle, TimeoutTimer timer) {
+        if (handle.getActiveSubSegmentHandle() != null) {
+            return this.baseStorage.seal(handle.getActiveSubSegmentHandle(), timer.getRemaining())
+                    .thenRun(() -> {
+                        handle.setActiveSubSegmentHandle(null);
+                        handle.lastSubSegment().markSealed();
+                    });
         } else {
-            return createSubSegment(handle, timeout);
+            return CompletableFuture.completedFuture(null);
         }
     }
 
     private CompletableFuture<Void> createSubSegment(RollingSegmentHandle handle, Duration timeout) {
         // Create new active SubSegment, only after which serialize the handle update and update the handle.
         // We ignore if the SubSegment exists and is empty - that's most likely due to a previous failed attempt.
-        SubSegment lastSubSegment = handle.lastSubSegment();
-        long segmentLength = lastSubSegment == null ? 0 : lastSubSegment.getLastOffset();
-        SubSegment newSubSegment = new SubSegment(StreamSegmentNameUtils.getSubSegmentName(handle.getSegmentName(), segmentLength), segmentLength);
+        long segmentLength = handle.length();
+        SubSegment newSubSegment = SubSegment.forSegment(handle.getSegmentName(), segmentLength);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.baseStorage
                 .create(newSubSegment.getName(), timer.getRemaining())
                 .handle((v, ex) -> ignoreEmptyFile(ex, newSubSegment.getName(), timer.getRemaining()))
                 .thenComposeAsync(si -> serializeHandleUpdate(handle, newSubSegment, timer.getRemaining()), this.executor)
                 .thenComposeAsync(v -> this.baseStorage.openWrite(newSubSegment.getName()), this.executor)
-                .thenAccept(activeHandle -> {
-                    handle.addSubSegment(newSubSegment);
-                    handle.setActiveSubSegmentHandle(activeHandle);
-                });
+                .thenAccept(activeHandle -> handle.addSubSegment(newSubSegment, activeHandle));
     }
 
     private CompletableFuture<Void> deleteSubSegments(RollingSegmentHandle handle, Predicate<SubSegment> canDelete, Duration timeout) {
@@ -369,8 +478,7 @@ public class RollingStorage implements Storage, TruncateableStorage {
     private CompletableFuture<RollingSegmentHandle> open(String segmentName, boolean readOnly, Duration timeout) {
         String headerSegment = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.baseStorage
-                .getStreamSegmentInfo(headerSegment, timer.getRemaining())
+        return recoverHeader(headerSegment, timer.getRemaining())
                 .thenComposeAsync(si -> {
                     if (si.getLength() == 0) {
                         // We treat empty header files as inexistent segments.
@@ -380,6 +488,22 @@ public class RollingStorage implements Storage, TruncateableStorage {
                     }
                 }, this.executor)
                 .thenComposeAsync(handle -> openActiveSubSegment(handle, timer.getRemaining()), this.executor);
+    }
+
+    private CompletableFuture<SegmentProperties> recoverHeader(String headerSegment, Duration timeout) {
+        /*
+        OpenHeader
+        1. If not exists, recover from $merge file.
+        2. H exists, MH exists/notexists: open H
+        3. H not exists, MH exists: recover H from MH, open H
+        4. H not exists, MH not exists, SegmentNotExists.
+
+        Fix:
+        * Exists & Open (done by this method).
+        * Create
+        * Delete (DONE)
+         */
+        return this.baseStorage.getStreamSegmentInfo(headerSegment, timeout);
     }
 
     /**
@@ -444,18 +568,39 @@ public class RollingStorage implements Storage, TruncateableStorage {
         }
     }
 
+    /**
+     * Updates the given handle with the latest information from the header file in Storage.
+     */
+    private CompletableFuture<Void> reload(RollingSegmentHandle handle) {
+        // TODO: implement
+        return null;
+    }
+
+    private CompletableFuture<Void> refreshSubSegmentExistence(RollingSegmentHandle handle, Duration timeout) {
+        // We check all SubSegments that we assume exist for actual existence (since once deleted, they can't come back).
+        val futures = handle.subSegments().stream()
+                .filter(SubSegment::exists)
+                .map(s -> this.baseStorage.exists(s.getName(), timeout).thenAccept(e -> {
+                    if (!e) {
+                        s.markInexistent();
+                    }
+                }))
+                .collect(Collectors.toList());
+        return FutureHelpers.allOf(futures);
+    }
+
     private CompletableFuture<Void> serializeHandle(RollingSegmentHandle handle, Duration timeout) {
         ByteArraySegment handleData = HandleSerializer.serialize(handle);
         return this.baseStorage
                 .write(handle.getHeaderHandle(), 0, handleData.getReader(), handleData.getLength(), timeout)
-                .thenRun(() -> handle.setSerializedHeaderLength(handleData.getLength()));
+                .thenRun(() -> handle.setHeaderLength(handleData.getLength()));
     }
 
     private CompletableFuture<Void> serializeHandleUpdate(RollingSegmentHandle handle, SubSegment newSubSegment, Duration timeout) {
         byte[] appendData = HandleSerializer.serialize(newSubSegment);
         return this.baseStorage
-                .write(handle.getHeaderHandle(), handle.getSerializedHeaderLength(), new ByteArrayInputStream(appendData), appendData.length, timeout)
-                .thenRun(() -> handle.increaseSerializedHeaderLength(appendData.length));
+                .write(handle.getHeaderHandle(), handle.getHeaderLength(), new ByteArrayInputStream(appendData), appendData.length, timeout)
+                .thenRun(() -> handle.increaseHeaderLength(appendData.length));
     }
 
     private <T extends Exception> Void ignore(Throwable ex, Class<T> type) {

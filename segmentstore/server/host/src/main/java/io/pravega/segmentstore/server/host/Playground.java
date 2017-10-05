@@ -31,7 +31,54 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        testRollingStorage();
+        //testRollingStorage();
+        testRollingStorageConcat();
+    }
+
+    private static void testRollingStorageConcat(){
+        val targetName = "Target";
+        val sourceName = "Source";
+        val rollingPolicy = new SegmentRollingPolicy(10);
+        val timeout = Duration.ofSeconds(10);
+        val writeSize = 21;
+
+        @Cleanup("shutdown")
+        val executor = Executors.newScheduledThreadPool(10);
+        @Cleanup
+        val msf = new InMemoryStorageFactory(executor);
+        @Cleanup
+        val rs = new RollingStorage(msf, rollingPolicy, executor);
+        rs.initialize(1);
+
+        rs.create(targetName, timeout).join();
+        rs.create(sourceName, timeout).join();
+        val targetHandle = rs.openWrite(targetName).join();
+        val sourceHandle = rs.openWrite(sourceName).join();
+
+        // Write with rollover
+        long offset = 0;
+        val rnd = new Random(0);
+        for (int i = 0; i < 10; i++) {
+            byte[] data = new byte[writeSize];
+            rnd.nextBytes(data);
+            rs.write(targetHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            rnd.nextBytes(data);
+            rs.write(sourceHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            offset += data.length;
+        }
+
+        rs.seal(sourceHandle, timeout).join();
+        rs.concat(targetHandle,offset,sourceName,timeout).join();
+        offset*=2;
+
+        for (int i = 0; i < 10; i++) {
+            byte[] data = new byte[writeSize];
+            rnd.nextBytes(data);
+            rs.write(targetHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            offset += data.length;
+        }
+
+        System.out.println();
     }
 
     private static void testRollingStorage() {

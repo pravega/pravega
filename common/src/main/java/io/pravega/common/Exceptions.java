@@ -10,9 +10,7 @@
 package io.pravega.common;
 
 import com.google.common.base.Preconditions;
-
 import java.util.Collection;
-
 import lombok.SneakyThrows;
 
 /**
@@ -72,6 +70,27 @@ public final class Exceptions {
             Thread.currentThread().interrupt();
             throw e;
         }
+    }
+
+    /**
+     * Coalesces all the given Throwables into a single one, and adds the rest as suppressed.
+     *
+     * @param throwables The Throwables to coalesce.
+     * @return The result, or null if all throwables are null.
+     */
+    public static Throwable coalesce(Throwable... throwables) {
+        Throwable first = null;
+        for (Throwable t : throwables) {
+            if (t == null) {
+                continue;
+            }
+            if (first == null) {
+                first = t;
+            } else if (first != t) {
+                first.addSuppressed(t);
+            }
+        }
+        return first;
     }
 
     /**
