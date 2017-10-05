@@ -188,7 +188,9 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         public void shutdown() {
             if (!shutdown) {
                 log.info("Shutting down ControllerNameResolver");
-                this.scheduledExecutor.shutdownNow();
+                if (this.scheduledExecutor != null) {
+                    this.scheduledExecutor.shutdownNow();
+                }
                 shutdown = true;
             }
         }
