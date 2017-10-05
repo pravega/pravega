@@ -49,6 +49,21 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
+
+    configurations.all {
+        resolutionStrategy {
+            //failOnVersionConflict()
+            force "org.slf4j:slf4j-api:" + slf4jApiVersion
+            force "org.apache.commons:commons-lang3:" + commonsLang3Version
+            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
+            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.guava:guava:" + guavaVersion
+            force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
+            force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+        }
+    }
+
 }
 
 project('common') {
