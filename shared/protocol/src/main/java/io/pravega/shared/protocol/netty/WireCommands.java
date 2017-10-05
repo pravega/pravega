@@ -510,6 +510,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.DATA_APPENDED;
         final UUID writerId;
         final long eventNumber;
+        final long previousEventNumber;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -521,12 +522,14 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
+            out.writeLong(previousEventNumber);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
-            return new DataAppended(writerId, offset);
+            long previousEventNumber = in.readLong();
+            return new DataAppended(writerId, offset, previousEventNumber);
         }
     }
 

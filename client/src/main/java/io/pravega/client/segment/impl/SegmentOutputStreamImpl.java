@@ -230,6 +230,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
+        private Long getInFlightBelow(long ackLevel) {
+            synchronized (lock) {
+                return inflight.floorKey(ackLevel);
+            }
+        }
+
         private void releaseIfEmptyInflight() {
             synchronized (lock) {
                 if (inflight.isEmpty()) {
@@ -321,7 +327,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void dataAppended(DataAppended dataAppended) {
             log.trace("Received ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
-            ackUpTo(ackLevel);
+            long previousAckLevel = dataAppended.getPreviousEventNumber();
+            try {
+                checkAckLevels(ackLevel, previousAckLevel);
+                ackUpTo(ackLevel);
+            } catch (Exception e) {
+                failConnection(e);
+            }
         }
         
         @Override
@@ -365,7 +377,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.releaseIfEmptyInflight();
         }
-        
+
+        private void checkAckLevels(long ackLevel, long previousAckLevel) {
+            checkState(previousAckLevel < ackLevel, "Bad ack from server - previousAckLevel = %s, ackLevel = %s",
+                       previousAckLevel, ackLevel);
+            // we only care that the lowest in flight level is higher than previous ack level.
+            // it may be higher by more than 1 (eg: in the case of a prior failed conditional appends).
+            // this is because client never decrements eventNumber.
+            Long inFlightBelowPreviousAckLevel = state.getInFlightBelow(previousAckLevel);
+            checkState(inFlightBelowPreviousAckLevel == null, "Missed ack from server - previousAckLevel = %s, ackLevel = %s, inFlightLevel = %s",
+                       previousAckLevel, ackLevel, inFlightBelowPreviousAckLevel);
+        }
+
         private void conditionalFail(long eventNumber) {
             PendingEvent toAck = state.removeSingleInflight(eventNumber);
             if (toAck != null) {
