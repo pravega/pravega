@@ -148,8 +148,8 @@ public class AppendProcessorTest {
                              AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(clientId, 1, 0L));
-        verify(connection).send(new DataAppended(clientId, 2, 1L));
+        verify(connection).send(new DataAppended(clientId, 1, 0));
+        verify(connection).send(new DataAppended(clientId, 2, 1));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -180,7 +180,7 @@ public class AppendProcessorTest {
         verify(store).append(streamSegmentName, 0L, data, updateEventNumber(clientId, 2, 1, 1), AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(clientId, 1, 0L));
+        verify(connection).send(new DataAppended(clientId, 1, 0));
         verify(connection).send(new ConditionalCheckFailed(clientId, 2));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -266,9 +266,9 @@ public class AppendProcessorTest {
                              AppendProcessor.TIMEOUT);
         verify(connection, atLeast(0)).resumeReading();
         verify(connection).send(new AppendSetup(1, segment1, clientId1, 0));
-        verify(connection).send(new DataAppended(clientId1, data.length, 0L));
+        verify(connection).send(new DataAppended(clientId1, data.length, 0));
         verify(connection).send(new AppendSetup(2, segment2, clientId2, 0));
-        verify(connection).send(new DataAppended(clientId2, data.length, 0L));
+        verify(connection).send(new DataAppended(clientId2, data.length, 0));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }

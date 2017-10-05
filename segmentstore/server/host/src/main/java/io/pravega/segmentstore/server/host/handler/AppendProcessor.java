@@ -219,7 +219,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
             boolean conditionalFailed = exception != null && (ExceptionHelpers.getRealException(exception) instanceof BadOffsetException);
-            Long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
+            long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
             synchronized (lock) {
                 if (outstandingAppend != append) {
                     throw new IllegalStateException(
