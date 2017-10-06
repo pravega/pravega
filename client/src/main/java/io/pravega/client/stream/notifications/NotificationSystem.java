@@ -14,10 +14,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import lombok.Data;
 
-public enum NotificationSystem {
-    INSTANCE;
+public class NotificationSystem {
 
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
+    private final NotifierFactory factory = new NotifierFactory(this);
 
     @SuppressWarnings("unchecked")
     public <T extends Event> void addListeners(final Class<T> type, final Listener<T> listener) {
@@ -36,6 +36,10 @@ public enum NotificationSystem {
 
     public <T extends Event> void removeListeners(Class<T> type) {
         listeners.removeIf(e -> e.getType().equals(type));
+    }
+
+    public NotifierFactory getNotifierFactory() {
+        return factory;
     }
 
     @Data

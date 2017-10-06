@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.stream.notifications.notifier;
 
@@ -18,8 +18,8 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
     public final NotificationSystem system;
 
-    public ScaleEventNotifier() {
-        system = NotificationSystem.INSTANCE;
+    public ScaleEventNotifier(NotificationSystem system) {
+        this.system = system;
     }
 
     @Override
