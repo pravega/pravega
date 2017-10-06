@@ -19,25 +19,28 @@ public enum NotificationSystem {
 
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
 
+    @SuppressWarnings("unchecked")
     public <T extends Event> void addListeners(final Class<T> type, final Listener<T> listener) {
-        listeners.add(new ListenerWithType(listener, type));
-    }
-
-    public void removeListeners(final Listener listener) {
-        listeners.remove(listener);
+        listeners.add(new ListenerWithType(type, listener));
     }
 
     public <T extends Event> void notify(final T event) {
         listeners.stream()
                  .filter(listener -> listener.getType().equals(event.getClass()))
-                 .forEach(listenerWithType -> {
-                     listenerWithType.getListener().onEvent(event);
-                 });
+                 .forEach(l -> l.getListener().onEvent(event));
+    }
+
+    public <T extends Event> void removeListeners(final Listener<T> listener) {
+        listeners.removeIf(e -> e.getListener().equals(listener));
+    }
+
+    public <T extends Event> void removeListeners(Class<T> type) {
+        listeners.removeIf(e -> e.getType().equals(type));
     }
 
     @Data
     private class ListenerWithType<T> {
-        private final Listener<T> listener;
         private final Class<T> type;
+        private final Listener<T> listener;
     }
 }

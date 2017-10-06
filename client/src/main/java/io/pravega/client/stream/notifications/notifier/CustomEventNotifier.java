@@ -7,9 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications;
+package io.pravega.client.stream.notifications.notifier;
 
-public class CustomEventNotification implements Observable<CustomEvent>{
+import io.pravega.client.stream.notifications.Listener;
+import io.pravega.client.stream.notifications.NotificationSystem;
+import io.pravega.client.stream.notifications.Observable;
+import io.pravega.client.stream.notifications.events.CustomEvent;
+
+public class CustomEventNotifier implements Observable<CustomEvent> {
 
     private final NotificationSystem system = NotificationSystem.INSTANCE;
 
@@ -20,7 +25,12 @@ public class CustomEventNotification implements Observable<CustomEvent>{
 
     @Override
     public void removeListener(Listener<CustomEvent> listener) {
-        this.removeListener(listener);
+        this.system.removeListeners(listener);
+    }
+
+    @Override
+    public void removeListener() {
+        this.system.removeListeners(getType());
     }
 
     @Override

@@ -7,8 +7,18 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications;
+package io.pravega.client.stream.notifications.events;
 
-public class CustomEvent implements Event {
+import io.pravega.client.stream.notifications.Event;
+import lombok.Builder;
+import lombok.Data;
 
+/**
+ * Class to represent a scale event.
+ */
+@Data
+@Builder
+public class ScaleEvent implements Event {
+    private int numOfSegments;
+    private int numOfReaders;
 }

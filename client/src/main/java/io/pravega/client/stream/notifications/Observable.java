@@ -13,7 +13,7 @@ public interface Observable<Type> {
     //TODO: shrids: add executor.
 
     /**
-     * Add listener for event type T.
+     * Add listener for event type T. Multiple listeners can be added for the same type.
      * @param listener This is the listener which will be invoked incase of an Event.
      */
     void addListener(Listener<Type> listener);
@@ -24,11 +24,14 @@ public interface Observable<Type> {
      */
     void removeListener(Listener<Type> listener);
 
-    //TODO: shrids removeListener of all types
+    /**
+     * Remove all listeners for a given type.
+     */
+    void removeListener();
 
     /**
-     * Get the event type
-     * @return
+     * Get the event type.
+     * @return Class of event type.
      */
     Class<Type> getType();
 }

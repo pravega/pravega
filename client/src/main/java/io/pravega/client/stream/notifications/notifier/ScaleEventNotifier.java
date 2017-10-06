@@ -7,13 +7,18 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications;
+package io.pravega.client.stream.notifications.notifier;
 
-public class ScaleEventNotification implements Observable<ScaleEvent> {
+import io.pravega.client.stream.notifications.Listener;
+import io.pravega.client.stream.notifications.NotificationSystem;
+import io.pravega.client.stream.notifications.Observable;
+import io.pravega.client.stream.notifications.events.ScaleEvent;
+
+public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
     public final NotificationSystem system;
 
-    public ScaleEventNotification() {
+    public ScaleEventNotifier() {
         system = NotificationSystem.INSTANCE;
     }
 
@@ -25,6 +30,11 @@ public class ScaleEventNotification implements Observable<ScaleEvent> {
     @Override
     public void removeListener(Listener<ScaleEvent> listener) {
         system.removeListeners(listener);
+    }
+
+    @Override
+    public void removeListener() {
+        this.system.removeListeners(getType());
     }
 
     @Override
