@@ -9,20 +9,20 @@
  */
 package io.pravega.client.stream.notifications;
 
-public interface Observable<Type> {
+public interface Observable<T> {
     //TODO: shrids: add executor.
 
     /**
      * Add listener for event type T. Multiple listeners can be added for the same type.
      * @param listener This is the listener which will be invoked incase of an Event.
      */
-    void addListener(Listener<Type> listener);
+    void addListener(Listener<T> listener);
 
     /**
      * Remove a listener.
      * @param listener the listener which needs to be removed.
      */
-    void removeListener(Listener<Type> listener);
+    void removeListener(Listener<T> listener);
 
     /**
      * Remove all listeners for a given type.
@@ -33,5 +33,5 @@ public interface Observable<Type> {
      * Get the event type.
      * @return Class of event type.
      */
-    Class<Type> getType();
+    Class<T> getType();
 }

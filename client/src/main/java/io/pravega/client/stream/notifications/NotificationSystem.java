@@ -23,7 +23,12 @@ public class NotificationSystem {
     public <T extends Event> void addListeners(final Class<T> type, final Listener<T> listener) {
         listeners.add(new ListenerWithType(type, listener));
     }
-
+   
+    /**
+     * This method will ensure the event is notified to the listeners of the same type.
+     * @param event Event to be notified.
+     * @param <T> All class which extends Event.
+     */
     public <T extends Event> void notify(final T event) {
         listeners.stream()
                  .filter(listener -> listener.getType().equals(event.getClass()))
