@@ -16,23 +16,19 @@ public class StreamSegmentTruncatedException extends StreamingException {
     /**
      * Creates a new instance of the StreamSegmentTruncatedException class.
      *
-     * @param startOffset First valid offset of the StreamSegment.
+     * @param message Message for the exception.
+     * @param ex      Causing exception.
      */
-    public StreamSegmentTruncatedException(long startOffset) {
-        this(startOffset, "Segment truncated");
+    public StreamSegmentTruncatedException(String message, Throwable ex) {
+        super(message, ex);
     }
 
     /**
      * Creates a new instance of the StreamSegmentTruncatedException class.
      *
      * @param startOffset First valid offset of the StreamSegment.
-     * @param message     Custom error message.
      */
-    public StreamSegmentTruncatedException(long startOffset, String message) {
-        super(getMessage(startOffset, message));
-    }
-
-    private static String getMessage(long startOffset, String message) {
-        return String.format("%s: Lowest accessible offset is %d.", message, startOffset);
+    public StreamSegmentTruncatedException(long startOffset) {
+        super(String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
     }
 }

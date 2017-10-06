@@ -15,6 +15,8 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.segmentstore.storage.rolling.SegmentRollingPolicy;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.Executors;
@@ -31,7 +33,7 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
-        //testRollingStorage();
+        testRollingStorage();
         testRollingStorageConcat();
     }
 
@@ -81,7 +83,7 @@ public class Playground {
         System.out.println();
     }
 
-    private static void testRollingStorage() {
+    private static void testRollingStorage() throws IOException {
         val segmentName = "Segment";
         val rollingPolicy = new SegmentRollingPolicy(10);
         val timeout = Duration.ofSeconds(10);
@@ -106,16 +108,26 @@ public class Playground {
         // Write with rollover
         long offset = 0;
         val rnd = new Random(0);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
         for (int i = 0; i < 100; i++) {
             byte[] data = new byte[writeSize];
             rnd.nextBytes(data);
             rs.write(writeHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
             offset += data.length;
+            os.write(data);
         }
 
-        // Concat TODO
-
-        // Read TODO
+        // Read
+        byte[] writtenData = os.toByteArray();
+        for (int readOffset = 0; readOffset < offset / 2; readOffset++) {
+            int readLength = (int) (offset - 2*readOffset);
+            byte[] readBuffer = new byte[readLength];
+            int bytesRead = rs.read(writeHandle, readOffset, readBuffer, 0, readLength, timeout).join();
+            assert bytesRead == readLength;
+            for (int j = 0; j < readBuffer.length; j++) {
+                assert writtenData[readOffset + j] == readBuffer[j] : "ReadOffset = " + readOffset + ", readBuffer.offset = " + j;
+            }
+        }
 
         // Truncate
         for (long truncationOffset = 0; truncationOffset < offset; truncationOffset++) {

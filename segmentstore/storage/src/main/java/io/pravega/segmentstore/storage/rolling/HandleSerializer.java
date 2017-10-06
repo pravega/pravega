@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.function.Predicate;
@@ -58,20 +59,38 @@ final class HandleSerializer {
         val policyEntry = parse(st.nextToken(), KEY_POLICY_MAX_SIZE::equals, HandleSerializer::isValidLong);
         // 3. SubSegments.
         ArrayList<SubSegment> subSegments = new ArrayList<>();
-        long lastOffset = -1;
-        while (st.hasMoreTokens()) {
-            val entry = parse(st.nextToken(), HandleSerializer::isValidLong, HandleSerializer::nonEmpty);
-            SubSegment s = parse(entry);
-            Preconditions.checkArgument(lastOffset < s.getStartOffset(),
-                    "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
-            subSegments.add(s);
-            lastOffset = s.getStartOffset();
-        }
+        parseSubSegments(st, subSegments, -1);
 
-        val result = new RollingSegmentHandle(nameEntry.getValue(), headerHandle,
-                new SegmentRollingPolicy(Long.parseLong(policyEntry.getValue())), subSegments);
-        result.setHeaderLength(serialization.length);
-        return result;
+        val policy = new SegmentRollingPolicy(Long.parseLong(policyEntry.getValue()));
+        return new RollingSegmentHandle(nameEntry.getValue(), headerHandle, policy, subSegments)
+                .setHeaderLength(serialization.length);
+    }
+
+    /**
+     * Deserializes the given byte array into a List of SubSegments.
+     *
+     * @param serialization The byte array to deserialize.
+     * @return A List of SubSegments.
+     */
+    static List<SubSegment> deserializeSubSegments(byte[] serialization) {
+        StringTokenizer st = new StringTokenizer(new String(serialization, ENCODING), SEPARATOR, false);
+        ArrayList<SubSegment> subSegments = new ArrayList<>();
+        parseSubSegments(st, subSegments, -1);
+        return subSegments;
+    }
+
+    /**
+     * Serializes the given SubSegment List into a ByteArraySegment.
+     *
+     * @param subSegments The SubSegment List to serialize.
+     * @return A new ByteArraySegment.
+     */
+    @SneakyThrows(IOException.class)
+    static ByteArraySegment serialize(List<SubSegment> subSegments) {
+        try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
+            subSegments.forEach(subSegment -> os.write(serialize(subSegment)));
+            return os.getData();
+        }
     }
 
     /**
@@ -118,8 +137,15 @@ final class HandleSerializer {
         return new AbstractMap.SimpleImmutableEntry<>(key, value);
     }
 
-    private static SubSegment parse(Map.Entry<String, String> entry) {
-        return new SubSegment(entry.getValue(), Long.parseLong(entry.getKey()));
+    private static void parseSubSegments(StringTokenizer st, List<SubSegment> subSegments, long lastOffset) {
+        while (st.hasMoreTokens()) {
+            val entry = parse(st.nextToken(), HandleSerializer::isValidLong, HandleSerializer::nonEmpty);
+            SubSegment s = new SubSegment(entry.getValue(), Long.parseLong(entry.getKey()));
+            Preconditions.checkArgument(lastOffset < s.getStartOffset(),
+                    "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
+            subSegments.add(s);
+            lastOffset = s.getStartOffset();
+        }
     }
 
     private static boolean nonEmpty(String s) {

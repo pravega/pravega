@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.concurrent.GuardedBy;
@@ -67,6 +68,22 @@ class RollingSegmentHandle implements SegmentHandle {
 
     //endregion
 
+    /**
+     * Updates the contents of this handle with information from the given one.
+     *
+     * @param source The RollingSegmentHandle to update from.
+     */
+    synchronized void refresh(RollingSegmentHandle source) {
+        Preconditions.checkState(isReadOnly(), "Cannot refresh a non-readonly handle.");
+        Preconditions.checkArgument(source.getSegmentName().equals(this.getSegmentName()), "SegmentName mismatch.");
+        this.subSegments = new ArrayList<>(source.subSegments());
+        setHeaderLength(source.getHeaderLength());
+        setActiveSubSegmentHandle(source.getActiveSubSegmentHandle());
+        if (source.isSealed()) {
+            markSealed();
+        }
+    }
+
     //region Properties
 
     @Override
@@ -109,7 +126,7 @@ class RollingSegmentHandle implements SegmentHandle {
      */
     synchronized List<SubSegment> subSegments() {
         if (this.sealed) {
-            return this.subSegments;
+            return this.subSegments; // This is already an unmodifiable list.
         } else {
             return Collections.unmodifiableList(this.subSegments.subList(0, this.subSegments.size()));
         }
@@ -131,7 +148,7 @@ class RollingSegmentHandle implements SegmentHandle {
         // Update the SubSegment and its Handle atomically.
         Preconditions.checkNotNull(activeSubSegmentHandle, "activeSubSegmentHandle");
         Preconditions.checkArgument(!activeSubSegmentHandle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
-        Preconditions.checkArgument(activeSubSegmentHandle.getSegmentName().equals(lastSubSegment().getName()),
+        Preconditions.checkArgument(activeSubSegmentHandle.getSegmentName().equals(subSegment.getName()),
                 "Active SubSegment handle must be for the last SubSegment.");
         this.activeSubSegmentHandle = activeSubSegmentHandle;
         this.subSegments.add(subSegment);
@@ -179,12 +196,14 @@ class RollingSegmentHandle implements SegmentHandle {
      * Sets the Active SubSegment handle.
      *
      * @param handle The handle. Must not be read-only and for the last SubSegment.
+     *               @return This object.
      */
-    synchronized void setActiveSubSegmentHandle(SegmentHandle handle) {
+    synchronized RollingSegmentHandle setActiveSubSegmentHandle(SegmentHandle handle) {
         Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
         Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(lastSubSegment().getName()),
                 "Active SubSegment handle must be for the last SubSegment.");
         this.activeSubSegmentHandle = handle;
+        return this;
     }
 
     /**
@@ -197,15 +216,17 @@ class RollingSegmentHandle implements SegmentHandle {
     /**
      * Sets the serialized length of the Header.
      */
-    synchronized void setHeaderLength(int value) {
+    synchronized RollingSegmentHandle setHeaderLength(int value) {
         this.headerLength = value;
+        return this;
     }
 
     /**
      * Increases the serialized length of the Header by the given value.
      */
-    synchronized void increaseHeaderLength(int value) {
+    synchronized RollingSegmentHandle increaseHeaderLength(int value) {
         this.headerLength += value;
+        return this;
     }
 
     @Override
