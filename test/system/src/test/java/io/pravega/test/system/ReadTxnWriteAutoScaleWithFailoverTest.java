@@ -151,7 +151,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         //run the failover test while scaling
         performFailoverForTestsInvolvingTxns();
 
-        waitForScaling(scope);
+        waitForScaling(scope, stream);
 
         //bring the instances back to 3 before performing failover
         controllerInstance.scaleService(3, true);
