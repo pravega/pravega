@@ -52,10 +52,11 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
     private final String scope = "testReadTxnWriteAutoScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String stream = "testReadTxnWriteAutoScaleStream";
     private final String readerGroupName = "testReadTxnWriteAutoScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
+            .streamName(stream).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
 
@@ -108,7 +109,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
         testState.txnWrite.set(true);
-        createScopeAndStream(scope, AUTO_SCALE_STREAM, config, controllerURIDirect);
+        createScopeAndStream(scope, stream, config, controllerURIDirect);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -134,21 +135,21 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     @Test
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
 
-        createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
+        createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
         //run the failover test before scaling
-        performFailoverTest();
+        performFailoverForTestsInvolvingTxns();
 
         //bring the instances back to 3 before performing failover during scaling
         controllerInstance.scaleService(3, true);
         segmentStoreInstance.scaleService(3, true);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, stream);
 
         //run the failover test while scaling
-        performFailoverTest();
+        performFailoverForTestsInvolvingTxns();
 
         waitForScaling(scope);
 
@@ -158,13 +159,14 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //run the failover test after scaling
-        performFailoverTest();
+        performFailoverForTestsInvolvingTxns();
 
         stopWriters();
+        waitForTxnsToComplete();
         stopReaders();
         validateResults(readerGroupManager, readerGroupName);
 
-        cleanUp(scope, AUTO_SCALE_STREAM); //cleanup if validation is successful.
+        cleanUp(scope, stream); //cleanup if validation is successful.
         log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
     }
 

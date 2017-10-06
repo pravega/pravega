@@ -136,9 +136,10 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
         //run the failover test
-        performFailoverTest();
+        performFailoverForTestsInvolvingTxns();
 
         stopWriters();
+        waitForTxnsToComplete();
         stopReaders();
         validateResults(readerGroupManager, readerGroupName);
 
