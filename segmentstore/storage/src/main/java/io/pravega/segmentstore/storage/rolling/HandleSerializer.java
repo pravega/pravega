@@ -19,10 +19,8 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
-import java.util.function.Predicate;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -33,10 +31,11 @@ final class HandleSerializer {
     //region Serialization Constants.
 
     private static final Charset ENCODING = Charsets.UTF_8;
-    private static final String KEY_NAME = "name";
     private static final String KEY_POLICY_MAX_SIZE = "maxsize";
+    private static final String KEY_CONCAT = "concat";
     private static final String KEY_VALUE_SEPARATOR = "=";
     private static final String SEPARATOR = "&";
+    private static final String CONCAT_SEPARATOR = "@";
 
     //endregion
 
@@ -53,53 +52,35 @@ final class HandleSerializer {
         StringTokenizer st = new StringTokenizer(new String(serialization, ENCODING), SEPARATOR, false);
         Preconditions.checkArgument(st.hasMoreTokens(), "No separators in serialization.");
 
-        // 1. Segment Name.
-        val nameEntry = parse(st.nextToken(), KEY_NAME::equals, HandleSerializer::nonEmpty);
-        // 2. Policy Max Size.
-        val policyEntry = parse(st.nextToken(), KEY_POLICY_MAX_SIZE::equals, HandleSerializer::isValidLong);
-        // 3. SubSegments.
+        SegmentRollingPolicy policy = null;
+        OffsetAdjuster om = new OffsetAdjuster();
+        long lastOffset = -1;
         ArrayList<SubSegment> subSegments = new ArrayList<>();
-        parseSubSegments(st, subSegments, -1);
-
-        val policy = new SegmentRollingPolicy(Long.parseLong(policyEntry.getValue()));
-        return new RollingSegmentHandle(nameEntry.getValue(), headerHandle, policy, subSegments)
-                .setHeaderLength(serialization.length);
-    }
-
-    /**
-     * Deserializes the given byte array into a List of SubSegments.
-     *
-     * @param serialization The byte array to deserialize.
-     * @return A List of SubSegments.
-     */
-    static List<SubSegment> deserializeSubSegments(byte[] serialization) {
-        StringTokenizer st = new StringTokenizer(new String(serialization, ENCODING), SEPARATOR, false);
-        ArrayList<SubSegment> subSegments = new ArrayList<>();
-        parseSubSegments(st, subSegments, -1);
-        return subSegments;
-    }
-
-    /**
-     * Serializes the given SubSegment List into a ByteArraySegment.
-     *
-     * @param subSegments The SubSegment List to serialize.
-     * @return A new ByteArraySegment.
-     */
-    @SneakyThrows(IOException.class)
-    static ByteArraySegment serialize(List<SubSegment> subSegments) {
-        try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
-            subSegments.forEach(subSegment -> os.write(serialize(subSegment)));
-            return os.getData();
+        while (st.hasMoreTokens()) {
+            val entry = parse(st.nextToken());
+            if (entry.getKey().equalsIgnoreCase(KEY_POLICY_MAX_SIZE)) {
+                // Rolling policy entry; only check if we don't have it set yet.
+                if (policy == null) {
+                    Preconditions.checkArgument(isValidLong(entry.getValue()), "Invalid entry value for '%s'.", entry);
+                    policy = new SegmentRollingPolicy(Long.parseLong(entry.getValue()));
+                }
+            } else if (entry.getKey().equalsIgnoreCase(KEY_CONCAT)) {
+                // Concat entry header. This contains information about an upcoming concat.
+                val concatInfo = parseConcat(entry.getValue());
+                om.set(concatInfo.getKey(), concatInfo.getValue());
+            } else {
+                // Regular offset->file entry.
+                Preconditions.checkArgument(isValidLong(entry.getKey()), "Invalid key value for '%s'.", entry);
+                long offset = om.adjustOffset(Long.parseLong(entry.getKey()));
+                SubSegment s = new SubSegment(entry.getValue(), offset);
+                Preconditions.checkArgument(lastOffset < s.getStartOffset(),
+                        "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
+                subSegments.add(s);
+                lastOffset = s.getStartOffset();
+            }
         }
-    }
 
-    /**
-     * Serializes a single SubSegment.
-     * @param subSegment The SubSegment to serialize.
-     * @return A byte array containing the serialization.
-     */
-    static byte[] serialize(SubSegment subSegment) {
-        return combine(Long.toString(subSegment.getStartOffset()), subSegment.getName());
+        return new RollingSegmentHandle(headerHandle, policy, subSegments).setHeaderLength(serialization.length);
     }
 
     /**
@@ -111,45 +92,62 @@ final class HandleSerializer {
     @SneakyThrows(IOException.class)
     static ByteArraySegment serialize(RollingSegmentHandle handle) {
         try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
-            //1. Segment Name.
-            os.write(combine(KEY_NAME, handle.getSegmentName()));
             //2. Policy Max Size.
             os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
             //3. SubSegments.
-            handle.subSegments().forEach(subSegment -> os.write(serialize(subSegment)));
+            handle.subSegments().forEach(subSegment -> os.write(serializeSubSegment(subSegment)));
             return os.getData();
         }
+    }
+
+    /**
+     * Serializes a single SubSegment.
+     *
+     * @param subSegment The SubSegment to serialize.
+     * @return A byte array containing the serialization.
+     */
+    static byte[] serializeSubSegment(SubSegment subSegment) {
+        return combine(Long.toString(subSegment.getStartOffset()), subSegment.getName());
+    }
+
+    /**
+     * Serializes an entry that indicates a number of SubSegments are concatenated at a specified offset.
+     *
+     * @param subSegmentCount The number of SubSegments to concat.
+     * @param concatOffset    The concat offset.
+     * @return A byte array containing the serialization.
+     */
+    static byte[] serializeConcat(int subSegmentCount, long concatOffset) {
+        return combine(KEY_CONCAT, subSegmentCount + CONCAT_SEPARATOR + concatOffset);
     }
 
     private static byte[] combine(String key, String value) {
         return (key + KEY_VALUE_SEPARATOR + value + SEPARATOR).getBytes(ENCODING);
     }
 
-    private static Map.Entry<String, String> parse(String entry, Predicate<String> keyValidator, Predicate<String> valueValidator) {
+    private static Map.Entry<String, String> parse(String entry) {
         int sp = entry.indexOf(KEY_VALUE_SEPARATOR);
         Preconditions.checkArgument(sp > 0 && sp < entry.length() - 1, "Header entry '%s' is invalid.", entry);
 
         String key = entry.substring(0, sp);
-        Preconditions.checkArgument(keyValidator.test(key), "Invalid entry key for '%s'.", entry);
-
-        String value = entry.substring(sp + 1);
-        Preconditions.checkArgument(valueValidator.test(value), "Invalid entry value for '%s'.", entry);
+        String value = entry.substring(sp + KEY_VALUE_SEPARATOR.length());
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(key), "Missing entry key for '%s'.", entry);
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(value), "Missing entry value for '%s'.", entry);
         return new AbstractMap.SimpleImmutableEntry<>(key, value);
     }
 
-    private static void parseSubSegments(StringTokenizer st, List<SubSegment> subSegments, long lastOffset) {
-        while (st.hasMoreTokens()) {
-            val entry = parse(st.nextToken(), HandleSerializer::isValidLong, HandleSerializer::nonEmpty);
-            SubSegment s = new SubSegment(entry.getValue(), Long.parseLong(entry.getKey()));
-            Preconditions.checkArgument(lastOffset < s.getStartOffset(),
-                    "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
-            subSegments.add(s);
-            lastOffset = s.getStartOffset();
+    private static Map.Entry<Long, Integer> parseConcat(String concat) {
+        int pos = concat.indexOf(CONCAT_SEPARATOR);
+        Preconditions.checkArgument(pos > 0 && pos < concat.length() - 1, "%s value '%s' is invalid.", KEY_CONCAT, concat);
+        String count = concat.substring(0, pos);
+        String offset = concat.substring(pos + CONCAT_SEPARATOR.length());
+        try {
+            val result = new AbstractMap.SimpleImmutableEntry<Long, Integer>(Long.parseLong(offset), Integer.parseInt(count));
+            Preconditions.checkArgument(result.getKey() >= 0 && result.getValue() >= 0, "%s value '%s' is invalid.", KEY_CONCAT, concat);
+            return result;
+        } catch (NumberFormatException nfe) {
+            throw new IllegalArgumentException(String.format("%s value '%s' is invalid.", KEY_CONCAT, concat), nfe);
         }
-    }
-
-    private static boolean nonEmpty(String s) {
-        return !Strings.isNullOrEmpty(s);
     }
 
     private static boolean isValidLong(String s) {
@@ -162,4 +160,48 @@ final class HandleSerializer {
     }
 
     ///endregion
+
+    //region OffsetAdjuster
+
+    /**
+     * Helps adjust offsets when deserializing SubSegments from the Header.
+     */
+    private static class OffsetAdjuster {
+        private long offsetAdjustment;
+        private int remainingCount;
+        private int originalCount;
+
+        /**
+         * Sets the given offset adjustment.
+         *
+         * @param offsetAdjustment The offset adjustment.
+         * @param count            The number of times to apply the offset adjustment (counted by the number of calls to adjustOffset()).
+         */
+        void set(long offsetAdjustment, int count) {
+            this.offsetAdjustment = offsetAdjustment;
+            this.remainingCount = count;
+            this.originalCount = count;
+        }
+
+        /**
+         * Adjusts the given offset, if necessary. The offset will be adjusted by the amount specified by the last call
+         * to set() if this method hasn't been called more than the specified number of times.
+         *
+         * @param offset The offset to adjust.
+         * @return The adjusted offset.
+         */
+        long adjustOffset(long offset) {
+            if (offset != 0 && this.remainingCount == this.originalCount) {
+                // We haven't done any adjustments, yet we encountered an unexpected offset: reset.
+                set(0, 0);
+            } else if (this.remainingCount > 0) {
+                this.remainingCount--;
+                offset += this.offsetAdjustment;
+            }
+
+            return offset;
+        }
+    }
+
+    //endregion
 }

@@ -33,11 +33,12 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
+
         testRollingStorage();
         testRollingStorageConcat();
     }
 
-    private static void testRollingStorageConcat(){
+    private static void testRollingStorageConcat() throws Exception {
         val targetName = "Target";
         val sourceName = "Source";
         val rollingPolicy = new SegmentRollingPolicy(10);
@@ -58,26 +59,51 @@ public class Playground {
         val sourceHandle = rs.openWrite(sourceName).join();
 
         // Write with rollover
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        ByteArrayOutputStream cos = new ByteArrayOutputStream();
         long offset = 0;
         val rnd = new Random(0);
         for (int i = 0; i < 10; i++) {
             byte[] data = new byte[writeSize];
             rnd.nextBytes(data);
             rs.write(targetHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            os.write(data);
             rnd.nextBytes(data);
             rs.write(sourceHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            cos.write(data);
             offset += data.length;
         }
 
         rs.seal(sourceHandle, timeout).join();
-        rs.concat(targetHandle,offset,sourceName,timeout).join();
-        offset*=2;
+        rs.concat(targetHandle, offset, sourceName, timeout).join();
+        os.write(cos.toByteArray());
+        cos.close();
+        offset *= 2;
 
         for (int i = 0; i < 10; i++) {
             byte[] data = new byte[writeSize];
             rnd.nextBytes(data);
             rs.write(targetHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            os.write(data);
             offset += data.length;
+        }
+
+        val newWriteHandle = rs.openWrite(targetName).join();
+        for (int i = 0; i < 10; i++) {
+            byte[] data = new byte[writeSize];
+            rnd.nextBytes(data);
+            rs.write(newWriteHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
+            os.write(data);
+            offset += data.length;
+        }
+
+        byte[] writtenData = os.toByteArray();
+        byte[] readBuffer = new byte[(int) offset];
+        val readhandle = rs.openRead(targetName).join();
+        int bytesRead = rs.read(readhandle, 0, readBuffer, 0, readBuffer.length, timeout).join();
+        assert bytesRead == readBuffer.length;
+        for (int j = 0; j < readBuffer.length; j++) {
+            assert writtenData[j] == readBuffer[j] : "read mismatch at offset " + j;
         }
 
         System.out.println();
@@ -120,7 +146,7 @@ public class Playground {
         // Read
         byte[] writtenData = os.toByteArray();
         for (int readOffset = 0; readOffset < offset / 2; readOffset++) {
-            int readLength = (int) (offset - 2*readOffset);
+            int readLength = (int) (offset - 2 * readOffset);
             byte[] readBuffer = new byte[readLength];
             int bytesRead = rs.read(writeHandle, readOffset, readBuffer, 0, readLength, timeout).join();
             assert bytesRead == readLength;

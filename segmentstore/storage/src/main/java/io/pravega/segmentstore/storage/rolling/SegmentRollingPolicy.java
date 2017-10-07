@@ -16,7 +16,7 @@ import lombok.Getter;
  * A generic rolling policy that can be applied to any Storage unit.
  */
 public final class SegmentRollingPolicy {
-    public static final SegmentRollingPolicy INFINITE = new SegmentRollingPolicy(Long.MAX_VALUE);
+    public static final SegmentRollingPolicy NO_ROLLING = new SegmentRollingPolicy(Long.MAX_VALUE);
 
     /**
      * Maximum length, as allowed by this Rolling Policy.

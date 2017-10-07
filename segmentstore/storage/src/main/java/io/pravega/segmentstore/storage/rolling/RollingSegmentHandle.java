@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,15 +55,15 @@ class RollingSegmentHandle implements SegmentHandle {
     /**
      * Creates a new instance of the RollingSegmentHandle class.
      *
-     * @param segmentName   The name of the Segment in this Handle, as perceived by users of the Storage interface.
      * @param headerHandle  A SegmentHandle for the Header SubSegment.
      * @param rollingPolicy The Rolling Policy to apply for this Segment.
      * @param subSegments   A ordered list of initial SubSegments for this handle.
      */
-    RollingSegmentHandle(String segmentName, SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SubSegment> subSegments) {
-        this.segmentName = Exceptions.checkNotNullOrEmpty(segmentName, "segmentName");
+    RollingSegmentHandle(SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SubSegment> subSegments) {
         this.headerHandle = Preconditions.checkNotNull(headerHandle, "headerHandle");
-        this.rollingPolicy = Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
+        this.segmentName = StreamSegmentNameUtils.getSegmentNameFromHeader(headerHandle.getSegmentName());
+        Exceptions.checkNotNullOrEmpty(this.segmentName, "headerHandle.getSegmentName()");
+        this.rollingPolicy = rollingPolicy == null ? SegmentRollingPolicy.NO_ROLLING : rollingPolicy;
         this.subSegments = Preconditions.checkNotNull(subSegments, "subSegments");
     }
 

@@ -34,11 +34,6 @@ public final class StreamSegmentNameUtils {
     private static final String OFFSET_SUFFIX = "$offset.";
 
     /**
-     * This is appended to the end of the Segment name to indicate it is temporary Segment related to its base, about to be merged.
-     */
-    private static final String MERGE_SUFFIX = "$merge";
-
-    /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
@@ -118,6 +113,17 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
+     * Gets the name of the Segment name from its Header Segment Name.
+     *
+     * @param headerSegmentName The name of the Header Segment.
+     * @return The Segment Name.
+     */
+    public static String getSegmentNameFromHeader(String headerSegmentName) {
+        Preconditions.checkArgument(headerSegmentName.endsWith(HEADER_SUFFIX));
+        return headerSegmentName.substring(0, headerSegmentName.length() - HEADER_SUFFIX.length());
+    }
+
+    /**
      * Gets the name of the SubSegment for the given Segment and Offset.
      *
      * @param segmentName The name of the Segment to get the SubSegment name for.
@@ -127,16 +133,5 @@ public final class StreamSegmentNameUtils {
     public static String getSubSegmentName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SubSegment name");
         return segmentName + OFFSET_SUFFIX + Long.toString(offset);
-    }
-
-    /**
-     * Gets the name of the Merge meta-segment for the given Segment name.
-     *
-     * @param segmentName The name of the Segment to get the merge Segment name for.
-     * @return The Merge Segment name.
-     */
-    public static String getMergeSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.contains(MERGE_SUFFIX), "segmentName is already a Merge Segment name");
-        return segmentName + MERGE_SUFFIX;
     }
 }
