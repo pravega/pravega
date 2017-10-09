@@ -19,8 +19,6 @@ import org.junit.Test;
 
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
-import io.pravega.client.stream.notifications.notifier.CustomEventNotifier;
-import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 
 public class NotificationFrameworkTest {
 
@@ -31,7 +29,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
         //Application can subscribe to scale events in the following way.
-        ScaleEventNotifier notifier = new ScaleEventNotifier(readerGroup);
+        Observable<ScaleEvent> notifier = readerGroup.getScaleEventNotifier();
         notifier.addListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();
@@ -89,11 +87,11 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventListenerInvoked = new AtomicBoolean();
         final AtomicBoolean customEventListenerInvoked = new AtomicBoolean();
 
-        ScaleEventNotifier scaleNotifier = new ScaleEventNotifier(readerGroup);
+        Observable<ScaleEvent> scaleNotifier = readerGroup.getScaleEventNotifier();
         Listener<ScaleEvent> scaleEventListener = event -> scaleEventListenerInvoked.set(true);
         scaleNotifier.addListener(scaleEventListener);
 
-        CustomEventNotifier customEventNotifier = new CustomEventNotifier(readerGroup);
+        Observable<CustomEvent> customEventNotifier = readerGroup.getCustomEventNotifier();
         Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
         customEventNotifier.addListener(customEventListener);
 
@@ -122,10 +120,8 @@ public class NotificationFrameworkTest {
     public void notifierFactoryTest() {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
-        final NotifierFactory factory = readerGroup.getNotifierFactory();
-
         //Application can subscribe to scale events in the following way.
-        final ScaleEventNotifier notifier = factory.getScaleNotifier();
+        final Observable<ScaleEvent> notifier = readerGroup.getScaleEventNotifier();
         notifier.addListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();

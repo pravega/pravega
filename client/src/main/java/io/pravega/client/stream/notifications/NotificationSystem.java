@@ -12,9 +12,11 @@ package io.pravega.client.stream.notifications;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import io.pravega.client.stream.notifications.events.CustomEvent;
+import io.pravega.client.stream.notifications.events.ScaleEvent;
 import lombok.Data;
 
-public class NotificationSystem {
+public class NotificationSystem implements ReaderGroupEventListener {
 
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
     private final NotifierFactory factory = new NotifierFactory(this);
@@ -23,11 +25,12 @@ public class NotificationSystem {
     public <T extends Event> void addListeners(final Class<T> type, final Listener<T> listener) {
         listeners.add(new ListenerWithType(type, listener));
     }
-   
+
     /**
      * This method will ensure the event is notified to the listeners of the same type.
+     *
      * @param event Event to be notified.
-     * @param <T> All class which extends Event.
+     * @param <T>   All class which extends Event.
      */
     public <T extends Event> void notify(final T event) {
         listeners.stream()
@@ -43,8 +46,14 @@ public class NotificationSystem {
         listeners.removeIf(e -> e.getType().equals(type));
     }
 
-    public NotifierFactory getNotifierFactory() {
-        return factory;
+    @Override
+    public Observable<ScaleEvent> getScaleEventNotifier() {
+        return factory.getScaleNotifier();
+    }
+
+    @Override
+    public Observable<CustomEvent> getCustomEventNotifier() {
+        return factory.getCustomNotifier();
     }
 
     @Data
