@@ -130,7 +130,7 @@ class SubSegment {
      * Increases the length of the SubSegment by the given delta.
      * @param delta The value to increase by.
      */
-    synchronized void increaseLength(int delta) {
+    synchronized void increaseLength(long delta) {
         Preconditions.checkState(!this.sealed, "Cannot increase the length of a sealed SubSegment.");
         Preconditions.checkArgument(delta >= 0, "Cannot decrease the length of a SubSegment.");
         this.length += delta;

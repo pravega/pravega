@@ -332,15 +332,11 @@ public class RollingStorage implements Storage, TruncateableStorage {
                 .thenCompose(v -> {
                     Preconditions.checkState(sh.get().subSegments().stream().allMatch(SubSegment::exists),
                             "Cannot use segment '%s' as concat source because it is truncated.", sh.get().getSegmentName());
-
-                    // Generate new SubSegment entries from the SubSegments of the Source Segment(but update their start offsets).
-                    List<SubSegment> newSubSegments = rebase(sh.get().subSegments(), th.length());
-
-                    return sealActiveSubSegment(th, timer)
-                            .thenCompose(v2 -> serializeBeginConcat(th, sh.get(), timer.getRemaining()))
-                            .thenCompose(v2 -> this.baseStorage.concat(th.getHeaderHandle(), th.getHeaderLength(),
-                                    sh.get().getHeaderHandle().getSegmentName(), timer.getRemaining()))
-                            .thenRun(() -> th.increaseHeaderLength(sh.get().getHeaderLength()).addSubSegments(newSubSegments));
+                    if (canConcatNatively(th, sh.get())) {
+                        return concatNatively(th, sh.get(), timer);
+                    } else {
+                        return concatHeader(th, sh.get(), timer);
+                    }
                 });
     }
 
@@ -503,6 +499,37 @@ public class RollingStorage implements Storage, TruncateableStorage {
                             }))
                             .collect(Collectors.toList());
         return FutureHelpers.allOf(futures);
+    }
+
+    private boolean canConcatNatively(RollingSegmentHandle target, RollingSegmentHandle source) {
+        SubSegment lastSource = source.lastSubSegment();
+        SubSegment lastTarget = target.lastSubSegment();
+
+        return lastSource != null
+                && lastSource.getStartOffset() == 0
+                && !lastTarget.isSealed()
+                && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength();
+    }
+
+    private CompletableFuture<Void> concatNatively(RollingSegmentHandle target, RollingSegmentHandle source, TimeoutTimer timer) {
+        SubSegment lastSource = source.lastSubSegment();
+        return this.baseStorage
+                .concat(target.getActiveSubSegmentHandle(), target.lastSubSegment().getLength(), lastSource.getName(), timer.getRemaining())
+                .thenCompose(v -> {
+                    target.lastSubSegment().increaseLength(lastSource.getLength());
+                    return this.baseStorage.delete(source.getHeaderHandle(), timer.getRemaining());
+                });
+    }
+
+    private CompletableFuture<Void> concatHeader(RollingSegmentHandle target, RollingSegmentHandle source, TimeoutTimer timer) {
+        // Generate new SubSegment entries from the SubSegments of the Source Segment(but update their start offsets).
+        List<SubSegment> newSubSegments = rebase(source.subSegments(), target.length());
+
+        return sealActiveSubSegment(target, timer)
+                .thenCompose(v2 -> serializeBeginConcat(target, source, timer.getRemaining()))
+                .thenCompose(v2 -> this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(),
+                        source.getHeaderHandle().getSegmentName(), timer.getRemaining()))
+                .thenRun(() -> target.increaseHeaderLength(source.getHeaderLength()).addSubSegments(newSubSegments));
     }
 
     //endregion

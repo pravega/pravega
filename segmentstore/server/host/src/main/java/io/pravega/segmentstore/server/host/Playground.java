@@ -41,7 +41,7 @@ public class Playground {
     private static void testRollingStorageConcat() throws Exception {
         val targetName = "Target";
         val sourceName = "Source";
-        val rollingPolicy = new SegmentRollingPolicy(10);
+        val rollingPolicy = new SegmentRollingPolicy(1000);
         val timeout = Duration.ofSeconds(10);
         val writeSize = 21;
 
@@ -68,17 +68,20 @@ public class Playground {
             rnd.nextBytes(data);
             rs.write(targetHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
             os.write(data);
+
             rnd.nextBytes(data);
             rs.write(sourceHandle, offset, new ByteArrayInputStream(data), data.length, timeout).join();
             cos.write(data);
             offset += data.length;
         }
 
+
         rs.seal(sourceHandle, timeout).join();
         rs.concat(targetHandle, offset, sourceName, timeout).join();
-        os.write(cos.toByteArray());
+        byte[] sourceData = cos.toByteArray();
+        os.write(sourceData);
         cos.close();
-        offset *= 2;
+        offset +=sourceData.length;
 
         for (int i = 0; i < 10; i++) {
             byte[] data = new byte[writeSize];
