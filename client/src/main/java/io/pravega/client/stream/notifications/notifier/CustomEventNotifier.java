@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.notifications.notifier;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.Observable;
@@ -18,17 +20,17 @@ public class CustomEventNotifier implements Observable<CustomEvent> {
 
     private final NotificationSystem system;
 
-    public CustomEventNotifier(NotificationSystem system) {
+    public CustomEventNotifier(final NotificationSystem system) {
         this.system = system;
     }
 
     @Override
-    public void addListener(Listener<CustomEvent> listener) {
-        this.system.addListeners(getType(), listener);
+    public void addListener(final Listener<CustomEvent> listener, final ScheduledExecutorService executor) {
+        this.system.addListeners(getType(), listener, executor);
     }
 
     @Override
-    public void removeListener(Listener<CustomEvent> listener) {
+    public void removeListener(final Listener<CustomEvent> listener) {
         this.system.removeListeners(listener);
     }
 

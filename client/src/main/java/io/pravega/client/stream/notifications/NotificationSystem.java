@@ -11,19 +11,24 @@ package io.pravega.client.stream.notifications;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
 
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class NotificationSystem implements ReaderGroupEventListener {
 
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
     private final NotifierFactory factory = new NotifierFactory(this);
 
     @SuppressWarnings("unchecked")
-    public <T extends Event> void addListeners(final Class<T> type, final Listener<T> listener) {
-        listeners.add(new ListenerWithType(type, listener));
+    public <T extends Event> void addListeners(final Class<T> type,
+                                               final Listener<T> listener,
+                                               final ScheduledExecutorService executor) {
+        listeners.add(new ListenerWithType(type, listener, executor));
     }
 
     /**
@@ -35,14 +40,17 @@ public class NotificationSystem implements ReaderGroupEventListener {
     public <T extends Event> void notify(final T event) {
         listeners.stream()
                  .filter(listener -> listener.getType().equals(event.getClass()))
-                 .forEach(l -> l.getListener().onEvent(event));
+                 .forEach(l -> {
+                     log.info("Executing listener of type: {} for event: {}", l.getType().getSimpleName(), event);
+                     l.getExecutor().submit(() -> l.getListener().onEvent(event));
+                 });
     }
 
     public <T extends Event> void removeListeners(final Listener<T> listener) {
         listeners.removeIf(e -> e.getListener().equals(listener));
     }
 
-    public <T extends Event> void removeListeners(Class<T> type) {
+    public <T extends Event> void removeListeners(final Class<T> type) {
         listeners.removeIf(e -> e.getType().equals(type));
     }
 
@@ -60,5 +68,6 @@ public class NotificationSystem implements ReaderGroupEventListener {
     private class ListenerWithType<T> {
         private final Class<T> type;
         private final Listener<T> listener;
+        private final ScheduledExecutorService executor;
     }
 }

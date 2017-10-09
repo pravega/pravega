@@ -12,6 +12,7 @@ package io.pravega.client.stream.notifications;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Assert;
@@ -19,10 +20,12 @@ import org.junit.Test;
 
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.test.common.InlineExecutor;
 
 public class NotificationFrameworkTest {
 
-    NotificationSystem readerGroup = new NotificationSystem();
+    final NotificationSystem readerGroup = new NotificationSystem();
+    final ScheduledExecutorService executor = new InlineExecutor();
 
     @Test
     public void scaleEventTest() {
@@ -39,7 +42,7 @@ public class NotificationFrameworkTest {
                 System.out.println("More readers available time to shut down some");
             }
             scaleEventReceived.set(true);
-        });
+        }, executor);
 
         //Trigger notification.
         readerGroup.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
@@ -63,16 +66,16 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.addListener(listener1);
-        notifier.addListener(listener2);
+        notifier.addListener(listener1, executor);
+        notifier.addListener(listener2, executor);
 
         //Trigger notification.
         readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
-        readerGroup.removeListeners(listener1);
-        readerGroup.removeListeners(listener2);
+        notifier.removeListener(listener1);
+        notifier.removeListener(listener2);
 
         listener1Invoked.set(false);
         listener2Invoked.set(false);
@@ -89,11 +92,11 @@ public class NotificationFrameworkTest {
 
         Observable<ScaleEvent> scaleNotifier = readerGroup.getScaleEventNotifier();
         Listener<ScaleEvent> scaleEventListener = event -> scaleEventListenerInvoked.set(true);
-        scaleNotifier.addListener(scaleEventListener);
+        scaleNotifier.addListener(scaleEventListener, executor);
 
         Observable<CustomEvent> customEventNotifier = readerGroup.getCustomEventNotifier();
         Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
-        customEventNotifier.addListener(customEventListener);
+        customEventNotifier.addListener(customEventListener, executor);
 
         //trigger notifications
         readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
@@ -131,7 +134,7 @@ public class NotificationFrameworkTest {
                 System.out.println("More readers available time to shut down some");
             }
             scaleEventReceived.set(true);
-        });
+        }, executor);
 
         //Trigger notification.
         readerGroup.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
@@ -155,16 +158,16 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.addListener(listener1);
-        notifier.addListener(listener2);
+        notifier.addListener(listener1, executor);
+        notifier.addListener(listener2, executor);
 
         //Trigger notification.
         readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
-        readerGroup.removeListeners(listener1);
-        readerGroup.removeListeners(listener2);
+        notifier.removeListener(listener1);
+        notifier.removeListener(listener2);
 
         listener1Invoked.set(false);
         listener2Invoked.set(false);

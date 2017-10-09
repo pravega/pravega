@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.notifications.notifier;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.Observable;
@@ -18,17 +20,17 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
     public final NotificationSystem system;
 
-    public ScaleEventNotifier(NotificationSystem system) {
+    public ScaleEventNotifier(final NotificationSystem system) {
         this.system = system;
     }
 
     @Override
-    public void addListener(Listener<ScaleEvent> listener) {
-        system.addListeners(getType(), listener);
+    public void addListener(final Listener<ScaleEvent> listener, final ScheduledExecutorService executor) {
+        system.addListeners(getType(), listener, executor);
     }
 
     @Override
-    public void removeListener(Listener<ScaleEvent> listener) {
+    public void removeListener(final Listener<ScaleEvent> listener) {
         system.removeListeners(listener);
     }
 
