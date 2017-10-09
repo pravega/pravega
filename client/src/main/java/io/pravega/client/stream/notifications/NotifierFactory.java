@@ -12,20 +12,22 @@ package io.pravega.client.stream.notifications;
 import io.pravega.client.stream.notifications.notifier.CustomEventNotifier;
 import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 
-public class NotifierFactory {
+class NotifierFactory {
 
-    private final NotificationSystem system;
+    private final ScaleEventNotifier scaleEventNotifier;
+    private final CustomEventNotifier customEventNotifier;
 
-    public NotifierFactory(NotificationSystem notificationSystem) {
-        this.system = notificationSystem;
+    NotifierFactory(final NotificationSystem notificationSystem) {
+        this.scaleEventNotifier = new ScaleEventNotifier(notificationSystem);
+        this.customEventNotifier = new CustomEventNotifier(notificationSystem);
     }
 
-    public ScaleEventNotifier getScaleNotifier() {
-        return new ScaleEventNotifier(this.system);
+    ScaleEventNotifier getScaleNotifier() {
+        return scaleEventNotifier;
     }
 
-    public CustomEventNotifier getCustomNotifier() {
-        return new CustomEventNotifier(this.system);
+    CustomEventNotifier getCustomNotifier() {
+        return customEventNotifier;
     }
 
     // multiple such notifiers can be added.

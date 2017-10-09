@@ -10,8 +10,6 @@
 package io.pravega.client.stream.notifications;
 
 public interface Observable<T> {
-    //TODO: shrids: add executor.
-
     /**
      * Add listener for event type T. Multiple listeners can be added for the same type.
      * @param listener This is the listener which will be invoked incase of an Event.
