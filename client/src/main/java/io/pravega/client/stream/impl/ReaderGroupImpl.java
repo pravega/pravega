@@ -32,7 +32,6 @@ import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.Observable;
-import io.pravega.client.stream.notifications.ReaderGroupEventListener;
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -60,7 +59,7 @@ import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 @Slf4j
 @Data
-public class ReaderGroupImpl implements ReaderGroup, ReaderGroupEventListener, ReaderGroupMetrics {
+public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     private final String scope;
     private final String groupName;
