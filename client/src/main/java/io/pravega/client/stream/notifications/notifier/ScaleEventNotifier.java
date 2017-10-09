@@ -10,6 +10,9 @@
 package io.pravega.client.stream.notifications.notifier;
 
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
@@ -18,15 +21,33 @@ import io.pravega.client.stream.notifications.events.ScaleEvent;
 
 public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
-    public final NotificationSystem system;
+    private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
+            System.getProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(120)));
+    private final NotificationSystem system;
+    private final Supplier<ScaleEvent> scaleEventSupplier;
+    private final AtomicBoolean pollingStarted = new AtomicBoolean();
 
-    public ScaleEventNotifier(final NotificationSystem system) {
+    public ScaleEventNotifier(final NotificationSystem system, Supplier<ScaleEvent> scaleEventSupplier) {
         this.system = system;
+        this.scaleEventSupplier = scaleEventSupplier;
     }
 
     @Override
     public void addListener(final Listener<ScaleEvent> listener, final ScheduledExecutorService executor) {
         system.addListeners(getType(), listener, executor);
+        //periodically fetch the scale
+
+        if (!pollingStarted.getAndSet(true)) { //schedule the  only once
+            executor.scheduleAtFixedRate(this::checkAndTriggerScaleNotification, 0,
+                    UPDATE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private void checkAndTriggerScaleNotification() {
+        ScaleEvent event = scaleEventSupplier.get();
+        if (event.getNumOfReaders() != event.getNumOfSegments()) {
+            system.notify(event);
+        }
     }
 
     @Override

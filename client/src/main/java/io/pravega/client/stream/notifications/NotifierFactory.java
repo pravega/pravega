@@ -9,20 +9,29 @@
  */
 package io.pravega.client.stream.notifications;
 
+import java.util.function.Supplier;
+
+import io.pravega.client.stream.notifications.events.ScaleEvent;
 import io.pravega.client.stream.notifications.notifier.CustomEventNotifier;
 import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
+import lombok.Synchronized;
 
 public class NotifierFactory {
 
-    private final ScaleEventNotifier scaleEventNotifier;
     private final CustomEventNotifier customEventNotifier;
+    private final NotificationSystem system;
+    private ScaleEventNotifier scaleEventNotifier;
 
     NotifierFactory(final NotificationSystem notificationSystem) {
-        this.scaleEventNotifier = new ScaleEventNotifier(notificationSystem);
-        this.customEventNotifier = new CustomEventNotifier(notificationSystem);
+        this.system = notificationSystem;
+        this.customEventNotifier = new CustomEventNotifier(this.system);
     }
 
-    public ScaleEventNotifier getScaleNotifier() {
+    @Synchronized
+    public ScaleEventNotifier getScaleNotifier(final Supplier<ScaleEvent> scaleEventSupplier) {
+        if (scaleEventNotifier == null) {
+            scaleEventNotifier = new ScaleEventNotifier(this.system, scaleEventSupplier);
+        }
         return scaleEventNotifier;
     }
 
