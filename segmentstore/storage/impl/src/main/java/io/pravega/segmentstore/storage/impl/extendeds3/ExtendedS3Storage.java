@@ -167,6 +167,16 @@ public class ExtendedS3Storage implements Storage {
         return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
     }
 
+    @Override
+    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return false;
+    }
+
     //endregion
 
     //region private sync implementation

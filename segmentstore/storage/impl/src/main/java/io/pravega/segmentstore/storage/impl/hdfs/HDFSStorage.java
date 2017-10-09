@@ -185,6 +185,18 @@ class HDFSStorage implements Storage {
         return runAsync(new DeleteOperation(asReadableHandle(handle), this.context));
     }
 
+
+    @Override
+    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return false;
+    }
+
+
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context));

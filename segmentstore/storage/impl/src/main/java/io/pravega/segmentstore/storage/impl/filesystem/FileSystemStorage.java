@@ -76,8 +76,6 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  */
 @Slf4j
 public class FileSystemStorage implements Storage {
-    private static final int NUM_RETRIES = 3;
-
     //region members
 
     private final FileSystemStorageConfig config;
@@ -173,6 +171,17 @@ public class FileSystemStorage implements Storage {
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
+    }
+
+
+    @Override
+    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return false;
     }
 
     //endregion

@@ -9,18 +9,17 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.TruncateableStorage;
-import com.google.common.base.Preconditions;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -35,7 +34,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     }
 
     @Override
-    public TruncateableStorage createStorageAdapter() {
+    public Storage createStorageAdapter() {
         return new FencedWrapper(this.baseStorage);
     }
 
@@ -47,7 +46,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     //region FencedWrapper
 
     @RequiredArgsConstructor
-    private static class FencedWrapper implements TruncateableStorage, ListenableStorage {
+    private static class FencedWrapper implements Storage, ListenableStorage {
         private final InMemoryStorage baseStorage;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -128,6 +127,11 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
             Exceptions.checkNotClosed(this.closed.get(), this);
             return this.baseStorage.truncate(handle, offset, timeout);
+        }
+
+        @Override
+        public boolean supportsTruncation() {
+            return this.baseStorage.supportsTruncation();
         }
 
         @Override

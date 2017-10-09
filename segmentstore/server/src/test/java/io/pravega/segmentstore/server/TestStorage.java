@@ -139,6 +139,16 @@ public class TestStorage implements Storage {
     }
 
     @Override
+    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+        return this.wrappedStorage.truncate(handle, offset, timeout);
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return this.wrappedStorage.supportsTruncation();
+    }
+
+    @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector,

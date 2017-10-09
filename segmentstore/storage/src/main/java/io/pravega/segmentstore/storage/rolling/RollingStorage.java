@@ -25,7 +25,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.TruncateableStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -45,7 +44,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 
-public class RollingStorage implements Storage, TruncateableStorage {
+public class RollingStorage implements Storage {
     //region Members
 
     private static final Duration OPEN_TIMEOUT = Duration.ofSeconds(30);
@@ -370,6 +369,11 @@ public class RollingStorage implements Storage, TruncateableStorage {
         } else {
             return deleteSubSegments(h, s -> canTruncate(s, truncationOffset), timeout);
         }
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return true;
     }
 
     //endregion

@@ -14,7 +14,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
-import io.pravega.segmentstore.storage.TruncateableStorage;
 import io.pravega.segmentstore.storage.TruncateableStorageTestBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
@@ -238,7 +237,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
     }
 
     @Override
-    protected TruncateableStorage createStorage() {
+    protected Storage createStorage() {
         return this.factory.createStorageAdapter();
     }
 

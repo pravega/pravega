@@ -38,7 +38,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
      */
     @Test
     public void testTruncate() throws Exception {
-        try (TruncateableStorage s = createStorage()) {
+        try (Storage s = createTruncateableStorage()) {
             s.initialize(1);
             s.create(SEGMENT_NAME, TIMEOUT).join();
 
@@ -79,7 +79,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         }
     }
 
-    private void verifySmallTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
+    private void verifySmallTruncate(SegmentHandle handle, Storage s, AtomicInteger truncatedLength) {
         while (truncatedLength.get() < 2 * WRITE_LENGTH) {
             s.truncate(handle, truncatedLength.get(), TIMEOUT).join();
             if (truncatedLength.get() > 0) {
@@ -93,7 +93,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         }
     }
 
-    private void verifyLargeTruncate(SegmentHandle handle, TruncateableStorage s, AtomicInteger truncatedLength) {
+    private void verifyLargeTruncate(SegmentHandle handle, Storage s, AtomicInteger truncatedLength) {
         truncatedLength.addAndGet(4 * WRITE_LENGTH);
         s.truncate(handle, truncatedLength.get(), TIMEOUT).join();
         AssertExtensions.assertThrows(
@@ -102,7 +102,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
                 ex -> ex instanceof IllegalArgumentException);
     }
 
-    private void verifyWriteReadsAfterTruncate(SegmentHandle handle, TruncateableStorage s, AtomicLong offset, ByteArrayOutputStream writeStream, AtomicInteger truncatedLength) throws Exception {
+    private void verifyWriteReadsAfterTruncate(SegmentHandle handle, Storage s, AtomicLong offset, ByteArrayOutputStream writeStream, AtomicInteger truncatedLength) throws Exception {
         final byte[] writeBuffer = new byte[WRITE_LENGTH];
         DATA_GENERATOR.nextBytes(writeBuffer);
         s.write(handle, offset.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT).join();
@@ -117,7 +117,7 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
         AssertExtensions.assertArrayEquals("Unexpected data read back after truncation.", writtenData, truncatedLength.get(), readBuffer, 0, readBytes);
     }
 
-    private void verifyConcat(SegmentHandle handle, TruncateableStorage s) {
+    private void verifyConcat(SegmentHandle handle, Storage s) {
         final String newSegmentName = "newFoo";
         s.create(newSegmentName, TIMEOUT).join();
         val targetHandle = s.openWrite(newSegmentName).join();
@@ -126,13 +126,16 @@ public abstract class TruncateableStorageTestBase extends StorageTestBase {
                 ex -> ex instanceof IllegalStateException);
     }
 
-    private void verifyDelete(SegmentHandle handle, TruncateableStorage s) {
+    private void verifyDelete(SegmentHandle handle, Storage s) {
         s.delete(handle, TIMEOUT).join();
         AssertExtensions.assertThrows("truncate() did not throw for a deleted StreamSegment.",
                 () -> s.truncate(handle, 0, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
-    @Override
-    protected abstract TruncateableStorage createStorage();
+    private Storage createTruncateableStorage() {
+        Storage s = createStorage();
+        Assert.assertTrue("Storage implementation cannot truncate.", s.supportsTruncation());
+        return s;
+    }
 }

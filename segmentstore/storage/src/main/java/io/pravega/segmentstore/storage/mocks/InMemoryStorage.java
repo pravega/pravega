@@ -19,8 +19,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
-import io.pravega.segmentstore.storage.TruncateableStorage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +42,7 @@ import lombok.val;
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
+public class InMemoryStorage implements Storage, ListenableStorage {
     //region Members
 
     @GuardedBy("offsetTriggers")
@@ -232,6 +232,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot truncate using a read-only handle.");
         return CompletableFuture.runAsync(() -> getStreamSegmentData(handle.getSegmentName()).truncate(offset), this.executor);
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return true;
     }
 
     /**

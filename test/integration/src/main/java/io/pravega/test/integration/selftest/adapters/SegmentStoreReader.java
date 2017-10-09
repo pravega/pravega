@@ -27,7 +27,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import io.pravega.segmentstore.storage.TruncateableStorage;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.io.ByteArrayInputStream;
@@ -230,13 +230,15 @@ class SegmentStoreReader implements StoreReader {
         }
 
         private CompletableFuture<Void> truncateIfPossible(long offset) {
-            if (SegmentStoreReader.this.storage instanceof TruncateableStorage) {
-                TruncateableStorage s = ((TruncateableStorage) SegmentStoreReader.this.storage);
-                return s.openWrite(this.segmentName)
-                        .thenCompose(handle -> s.truncate(handle, offset, SegmentStoreReader.this.testConfig.getTimeout()));
-            } else {
-                return CompletableFuture.completedFuture(null);
+            if (SegmentStoreReader.this.storage instanceof Storage) {
+                Storage s = ((Storage) SegmentStoreReader.this.storage);
+                if (s.supportsTruncation()) {
+                    return s.openWrite(this.segmentName)
+                            .thenCompose(handle -> s.truncate(handle, offset, SegmentStoreReader.this.testConfig.getTimeout()));
+                }
             }
+
+            return CompletableFuture.completedFuture(null);
         }
     }
 

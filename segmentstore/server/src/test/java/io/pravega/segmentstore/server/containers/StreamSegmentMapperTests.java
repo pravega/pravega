@@ -887,6 +887,16 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsTruncation() {
+            return false;
+        }
+
+        @Override
         public void close() {
 
         }

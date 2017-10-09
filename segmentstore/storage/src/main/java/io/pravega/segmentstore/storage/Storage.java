@@ -125,6 +125,33 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      */
     CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout);
 
+    /**
+     * Truncates all data in the given StreamSegment prior to the given offset. This does not fill the truncated data
+     * in the segment with anything, nor does it "shift" the remaining data to the beginning. After this operation is
+     * complete, any attempt to access the truncated data will result in an exception.
+     * <p>
+     * Notes:
+     * * Depending on implementation, this may not truncate at the exact offset. It may truncate at some point prior to
+     * the given offset, but it will never truncate beyond the offset.
+     *
+     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
+     * @param offset  The offset in the StreamSegment to truncate to.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * </ul>
+     */
+    CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout);
+
+    /**
+     * Gets a value indicating whether this Storage implementation can truncate Segments.
+     *
+     * @return True or false.
+     */
+    boolean supportsTruncation();
+
     @Override
     void close();
 }
