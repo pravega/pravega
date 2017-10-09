@@ -222,7 +222,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.fetchUpdates();
         ReaderGroupState state = synchronizer.getState();
         return ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
-                         .numOfReaders(state.getNumberOfSegments())
+                         .numOfReaders(state.getOnlineReaders().size())
                          .build();
     }
 
