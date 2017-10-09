@@ -18,14 +18,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
+import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import io.pravega.test.common.InlineExecutor;
 
 public class NotificationFrameworkTest {
 
-    final NotificationSystem readerGroup = new NotificationSystem();
-    final ScheduledExecutorService executor = new InlineExecutor();
+    private final ScheduledExecutorService executor = new InlineExecutor();
+    private final ReaderGroupImpl readerGroup = new ReaderGroupImpl("testScope", "rg1", null, null, null,
+            null, null, null);
+    private final NotificationSystem notificationSystem = readerGroup.getNotificationSystem();
 
     @Test
     public void scaleEventTest() {
@@ -45,20 +48,20 @@ public class NotificationFrameworkTest {
         }, executor);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
         assertTrue("Scale Event notification received", scaleEventReceived.get());
 
         scaleEventReceived.set(false);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification received", scaleEventReceived.get());
 
         scaleEventReceived.set(false);
 
         notifier.removeListener();
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());
 
         final AtomicBoolean listener1Invoked = new AtomicBoolean();
@@ -70,7 +73,7 @@ public class NotificationFrameworkTest {
         notifier.addListener(listener2, executor);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
@@ -80,7 +83,7 @@ public class NotificationFrameworkTest {
         listener1Invoked.set(false);
         listener2Invoked.set(false);
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification received on listener 1", listener1Invoked.get());
         Assert.assertFalse("Scale Event notification received on listener 2", listener2Invoked.get());
     }
@@ -99,14 +102,14 @@ public class NotificationFrameworkTest {
         customEventNotifier.addListener(customEventListener, executor);
 
         //trigger notifications
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue(scaleEventListenerInvoked.get());
         assertFalse(customEventListenerInvoked.get());
 
         scaleEventListenerInvoked.set(false);
 
         //trigger notifications
-        readerGroup.notify(CustomEvent.builder().build());
+        notificationSystem.notify(CustomEvent.builder().build());
         assertFalse(scaleEventListenerInvoked.get());
         assertTrue(customEventListenerInvoked.get());
 
@@ -114,7 +117,7 @@ public class NotificationFrameworkTest {
         customEventListenerInvoked.set(false);
 
         //trigger notifications
-        readerGroup.notify(CustomEvent.builder().build());
+        notificationSystem.notify(CustomEvent.builder().build());
         assertFalse(scaleEventListenerInvoked.get());
         assertFalse(customEventListenerInvoked.get());
     }
@@ -137,20 +140,20 @@ public class NotificationFrameworkTest {
         }, executor);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
         assertTrue("Scale Event notification received", scaleEventReceived.get());
 
         scaleEventReceived.set(false);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification received", scaleEventReceived.get());
 
         scaleEventReceived.set(false);
 
         notifier.removeListener();
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());
 
         final AtomicBoolean listener1Invoked = new AtomicBoolean();
@@ -162,7 +165,7 @@ public class NotificationFrameworkTest {
         notifier.addListener(listener2, executor);
 
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
@@ -172,7 +175,7 @@ public class NotificationFrameworkTest {
         listener1Invoked.set(false);
         listener2Invoked.set(false);
         //Trigger notification.
-        readerGroup.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
+        notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification received on listener 1", listener1Invoked.get());
         Assert.assertFalse("Scale Event notification received on listener 2", listener2Invoked.get());
     }

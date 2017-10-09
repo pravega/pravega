@@ -13,15 +13,15 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.client.stream.notifications.events.CustomEvent;
-import io.pravega.client.stream.notifications.events.ScaleEvent;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class NotificationSystem implements ReaderGroupEventListener {
+public class NotificationSystem {
 
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
+    @Getter
     private final NotifierFactory factory = new NotifierFactory(this);
 
     @SuppressWarnings("unchecked")
@@ -52,16 +52,6 @@ public class NotificationSystem implements ReaderGroupEventListener {
 
     public <T extends Event> void removeListeners(final Class<T> type) {
         listeners.removeIf(e -> e.getType().equals(type));
-    }
-
-    @Override
-    public Observable<ScaleEvent> getScaleEventNotifier() {
-        return factory.getScaleNotifier();
-    }
-
-    @Override
-    public Observable<CustomEvent> getCustomEventNotifier() {
-        return factory.getCustomNotifier();
     }
 
     @Data
