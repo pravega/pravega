@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.shared.controller.event;
 
-import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Data
 @AllArgsConstructor
@@ -29,5 +29,10 @@ public class ScaleOpEvent implements ControllerEvent {
     @Override
     public String getKey() {
         return String.format("%s/%s", scope, stream);
+    }
+
+    @Override
+    public CompletableFuture<Void> process(RequestProcessor processor) {
+        return processor.processScaleOpRequest(this);
     }
 }

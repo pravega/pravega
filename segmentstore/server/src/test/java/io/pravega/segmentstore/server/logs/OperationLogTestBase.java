@@ -88,7 +88,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             result.add(streamSegmentId);
             String name = getStreamSegmentName(streamSegmentId);
             UpdateableSegmentMetadata segmentMetadata = containerMetadata.mapStreamSegmentId(name, streamSegmentId);
-            segmentMetadata.setDurableLogLength(0);
+            segmentMetadata.setLength(0);
             segmentMetadata.setStorageLength(0);
         }
 
@@ -130,7 +130,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 assert !streamSegmentIds.contains(transactionId) : "duplicate StreamSegmentId (Transaction) generated: " + transactionId;
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
                 UpdateableSegmentMetadata transactionMetadata = containerMetadata.mapStreamSegmentId(transactionName, transactionId, streamSegmentId);
-                transactionMetadata.setDurableLogLength(0);
+                transactionMetadata.setLength(0);
                 transactionMetadata.setStorageLength(0);
             }
         }
@@ -258,7 +258,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             SegmentMetadata transactionMetadata = metadata.getStreamSegmentMetadata(transactionId);
             if (invalidStreamSegmentIds.contains(transactionId)) {
                 Assert.assertTrue("Unexpected data for a Transaction that was invalid.",
-                        transactionMetadata == null || transactionMetadata.getDurableLogLength() == 0);
+                        transactionMetadata == null || transactionMetadata.getLength() == 0);
             } else {
                 Assert.assertEquals("Unexpected Transaction seal state for Transaction " + transactionId,
                         expectTransactionsMerged, transactionMetadata.isSealed());
@@ -273,12 +273,12 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             SegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(streamSegmentId);
             if (invalidStreamSegmentIds.contains(streamSegmentId)) {
                 Assert.assertTrue("Unexpected data for a StreamSegment that was invalid.",
-                        segmentMetadata == null || segmentMetadata.getDurableLogLength() == 0);
+                        segmentMetadata == null || segmentMetadata.getLength() == 0);
             } else {
                 Assert.assertEquals("Unexpected seal state for StreamSegment " + streamSegmentId,
                         expectSegmentsSealed, segmentMetadata.isSealed());
                 Assert.assertEquals("Unexpected length for StreamSegment " + streamSegmentId,
-                        (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getDurableLogLength());
+                        (int) expectedLengths.getOrDefault(streamSegmentId, 0), segmentMetadata.getLength());
             }
         }
     }

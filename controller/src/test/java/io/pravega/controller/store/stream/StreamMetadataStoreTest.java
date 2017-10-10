@@ -401,7 +401,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleStartException);
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConflictException);
 
         // rerun of scale 1's new segments created method
         AssertExtensions.assertThrows("", () ->

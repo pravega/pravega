@@ -7,10 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;

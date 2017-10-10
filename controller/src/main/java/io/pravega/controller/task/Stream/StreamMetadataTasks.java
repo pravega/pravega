@@ -22,7 +22,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.eventProcessor.ScaleOpEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.OperationContext;
@@ -277,6 +277,10 @@ public class StreamMetadataTasks extends TaskBase {
         });
 
         return result;
+    }
+
+    public CompletableFuture<Void> writeEvent(ControllerEvent event) {
+        return getRequestWriter().writeEvent(event);
     }
 
     @VisibleForTesting
