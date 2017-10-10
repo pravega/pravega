@@ -7,14 +7,15 @@
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionInternal;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
+import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.junit.Before;
@@ -38,6 +39,11 @@ public class ConcurrentEventProcessorTest {
 
         @Override
         public String getKey() {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
             return null;
         }
     }

@@ -13,7 +13,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.server.eventProcessor.ScaleOpEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;

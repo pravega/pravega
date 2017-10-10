@@ -43,11 +43,13 @@ import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+@Slf4j
 public class ClientFactoryImpl implements ClientFactory {
 
     private final String scope;
@@ -106,6 +108,7 @@ public class ClientFactoryImpl implements ClientFactory {
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
@@ -115,12 +118,14 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config) {
+        log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         return createReader(readerId, readerGroup, s, config, System::nanoTime, System::currentTimeMillis);
     }
 
     @VisibleForTesting
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config,
                                           Supplier<Long> nanoTime, Supplier<Long> milliTime) {
+        log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
         StateSynchronizer<ReaderGroupState> sync = createStateSynchronizer(
                 NameUtils.getStreamForReaderGroup(readerGroup),
@@ -135,6 +140,7 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
+        log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
         SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
@@ -152,6 +158,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                 Serializer<UpdateT> updateSerializer,
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
+        log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
         if (!FutureHelpers.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
             throw new InvalidStreamException("Segment does not exist: " + segment);
