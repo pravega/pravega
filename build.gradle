@@ -71,8 +71,8 @@ project('common') {
     }
 }
 
-def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
-def withoutSlf4jSimple = { exclude group: 'org.slf4j', module: 'slf4j-simple' }
+def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+                      exclude group: 'org.slf4j', module: 'slf4j-simple' }
 
 project ('shared') {
     dependencies {
@@ -152,7 +152,7 @@ project('test:testcommon') {
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLog4j
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
     }
 }
 
@@ -174,16 +174,16 @@ project('segmentstore:storage') {
 
 project('segmentstore:storage:impl') {
     dependencies {
-        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLog4j
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion, withoutLog4j
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion, withoutLogger
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLog4j
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         //For Extended S3
@@ -236,7 +236,7 @@ project('segmentstore:server:host') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
-        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
+        testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
     }
@@ -455,9 +455,9 @@ project('standalone') {
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLog4j
-        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLog4j
-        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLog4j
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
 
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
@@ -486,7 +486,7 @@ project('test:system') {
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutSlf4jSimple
+        compile group: 'com.mesosphere', name: 'marathon-client', version: marathonClientVersion, withoutLogger
         compile project(':controller')
         compile project(":client")
         compile project(":test:testcommon")
