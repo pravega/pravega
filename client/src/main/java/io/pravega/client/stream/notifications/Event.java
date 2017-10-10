@@ -10,7 +10,7 @@
 package io.pravega.client.stream.notifications;
 
 /**
- * Represents base Event type generated for notifications.
+ * Represents base Event type for a notification.
  */
 public interface Event {
 }

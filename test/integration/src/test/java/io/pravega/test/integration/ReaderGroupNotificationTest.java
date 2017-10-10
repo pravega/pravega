@@ -47,6 +47,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -73,6 +74,7 @@ public class ReaderGroupNotificationTest {
     private AtomicBoolean listenerInvoked = new AtomicBoolean();
     private AtomicInteger numberOfReaders = new AtomicInteger(0);
     private AtomicInteger numberOfSegments = new AtomicInteger(0);
+    private ReusableLatch listenerLatch = new ReusableLatch();
 
     @Before
     public void setUp() throws Exception {
@@ -146,30 +148,37 @@ public class ReaderGroupNotificationTest {
             listenerInvoked.set(true);
             numberOfReaders.set(event.getNumOfReaders());
             numberOfSegments.set(event.getNumOfSegments());
+            listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
         readerGroup.getScaleEventNotifier().addListener(l1, executor);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
-        EventRead<String> event2 = reader1.readNextEvent(10000);
+
+        listenerLatch.await();
         assertNotNull(event1);
         assertEquals("data1", event1.getEvent());
         assertTrue("Listener invoked", listenerInvoked.get());
         assertEquals(2, numberOfSegments.get());
         assertEquals(1, numberOfReaders.get());
-        @Cleanup
-        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "reader", new JavaSerializer<>(),
-                ReaderConfig.builder().build());
 
         //reset values
         listenerInvoked.set(false);
         numberOfSegments.set(0);
         numberOfReaders.set(0);
+        listenerLatch.reset();
+        readerGroup.getScaleEventNotifier().removeListeners();
 
-        reader1.readNextEvent(120 * 1000); //TODO: improve this, we should not wait for so long.
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        reader1.readNextEvent(1000);
+
+
+        readerGroup.getScaleEventNotifier().addListener(l1, executor);
+        listenerLatch.await();
         assertTrue("Listener invoked", listenerInvoked.get());
         assertEquals(3, numberOfSegments.get());
         assertEquals(2, numberOfReaders.get());
-
     }
 }

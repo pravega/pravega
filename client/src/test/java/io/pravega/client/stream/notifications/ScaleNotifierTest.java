@@ -42,13 +42,13 @@ public class ScaleNotifierTest {
 
     @Test
     public void scaleNotifierTest() throws Exception {
-        AtomicBoolean listenerInvoked1 = new AtomicBoolean();
-        ReusableLatch latch1 = new ReusableLatch();
+        AtomicBoolean listenerInvoked = new AtomicBoolean();
+        ReusableLatch latch = new ReusableLatch();
         Supplier<ScaleEvent> s = () -> ScaleEvent.builder().numOfReaders(1).numOfSegments(2).build();
         Listener<ScaleEvent> listener1 = event -> {
             log.info("listener 1 invoked");
-            listenerInvoked1.set(true);
-            latch1.release();
+            listenerInvoked.set(true);
+            latch.release();
         };
         Listener<ScaleEvent> listener2 = event -> {
         };
@@ -56,8 +56,8 @@ public class ScaleNotifierTest {
         ScaleEventNotifier notifier = new ScaleEventNotifier(system, s);
         notifier.addListener(listener1, executor);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
-        latch1.await();
-        assertTrue(listenerInvoked1.get());
+        latch.await();
+        assertTrue(listenerInvoked.get());
 
         notifier.addListener(listener2, executor);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
