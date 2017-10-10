@@ -563,10 +563,11 @@ project('test:system') {
 
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
+
         doFirst {
             tasks.testJarForDocker.execute()
             exec {
-                executable "./preTestScript.sh"
+                executable "./preTestScript.sh $CLUSTER_NAME $MASTER_IP $MASTER_1"
             }
         }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
@@ -580,6 +581,7 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"

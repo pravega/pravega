@@ -100,17 +100,17 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
                         .env(stringList).build())
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName)
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().
-                        targetPort(BK_PORT).protocol("TCP").build())
-                        .build()).build();
+                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().protocol("TCP").
+                        publishedPort(BK_PORT).targetPort(BK_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST)
+                        .build()).mode(EndpointSpec.Mode.RESOLUTION_MODE_VIP).build()).build();
         return spec;
     }
 }

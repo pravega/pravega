@@ -54,7 +54,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 dockerClient.removeService(serviceId);
             }
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to remove service {}", e);
+            log.error("Unable to remove service", e);
         }
     }
 
@@ -71,7 +71,7 @@ public class ZookeeperDockerService extends DockerBasedService {
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
         } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
-            log.error("unable to create service {}", e);
+            log.error("Unable to create service", e);
         }
     }
 
@@ -79,18 +79,22 @@ public class ZookeeperDockerService extends DockerBasedService {
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .containerSpec(ContainerSpec.builder().image(ZK_IMAGE).command("/opt/zookeeper/bin/zkServer.sh", "start-foreground")
+                .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
                         .healthcheck(ContainerConfig.Healthcheck.create(null,
                                 1000000000L, 1000000000L, 3)).build())
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).networks(NetworkAttachmentConfig.builder().target("docker-network").build()).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder()
-                        .targetPort(ZKSERVICE_ZKPORT).protocol("TCP").build())
-                        .build()).build();
-
+        ServiceSpec spec =  ServiceSpec.builder().name(serviceName)
+                .endpointSpec(EndpointSpec.builder()
+                        .mode(EndpointSpec.Mode.RESOLUTION_MODE_VIP)
+                        .addPort(PortConfig.builder().protocol("TCP").
+            publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT)
+                                .publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
+                                .taskTemplate(taskSpec)
+                .mode(ServiceMode.withReplicas(instances)).build();
         return spec;
     }
 }
