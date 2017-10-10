@@ -28,7 +28,9 @@ public class NotificationSystem {
     public <T extends Event> void addListeners(final Class<T> type,
                                                final Listener<T> listener,
                                                final ScheduledExecutorService executor) {
-        listeners.add(new ListenerWithType(type, listener, executor));
+        if (!isListenerPresent(listener)) {
+            listeners.add(new ListenerWithType(type, listener, executor));
+        }
     }
 
     /**
@@ -52,6 +54,14 @@ public class NotificationSystem {
 
     public <T extends Event> void removeListeners(final Class<T> type) {
         listeners.removeIf(e -> e.getType().equals(type));
+    }
+
+    public <T extends Event> boolean isListenerPresent(final Class<T> type) {
+        return listeners.stream().anyMatch(e -> e.getType().equals(type));
+    }
+
+    public <T extends Event> boolean isListenerPresent( final Listener<T> listener) {
+        return listeners.stream().anyMatch(e -> e.getListener().equals(listener));
     }
 
     @Data
