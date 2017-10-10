@@ -21,7 +21,7 @@ import lombok.NonNull;
  * An identifier for a segment of a stream.
  */
 @Data
-public class Segment implements Serializable, Comparable<Segment> {
+public class Segment implements Serializable {
     private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
@@ -86,17 +86,5 @@ public class Segment implements Serializable, Comparable<Segment> {
         } else {
             throw new IllegalArgumentException("Not a valid segment name");
         }
-    }
-
-    @Override
-    public int compareTo(Segment o) {
-        int result = scope.compareTo(o.scope);
-        if (result == 0) {
-            result = streamName.compareTo(o.streamName);
-        }
-        if (result == 0) {
-            result = Integer.compare(segmentNumber, o.segmentNumber);
-        }
-        return result;
     }
 }
