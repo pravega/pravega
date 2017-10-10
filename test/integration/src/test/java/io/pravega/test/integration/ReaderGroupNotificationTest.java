@@ -174,7 +174,6 @@ public class ReaderGroupNotificationTest {
                 ReaderConfig.builder().build());
         reader1.readNextEvent(1000);
 
-
         readerGroup.getScaleEventNotifier().addListener(l1, executor);
         listenerLatch.await();
         assertTrue("Listener invoked", listenerInvoked.get());
