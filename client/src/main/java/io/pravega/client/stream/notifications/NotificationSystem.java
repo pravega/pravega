@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class NotificationSystem {
-
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
     @Getter
     private final NotifierFactory factory = new NotifierFactory(this);
@@ -60,7 +59,7 @@ public class NotificationSystem {
         return listeners.stream().anyMatch(e -> e.getType().equals(type));
     }
 
-    public <T extends Event> boolean isListenerPresent( final Listener<T> listener) {
+    private <T extends Event> boolean isListenerPresent(final Listener<T> listener) {
         return listeners.stream().anyMatch(e -> e.getListener().equals(listener));
     }
 
