@@ -52,21 +52,29 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.isSealed(scope, stream, context, executor)
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
+                        log.warn("{}/{} stream not sealed", scope, stream);
+
                         return FutureHelpers.failedFuture(new RuntimeException("Stream not sealed"));
                     }
-                    return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
-                            .thenComposeAsync(count ->
-                                    streamMetadataTasks.notifyDeleteSegments(scope, stream, count)
-                                            .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
-                                                    executor), executor));
+                    return notifyAndDelete(context, scope, stream);
                 }, executor)
                 .exceptionally(e -> {
                     if (e instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
+                    log.error("{}/{} stream delete workflow threw exception.", scope, stream, e);
 
                     throw new CompletionException(e);
                 });
+    }
+
+    private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream) {
+        log.debug("{}/{} deleting segments", scope, stream);
+        return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
+                .thenComposeAsync(count ->
+                        streamMetadataTasks.notifyDeleteSegments(scope, stream, count)
+                                .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
+                                        executor), executor));
     }
 
     @Override

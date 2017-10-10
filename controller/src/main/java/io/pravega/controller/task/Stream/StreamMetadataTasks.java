@@ -29,6 +29,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamConfigWithVersion;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.Resource;
@@ -52,6 +53,7 @@ import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -131,26 +133,20 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config, OperationContext contextOpt) {
+    public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config,
+                                                                     OperationContext contextOpt) {
         AtomicReference<UpdateStreamEvent> eventRef = new AtomicReference<>(null);
         // 1. get configuration
         return streamMetadataStore.getConfigurationWithVersion(scope, stream, contextOpt, executor)
                 // 2. post event with configuration update + version
-                .thenCompose(configWithVersion -> {
-                    UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, configWithVersion.getVersion(),
-                            ModelHelper.decode(config));
-                    eventRef.set(event);
-                    return writeEvent(event);
-                })
+                .thenCompose(configWithVersion -> postUpdateEvent(scope, stream, config, configWithVersion)
+                        .thenAccept(eventRef::set))
                 // 3. set state to updating
                 .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.UPDATING, contextOpt, executor))
                 // 4. respond to client that update is being processed
                 .thenCompose(result -> {
                     if (result) {
-                        AtomicBoolean isUpdated = new AtomicBoolean(false);
-                        return FutureHelpers.loop(() -> !isUpdated.get(),
-                                () -> FutureHelpers.delayedFuture(() -> isUpdated(scope, stream, eventRef.get().getVersion(), config), 100, executor)
-                                        .thenAccept(isUpdated::set), executor)
+                        return checkUpdated(scope, stream, config, eventRef.get())
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -160,6 +156,19 @@ public class StreamMetadataTasks extends TaskBase {
                     log.warn("Exception thrown in trying to update stream configuration {}", ex.getMessage());
                     return handleUpdateStreamError(ex);
                 });
+    }
+
+    private CompletionStage<UpdateStreamEvent> postUpdateEvent(String scope, String stream, StreamConfiguration config,
+                                                               StreamConfigWithVersion configWithVersion) {
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, configWithVersion.getVersion(), ModelHelper.decode(config));
+        return writeEvent(event).thenApply(x -> event);
+    }
+
+    private CompletionStage<Void> checkUpdated(String scope, String stream, StreamConfiguration config, UpdateStreamEvent event) {
+        AtomicBoolean isUpdated = new AtomicBoolean(false);
+        return FutureHelpers.loop(() -> !isUpdated.get(),
+                () -> FutureHelpers.delayedFuture(() -> isUpdated(scope, stream, event.getVersion(), config), 100, executor)
+                        .thenAccept(isUpdated::set), executor);
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, int prevVersion, StreamConfiguration update) {
@@ -201,10 +210,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result) {
-                        AtomicBoolean isSealed = new AtomicBoolean(false);
-                        return FutureHelpers.loop(() -> !isSealed.get(),
-                                () -> FutureHelpers.delayedFuture(() -> isSealed(scope, stream, contextOpt), 100, executor)
-                                        .thenAccept(isSealed::set), executor)
+                        return checkSealed(scope, stream, contextOpt)
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -214,6 +220,13 @@ public class StreamMetadataTasks extends TaskBase {
                     log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                     return handleUpdateStreamError(ex);
                 });
+    }
+
+    private CompletionStage<Void> checkSealed(String scope, String stream, OperationContext contextOpt) {
+        AtomicBoolean isSealed = new AtomicBoolean(false);
+        return FutureHelpers.loop(() -> !isSealed.get(),
+                () -> FutureHelpers.delayedFuture(() -> isSealed(scope, stream, contextOpt), 100, executor)
+                        .thenAccept(isSealed::set), executor);
     }
 
     private CompletableFuture<Boolean> isSealed(String scope, String stream, OperationContext contextOpt) {
@@ -358,11 +371,11 @@ public class StreamMetadataTasks extends TaskBase {
         getRequestWriter().writeEvent(event).whenComplete((r, e) -> {
             if (e != null) {
                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
-                if (e instanceof TaskExceptions.RequestProcessingNotEnabledException) {
+                if (e instanceof TaskExceptions.ProcessingDisabledException) {
                     result.completeExceptionally(e);
                 } else {
                     // transform any other event write exception to retryable exception
-                    result.completeExceptionally(new TaskExceptions.EventPostException());
+                    result.completeExceptionally(new TaskExceptions.PostEventException("Failed to post event", e));
                 }
             } else {
                 log.info("event posted successfully");
@@ -382,7 +395,7 @@ public class StreamMetadataTasks extends TaskBase {
     private EventStreamWriter<ControllerEvent> getRequestWriter() {
         if (requestEventWriterRef.get() == null) {
             if (clientFactory == null || requestStreamName == null) {
-                throw new TaskExceptions.RequestProcessingNotEnabledException();
+                throw new TaskExceptions.ProcessingDisabledException("RequestProcessing not enabled");
             }
 
             requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
@@ -405,7 +418,7 @@ public class StreamMetadataTasks extends TaskBase {
      * does not get stuck in an incomplete state and hence we also post a request for its processing in scale event stream.
      * However we want to process the scale request inline with the callers call so that we can send the response. And we want to
      * make sure that we dont do any processing on the scale request if caller may have responded with some pre condition failure.
-     * So we send this flag to the event processor to process the scale request only if it was already started. Otherwise ignore. 
+     * So we send this flag to the event processor to process the scale request only if it was already started. Otherwise ignore.
      *
      * @param scaleInput scale input
      * @param runOnlyIfStarted run only if the scale operation was already running. It will ignore requests if the operation isnt started

@@ -64,45 +64,58 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (!state.equals(State.UPDATING)) {
-                        throw new TaskExceptions.StartException();
+                        throw new TaskExceptions.StartException("Update Stream not started yet.");
                     }
                 })
                 .thenCompose(x ->
-                        streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
-                                .thenCompose(configWithVersion -> {
-                                    if (request.getVersion() == configWithVersion.getVersion()) {
-                                        return streamMetadataStore.updateConfiguration(scope, stream,
-                                                StreamConfigWithVersion.generateNext(configWithVersion, newConfig),
-                                                context, executor);
-                                    } else {
-                                        // idempotent
-                                        if (configWithVersion.getVersion() == request.getVersion() + 1 &&
-                                                configWithVersion.getConfiguration().equals(newConfig)) {
-                                            return CompletableFuture.completedFuture(true);
-                                        } else {
-                                            return CompletableFuture.completedFuture(false);
-                                        }
-                                    }
-                                }))
+                        checkAndUpdate(request, context, scope, stream, newConfig))
                 .thenCompose(updated -> {
                     if (updated) {
                         log.debug("{}/{} updated in metadata store", scope, stream);
 
                         // we are at a point of no return. Metadata has been updated, we need to notify hosts.
                         // wrap subsequent steps in retries.
-                        return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy()))
-                                .handle((res, ex) -> {
-                                    if (ex == null) {
-                                        return true;
-                                    } else {
-                                        throw new CompletionException(ex);
-                                    }
-                                });
+                        return notifyPolicyUpdate(context, scope, stream, newConfig);
                     } else {
                         return CompletableFuture.completedFuture(false);
                     }
-                }).thenCompose(x -> FutureHelpers.toVoid(streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+                }).thenCompose(x -> completeUpdate(context, scope, stream));
+    }
+
+    private CompletableFuture<Void> completeUpdate(OperationContext context, String scope, String stream) {
+        return FutureHelpers.toVoid(streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor));
+    }
+
+    private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream, StreamConfiguration newConfig) {
+        return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
+                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy()))
+                .handle((res, ex) -> {
+                    if (ex == null) {
+                        return true;
+                    } else {
+                        throw new CompletionException(ex);
+                    }
+                });
+    }
+
+    private CompletableFuture<Boolean> checkAndUpdate(UpdateStreamEvent request, OperationContext context, String scope, String stream, StreamConfiguration newConfig) {
+        return streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
+                .thenCompose(configWithVersion -> {
+                    if (request.getVersion() == configWithVersion.getVersion()) {
+                        log.debug("Updating configuration for stream {}/{}", scope, stream);
+                        return streamMetadataStore.updateConfiguration(scope, stream,
+                                StreamConfigWithVersion.generateNext(configWithVersion, newConfig),
+                                context, executor);
+                    } else {
+                        // idempotent
+                        if (configWithVersion.getVersion() == request.getVersion() + 1 &&
+                                configWithVersion.getConfiguration().equals(newConfig)) {
+                            return CompletableFuture.completedFuture(true);
+                        } else {
+                            return CompletableFuture.completedFuture(false);
+                        }
+                    }
+                });
     }
 
     @Override

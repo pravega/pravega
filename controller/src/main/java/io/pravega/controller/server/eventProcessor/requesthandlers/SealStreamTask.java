@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
@@ -56,21 +57,32 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenAccept(state -> {
                     if (!state.equals(State.SEALING) && !state.equals(State.SEALED)) {
-                        throw new TaskExceptions.StartException();
+                        throw new TaskExceptions.StartException("Seal stream task not started yet.");
                     }
                 })
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(scope, stream, context, executor))
                 .thenCompose(activeSegments -> {
-                    if (activeSegments.isEmpty()) { //if active segments are empty then the stream is sealed.
-                        //Do not update the state if the stream is already sealed.
+                    if (activeSegments.isEmpty()) {
+                        // idempotent check
+                        // if active segment set is empty then the stream is sealed.
+                        // Do not update the state if the stream is already sealed.
                         return CompletableFuture.completedFuture(null);
                     } else {
-                        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
-                                collect(Collectors.toList());
-                        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed)
-                                .thenCompose(v -> FutureHelpers.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor)));
+                        return notifySealed(scope, stream, context, activeSegments);
                     }
                 });
+    }
+
+    private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments) {
+        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
+                collect(Collectors.toList());
+        log.debug("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
+        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed)
+                .thenCompose(v -> setSealed(scope, stream, context));
+    }
+
+    private CompletableFuture<Void> setSealed(String scope, String stream, OperationContext context) {
+        return FutureHelpers.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor));
     }
 
     @Override

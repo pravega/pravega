@@ -158,7 +158,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     /**
      * Fetch configuration at configurationPath.
      *
-     * @return : future of stream configuration
+     * @return Future of stream configuration
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
@@ -169,7 +169,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     /**
      * Fetch configuration at configurationPath.
      *
-     * @return : future of stream configuration
+     * @return Future of stream configuration
      */
     @Override
     public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion() {
@@ -389,7 +389,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                         if (runOnlyIfStarted) {
                             log.info("scale not started, retry later.");
-                            throw new TaskExceptions.StartException();
+                            throw new TaskExceptions.StartException("Scale not started yet.");
                         }
 
                         log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}", scope, name, sealedSegments);

@@ -296,7 +296,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0),
-                Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.RequestProcessingNotEnabledException);
+                Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.ProcessingDisabledException);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();

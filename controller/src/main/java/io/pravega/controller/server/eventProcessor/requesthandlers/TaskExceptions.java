@@ -10,18 +10,41 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.retryable.RetryableException;
+import lombok.AllArgsConstructor;
 
 public class TaskExceptions {
-    public static class StreamTaskException extends RuntimeException {
+    @AllArgsConstructor
+    private static class StreamTaskException extends RuntimeException {
         private static final long serialVersionUID = 1L;
+        private final String message;
+        private final Throwable cause;
     }
 
+    /**
+     * This Exception is thrown if the task has not been started yet but the event is picked up for processing.
+     */
     public static class StartException extends StreamTaskException {
+        public StartException(String message) {
+            super(message, null);
+        }
     }
 
-    public static class EventPostException extends StreamTaskException implements RetryableException {
+    /**
+     * This exception is thrown if we are unable to post the event into request stream.
+     */
+    public static class PostEventException extends StreamTaskException implements RetryableException {
+
+        public PostEventException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
-    public static class RequestProcessingNotEnabledException extends StreamTaskException {
+    /**
+     * This exception is thrown if event processing is not enabled.
+     */
+    public static class ProcessingDisabledException extends StreamTaskException {
+        public ProcessingDisabledException(String message) {
+            super(message, null);
+        }
     }
 }
