@@ -29,6 +29,7 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -117,6 +118,23 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
+    }
+
+    @After
+    public void tearDown() {
+        testState.stopReadFlag.set(true);
+        testState.stopWriteFlag.set(true);
+        //interrupt writers and readers threads if they are still running.
+        testState.writers.forEach(future -> future.cancel(true));
+        testState.readers.forEach(future -> future.cancel(true));
+        clientFactory.close();
+        readerGroupManager.close();
+        executorService.shutdownNow();
+        controllerExecutorService.shutdownNow();
+        testState.eventsReadFromPravega.clear();
+        //scale the controller and segmentStore back to 1 instance.
+        controllerInstance.scaleService(1, true);
+        segmentStoreInstance.scaleService(1, true);
     }
 
     @Test
