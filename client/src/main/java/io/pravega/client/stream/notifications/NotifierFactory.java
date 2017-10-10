@@ -16,6 +16,9 @@ import io.pravega.client.stream.notifications.notifier.CustomEventNotifier;
 import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 import lombok.Synchronized;
 
+/**
+ * Factory used to create different types of notifiers.
+ */
 public class NotifierFactory {
 
     private final CustomEventNotifier customEventNotifier;

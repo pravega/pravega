@@ -11,6 +11,10 @@ package io.pravega.client.stream.notifications;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+/**
+ * This represents an observable notification.
+ * @param <T>
+ */
 public interface Observable<T> {
     /**
      * Add listener for event type T. Multiple listeners can be added for the same type.
@@ -28,7 +32,7 @@ public interface Observable<T> {
     /**
      * Remove all listeners for a given type.
      */
-    void removeListener();
+    void removeListeners();
 
     /**
      * Get the event type.

@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,7 +68,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final ClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
-    @Getter
     private final NotificationSystem notificationSystem = new NotificationSystem();
 
     /**
@@ -213,7 +211,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Observable<ScaleEvent> getScaleEventNotifier() {
-        return this.notificationSystem.getFactory().getScaleNotifier(this::getCurrentScaleEvent);
+        return this.notificationSystem.getNotifierFactory().getScaleNotifier(this::getCurrentScaleEvent);
     }
 
     private ScaleEvent getCurrentScaleEvent() {
@@ -228,6 +226,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Observable<CustomEvent> getCustomEventNotifier() {
-        return this.notificationSystem.getFactory().getCustomNotifier();
+        return this.notificationSystem.getNotifierFactory().getCustomNotifier();
     }
 }

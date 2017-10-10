@@ -59,7 +59,7 @@ public class NotificationFrameworkTest {
 
         scaleEventReceived.set(false);
 
-        notifier.removeListener();
+        notifier.removeListeners();
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());
@@ -113,7 +113,7 @@ public class NotificationFrameworkTest {
         assertFalse(scaleEventListenerInvoked.get());
         assertTrue(customEventListenerInvoked.get());
 
-        customEventNotifier.removeListener();
+        customEventNotifier.removeListeners();
         customEventListenerInvoked.set(false);
 
         //trigger notifications
@@ -151,7 +151,7 @@ public class NotificationFrameworkTest {
 
         scaleEventReceived.set(false);
 
-        notifier.removeListener();
+        notifier.removeListeners();
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());

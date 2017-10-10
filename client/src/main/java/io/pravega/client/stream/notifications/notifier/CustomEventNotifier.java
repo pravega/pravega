@@ -31,11 +31,11 @@ public class CustomEventNotifier implements Observable<CustomEvent> {
 
     @Override
     public void removeListener(final Listener<CustomEvent> listener) {
-        this.system.removeListeners(listener);
+        this.system.removeListener(getType(), listener);
     }
 
     @Override
-    public void removeListener() {
+    public void removeListeners() {
         this.system.removeListeners(getType());
     }
 

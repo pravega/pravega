@@ -51,7 +51,7 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
     @Override
     @Synchronized
     public void removeListener(final Listener<ScaleEvent> listener) {
-        system.removeListeners(listener);
+        system.removeListener(getType(), listener);
         if (!system.isListenerPresent(getType())) {
             cancelScheduledTask();
         }
@@ -59,7 +59,7 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
     @Override
     @Synchronized
-    public void removeListener() {
+    public void removeListeners() {
         this.system.removeListeners(getType());
         cancelScheduledTask();
     }
