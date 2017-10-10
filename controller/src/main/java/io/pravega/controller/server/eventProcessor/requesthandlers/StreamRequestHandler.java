@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -99,6 +100,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     private <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task,
                                                                                T event,
                                                                                Predicate<Throwable> writeBackPredicate) {
+        AtomicInteger i = new AtomicInteger(0);
         CompletableFuture<Void> result = new CompletableFuture<>();
         Retry.withExpBackoff(100, 10, 6, 30000)
                 .retryingOn(TaskExceptions.StartException.class)

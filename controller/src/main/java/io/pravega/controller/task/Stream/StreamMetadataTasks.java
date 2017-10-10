@@ -135,14 +135,19 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config,
                                                                      OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
         AtomicReference<UpdateStreamEvent> eventRef = new AtomicReference<>(null);
         // 1. get configuration
-        return streamMetadataStore.getConfigurationWithVersion(scope, stream, contextOpt, executor)
+        return streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
                 // 2. post event with configuration update + version
-                .thenCompose(configWithVersion -> postUpdateEvent(scope, stream, config, configWithVersion)
-                        .thenAccept(eventRef::set))
+                .thenCompose(configWithVersion -> {
+                    System.err.println();
+                    return postUpdateEvent(scope, stream, config, configWithVersion)
+                            .thenAccept(eventRef::set);
+                })
                 // 3. set state to updating
-                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.UPDATING, contextOpt, executor))
+                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor))
                 // 4. respond to client that update is being processed
                 .thenCompose(result -> {
                     if (result) {
@@ -172,18 +177,23 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, int prevVersion, StreamConfiguration update) {
-        return streamMetadataStore.getConfigurationWithVersion(scope, stream, null, executor)
-                .thenApply(configWithVersion -> {
-                    if (configWithVersion.getVersion() > prevVersion) {
-                        if (configWithVersion.getConfiguration().equals(update)) {
-                            return true;
-                        } else {
-                            throw new RuntimeException("Failed to update. Conflict.");
-                        }
-                    } else {
-                        return false;
-                    }
-                });
+        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+
+        return streamMetadataStore.getState(scope, stream, true, context, executor)
+                .thenCompose(state -> streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
+                        .thenApply(configWithVersion -> {
+                            if (configWithVersion.getVersion() > prevVersion) {
+                                if (configWithVersion.getConfiguration().equals(update)) {
+                                    return !state.equals(State.UPDATING);
+                                } else {
+                                    throw new RuntimeException("Failed to update. Conflict.");
+                                }
+                            } else if (!state.equals(State.UPDATING)) {
+                                throw new RuntimeException("Failed to update. Conflict.");
+                            } else {
+                                return false;
+                            }
+                        }));
     }
 
     /**
@@ -195,22 +205,24 @@ public class StreamMetadataTasks extends TaskBase {
      * @return update status.
      */
     public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream);
         return writeEvent(event)
                 // 2. set state to sealing
-                .thenCompose(x -> streamMetadataStore.getState(scope, stream, false, contextOpt, executor))
+                .thenCompose(x -> streamMetadataStore.getState(scope, stream, false, context, executor))
                 .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(true);
                     } else {
-                        return streamMetadataStore.setState(scope, stream, State.SEALING, contextOpt, executor);
+                        return streamMetadataStore.setState(scope, stream, State.SEALING, context, executor);
                     }
                 })
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result) {
-                        return checkSealed(scope, stream, contextOpt)
+                        return checkSealed(scope, stream, context)
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -222,15 +234,15 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletionStage<Void> checkSealed(String scope, String stream, OperationContext contextOpt) {
+    private CompletionStage<Void> checkSealed(String scope, String stream, OperationContext context) {
         AtomicBoolean isSealed = new AtomicBoolean(false);
         return FutureHelpers.loop(() -> !isSealed.get(),
-                () -> FutureHelpers.delayedFuture(() -> isSealed(scope, stream, contextOpt), 100, executor)
+                () -> FutureHelpers.delayedFuture(() -> isSealed(scope, stream, context), 100, executor)
                         .thenAccept(isSealed::set), executor);
     }
 
-    private CompletableFuture<Boolean> isSealed(String scope, String stream, OperationContext contextOpt) {
-        return streamMetadataStore.getState(scope, stream, true, contextOpt, executor)
+    private CompletableFuture<Boolean> isSealed(String scope, String stream, OperationContext context) {
+        return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenApply(state -> state.equals(State.SEALED));
     }
 
@@ -244,7 +256,9 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
                                                                      final OperationContext contextOpt) {
-        return streamMetadataStore.getState(scope, stream, false, contextOpt, executor)
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
+        return streamMetadataStore.getState(scope, stream, false, context, executor)
                 .thenCompose(state -> {
                     if (!state.equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(false);
