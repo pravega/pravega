@@ -15,7 +15,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a Read-Only abstraction for Permanent Storage.
+ * Defines a Read-Only abstraction for Permanent Storage with async operations.
  */
 public interface ReadOnlyStorage {
     /**

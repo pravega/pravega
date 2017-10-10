@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.filesystem;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 
@@ -37,6 +38,6 @@ public class FileSystemStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new FileSystemStorage(this.config, this.executor);
+        return new AsyncStorageWrapper(new FileSystemStorage(this.config), this.executor);
     }
 }

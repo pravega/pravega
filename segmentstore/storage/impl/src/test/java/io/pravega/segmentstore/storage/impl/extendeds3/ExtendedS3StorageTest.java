@@ -14,12 +14,12 @@ import com.emc.object.s3.bean.ObjectKey;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.DeleteObjectsRequest;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
-import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,7 +36,6 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 @Slf4j
 public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
     private static final String BUCKET_NAME_PREFIX = "pravegatest-";
-    private ExtendedS3StorageFactory storageFactory;
     private ExtendedS3StorageConfig adapterConfig;
     private S3JerseyClient client = null;
     private S3ImplBase s3Proxy;
@@ -110,13 +109,13 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         client = new S3JerseyClientWrapper(s3Config, s3Proxy);
 
-        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService());
-        return storage;
+        // We can't use the factory here because we're setting our own (mock) client.
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig);
+        return new AsyncStorageWrapper(storage, executorService());
     }
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        FileChannel channel = null;
         if (readOnly) {
             return ExtendedS3SegmentHandle.getReadHandle(segmentName);
         } else {

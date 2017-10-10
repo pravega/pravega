@@ -16,6 +16,7 @@ import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
@@ -39,7 +40,7 @@ import org.junit.Before;
 public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final int BOOKIE_COUNT = 3;
+    private static final int BOOKIE_COUNT = 1;
     private String endpoint;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;
@@ -121,7 +122,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            return new ExtendedS3Storage(client, config, executorService());
+            return new AsyncStorageWrapper(new ExtendedS3Storage(client, config), this.executor);
         }
     }
     //endregion

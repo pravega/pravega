@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.common.io.FileHelpers;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
@@ -17,7 +18,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -128,7 +128,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new TestHDFSStorage(this.adapterConfig, executorService());
+        return new AsyncStorageWrapper(new TestHDFSStorage(this.adapterConfig), executorService());
     }
 
     //region TestHDFSStorage
@@ -138,8 +138,8 @@ public class HDFSStorageTest extends StorageTestBase {
      * 'read-only' permission issues observed with that one.
      **/
     private static class TestHDFSStorage extends HDFSStorage {
-        TestHDFSStorage(HDFSStorageConfig config, Executor executor) {
-            super(config, executor);
+        TestHDFSStorage(HDFSStorageConfig config) {
+            super(config);
         }
 
         @Override

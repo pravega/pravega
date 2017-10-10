@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
@@ -60,12 +61,14 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         final String segment2 = "toDelete";
 
         @Cleanup
-        val storage = new InMemoryStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val storage = new AsyncStorageWrapper(baseStorage, executorService());
         storage.initialize(DEFAULT_EPOCH);
         storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         storage.create(segment2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        val seal1 = storage.registerSealTrigger(segment1, TIMEOUT);
-        val seal2 = storage.registerSealTrigger(segment2, TIMEOUT);
+        val seal1 = baseStorage.registerSealTrigger(segment1, TIMEOUT);
+        val seal2 = baseStorage.registerSealTrigger(segment2, TIMEOUT);
 
         val handle1 = storage.openWrite(segment1).join();
         val handle2 = storage.openWrite(segment2).join();
@@ -85,7 +88,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         storage.seal(handle1, TIMEOUT).join();
         seal1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This should not throw.
 
-        val alreadySealed = storage.registerSealTrigger(segment1, TIMEOUT);
+        val alreadySealed = baseStorage.registerSealTrigger(segment1, TIMEOUT);
         alreadySealed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Seal trigger was not immediately completed when segment already sealed.",
                 FutureHelpers.isSuccessful(alreadySealed));
@@ -101,12 +104,14 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         final int triggerOffset = 10;
 
         @Cleanup
-        val storage = new InMemoryStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val storage = new AsyncStorageWrapper(baseStorage, executorService());
         storage.initialize(DEFAULT_EPOCH);
         storage.create(segment1, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         storage.create(segment2, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        val size1 = storage.registerSizeTrigger(segment1, triggerOffset, TIMEOUT);
-        val size2 = storage.registerSizeTrigger(segment2, triggerOffset, TIMEOUT);
+        val size1 = baseStorage.registerSizeTrigger(segment1, triggerOffset, TIMEOUT);
+        val size2 = baseStorage.registerSizeTrigger(segment2, triggerOffset, TIMEOUT);
 
         val handle1 = storage.openWrite(segment1).join();
         val handle2 = storage.openWrite(segment2).join();
@@ -126,13 +131,13 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         storage.write(handle1, 1, new ByteArrayInputStream(new byte[triggerOffset]), triggerOffset, TIMEOUT).join();
         size1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // This should not throw.
 
-        val alreadyExceeded = storage.registerSizeTrigger(segment1, triggerOffset, TIMEOUT);
+        val alreadyExceeded = baseStorage.registerSizeTrigger(segment1, triggerOffset, TIMEOUT);
         alreadyExceeded.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Size trigger was not immediately completed when segment already exceeds size.",
                 FutureHelpers.isSuccessful(alreadyExceeded));
 
         // Trigger cancelled when segment is sealed.
-        val size3 = storage.registerSizeTrigger(segment1, triggerOffset * 2, TIMEOUT);
+        val size3 = baseStorage.registerSizeTrigger(segment1, triggerOffset * 2, TIMEOUT);
         storage.seal(handle1, TIMEOUT).join();
         AssertExtensions.assertThrows(
                 "Size trigger was not cancelled with correct exception when segment was sealed.",
@@ -150,9 +155,9 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         @Cleanup
         val storage = new InMemoryStorage();
         storage.initialize(DEFAULT_EPOCH);
-        storage.create(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        storage.create(segmentName);
 
-        val handle = storage.openWrite(segmentName).join();
+        val handle = storage.openWrite(segmentName);
         ByteArrayOutputStream writeStream = new ByteArrayOutputStream();
 
         for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
@@ -164,7 +169,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
         byte[] expectedData = writeStream.toByteArray();
         byte[] readBuffer = new byte[expectedData.length];
-        int bytesRead = storage.read(handle, 0, readBuffer, 0, readBuffer.length, TIMEOUT).join();
+        int bytesRead = storage.read(handle, 0, readBuffer, 0, readBuffer.length);
         Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
         AssertExtensions.assertArrayEquals("Unexpected read result.", expectedData, 0, readBuffer, 0, bytesRead);
     }
@@ -176,7 +181,9 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         final String segment2 = "segment2";
 
         @Cleanup
-        val storage = new InMemoryStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val storage = new AsyncStorageWrapper(baseStorage, executorService());
         storage.initialize(DEFAULT_EPOCH);
 
         // Part 1: Create a segment and verify all operations are allowed.
@@ -185,7 +192,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         verifyAllOperationsSucceed(handle1, storage);
 
         // Part 2: Change owner, verify segment operations are not allowed until a call to open() is made.
-        storage.changeOwner();
+        baseStorage.changeOwner();
         verifyWriteOperationsFail(handle1, storage);
 
         handle1 = storage.openWrite(segment1).join();

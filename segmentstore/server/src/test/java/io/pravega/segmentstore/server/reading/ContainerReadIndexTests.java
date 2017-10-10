@@ -28,7 +28,7 @@ import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCache;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -1309,7 +1309,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
             this.cacheFactory = new TestCacheFactory();
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = new InMemoryStorage();
+            this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
             this.cacheManager = new TestCacheManager(cachePolicy, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());

@@ -11,7 +11,8 @@ package io.pravega.segmentstore.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.segmentstore.storage.rolling.SegmentRollingPolicy;
 import java.io.ByteArrayInputStream;
@@ -47,10 +48,10 @@ public class Playground {
 
         @Cleanup("shutdown")
         val executor = Executors.newScheduledThreadPool(10);
+        val ms = new InMemoryStorage();
+        val rsSync = new RollingStorage(ms, rollingPolicy);
         @Cleanup
-        val msf = new InMemoryStorageFactory(executor);
-        @Cleanup
-        val rs = new RollingStorage(msf, rollingPolicy, executor);
+        val rs = new AsyncStorageWrapper(rsSync, executor);
         rs.initialize(1);
 
         rs.create(targetName, timeout).join();
@@ -75,13 +76,12 @@ public class Playground {
             offset += data.length;
         }
 
-
         rs.seal(sourceHandle, timeout).join();
         rs.concat(targetHandle, offset, sourceName, timeout).join();
         byte[] sourceData = cos.toByteArray();
         os.write(sourceData);
         cos.close();
-        offset +=sourceData.length;
+        offset += sourceData.length;
 
         for (int i = 0; i < 10; i++) {
             byte[] data = new byte[writeSize];
@@ -120,10 +120,10 @@ public class Playground {
 
         @Cleanup("shutdown")
         val executor = Executors.newScheduledThreadPool(10);
+        val ms = new InMemoryStorage();
+        val rsSync = new RollingStorage(ms, rollingPolicy);
         @Cleanup
-        val msf = new InMemoryStorageFactory(executor);
-        @Cleanup
-        val rs = new RollingStorage(msf, rollingPolicy, executor);
+        val rs = new AsyncStorageWrapper(rsSync, executor);
         rs.initialize(1);
 
         // Create

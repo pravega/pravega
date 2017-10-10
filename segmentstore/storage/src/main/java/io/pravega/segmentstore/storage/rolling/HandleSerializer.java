@@ -80,7 +80,9 @@ final class HandleSerializer {
             }
         }
 
-        return new RollingSegmentHandle(headerHandle, policy, subSegments).setHeaderLength(serialization.length);
+        RollingSegmentHandle h = new RollingSegmentHandle(headerHandle, policy, subSegments);
+        h.setHeaderLength(serialization.length);
+        return h;
     }
 
     /**
@@ -92,9 +94,9 @@ final class HandleSerializer {
     @SneakyThrows(IOException.class)
     static ByteArraySegment serialize(RollingSegmentHandle handle) {
         try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
-            //2. Policy Max Size.
+            //1. Policy Max Size.
             os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
-            //3. SubSegments.
+            //2. SubSegments.
             handle.subSegments().forEach(subSegment -> os.write(serializeSubSegment(subSegment)));
             return os.getData();
         }

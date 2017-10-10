@@ -79,7 +79,6 @@ class RollingSegmentHandle implements SegmentHandle {
         Preconditions.checkArgument(source.getSegmentName().equals(this.getSegmentName()), "SegmentName mismatch.");
         this.subSegments = new ArrayList<>(source.subSegments());
         setHeaderLength(source.getHeaderLength());
-        setActiveSubSegmentHandle(source.getActiveSubSegmentHandle());
         if (source.isSealed()) {
             markSealed();
         }
@@ -140,6 +139,7 @@ class RollingSegmentHandle implements SegmentHandle {
      * @param activeSubSegmentHandle The newly added SubSegment's write handle.
      */
     synchronized void addSubSegment(SubSegment subSegment, SegmentHandle activeSubSegmentHandle) {
+        Preconditions.checkState(!this.sealed, "Cannot add SubSegments for a Sealed Handle.");
         if (this.subSegments.size() > 0) {
             long expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
             Preconditions.checkArgument(subSegment.getStartOffset() == expectedOffset,
@@ -161,13 +161,18 @@ class RollingSegmentHandle implements SegmentHandle {
      * @param subSegments The SubSegments to add. These SubSegments must be in continuity of any existing SubSegments.
      */
     synchronized void addSubSegments(List<SubSegment> subSegments) {
+        Preconditions.checkState(!this.sealed, "Cannot add SubSegments for a Sealed Handle.");
+        long expectedOffset = 0;
         if (this.subSegments.size() > 0) {
-            long expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
-            for (SubSegment s : subSegments) {
-                Preconditions.checkArgument(s.getStartOffset() == expectedOffset,
-                        "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, s.getStartOffset());
-                expectedOffset += s.getLength();
-            }
+            expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
+        } else if (subSegments.size() > 0) {
+            expectedOffset = subSegments.get(0).getStartOffset();
+        }
+
+        for (SubSegment s : subSegments) {
+            Preconditions.checkArgument(s.getStartOffset() == expectedOffset,
+                    "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, s.getStartOffset());
+            expectedOffset += s.getLength();
         }
 
         this.subSegments.addAll(subSegments);
@@ -199,12 +204,13 @@ class RollingSegmentHandle implements SegmentHandle {
      * @param handle The handle. Must not be read-only and for the last SubSegment.
      *               @return This object.
      */
-    synchronized RollingSegmentHandle setActiveSubSegmentHandle(SegmentHandle handle) {
+    synchronized void setActiveSubSegmentHandle(SegmentHandle handle) {
         Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
-        Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(lastSubSegment().getName()),
+        SubSegment last = lastSubSegment();
+        Preconditions.checkState(last != null, "Cannot set an Active SubSegment handle when there are no SubSegments.");
+        Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(last.getName()),
                 "Active SubSegment handle must be for the last SubSegment.");
         this.activeSubSegmentHandle = handle;
-        return this;
     }
 
     /**
@@ -217,17 +223,15 @@ class RollingSegmentHandle implements SegmentHandle {
     /**
      * Sets the serialized length of the Header.
      */
-    synchronized RollingSegmentHandle setHeaderLength(int value) {
+    synchronized void setHeaderLength(int value) {
         this.headerLength = value;
-        return this;
     }
 
     /**
      * Increases the serialized length of the Header by the given value.
      */
-    synchronized RollingSegmentHandle increaseHeaderLength(int value) {
+    synchronized void increaseHeaderLength(int value) {
         this.headerLength += value;
-        return this;
     }
 
     @Override

@@ -10,13 +10,13 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.ExceptionHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -745,8 +745,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         TestContext(WriterConfig config) {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.baseStorage = new InMemoryStorage(executorService());
-            this.storage = new TestStorage(this.baseStorage);
+            this.baseStorage = new InMemoryStorage();
+            this.storage = new TestStorage(this.baseStorage, executorService());
             this.storage.initialize(1);
             this.config = config;
 

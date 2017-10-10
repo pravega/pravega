@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
@@ -18,6 +19,7 @@ import io.pravega.test.common.ErrorInjector;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import lombok.Setter;
 
 /**
@@ -25,7 +27,8 @@ import lombok.Setter;
  * errors, simulating non-availability, etc.
  */
 public class TestStorage implements Storage {
-    private final InMemoryStorage wrappedStorage;
+    private final Storage wrappedStorage;
+    private final InMemoryStorage wrappedSyncStorage;
     @Setter
     private ErrorInjector<Exception> writeSyncErrorInjector;
     @Setter
@@ -57,9 +60,10 @@ public class TestStorage implements Storage {
     @Setter
     private ConcatInterceptor concatInterceptor;
 
-    public TestStorage(InMemoryStorage wrappedStorage) {
+    public TestStorage(InMemoryStorage wrappedStorage, Executor executor) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
-        this.wrappedStorage = wrappedStorage;
+        this.wrappedSyncStorage = Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
+        this.wrappedStorage = new AsyncStorageWrapper(wrappedStorage, executor);
     }
 
     @Override
@@ -168,7 +172,7 @@ public class TestStorage implements Storage {
     }
 
     public void append(SegmentHandle handle, InputStream data, int length) {
-        this.wrappedStorage.append(handle, data, length);
+        this.wrappedSyncStorage.append(handle, data, length);
     }
 
     @FunctionalInterface

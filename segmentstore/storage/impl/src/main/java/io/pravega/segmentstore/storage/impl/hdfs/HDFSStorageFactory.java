@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import com.google.common.base.Preconditions;
@@ -36,6 +37,6 @@ public class HDFSStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new HDFSStorage(this.config, this.executor);
+        return new AsyncStorageWrapper(new HDFSStorage(this.config), this.executor);
     }
 }

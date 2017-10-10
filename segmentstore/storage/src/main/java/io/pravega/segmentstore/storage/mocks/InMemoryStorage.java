@@ -14,13 +14,14 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
+import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +29,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,7 +42,7 @@ import lombok.val;
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorage implements Storage, ListenableStorage {
+public class InMemoryStorage implements SyncStorage, ListenableStorage {
     //region Members
 
     @GuardedBy("offsetTriggers")
@@ -52,24 +52,17 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     @GuardedBy("lock")
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
-    private final ScheduledExecutorService executor;
     private final AtomicLong currentOwnerId;
     private final SyncContext syncContext;
     private final AtomicBoolean initialized;
     private final AtomicBoolean closed;
-    private boolean ownsExecutorService;
+    private final ScheduledExecutorService triggerExecutor = Executors.newScheduledThreadPool(1);
 
     //endregion
 
     //region Constructor
 
     public InMemoryStorage() {
-        this(Executors.newScheduledThreadPool(1));
-        this.ownsExecutorService = true;
-    }
-
-    public InMemoryStorage(ScheduledExecutorService executor) {
-        this.executor = executor;
         this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
         this.currentOwnerId = new AtomicLong(0);
@@ -85,9 +78,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            if (this.ownsExecutorService) {
-                this.executor.shutdown();
-            }
+            this.triggerExecutor.shutdown();
         }
     }
 
@@ -111,105 +102,93 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentExistsException {
         ensurePreconditions();
-        return CompletableFuture
-                .supplyAsync(() -> {
-                    synchronized (this.lock) {
-                        if (this.streamSegments.containsKey(streamSegmentName)) {
-                            throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
-                        }
+        synchronized (this.lock) {
+            if (this.streamSegments.containsKey(streamSegmentName)) {
+                throw new StreamSegmentExistsException(streamSegmentName);
+            }
 
-                        StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
-                        data.openWrite();
-                        this.streamSegments.put(streamSegmentName, data);
-                        return data;
-                    }
-                }, this.executor)
-                .thenApply(StreamSegmentData::getInfo);
+            StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
+            data.openWrite();
+            this.streamSegments.put(streamSegmentName, data);
+            return data.getInfo();
+        }
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).openWrite(), this.executor);
+        return getStreamSegmentData(streamSegmentName).openWrite();
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).openRead(), this.executor);
+        return getStreamSegmentData(streamSegmentName).openRead();
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws BadOffsetException, StreamSegmentNotExistsException,
+            StreamSegmentSealedException {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot write using a read-only handle.");
-        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
-                getStreamSegmentData(handle.getSegmentName()).write(offset, data, length), this.executor);
-        result.thenRunAsync(() -> fireOffsetTriggers(handle.getSegmentName(), offset + length), this.executor);
-        return result;
+
+        getStreamSegmentData(handle.getSegmentName()).write(offset, data, length);
+        this.triggerExecutor.execute(() -> fireOffsetTriggers(handle.getSegmentName(), offset + length));
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentNotExistsException {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() ->
-                getStreamSegmentData(handle.getSegmentName()).read(offset, buffer, bufferOffset, length), this.executor);
+        return getStreamSegmentData(handle.getSegmentName()).read(offset, buffer, bufferOffset, length);
     }
 
     @Override
-    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
+    public void seal(SegmentHandle handle) throws StreamSegmentNotExistsException {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
-        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
-                getStreamSegmentData(handle.getSegmentName()).markSealed(), this.executor);
-        result.thenRunAsync(() -> {
+        getStreamSegmentData(handle.getSegmentName()).markSealed();
+        this.triggerExecutor.execute(() -> {
             fireSealTrigger(handle.getSegmentName());
             cancelOffsetTriggersDueToSeal(handle.getSegmentName());
-        }, this.executor);
-        return result;
+        });
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentNotExistsException {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() -> getStreamSegmentData(streamSegmentName).getInfo(), this.executor);
+        return getStreamSegmentData(streamSegmentName).getInfo();
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+    public boolean exists(String streamSegmentName) {
         ensurePreconditions();
-        boolean exists;
         synchronized (this.lock) {
-            exists = this.streamSegments.containsKey(streamSegmentName);
+            return this.streamSegments.containsKey(streamSegmentName);
         }
-
-        return CompletableFuture.completedFuture(exists);
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws BadOffsetException, StreamSegmentNotExistsException,
+            StreamSegmentSealedException {
         ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();
-        CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
             StreamSegmentData sourceData = getStreamSegmentData(sourceSegment);
             StreamSegmentData targetData = getStreamSegmentData(targetHandle.getSegmentName());
             targetData.concat(sourceData, offset);
             deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
             newLength.set(targetData.getInfo().getLength());
-        }, this.executor);
 
-        result.thenRunAsync(() -> {
+        this.triggerExecutor.execute(() -> {
             fireOffsetTriggers(targetHandle.getSegmentName(), newLength.get());
             fireSealTrigger(sourceSegment);
-        }, this.executor);
-        return result;
+        });
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
+    public void delete(SegmentHandle handle) throws StreamSegmentNotExistsException {
         ensurePreconditions();
 
         // If we are given a read-only handle, we must ensure the segment is sealed. If the segment can accept modifications
@@ -224,14 +203,14 @@ public class InMemoryStorage implements Storage, ListenableStorage {
         }
 
         Preconditions.checkArgument(canDelete, "Cannot delete using a read-only handle, unless the segment is sealed.");
-        return CompletableFuture.runAsync(() -> deleteInternal(handle), this.executor);
+        deleteInternal(handle);
     }
 
     @Override
-    public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+    public void truncate(SegmentHandle handle, long offset) throws StreamSegmentNotExistsException {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot truncate using a read-only handle.");
-        return CompletableFuture.runAsync(() -> getStreamSegmentData(handle.getSegmentName()).truncate(offset), this.executor);
+        getStreamSegmentData(handle.getSegmentName()).truncate(offset);
     }
 
     @Override
@@ -247,15 +226,19 @@ public class InMemoryStorage implements Storage, ListenableStorage {
      * @param data   An InputStream representing the data to append.
      * @param length The length of the data to append.
      */
+    @SneakyThrows(StreamSegmentException.class)
     public void append(SegmentHandle handle, InputStream data, int length) {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot append using a read-only handle.");
         getStreamSegmentData(handle.getSegmentName()).append(data, length);
-        this.executor.execute(
-                () -> {
-                    long segmentLength = getStreamSegmentData(handle.getSegmentName()).getInfo().getLength();
-                    fireOffsetTriggers(handle.getSegmentName(), segmentLength);
-                });
+        this.triggerExecutor.execute(() -> {
+            try {
+                long segmentLength = getStreamSegmentData(handle.getSegmentName()).getInfo().getLength();
+                fireOffsetTriggers(handle.getSegmentName(), segmentLength);
+            } catch (StreamSegmentNotExistsException ex) {
+                //Ignore.
+            }
+        });
     }
 
     /**
@@ -266,21 +249,21 @@ public class InMemoryStorage implements Storage, ListenableStorage {
         this.currentOwnerId.incrementAndGet();
     }
 
-    private StreamSegmentData getStreamSegmentData(String streamSegmentName) {
+    private StreamSegmentData getStreamSegmentData(String streamSegmentName) throws StreamSegmentNotExistsException {
         synchronized (this.lock) {
             StreamSegmentData data = this.streamSegments.getOrDefault(streamSegmentName, null);
             if (data == null) {
-                throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                throw new StreamSegmentNotExistsException(streamSegmentName);
             }
 
             return data;
         }
     }
 
-    private void deleteInternal(SegmentHandle handle) {
+    private void deleteInternal(SegmentHandle handle) throws StreamSegmentNotExistsException {
         synchronized (this.lock) {
             if (!this.streamSegments.containsKey(handle.getSegmentName())) {
-                throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
+                throw new StreamSegmentNotExistsException(handle.getSegmentName());
             }
 
             this.streamSegments.remove(handle.getSegmentName());
@@ -294,6 +277,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     //region Size & seal triggers
 
     @Override
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     public CompletableFuture<Void> registerSizeTrigger(String segmentName, long offset, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
@@ -314,19 +298,18 @@ public class InMemoryStorage implements Storage, ListenableStorage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we already exceed the trigger threshold.
-            getStreamSegmentInfo(segmentName, timeout)
-                    .thenAccept(sp -> {
-                        // We already exceeded this offset.
-                        if (sp.getLength() >= offset) {
-                            fireOffsetTriggers(segmentName, sp.getLength());
-                        }
-                    });
+            val si = getStreamSegmentInfo(segmentName);
+
+            if (si.getLength() >= offset) {
+                fireOffsetTriggers(segmentName, si.getLength());
+            }
         }
 
         return result;
     }
 
     @Override
+    @SneakyThrows(StreamSegmentNotExistsException.class)
     public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
         CompletableFuture<Void> result;
         boolean newTrigger = false;
@@ -341,12 +324,10 @@ public class InMemoryStorage implements Storage, ListenableStorage {
 
         if (newTrigger && !result.isDone()) {
             // Do the check now to see if we are already sealed.
-            getStreamSegmentInfo(segmentName, timeout)
-                    .thenAccept(sp -> {
-                        if (sp.isSealed()) {
-                            fireSealTrigger(segmentName);
-                        }
-                    });
+            val si = getStreamSegmentInfo(segmentName);
+            if (si.isSealed()) {
+                fireSealTrigger(segmentName);
+            }
         }
 
         return result;
@@ -412,7 +393,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     }
 
     private CompletableFuture<Void> createSizeTrigger(String segmentName, long minSize, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
+        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.triggerExecutor);
         result.whenComplete((r, ex) -> {
             synchronized (this.offsetTriggers) {
                 HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
@@ -430,7 +411,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
     }
 
     private CompletableFuture<Void> createSealTrigger(String segmentName, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
+        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.triggerExecutor);
         result.whenComplete((r, ex) -> {
             synchronized (this.sealTriggers) {
                 this.sealTriggers.remove(segmentName);
@@ -491,14 +472,15 @@ public class InMemoryStorage implements Storage, ListenableStorage {
             return new InMemorySegmentHandle(this.name, true);
         }
 
-        void write(long startOffset, InputStream data, int length) {
+        void write(long startOffset, InputStream data, int length) throws BadOffsetException, StreamSegmentSealedException {
             synchronized (this.lock) {
                 checkOpened();
                 writeInternal(startOffset, data, length);
             }
         }
 
-        void append(InputStream data, int length) {
+        @SneakyThrows(BadOffsetException.class)
+        void append(InputStream data, int length) throws StreamSegmentSealedException {
             synchronized (this.lock) {
                 write(this.length, data, length);
             }
@@ -538,7 +520,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
             }
         }
 
-        void concat(StreamSegmentData other, long offset) {
+        void concat(StreamSegmentData other, long offset) throws BadOffsetException, StreamSegmentSealedException {
             synchronized (this.context.syncRoot) {
                 // In order to do a proper concat, we need to lock on both the source and the target segments. But since
                 // there's always a possibility of two concurrent calls to concat with swapped arguments, there is a chance
@@ -552,7 +534,7 @@ public class InMemoryStorage implements Storage, ListenableStorage {
                     synchronized (this.lock) {
                         checkOpened();
                         if (offset != this.length) {
-                            throw new CompletionException(new BadOffsetException(this.name, this.length, offset));
+                            throw new BadOffsetException(this.name, this.length, offset);
                         }
 
                         long bytesCopied = 0;
@@ -611,36 +593,33 @@ public class InMemoryStorage implements Storage, ListenableStorage {
         }
 
         @GuardedBy("lock")
-        private void writeInternal(long startOffset, InputStream data, int length) {
+        @SneakyThrows(IOException.class)
+        private void writeInternal(long startOffset, InputStream data, int length) throws BadOffsetException, StreamSegmentSealedException {
             Exceptions.checkArgument(length >= 0, "length", "bad length");
             if (startOffset != this.length) {
-                throw new CompletionException(new BadOffsetException(this.name, this.length, startOffset));
+                throw new BadOffsetException(this.name, this.length, startOffset);
             }
 
             if (this.sealed) {
-                throw new CompletionException(new StreamSegmentSealedException(this.name));
+                throw new StreamSegmentSealedException(this.name);
             }
 
             long offset = startOffset;
             ensureAllocated(offset, length);
 
-            try {
-                int writtenBytes = 0;
-                while (writtenBytes < length) {
-                    OffsetLocation ol = getOffsetLocation(offset);
-                    int readBytes = data.read(this.data.get(ol.bufferSequence), ol.bufferOffset, Math.min(length, BUFFER_SIZE - ol.bufferOffset));
-                    if (readBytes < 0) {
-                        throw new IOException("reached end of stream while still expecting data");
-                    }
-
-                    writtenBytes += readBytes;
-                    offset += readBytes;
+            int writtenBytes = 0;
+            while (writtenBytes < length) {
+                OffsetLocation ol = getOffsetLocation(offset);
+                int readBytes = data.read(this.data.get(ol.bufferSequence), ol.bufferOffset, Math.min(length, BUFFER_SIZE - ol.bufferOffset));
+                if (readBytes < 0) {
+                    throw new IOException("reached end of stream while still expecting data");
                 }
 
-                this.length = Math.max(this.length, startOffset + length);
-            } catch (IOException exception) {
-                throw new CompletionException(exception);
+                writtenBytes += readBytes;
+                offset += readBytes;
             }
+
+            this.length = Math.max(this.length, startOffset + length);
         }
 
         @GuardedBy("lock")

@@ -1590,7 +1590,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         TestContext(WriterConfig config) {
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.storage = new TestStorage(new InMemoryStorage(executorService()));
+            this.storage = new TestStorage(new InMemoryStorage(), executorService());
             this.storage.initialize(1);
             this.timer = new ManualTimer();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
