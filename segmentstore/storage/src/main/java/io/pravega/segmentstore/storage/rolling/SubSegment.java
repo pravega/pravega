@@ -155,7 +155,8 @@ class SubSegment {
 
     @Override
     public synchronized String toString() {
-        return String.format("%s (%d+%d%s)", this.name, this.startOffset, this.length, this.sealed ? ", sealed" : "");
+        return String.format("%s (%d+%d%s)", this.name, this.startOffset, this.length,
+                this.exists ? (this.sealed ? ", sealed" : "") : ", deleted");
     }
 
     //endregion

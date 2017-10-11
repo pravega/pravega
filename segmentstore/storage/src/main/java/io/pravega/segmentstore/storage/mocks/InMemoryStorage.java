@@ -170,8 +170,7 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
     }
 
     @Override
-    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws BadOffsetException, StreamSegmentNotExistsException,
-            StreamSegmentSealedException {
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
         ensurePreconditions();
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "Cannot concat using a read-only handle.");
         AtomicLong newLength = new AtomicLong();

@@ -125,7 +125,7 @@ class RollingSegmentHandle implements SegmentHandle {
      * Gets a value indicating whether the Segment represented by this Handle is deleted.
      */
     synchronized boolean isDeleted() {
-        return this.deleted || (this.subSegments.size() > 0 && !this.subSegments.get(this.subSegments.size() - 1).exists());
+        return this.deleted;
     }
 
     /**

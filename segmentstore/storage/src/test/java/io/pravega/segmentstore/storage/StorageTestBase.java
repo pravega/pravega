@@ -58,9 +58,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, null).join();
+            Assert.assertTrue("Expected the segment to exist.", s.exists(segmentName, null).join());
             assertThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
                     ex -> ex instanceof StreamSegmentExistsException);
+
+            // Delete and make sure it can be recreated.
+            s.openWrite(segmentName).thenCompose(handle -> s.delete(handle, null)).join();
+            s.create(segmentName, null).join();
+            Assert.assertTrue("Expected the segment to exist.", s.exists(segmentName, null).join());
         }
     }
 

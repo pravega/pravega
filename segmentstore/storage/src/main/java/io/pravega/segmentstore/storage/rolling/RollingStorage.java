@@ -41,7 +41,17 @@ import lombok.SneakyThrows;
 import lombok.val;
 
 /**
- * TODO: appropriate description.
+ * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
+ * them at various offsets.
+ *
+ * Every Segment that is created using this Storage is made up of a Header and zero or more SubSegments
+ * * The Header contains the Segment's Rolling Policy, as well as an ordered list of Offset-to-SubSegment pointers for
+ * all the SubSegments in the Segment.
+ * * The SubSegments contain data that their Segment is made of. A SubSegment starting at offset N with length L contains
+ * data for offsets [N,N+L) of the Segment.
+ * * A Segment is considered to exist if it has a non-empty Header and if its last SubSegment exists. If it does not have
+ * any SubSegments (freshly created), it is considered to exist.
+ * * A Segment is considered to be Sealed if its Header is sealed.
  */
 public class RollingStorage implements SyncStorage {
     //region Members
@@ -170,18 +180,16 @@ public class RollingStorage implements SyncStorage {
                 .name(handle.getSegmentName())
                 .sealed(handle.isSealed())
                 .length(handle.length())
-                .startOffset(0L) // TODO: we can't get this reliably without calling exists on all SubSegments.
                 .build();
     }
 
     @Override
     @SneakyThrows(StreamSegmentException.class)
     public boolean exists(String segmentName) {
-        // A Segment Exists only if its header file exists and is not empty.
-        String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         try {
-            val si = this.baseStorage.getStreamSegmentInfo(headerName);
-            return si.getLength() > 0;
+            // Try to open-read the segment, this checks both the header file and the existence of the last SubSegment.
+            openRead(segmentName);
+            return true;
         } catch (StreamSegmentNotExistsException ex) {
             return false;
         }
@@ -377,6 +385,8 @@ public class RollingStorage implements SyncStorage {
         // Delete all SubSegments which are entirely before the truncation offset.
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
+        Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
+                "truncationOffset must be non-negative and at most the length of the Segment.");
         val last = h.lastSubSegment();
         if (last != null && canTruncate(last, truncationOffset)) {
             // If we were asked to truncate the entire Segment, then rollover at this point so we can delete all existing
@@ -433,9 +443,9 @@ public class RollingStorage implements SyncStorage {
                 try {
                     val subHandle = this.baseStorage.openWrite(s.getName());
                     this.baseStorage.delete(subHandle);
+                    s.markInexistent();
                 } catch (StreamSegmentNotExistsException ex) {
-                    // Ignore; It's OK if it doesn't exist.
-                } finally {
+                    // Ignore; It's OK if it doesn't exist; just make sure the handle is updated.
                     s.markInexistent();
                 }
             }
@@ -447,7 +457,7 @@ public class RollingStorage implements SyncStorage {
         // that starts exactly at the truncationOffset should be spared (this means we truncate the entire Segment), as
         // we need that SubSegment to determine the actual length of the Segment.
         return subSegment.getStartOffset() < truncationOffset
-                || subSegment.getLastOffset() <= truncationOffset;
+                && subSegment.getLastOffset() <= truncationOffset;
     }
 
     private void refreshSubSegmentExistence(RollingSegmentHandle handle) {

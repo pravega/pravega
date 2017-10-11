@@ -127,7 +127,7 @@ public class RollingSegmentHandleTests {
                 subSegment2.getStartOffset() + subSegment2.getLength(), h.length());
         Assert.assertEquals("Unexpected lastSubSegment.", subSegment2, h.lastSubSegment());
         h.lastSubSegment().markInexistent();
-        Assert.assertTrue("Unexpected value from isDeleted after last SubSegment marked as inexistent.", h.isDeleted());
+        Assert.assertFalse("Unexpected value from isDeleted after last SubSegment marked as inexistent.", h.isDeleted());
     }
 
 

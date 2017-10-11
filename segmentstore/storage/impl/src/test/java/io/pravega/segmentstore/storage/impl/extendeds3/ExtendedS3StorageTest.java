@@ -71,8 +71,10 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
     @After
     public void tearDown() throws Exception {
-        client.shutdown();
-        client = null;
+        if (client != null) {
+            client.destroy();
+            client = null;
+        }
         s3Proxy.stop();
     }
 
