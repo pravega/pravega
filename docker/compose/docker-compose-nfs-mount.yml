@@ -55,7 +55,13 @@ services:
       REST_SERVER_PORT: 10080
       CONTROLLER_SERVER_PORT: 9090
       ZK_URL: zookeeper:2181
-      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+      JAVA_OPTS: |
+        -Dconfig.controller.metricenableCSVReporter=false
+        -Xmx512m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
       SERVICE_HOST_IP: segmentstore
     links:
       - zookeeper
@@ -76,7 +82,14 @@ services:
       HDFS_URL: ${HOST_IP}:8020
       ZK_URL: zookeeper:2181
       CONTROLLER_URL: tcp://${HOST_IP}:9090
-      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${HOST_IP} -Xmx900m
+      JAVA_OPTS: |
+        -Dmetrics.enableCSVReporter=false
+        -Dpravegaservice.publishedIPAddress=${HOST_IP}
+        -Xmx900m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
     links:
       - zookeeper
       - bookie1

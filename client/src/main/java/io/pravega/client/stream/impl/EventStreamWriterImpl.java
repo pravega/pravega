@@ -16,7 +16,6 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
@@ -282,12 +281,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         }
 
         @Override
-        public void ping(long lease) throws PingFailedException {
-            Preconditions.checkArgument(lease > 0);
-            getAndHandleExceptions(controller.pingTransaction(stream, txId, lease), PingFailedException::new);
-        }
-
-        @Override
         public UUID getTxnId() {
             return txId;
         }
@@ -301,10 +294,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     }
 
     @Override
-    public Transaction<Type> beginTxn(long timeout, long maxExecutionTime, long scaleGracePeriod) {
-        TxnSegments txnSegments = getAndHandleExceptions(
-                controller.createTransaction(stream, timeout, maxExecutionTime, scaleGracePeriod),
-                RuntimeException::new);
+    public Transaction<Type> beginTxn() {
+        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime(),
+                                                                                      config.getTransactionTimeoutTime(),
+                                                                                      config.getTransactionTimeoutScaleGracePeriod()),
+                                                         RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
