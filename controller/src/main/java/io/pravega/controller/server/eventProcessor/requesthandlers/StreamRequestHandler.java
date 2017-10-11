@@ -26,9 +26,9 @@ import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -57,6 +57,13 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     @Override
     public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
         return controllerEvent.process(this);
+    }
+
+    @Override
+    public boolean toPostpone(ControllerEvent event, long pickupTime, Throwable exception) {
+        // We will let the event be postponed for 2 minutes before declaring failure.
+        return ExceptionHelpers.getRealException(exception) instanceof TaskExceptions.StartException &&
+                (System.currentTimeMillis() - pickupTime) < Duration.ofMinutes(2).toMillis();
     }
 
     @Override
@@ -100,12 +107,8 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     private <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task,
                                                                                T event,
                                                                                Predicate<Throwable> writeBackPredicate) {
-        AtomicInteger i = new AtomicInteger(0);
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Retry.withExpBackoff(100, 10, 6, 30000)
-                .retryingOn(TaskExceptions.StartException.class)
-                .throwingOn(Exception.class)
-                .runAsync(() -> task.execute(event), executor)
+        task.execute(event)
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
                         Throwable cause = ExceptionHelpers.getRealException(e);

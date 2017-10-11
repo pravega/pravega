@@ -17,6 +17,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.util.Retry;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -67,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -80,7 +82,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
-
 
 public class StreamMetadataTasksTest {
 
@@ -176,7 +177,7 @@ public class StreamMetadataTasksTest {
         // 1. happy day test
         // update.. should succeed
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.eventQueue.take())));
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
         configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
@@ -206,7 +207,6 @@ public class StreamMetadataTasksTest {
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration1, null);
 
-        ControllerEvent event1 = requestEventWriter.getEventQueue().take();
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
                 .streamName(stream1)
@@ -215,7 +215,7 @@ public class StreamMetadataTasksTest {
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture2 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration2, null);
 
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(event1)));
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
 
         assertFalse(FutureHelpers.await(updateStreamTask.execute((UpdateStreamEvent) requestEventWriter.eventQueue.take())));
 
@@ -235,8 +235,7 @@ public class StreamMetadataTasksTest {
 
         //seal a stream.
         CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
-
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.getEventQueue().take())));
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
 
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
@@ -273,7 +272,7 @@ public class StreamMetadataTasksTest {
         //seal stream.
         CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
 
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.getEventQueue().take())));
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
 
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
         FutureHelpers.await(sealOperationResult);
@@ -281,7 +280,7 @@ public class StreamMetadataTasksTest {
 
         // delete after seal
         CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream1, null);
-        assertTrue(FutureHelpers.await(streamRequestHandler.processEvent(requestEventWriter.getEventQueue().take())));
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
     }
@@ -352,6 +351,25 @@ public class StreamMetadataTasksTest {
 
         assertTrue(segments.stream().anyMatch(x -> x.getNumber() == 1 && x.getKeyStart() == 0.0 && x.getKeyEnd() == 0.5));
         assertTrue(segments.stream().anyMatch(x -> x.getNumber() == 2 && x.getKeyStart() == 0.5 && x.getKeyEnd() == 1.0));
+    }
+
+    private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
+        return Retry.withExpBackoff(100, 10, 5, 1000)
+                .retryingOn(TaskExceptions.StartException.class)
+                .throwingOn(RuntimeException.class)
+                .runAsync(() -> {
+                    ControllerEvent event;
+                    try {
+                        event = requestEventWriter.getEventQueue().take();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return streamRequestHandler.processEvent(event)
+                            .exceptionally(e -> {
+                                requestEventWriter.getEventQueue().add(event);
+                                throw new CompletionException(e);
+                            });
+                }, executor);
     }
 
     @Data
