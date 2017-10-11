@@ -425,7 +425,7 @@ public class InMemoryStorage implements SyncStorage {
             int writtenBytes = 0;
             while (writtenBytes < length) {
                 OffsetLocation ol = getOffsetLocation(offset);
-                int readBytes = data.read(this.data.get(ol.bufferSequence), ol.bufferOffset, Math.min(length, BUFFER_SIZE - ol.bufferOffset));
+                int readBytes = data.read(this.data.get(ol.bufferSequence), ol.bufferOffset, Math.min(length - writtenBytes, BUFFER_SIZE - ol.bufferOffset));
                 if (readBytes < 0) {
                     throw new IOException("reached end of stream while still expecting data");
                 }

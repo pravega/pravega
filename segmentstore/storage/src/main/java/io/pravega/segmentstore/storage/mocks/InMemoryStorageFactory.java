@@ -16,29 +16,28 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
-    private final InMemoryStorage baseStorage;
+    private final SharedStorage baseStorage;
     private final ScheduledExecutorService executor;
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.baseStorage = new InMemoryStorage();
-        this.baseStorage.initialize(1); // InMemoryStorage does not use epochs.
+        this.baseStorage = new SharedStorage();
+        this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
     }
 
     @Override
     public Storage createStorageAdapter() {
-        return new FencedWrapper(this.baseStorage, this.executor, true);
+        return new AsyncStorageWrapper(this.baseStorage, this.executor);
     }
 
     @Override
     public void close() {
-        this.baseStorage.close();
+        this.baseStorage.closeInternal();
     }
 
     /**
@@ -49,36 +48,28 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
      */
     @VisibleForTesting
     public static Storage newStorage(Executor executor) {
-        return new FencedWrapper(new InMemoryStorage(), executor, false);
+        return new AsyncStorageWrapper(new InMemoryStorage(), executor);
     }
 
     //region FencedWrapper
 
-    private static class FencedWrapper extends AsyncStorageWrapper implements Storage {
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final InMemoryStorage baseStorage;
-        private final boolean isPreInitialized;
+    private static class SharedStorage extends InMemoryStorage {
+        private void closeInternal() {
+            super.close();
+        }
 
-        FencedWrapper(InMemoryStorage baseStorage, Executor executor, boolean isPreInitialized) {
-            super(baseStorage, executor);
-            this.baseStorage = baseStorage;
-            this.isPreInitialized = isPreInitialized;
+        private void initializeInternal(long epoch) {
+            super.initialize(epoch);
         }
 
         @Override
         public void initialize(long epoch) {
             Preconditions.checkArgument(epoch > 0, "epoch must be a positive number.");
-
-            // InMemoryStorage does not use epochs.
-            if (!this.isPreInitialized) {
-                this.baseStorage.initialize(epoch);
-            }
         }
 
         @Override
         public void close() {
             // We purposefully do not close the base adapter, as that is shared between all instances of this class.
-            this.closed.set(true);
         }
     }
 
