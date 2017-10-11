@@ -43,7 +43,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 1.0;
+    private double cpu = 0.5;
     private double mem = 1000.0;
     private final URI conUri;
 

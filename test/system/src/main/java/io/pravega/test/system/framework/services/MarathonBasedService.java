@@ -46,7 +46,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 @Slf4j
 public abstract class MarathonBasedService implements Service {
 
-    static final boolean FORCE_IMAGE = true;
+    static final boolean FORCE_IMAGE = false;
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String CONTAINER_TYPE = "DOCKER";
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
