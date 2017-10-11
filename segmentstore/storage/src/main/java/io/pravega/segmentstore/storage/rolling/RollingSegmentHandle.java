@@ -46,6 +46,8 @@ class RollingSegmentHandle implements SegmentHandle {
     @GuardedBy("this")
     private boolean sealed;
     @GuardedBy("this")
+    private boolean deleted;
+    @GuardedBy("this")
     private SegmentHandle activeSubSegmentHandle;
 
     //endregion
@@ -82,6 +84,9 @@ class RollingSegmentHandle implements SegmentHandle {
         if (source.isSealed()) {
             markSealed();
         }
+        if (source.isDeleted()) {
+            markDeleted();
+        }
     }
 
     //region Properties
@@ -98,7 +103,7 @@ class RollingSegmentHandle implements SegmentHandle {
         if (!this.sealed) {
             this.sealed = true;
             this.subSegments = Collections.unmodifiableList(this.subSegments);
-            setActiveSubSegmentHandle(null);
+            this.activeSubSegmentHandle = null;
         }
     }
 
@@ -107,6 +112,20 @@ class RollingSegmentHandle implements SegmentHandle {
      */
     synchronized boolean isSealed() {
         return this.sealed;
+    }
+
+    /**
+     * Records the fact that the Segment represented by this Handle has been deleted.
+     */
+    synchronized void markDeleted() {
+        this.deleted = true;
+    }
+
+    /**
+     * Gets a value indicating whether the Segment represented by this Handle is deleted.
+     */
+    synchronized boolean isDeleted() {
+        return this.deleted || (this.subSegments.size() > 0 && !this.subSegments.get(this.subSegments.size() - 1).exists());
     }
 
     /**
@@ -236,8 +255,12 @@ class RollingSegmentHandle implements SegmentHandle {
 
     @Override
     public synchronized String toString() {
-        return String.format("%s (%s, %s, SubSegments=%d", this.segmentName, this.sealed ? "Sealed" : "Not Sealed",
-                isReadOnly() ? "R" : "RW", this.subSegments.size());
+        if (this.deleted) {
+            return String.format("%s (Deleted)", this.segmentName);
+        } else {
+            return String.format("%s (%s, %s, SubSegments=%d)", this.segmentName, this.sealed ? "Sealed" : "Not Sealed",
+                    isReadOnly() ? "R" : "RW", this.subSegments.size());
+        }
     }
 
     //endregion

@@ -12,15 +12,16 @@ package io.pravega.segmentstore.contracts;
 /**
  * An Exception that indicates a StreamSegment has been truncated and certain offsets cannot be accessed anymore.
  */
-public class StreamSegmentTruncatedException extends StreamingException {
+public class StreamSegmentTruncatedException extends StreamSegmentException {
     /**
      * Creates a new instance of the StreamSegmentTruncatedException class.
      *
-     * @param message Message for the exception.
-     * @param ex      Causing exception.
+     * @param segmentName Name of the truncated Segment.
+     * @param message     Message.
+     * @param ex          Causing exception.
      */
-    public StreamSegmentTruncatedException(String message, Throwable ex) {
-        super(message, ex);
+    public StreamSegmentTruncatedException(String segmentName, String message, Throwable ex) {
+        super(segmentName, message, ex);
     }
 
     /**
@@ -29,6 +30,6 @@ public class StreamSegmentTruncatedException extends StreamingException {
      * @param startOffset First valid offset of the StreamSegment.
      */
     public StreamSegmentTruncatedException(long startOffset) {
-        super(String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
+        super("", String.format("Segment truncated: Lowest accessible offset is %d.", startOffset));
     }
 }

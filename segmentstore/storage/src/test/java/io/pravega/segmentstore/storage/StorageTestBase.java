@@ -270,10 +270,15 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             // Check invalid segment name.
             val firstSegmentName = getSegmentName(0, context);
             val firstSegmentHandle = s.openWrite(firstSegmentName).join();
+            val sealedSegmentName = "SealedSegment";
+            val sealedSegmentHandle = s.create(sealedSegmentName, TIMEOUT)
+                    .thenCompose(si -> s.openWrite(sealedSegmentName)).join();
+            s.write(sealedSegmentHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT).join();
+            s.seal(sealedSegmentHandle, TIMEOUT).join();
             AtomicLong firstSegmentLength = new AtomicLong(s.getStreamSegmentInfo(firstSegmentName,
                     TIMEOUT).join().getLength());
             assertThrows("concat() did not throw for non-existent target segment name.",
-                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, firstSegmentName, TIMEOUT),
+                    () -> s.concat(createHandle("foo1", false, DEFAULT_EPOCH), 0, sealedSegmentName, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             assertThrows("concat() did not throw for invalid source StreamSegment name.",

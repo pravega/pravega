@@ -44,17 +44,18 @@ public class RollingSegmentHandleTests {
         Assert.assertEquals("Unexpected rolling policy.", DEFAULT_ROLLING_POLICY, h.getRollingPolicy());
         Assert.assertTrue("Unexpected value for isReadOnly.", h.isReadOnly());
         Assert.assertFalse("Unexpected value for isSealed.", h.isSealed());
+        Assert.assertFalse("Unexpected value for isDeleted.", h.isDeleted());
 
         // Active handles.
         AssertExtensions.assertThrows(
-                "setActiveSubSegmentHandle accepted a handle when no subsegments are registered.",
+                "setActiveSubSegmentHandle accepted a handle when no SubSegments are registered.",
                 () -> h.setActiveSubSegmentHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalStateException);
 
-        val subSegmentName = "subsegment";
+        val subSegmentName = "SubSegments";
         h.addSubSegment(new SubSegment(subSegmentName, 0L), new TestHandle(subSegmentName, false));
         AssertExtensions.assertThrows(
-                "setActiveSubSegmentHandle accepted a handle that does not match the last subsegment name.",
+                "setActiveSubSegmentHandle accepted a handle that does not match the last SubSegments name.",
                 () -> h.setActiveSubSegmentHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalArgumentException);
 
@@ -75,6 +76,10 @@ public class RollingSegmentHandleTests {
         // Sealed.
         h.markSealed();
         Assert.assertTrue("Unexpected value for isSealed.", h.isSealed());
+
+        // Deleted
+        h.markDeleted();
+        Assert.assertTrue("Unexpected value for isDeleted.", h.isDeleted());
     }
 
     /**
@@ -121,6 +126,8 @@ public class RollingSegmentHandleTests {
         Assert.assertEquals("Unexpected value for length() after adding two SubSegment.",
                 subSegment2.getStartOffset() + subSegment2.getLength(), h.length());
         Assert.assertEquals("Unexpected lastSubSegment.", subSegment2, h.lastSubSegment());
+        h.lastSubSegment().markInexistent();
+        Assert.assertTrue("Unexpected value from isDeleted after last SubSegment marked as inexistent.", h.isDeleted());
     }
 
 

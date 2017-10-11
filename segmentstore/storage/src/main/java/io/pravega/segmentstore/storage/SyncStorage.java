@@ -135,7 +135,6 @@ public interface SyncStorage extends AutoCloseable {
      * @param handle A read-write SegmentHandle that points to a Segment to Seal.
      * @throws IllegalArgumentException        If handle is read-only.
      * @throws StreamSegmentNotExistsException When the given Segment does not exist in Storage.
-     * @throws StreamSegmentSealedException    When the given Segment is already Sealed.
      * @throws StorageNotPrimaryException      When this Storage instance is no longer primary for this Segment (it was
      *                                         fenced out).
      */
