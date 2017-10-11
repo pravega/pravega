@@ -85,13 +85,14 @@ abstract class AbstractFailoverTests {
         final AtomicLong eventData = new AtomicLong(0); //data used by each of the writers.
         final ConcurrentLinkedQueue<Long> eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
+        final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
         final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
         //list of all writer's futures
         final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
         //list of all reader's futures
         final List<CompletableFuture<Void>> readers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
-        final List<CompletableFuture<Void>> writersListComplete = new ArrayList<>();
+        final List<CompletableFuture<Void>> writersListComplete = synchronizedList(new ArrayList<>());
         final CompletableFuture<Void> writersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> newWritersComplete = new CompletableFuture<>();
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
@@ -234,10 +235,13 @@ abstract class AbstractFailoverTests {
 
     void waitForTxnsToComplete() {
         log.info("Wait for txns to complete");
-        try {
-            FutureHelpers.allOf(testState.txnStatusFutureList).get();
-        } catch (InterruptedException | ExecutionException e) {
-            log.error("Exception while waiting for transaction futures to complete", e);
+        if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
+            log.error("Transaction futures did not complete with exceptions");
+        }
+        // check for exceptions during transaction commits
+        if (testState.getTxnWriteException.get() != null) {
+            log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
+            Assert.fail("Unable to commit transaction. Test failure");
         }
     }
 
@@ -271,10 +275,11 @@ abstract class AbstractFailoverTests {
                     if (transaction != null) {
                         log.debug("Transaction with id: {}  failed", transaction.getTxnId());
                     }
-                    testState.getWriteException.set(e);
+                    testState.getTxnWriteException.set(e);
                     return;
                 }
             }
+            closeWriter(writer);
         }, executorService);
     }
 
@@ -367,16 +372,23 @@ abstract class AbstractFailoverTests {
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer{}", i);
-                final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                        new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
-                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
-                writerList.add(tmpWriter);
+
                 if (!testState.txnWrite.get()) {
+                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<Long>(),
+                            EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                    .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
+                    writerList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
                     FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     writerFutureList.add(writerFuture);
                 } else  {
+                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<Long>(),
+                            EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                    .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
+                                    .transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
+                    writerList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     writerFutureList.add(txnWriteFuture);
@@ -436,16 +448,22 @@ abstract class AbstractFailoverTests {
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer{}", i);
-                final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
-                        new JavaSerializer<Long>(),
-                        EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
-                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
-                newlyAddedWriterList.add(tmpWriter);
                 if (!testState.txnWrite.get()) {
+                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<Long>(),
+                            EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                    .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
+                    newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
                     FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     newWritersFutureList.add(writerFuture);
                 } else  {
+                    final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
+                            new JavaSerializer<Long>(),
+                            EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                    .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
+                                    .transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
+                    newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     newWritersFutureList.add(txnWriteFuture);
