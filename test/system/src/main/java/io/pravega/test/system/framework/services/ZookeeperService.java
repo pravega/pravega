@@ -9,14 +9,7 @@
  */
 package io.pravega.test.system.framework.services;
 
-import io.pravega.test.system.framework.TestFrameworkException;
-import io.pravega.test.system.framework.Utils;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.model.v2.App;
-import mesosphere.marathon.client.model.v2.Container;
-import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.MarathonException;
+import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +17,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
+import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.Utils;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
+import mesosphere.marathon.client.model.v2.App;
+import mesosphere.marathon.client.model.v2.Container;
+import mesosphere.marathon.client.model.v2.Docker;
+import mesosphere.marathon.client.model.v2.HealthCheck;
 
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {
 
-    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.2-alpha";
+    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
     private int instances = 1;
     private double cpu = 1.0;
     private double mem = 1024.0;
@@ -87,7 +87,8 @@ public class ZookeeperService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(ZK_IMAGE);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        final HealthCheck hc = setHealthCheck(900, "TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
+        healthCheckList.add(hc);
         app.setHealthChecks(healthCheckList);
 
         return app;

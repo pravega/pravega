@@ -74,7 +74,9 @@ public abstract class MarathonBasedService implements Service {
             GetAppResponse app = marathonClient.getApp(this.id);
             log.debug("App Details: {}", app);
             //app is not running until the desired instance count is equal to the number of task/docker containers
-            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
+            // and the state of application is healthy.
+            if ((app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue())
+                    && app.getApp().getTasksRunning().intValue() == app.getApp().getTasksHealthy().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
@@ -146,6 +148,15 @@ public abstract class MarathonBasedService implements Service {
 
     HealthCheck setHealthCheck(final int gracePeriodSeconds, final String protocol,
                                final boolean ignoreHttp1xx, final int intervalSeconds, final
+                               int timeoutSeconds, final int maxConsecutiveFailures, final int port) {
+        HealthCheck hc = setHealthCheck(gracePeriodSeconds, protocol, ignoreHttp1xx, intervalSeconds, timeoutSeconds,
+                maxConsecutiveFailures);
+        hc.setPort(port);
+        return hc;
+    }
+
+    HealthCheck setHealthCheck(final int gracePeriodSeconds, final String protocol,
+                               final boolean ignoreHttp1xx, final int intervalSeconds, final
                                int timeoutSeconds, final int maxConsecutiveFailures) {
         HealthCheck hc = new HealthCheck();
         hc.setMaxConsecutiveFailures(maxConsecutiveFailures);
@@ -199,7 +210,7 @@ public abstract class MarathonBasedService implements Service {
                 executorService);
     }
 
-    protected PortDefinition createPortDefinition(int port) {
+    PortDefinition createPortDefinition(int port) {
         PortDefinition pd = new PortDefinition();
         pd.setPort(port);
         pd.setProtocol("tcp");
