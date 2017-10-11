@@ -13,6 +13,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 
 import lombok.Cleanup;
@@ -26,11 +27,14 @@ public class StartWriter {
                                                                 StartLocalService.PORT);
         streamManager.createScope(StartLocalService.SCOPE);
         streamManager.createStream(StartLocalService.SCOPE, StartLocalService.STREAM_NAME, null);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
-        EventStreamWriter<String> writer = streamManager.getClientFactory().createEventWriter(StartLocalService.STREAM_NAME,
-                                                                new JavaSerializer<>(),
-                                                                EventWriterConfig.builder().build());
-        Transaction<String> transaction = writer.beginTxn(60000, 60000, 60000);
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(),
+                                                                           EventWriterConfig.builder()
+                                                                                            .transactionTimeoutTime(60000)
+                                                                                            .transactionTimeoutScaleGracePeriod(60000)
+                                                                                            .build());
+        Transaction<String> transaction = writer.beginTxn();
 
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional write \n";

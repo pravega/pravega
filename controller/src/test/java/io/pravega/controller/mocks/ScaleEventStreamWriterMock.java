@@ -46,7 +46,7 @@ public class ScaleEventStreamWriterMock implements EventStreamWriter<ControllerE
     }
 
     @Override
-    public Transaction<ControllerEvent> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod) {
+    public Transaction<ControllerEvent> beginTxn() {
         return null;
     }
 
