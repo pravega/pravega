@@ -10,7 +10,7 @@
 package io.pravega.client.batch;
 
 import java.util.Date;
-import java.util.List;
+import java.util.Iterator;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
@@ -40,14 +40,6 @@ import io.pravega.client.stream.Stream;
 public interface BatchClient {
 
     /**
-     * List all of the streams in a given scope.
-     * 
-     * @param scope The scope of streams to list.
-     * @return The streams in the scope.
-     */
-    List<Stream> listStreams(String scope);
-
-    /**
      * Returns metadata about the requested stream.
      * 
      * @param stream The stream
@@ -61,7 +53,7 @@ public interface BatchClient {
      * @param stream the stream
      * @return The segments in the requested stream.
      */
-    List<SegmentInfo> listSegments(Stream stream);
+    Iterator<SegmentInfo> listSegments(Stream stream);
 
     /**
      * List all the segments from the provided stream that contain any entries between the times listed.
@@ -71,7 +63,7 @@ public interface BatchClient {
      * @param until The upper bound for the date range
      * @return All segments that contain some data within the range on the requested stream.
      */
-    List<SegmentInfo> listSegments(Stream stream, Date from, Date until);
+    Iterator<SegmentInfo> listSegments(Stream stream, Date from, Date until);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the
