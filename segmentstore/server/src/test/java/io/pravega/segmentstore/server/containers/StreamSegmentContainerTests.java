@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.AbstractService;
+import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.TimeoutTimer;
@@ -59,7 +60,6 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
-import io.pravega.segmentstore.storage.mocks.ListenableStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -82,9 +82,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -1373,15 +1375,32 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
-        Assert.assertTrue("Unable to register triggers.", storage instanceof ListenableStorage);
-        ListenableStorage ls = (ListenableStorage) storage;
-        if (sp.isSealed()) {
-            // Sealed - add a seal trigger.
-            return ls.registerSealTrigger(sp.getName(), TIMEOUT);
-        } else {
-            // Not sealed - add a size trigger.
-            return ls.registerSizeTrigger(sp.getName(), sp.getLength(), TIMEOUT);
-        }
+        Function<SegmentProperties, Boolean> meetsConditions = storageProps -> {
+            if (sp.isSealed()) {
+                // Segment is sealed, we can stop when Storage Segment is sealed too.
+                return storageProps.isSealed();
+            } else {
+                // Segment is not sealed, we can stop when Storage Segment's length exceeds the one we have.
+                return storageProps.getLength() >= sp.getLength();
+            }
+        };
+
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
+        return FutureHelpers.loop(
+                canContinue::get,
+                () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)
+                             .thenCompose(storageProps -> {
+                                 if (meetsConditions.apply(storageProps)) {
+                                     canContinue.set(false);
+                                     return CompletableFuture.completedFuture(null);
+                                 } else if (!timer.hasRemaining()) {
+                                     return FutureHelpers.failedFuture(new TimeoutException());
+                                 } else {
+                                     return FutureHelpers.delayedFuture(Duration.ofMillis(10), executorService());
+                                 }
+                             }).thenRun(Runnables.doNothing()),
+                executorService());
     }
 
     private Collection<AttributeUpdate> createAttributeUpdates(UUID[] attributes) {

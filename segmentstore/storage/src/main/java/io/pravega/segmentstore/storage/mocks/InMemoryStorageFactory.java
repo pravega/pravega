@@ -14,8 +14,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,7 +54,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     //region FencedWrapper
 
-    private static class FencedWrapper extends AsyncStorageWrapper implements Storage, ListenableStorage {
+    private static class FencedWrapper extends AsyncStorageWrapper implements Storage {
         private final AtomicBoolean closed = new AtomicBoolean();
         private final InMemoryStorage baseStorage;
         private final boolean isPreInitialized;
@@ -81,16 +79,6 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         public void close() {
             // We purposefully do not close the base adapter, as that is shared between all instances of this class.
             this.closed.set(true);
-        }
-
-        @Override
-        public CompletableFuture<Void> registerSizeTrigger(String segmentName, long offset, Duration timeout) {
-            return this.baseStorage.registerSizeTrigger(segmentName, offset, timeout);
-        }
-
-        @Override
-        public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
-            return this.baseStorage.registerSealTrigger(segmentName, timeout);
         }
     }
 

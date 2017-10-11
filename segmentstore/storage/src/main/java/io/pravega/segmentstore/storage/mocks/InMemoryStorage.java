@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -25,30 +24,21 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.SneakyThrows;
-import lombok.val;
 
 /**
  * In-Memory mock for Storage. Contents is destroyed when object is garbage collected.
  */
-public class InMemoryStorage implements SyncStorage, ListenableStorage {
+public class InMemoryStorage implements SyncStorage {
     //region Members
 
-    @GuardedBy("offsetTriggers")
-    private final HashMap<String, HashMap<Long, CompletableFuture<Void>>> offsetTriggers;
-    @GuardedBy("sealTriggers")
-    private final HashMap<String, CompletableFuture<Void>> sealTriggers;
     @GuardedBy("lock")
     private final HashMap<String, StreamSegmentData> streamSegments = new HashMap<>();
     private final Object lock = new Object();
@@ -56,15 +46,12 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
     private final SyncContext syncContext;
     private final AtomicBoolean initialized;
     private final AtomicBoolean closed;
-    private final ScheduledExecutorService triggerExecutor = Executors.newScheduledThreadPool(1);
 
     //endregion
 
     //region Constructor
 
     public InMemoryStorage() {
-        this.offsetTriggers = new HashMap<>();
-        this.sealTriggers = new HashMap<>();
         this.currentOwnerId = new AtomicLong(0);
         this.syncContext = new SyncContext(this.currentOwnerId::get);
         this.initialized = new AtomicBoolean();
@@ -77,9 +64,7 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
 
     @Override
     public void close() {
-        if (!this.closed.getAndSet(true)) {
-            this.triggerExecutor.shutdown();
-        }
+        this.closed.set(true);
     }
 
     //endregion
@@ -135,7 +120,6 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot write using a read-only handle.");
 
         getStreamSegmentData(handle.getSegmentName()).write(offset, data, length);
-        this.triggerExecutor.execute(() -> fireOffsetTriggers(handle.getSegmentName(), offset + length));
     }
 
     @Override
@@ -149,10 +133,6 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot seal using a read-only handle.");
         getStreamSegmentData(handle.getSegmentName()).markSealed();
-        this.triggerExecutor.execute(() -> {
-            fireSealTrigger(handle.getSegmentName());
-            cancelOffsetTriggersDueToSeal(handle.getSegmentName());
-        });
     }
 
     @Override
@@ -179,11 +159,6 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
             targetData.concat(sourceData, offset);
             deleteInternal(new InMemorySegmentHandle(sourceSegment, false));
             newLength.set(targetData.getInfo().getLength());
-
-        this.triggerExecutor.execute(() -> {
-            fireOffsetTriggers(targetHandle.getSegmentName(), newLength.get());
-            fireSealTrigger(sourceSegment);
-        });
     }
 
     @Override
@@ -230,14 +205,6 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot append using a read-only handle.");
         getStreamSegmentData(handle.getSegmentName()).append(data, length);
-        this.triggerExecutor.execute(() -> {
-            try {
-                long segmentLength = getStreamSegmentData(handle.getSegmentName()).getInfo().getLength();
-                fireOffsetTriggers(handle.getSegmentName(), segmentLength);
-            } catch (StreamSegmentNotExistsException ex) {
-                //Ignore.
-            }
-        });
     }
 
     /**
@@ -267,157 +234,6 @@ public class InMemoryStorage implements SyncStorage, ListenableStorage {
 
             this.streamSegments.remove(handle.getSegmentName());
         }
-
-        cancelTriggers(handle.getSegmentName());
-    }
-
-    //endregion
-
-    //region Size & seal triggers
-
-    @Override
-    @SneakyThrows(StreamSegmentNotExistsException.class)
-    public CompletableFuture<Void> registerSizeTrigger(String segmentName, long offset, Duration timeout) {
-        CompletableFuture<Void> result;
-        boolean newTrigger = false;
-        synchronized (this.offsetTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
-            if (segmentTriggers == null) {
-                segmentTriggers = new HashMap<>();
-                this.offsetTriggers.put(segmentName, segmentTriggers);
-            }
-
-            result = segmentTriggers.getOrDefault(offset, null);
-            if (result == null) {
-                result = createSizeTrigger(segmentName, offset, timeout);
-                segmentTriggers.put(offset, result);
-                newTrigger = true;
-            }
-        }
-
-        if (newTrigger && !result.isDone()) {
-            // Do the check now to see if we already exceed the trigger threshold.
-            val si = getStreamSegmentInfo(segmentName);
-
-            if (si.getLength() >= offset) {
-                fireOffsetTriggers(segmentName, si.getLength());
-            }
-        }
-
-        return result;
-    }
-
-    @Override
-    @SneakyThrows(StreamSegmentNotExistsException.class)
-    public CompletableFuture<Void> registerSealTrigger(String segmentName, Duration timeout) {
-        CompletableFuture<Void> result;
-        boolean newTrigger = false;
-        synchronized (this.sealTriggers) {
-            result = this.sealTriggers.getOrDefault(segmentName, null);
-            if (result == null) {
-                result = createSealTrigger(segmentName, timeout);
-                this.sealTriggers.put(segmentName, result);
-                newTrigger = true;
-            }
-        }
-
-        if (newTrigger && !result.isDone()) {
-            // Do the check now to see if we are already sealed.
-            val si = getStreamSegmentInfo(segmentName);
-            if (si.isSealed()) {
-                fireSealTrigger(segmentName);
-            }
-        }
-
-        return result;
-    }
-
-    private void fireOffsetTriggers(String segmentName, long currentOffset) {
-        val toTrigger = new ArrayList<CompletableFuture<Void>>();
-        synchronized (this.offsetTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
-            if (segmentTriggers != null) {
-                segmentTriggers.entrySet().forEach(e -> {
-                    if (e.getKey() <= currentOffset) {
-                        toTrigger.add(e.getValue());
-                    }
-                });
-            }
-        }
-
-        toTrigger.forEach(c -> c.complete(null));
-    }
-
-    private void fireSealTrigger(String segmentName) {
-        CompletableFuture<Void> toTrigger;
-        synchronized (this.sealTriggers) {
-            toTrigger = this.sealTriggers.getOrDefault(segmentName, null);
-        }
-
-        if (toTrigger != null) {
-            toTrigger.complete(null);
-        }
-    }
-
-    private void cancelOffsetTriggersDueToSeal(String segmentName) {
-        val toCancel = new ArrayList<CompletableFuture<Void>>();
-        synchronized (this.offsetTriggers) {
-            HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
-            if (segmentTriggers != null) {
-                toCancel.addAll(segmentTriggers.values());
-            }
-        }
-
-        val exception = new StreamSegmentSealedException(segmentName);
-        toCancel.forEach(c -> c.completeExceptionally(exception));
-    }
-
-    private void cancelTriggers(String segmentName) {
-        val toCancel = new ArrayList<CompletableFuture>();
-        synchronized (this.sealTriggers) {
-            val trigger = this.sealTriggers.remove(segmentName);
-            if (trigger != null) {
-                toCancel.add(trigger);
-            }
-        }
-
-        synchronized (this.offsetTriggers) {
-            val trigger = this.offsetTriggers.remove(segmentName);
-            if (trigger != null) {
-                toCancel.addAll(trigger.values());
-            }
-        }
-
-        toCancel.forEach(c -> c.cancel(true));
-    }
-
-    private CompletableFuture<Void> createSizeTrigger(String segmentName, long minSize, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.triggerExecutor);
-        result.whenComplete((r, ex) -> {
-            synchronized (this.offsetTriggers) {
-                HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
-                if (segmentTriggers != null) {
-                    segmentTriggers.remove(minSize);
-
-                    if (segmentTriggers.size() == 0) {
-                        this.offsetTriggers.remove(segmentName);
-                    }
-                }
-            }
-        });
-
-        return result;
-    }
-
-    private CompletableFuture<Void> createSealTrigger(String segmentName, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.triggerExecutor);
-        result.whenComplete((r, ex) -> {
-            synchronized (this.sealTriggers) {
-                this.sealTriggers.remove(segmentName);
-            }
-        });
-
-        return result;
     }
 
     private void ensurePreconditions() {
