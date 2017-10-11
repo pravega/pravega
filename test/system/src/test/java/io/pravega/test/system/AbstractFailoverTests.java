@@ -33,7 +33,6 @@ import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -245,29 +245,11 @@ abstract class AbstractFailoverTests {
     CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
             while (!testState.stopWriteFlag.get()) {
-                Transaction<Long> txnDebugReference = null;
+                Transaction<Long> transaction = null;
                 AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
-                    Transaction<Long> transaction = writer.beginTxn(5000, 3600000, 29000);
-                    txnDebugReference = transaction;
-
-                    // Sets a recurrent delayed task to ping the txn. It exits when the
-                    // txn completes and no longer needs pinging
-                    FutureHelpers.loop(() -> !txnIsDone.get(), () -> {
-                        return FutureHelpers.delayedTask(() -> {
-                            if (transaction.checkStatus() == Transaction.Status.OPEN) {
-                                FutureHelpers.runOrFail(() -> {
-                                    transaction.ping(5000);
-                                    return null;
-                                }, new CompletableFuture<Void>());
-                            } else {
-                                txnIsDone.set(true);
-                            }
-
-                            return null;
-                        }, Duration.ofMillis(2000), executorService);
-                    }, executorService);
+                    transaction = writer.beginTxn();
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = testState.eventData.incrementAndGet();
@@ -286,8 +268,8 @@ abstract class AbstractFailoverTests {
                     // caught here.
                     txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: ", e);
-                    if (txnDebugReference != null) {
-                        log.debug("Transaction with id: {}  failed", txnDebugReference.getTxnId());
+                    if (transaction != null) {
+                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
                     }
                     testState.getWriteException.set(e);
                     return;
