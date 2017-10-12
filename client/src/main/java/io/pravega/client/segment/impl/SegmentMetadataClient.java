@@ -19,7 +19,7 @@ public interface SegmentMetadataClient extends AutoCloseable {
      *
      * @return The length of the current segment.
      */
-    abstract long fetchCurrentStreamLength();
+    abstract long fetchCurrentSegmentLength();
 
     /**
      * Gets the current value of the provided attribute.

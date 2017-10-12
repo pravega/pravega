@@ -233,7 +233,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
     
     @Override
-    public long fetchCurrentStreamLength() {
+    public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)

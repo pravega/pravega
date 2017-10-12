@@ -54,7 +54,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName()));
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         assertEquals(123, length);
     }
 
@@ -132,7 +132,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(getSegmentInfo2);
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(endpoint, processor);
         order.verify(connection).send(getSegmentInfo1);
@@ -174,7 +174,7 @@ public class SegmentMetadataClientTest {
         }).when(connection2).send(getSegmentInfo2);
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
-        long length = client.fetchCurrentStreamLength();
+        long length = client.fetchCurrentSegmentLength();
         order.verify(cf, Mockito.times(2)).establishConnection(Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).send(getSegmentInfo1);
         order.verify(connection1).close();
