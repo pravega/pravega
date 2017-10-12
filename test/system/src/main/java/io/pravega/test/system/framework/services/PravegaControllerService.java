@@ -130,7 +130,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
