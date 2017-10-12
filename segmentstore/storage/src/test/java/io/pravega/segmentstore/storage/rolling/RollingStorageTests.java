@@ -47,7 +47,9 @@ public class RollingStorageTests extends StorageTestBase {
     public void testRolling() throws Exception {
         // Write small and large writes, alternatively.
         @Cleanup
-        val s = createRollingStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
         s.create(SEGMENT_NAME);
         val writeHandle = s.openWrite(SEGMENT_NAME);
@@ -58,7 +60,6 @@ public class RollingStorageTests extends StorageTestBase {
         // Check that no file has exceeded its maximum length.
         byte[] writtenData = writeStream.toByteArray();
         Assert.assertEquals("Unexpected segment length.", writtenData.length, s.getStreamSegmentInfo(SEGMENT_NAME).getLength());
-        val baseStorage = s.getBaseStorage();
         int checkedLength = 0;
         while (checkedLength < writtenData.length) {
             String subSegmentName = StreamSegmentNameUtils.getSubSegmentName(SEGMENT_NAME, checkedLength);
@@ -81,14 +82,11 @@ public class RollingStorageTests extends StorageTestBase {
      */
     @Test
     public void testTruncate() throws Exception {
-        // Check writes
-        // Check reads (even with separate handles)
-        // Check concats (that they don't work if source is truncated)
-        // Check interrupted truncates.
-
         // Write small and large writes, alternatively.
         @Cleanup
-        val s = createRollingStorage();
+        val baseStorage = new TestStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
         s.create(SEGMENT_NAME);
         val writeHandle = (RollingSegmentHandle) s.openWrite(SEGMENT_NAME);
@@ -109,7 +107,7 @@ public class RollingStorageTests extends StorageTestBase {
                         || (subSegment.getStartOffset() == subSegment.getLastOffset() && subSegment.getLastOffset() == truncateOffset);
                 Assert.assertEquals("Unexpected SubSegment truncation status for " + subSegment + ", truncation offset = " + truncateOffset,
                         expectedExists, subSegment.exists());
-                boolean existsInStorage = s.getBaseStorage().exists(subSegment.getName());
+                boolean existsInStorage = baseStorage.exists(subSegment.getName());
                 Assert.assertEquals("Expected SubSegment deletion status for " + subSegment + ", truncation offset = " + truncateOffset,
                         expectedExists, existsInStorage);
                 if (!expectedExists) {
@@ -185,7 +183,9 @@ public class RollingStorageTests extends StorageTestBase {
         final int initialSourceLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() - initialTargetLength;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val s = createRollingStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
 
         // Create a target Segment and write a little data to it.
@@ -256,7 +256,9 @@ public class RollingStorageTests extends StorageTestBase {
         final int bigSourceLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() - initialTargetLength + 1;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val s = createRollingStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
 
         // Create a Target Segment and a Source Segment and write some data to them.
@@ -284,7 +286,9 @@ public class RollingStorageTests extends StorageTestBase {
         final int initialTargetLength = (int) DEFAULT_ROLLING_POLICY.getMaxLength() / 2;
         final String sourceSegmentName = "SourceSegment";
         @Cleanup
-        val s = createRollingStorage();
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
 
         // Create a Target Segment and a Source Segment and write some data to them.
@@ -351,10 +355,6 @@ public class RollingStorageTests extends StorageTestBase {
     @Override
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new RollingStorage(new InMemoryStorage(), DEFAULT_ROLLING_POLICY), executorService());
-    }
-
-    private RollingStorage createRollingStorage() {
-        return new RollingStorage(new InMemoryStorage(), DEFAULT_ROLLING_POLICY);
     }
 
     @Override

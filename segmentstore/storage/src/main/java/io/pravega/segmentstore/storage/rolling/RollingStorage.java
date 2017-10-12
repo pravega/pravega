@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.rolling;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.LoggerHelpers;
@@ -36,8 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -59,8 +56,6 @@ import lombok.val;
 public class RollingStorage implements SyncStorage {
     //region Members
 
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
     private final SyncStorage baseStorage;
     private final SegmentRollingPolicy defaultRollingPolicy;
     private final AtomicBoolean closed;
