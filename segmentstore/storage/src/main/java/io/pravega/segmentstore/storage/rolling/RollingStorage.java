@@ -11,6 +11,7 @@ package io.pravega.segmentstore.storage.rolling;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.StreamingException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -101,10 +103,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle openRead(String segmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", segmentName);
-        val headerInfo = getHeaderInfo(segmentName);
-        val headerHandle = this.baseStorage.openRead(headerInfo.getName());
-        val handle = readHeader(headerInfo, headerHandle);
-        updateLengths(handle);
+        val handle = openHandle(segmentName, true);
         LoggerHelpers.traceLeave(log, "openRead", traceId, handle);
         return handle;
     }
@@ -114,6 +113,8 @@ public class RollingStorage implements SyncStorage {
         val h = asReadableHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
         ensureNotDeleted(h);
+        Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
+
         if (offset < 0 || bufferOffset < 0 || length < 0 || buffer.length < bufferOffset + length) {
             throw new ArrayIndexOutOfBoundsException(String.format(
                     "Offset (%s) must be non-negative, and bufferOffset (%s) and length (%s) must be valid indices into buffer of size %s.",
@@ -129,6 +130,8 @@ public class RollingStorage implements SyncStorage {
             log.debug("Handle refreshed: {}.", h);
         }
 
+        Preconditions.checkArgument(offset < h.length(), "Offset %s is beyond the last offset %s of the segment.",
+                offset, h.length());
         Preconditions.checkArgument(offset + length <= h.length(), "Offset %s + length %s is beyond the last offset %s of the segment.",
                 offset, length, h.length());
 
@@ -144,6 +147,11 @@ public class RollingStorage implements SyncStorage {
                 // Verify if this is a known truncated SubSegment; if so, bail out quickly.
                 SubSegment current = subSegments.get(currentIndex);
                 checkTruncatedSegment(null, h, current);
+                if (current.getLength() == 0) {
+                    // Empty SubSegment; don't bother trying to read from it.
+                    continue;
+                }
+
                 long readOffset = offset + bytesRead - current.getStartOffset();
                 int readLength = (int) Math.min(length - bytesRead, current.getLength() - readOffset);
                 assert readOffset >= 0 && readLength >= 0 : "negative readOffset or readLength";
@@ -203,25 +211,24 @@ public class RollingStorage implements SyncStorage {
 
     //endregion
 
-    //region Storage Implementation
+    //region SyncStorage Implementation
 
     @Override
     public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
         return create(streamSegmentName, this.defaultRollingPolicy);
     }
 
-    /**
-     * Creates a new StreamSegment with given SegmentRollingPolicy.
-     *
-     * @param segmentName   The full name of the StreamSegment.
-     * @param rollingPolicy The Rolling Policy to apply to this StreamSegment.
-     * @return A SegmentProperties describing the newly created Segment.
-     * @throws StreamSegmentException If an exception occurred.
-     */
+    @Override
     public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerSubSegment = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
+
+        // First, check if the segment exists but with no header (it might have been created prior to applying
+        // RollingStorage to this baseStorage).
+        if (this.baseStorage.exists(segmentName)) {
+            throw new StreamSegmentExistsException(segmentName);
+        }
 
         // Create the header file, and then serialize the contents to it.
         // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
@@ -261,10 +268,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public SegmentHandle openWrite(String segmentName) throws StreamSegmentException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", segmentName);
-        val headerInfo = getHeaderInfo(segmentName);
-        val headerHandle = this.baseStorage.openWrite(headerInfo.getName());
-        val handle = readHeader(headerInfo, headerHandle);
-        updateLengths(handle);
+        val handle = openHandle(segmentName, false);
 
         // Finally, open the Active SubSegment for writing.
         SubSegment last = handle.lastSubSegment();
@@ -311,7 +315,11 @@ public class RollingStorage implements SyncStorage {
         ensureNotDeleted(h);
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         sealActiveSubSegment(h);
-        this.baseStorage.seal(h.getHeaderHandle());
+        SegmentHandle headerHandle = h.getHeaderHandle();
+        if (headerHandle != null) {
+            this.baseStorage.seal(headerHandle);
+        }
+
         h.markSealed();
         log.debug("Sealed Header for '{}'.", h.getSegmentName());
         LoggerHelpers.traceLeave(log, "seal", traceId, handle);
@@ -341,26 +349,37 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkState(source.subSegments().stream().allMatch(SubSegment::exists),
                 "Cannot use segment '%s' as concat source because it is truncated.", source.getSegmentName());
 
-        SubSegment lastSource = source.lastSubSegment();
-        SubSegment lastTarget = target.lastSubSegment();
-        if (lastSource != null && lastSource.getStartOffset() == 0
-                && lastTarget != null && !lastTarget.isSealed()
-                && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength()) {
-            // The Source is made up of a single SubSegment that can fit entirely into the Target's Active SubSegment.
-            // Concat it directly without touching the header file; this helps prevent having a lot of very small SubSegments
-            // around if the application has a lot of small transactions.
+        if (shouldConcatNatively(source, target)) {
+            // The Source either does not have a Header or is made up of a single SubSegment that can fit entirely into
+            // the Target's Active SubSegment. Concat it directly without touching the header file; this helps prevent
+            // having a lot of very small SubSegments around if the application has a lot of small transactions.
             log.debug("Concat '{}' into '{}' using native method.", source, target);
+            SubSegment lastTarget = target.lastSubSegment();
+            if (lastTarget == null || lastTarget.isSealed()) {
+                // Make sure the last SubSegment of the target is not sealed, otherwise we can't concat into it.
+                rollover(target);
+            }
+
+            SubSegment lastSource = source.lastSubSegment();
             this.baseStorage.concat(target.getActiveSubSegmentHandle(), target.lastSubSegment().getLength(), lastSource.getName());
             target.lastSubSegment().increaseLength(lastSource.getLength());
-            try {
-                this.baseStorage.delete(source.getHeaderHandle());
-            } catch (StreamSegmentNotExistsException ex) {
-                // It's ok if it's not there anymore.
-                log.warn("Attempted to delete concat source Header '{}' but it doesn't exist.", source.getHeaderHandle().getSegmentName(), ex);
+            if (source.getHeaderHandle() != null) {
+                try {
+                    this.baseStorage.delete(source.getHeaderHandle());
+                } catch (StreamSegmentNotExistsException ex) {
+                    // It's ok if it's not there anymore.
+                    log.warn("Attempted to delete concat source Header '{}' but it doesn't exist.", source.getHeaderHandle().getSegmentName(), ex);
+                }
             }
         } else {
             // Generate new SubSegment entries from the SubSegments of the Source Segment(but update their start offsets).
             log.debug("Concat '{}' into '{}' using header merge method.", source, target);
+
+            if (target.getHeaderHandle() == null) {
+                // We need to concat into a Segment that does not have a Header (yet). Create one before continuing.
+                createHeader(target);
+            }
+
             List<SubSegment> newSubSegments = rebase(source.subSegments(), target.length());
             sealActiveSubSegment(target);
             serializeBeginConcat(target, source);
@@ -374,35 +393,53 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
-        // We need to seal the whole Segment to prevent anyone else from creating new SubSegments while we're deleting
-        // them, after which we delete all SubSegments and finally the header file.
         val h = asReadableHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
-        if (!h.isSealed()) {
-            val writeHandle = h.isReadOnly() ? (RollingSegmentHandle) openWrite(handle.getSegmentName()) : h;
-            seal(writeHandle);
+
+        SegmentHandle headerHandle = h.getHeaderHandle();
+        if (headerHandle == null) {
+            // Directly delete the only SubSegment, and bubble up any exceptions if it doesn't exist.
+            val subHandle = this.baseStorage.openWrite(h.lastSubSegment().getName());
+            try {
+                this.baseStorage.delete(subHandle);
+                h.lastSubSegment().markInexistent();
+                h.markDeleted();
+            } catch (StreamSegmentNotExistsException ex) {
+                h.lastSubSegment().markInexistent();
+                h.markDeleted();
+                throw ex;
+            }
+        } else {
+            // We need to seal the whole Segment to prevent anyone else from creating new SubSegments while we're deleting
+            // them, after which we delete all SubSegments and finally the header file.
+            if (!h.isSealed()) {
+                val writeHandle = h.isReadOnly() ? (RollingSegmentHandle) openWrite(handle.getSegmentName()) : h;
+                seal(writeHandle);
+            }
+
+            deleteSubSegments(h, s -> true);
+            try {
+                this.baseStorage.delete(headerHandle);
+                h.markDeleted();
+            } catch (StreamSegmentNotExistsException ex) {
+                h.markDeleted();
+                throw ex;
+            }
         }
 
-        deleteSubSegments(h, s -> true);
-        try {
-            this.baseStorage.delete(h.getHeaderHandle());
-            h.markDeleted();
-        } catch (StreamSegmentNotExistsException ex) {
-            h.markDeleted();
-            throw ex;
-        }
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
-
-    //endregion
-
-    //region TruncateableStorage Implementation
 
     @Override
     public void truncate(SegmentHandle handle, long truncationOffset) throws StreamSegmentException {
         // Delete all SubSegments which are entirely before the truncation offset.
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
+        if (h.getHeaderHandle() == null) {
+            // No header means the Segment is made up of a single SubSegment. We can't do anything.
+            return;
+        }
+
         long traceId = LoggerHelpers.traceEnter(log, "truncate", h, truncationOffset);
         Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
                 "truncationOffset must be non-negative and at most the length of the Segment.");
@@ -427,6 +464,7 @@ public class RollingStorage implements SyncStorage {
     //region SubSegment Operations
 
     private void rollover(RollingSegmentHandle handle) throws StreamSegmentException {
+        Preconditions.checkArgument(handle.getHeaderHandle() != null, "Cannot rollover a Segment with no header.");
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot rollover using a read-only handle.");
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
         log.debug("Rolling over '{}'.", handle);
@@ -436,10 +474,11 @@ public class RollingStorage implements SyncStorage {
 
     private void sealActiveSubSegment(RollingSegmentHandle handle) throws StreamSegmentException {
         SegmentHandle activeSubSegment = handle.getActiveSubSegmentHandle();
-        if (activeSubSegment != null) {
+        SubSegment last = handle.lastSubSegment();
+        if (activeSubSegment != null && !last.isSealed()) {
             this.baseStorage.seal(activeSubSegment);
             handle.setActiveSubSegmentHandle(null);
-            handle.lastSubSegment().markSealed();
+            last.markSealed();
             log.debug("Sealed active SubSegment '{}' for '{}'.", activeSubSegment.getSegmentName(), handle.getSegmentName());
         }
     }
@@ -498,6 +537,75 @@ public class RollingStorage implements SyncStorage {
 
     //region Header Operations
 
+    private void createHeader(RollingSegmentHandle handle) throws StreamSegmentException {
+        Preconditions.checkArgument(handle.getHeaderHandle() == null, "handle already has a header.");
+
+        // Create a new Header SubSegment.
+        String headerSubSegment = StreamSegmentNameUtils.getHeaderSegmentName(handle.getSegmentName());
+        this.baseStorage.create(headerSubSegment);
+        val headerHandle = this.baseStorage.openWrite(headerSubSegment);
+
+        // Create a new Handle and serialize it, after which update the original handle.
+        val newHandle = new RollingSegmentHandle(headerHandle, handle.getRollingPolicy(), handle.subSegments());
+        serializeHandle(newHandle);
+        handle.refresh(newHandle);
+    }
+
+    private boolean shouldConcatNatively(RollingSegmentHandle source, RollingSegmentHandle target) {
+        if (source.getHeaderHandle() == null) {
+            // Source does not have a Header, hence we cannot do Header concat.
+            return true;
+        }
+
+        SubSegment lastSource = source.lastSubSegment();
+        SubSegment lastTarget = target.lastSubSegment();
+        return lastSource != null && lastSource.getStartOffset() == 0
+                && lastTarget != null && !lastTarget.isSealed()
+                && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength();
+    }
+
+    private RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
+        // Load up the handle from Storage.
+        RollingSegmentHandle handle;
+        try {
+            // Attempt to open using Header.
+            val headerInfo = getHeaderInfo(segmentName);
+            val headerHandle = readOnly
+                    ? this.baseStorage.openRead(headerInfo.getName())
+                    : this.baseStorage.openWrite(headerInfo.getName());
+            handle = readHeader(headerInfo, headerHandle);
+        } catch (StreamSegmentNotExistsException ex) {
+            // Header does not exist. Attempt to open Segment directly.
+            val segmentHandle = readOnly ? this.baseStorage.openRead(segmentName) : this.baseStorage.openWrite(segmentName);
+            handle = new RollingSegmentHandle(segmentHandle);
+        }
+
+        // Update each SubSegment's Length (based on offset difference) and mark them as Sealed.
+        SubSegment last = null;
+        for (SubSegment s : handle.subSegments()) {
+            if (last != null) {
+                last.setLength(s.getStartOffset() - last.getStartOffset());
+                last.markSealed();
+            }
+
+            last = s;
+        }
+
+        // For the last one, we need to actually check the file and update its info.
+        if (last != null) {
+            val si = this.baseStorage.getStreamSegmentInfo(last.getName());
+            last.setLength(si.getLength());
+            if (si.isSealed()) {
+                last.markSealed();
+                if (handle.getHeaderHandle() == null) {
+                    handle.markSealed();
+                }
+            }
+        }
+
+        return handle;
+    }
+
     private SegmentProperties getHeaderInfo(String segmentName) throws StreamSegmentException {
         String headerSegment = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         val headerInfo = this.baseStorage.getStreamSegmentInfo(headerSegment);
@@ -516,31 +624,8 @@ public class RollingStorage implements SyncStorage {
         if (headerInfo.isSealed()) {
             handle.markSealed();
         }
+
         return handle;
-    }
-
-    private void updateLengths(RollingSegmentHandle handle) throws StreamSegmentException {
-        // For all but the last SubSegment we can infer the lengths by doing some simple arithmetic.
-        SubSegment previous = null;
-        for (SubSegment s : handle.subSegments()) {
-            if (previous != null) {
-                previous.setLength(s.getStartOffset() - previous.getStartOffset());
-                previous.markSealed();
-            }
-
-            previous = s;
-        }
-
-        // For the last one, we need to actually check the file.
-        SubSegment activeSubSegment = handle.lastSubSegment();
-        if (activeSubSegment != null) {
-            val si = this.baseStorage.getStreamSegmentInfo(activeSubSegment.getName());
-            activeSubSegment.setLength(si.getLength());
-            if (si.isSealed()) {
-                // Last segment is Sealed, so we can't have a Write Handle for it.
-                activeSubSegment.markSealed();
-            }
-        }
     }
 
     private void serializeHandle(RollingSegmentHandle handle) throws StreamSegmentException {

@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;

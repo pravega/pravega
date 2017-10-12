@@ -51,7 +51,24 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
+    default CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        return create(streamSegmentName, SegmentRollingPolicy.NO_ROLLING, timeout);
+    }
+
+    /**
+     * Creates a new StreamSegment in this Storage Layer with the given Rolling Policy.
+     *
+     * @param streamSegmentName The full name of the StreamSegment.
+     * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
+     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
+     * failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
+     * </ul>
+     */
+    CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.

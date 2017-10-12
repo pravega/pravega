@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
@@ -832,6 +833,11 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+            return this.createHandler.apply(streamSegmentName);
+        }
+
+        @Override
+        public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
             return this.createHandler.apply(streamSegmentName);
         }
 

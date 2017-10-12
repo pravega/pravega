@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.ErrorInjector;
@@ -81,6 +82,12 @@ public class TestStorage implements Storage {
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
                 () -> this.wrappedStorage.create(streamSegmentName, timeout));
+    }
+
+    @Override
+    public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
+        return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
+                () -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout));
     }
 
     @Override

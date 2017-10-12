@@ -10,10 +10,12 @@
 package io.pravega.segmentstore.storage.rolling;
 
 import io.pravega.segmentstore.contracts.StreamSegmentException;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
@@ -95,7 +97,8 @@ public class RollingStorageTests extends StorageTestBase {
         populate(s, writeHandle, writeStream);
         byte[] writtenData = writeStream.toByteArray();
 
-        for (int truncateOffset = 0; truncateOffset <= writtenData.length; truncateOffset += DEFAULT_ROLLING_POLICY.getMaxLength() / 2) {
+        int truncateOffset = 0;
+        while (true) {
             s.truncate(writeHandle, truncateOffset);
 
             // Verify we can still read properly.
@@ -117,6 +120,13 @@ public class RollingStorageTests extends StorageTestBase {
                             ex -> ex instanceof StreamSegmentTruncatedException);
                 }
             }
+
+            // Increment truncateOffset by some value, but let's make sure we also truncate at the very end of the Segment.
+            if (truncateOffset >= writtenData.length) {
+                break;
+            }
+
+            truncateOffset = (int) Math.min(writtenData.length, truncateOffset + DEFAULT_ROLLING_POLICY.getMaxLength() / 2);
         }
 
         // Do some more writes and verify they are added properly.
@@ -134,6 +144,36 @@ public class RollingStorageTests extends StorageTestBase {
                 "concat() allowed using a truncated segment as a source.",
                 () -> s.concat(targetSegmentHandle, 0, SEGMENT_NAME),
                 ex -> ex instanceof IllegalStateException);
+    }
+
+    /**
+     * Tests the case when Create was interrupted after it created the Header file but before populating it.
+     */
+    @Test
+    public void testCreateRecovery() throws Exception {
+        @Cleanup
+        val baseStorage = new TestStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
+        s.initialize(1);
+
+        // Create an empty header file. This simulates a create() operation that failed mid-way.
+        baseStorage.create(StreamSegmentNameUtils.getHeaderSegmentName(SEGMENT_NAME));
+        Assert.assertFalse("Not expecting Segment to exist.", s.exists(SEGMENT_NAME));
+        AssertExtensions.assertThrows(
+                "Not expecting Segment to exist (getStreamSegmentInfo).",
+                () -> s.getStreamSegmentInfo(SEGMENT_NAME),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        AssertExtensions.assertThrows(
+                "Not expecting Segment to exist (openHandle).",
+                () -> s.openRead(SEGMENT_NAME),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // Retry the operation and verify everything is in place.
+        s.create(SEGMENT_NAME);
+        val si = s.getStreamSegmentInfo(SEGMENT_NAME);
+        Assert.assertEquals("Expected the Segment to have been created.", 0, si.getLength());
     }
 
     /**
@@ -347,6 +387,102 @@ public class RollingStorageTests extends StorageTestBase {
         checkWrittenData(writeStream.toByteArray(), s.openRead(SEGMENT_NAME), s);
     }
 
+    /**
+     * Tests the ability to handle Segment files with no header, which simulates a scenario where we add RollingStorage
+     * to a Storage adapter that did not previously handle files this way.
+     */
+    @Test
+    public void testBackwardsCompatibility() throws Exception {
+        final String segmentName = "SonHeaderSegment";
+        @Cleanup
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
+        s.initialize(1);
+
+        // Create a plain Segment in the Base Storage; this will not have any headers or any special file layout.
+        baseStorage.create(segmentName);
+
+        // Verify create() with existing non-Header Segment.
+        AssertExtensions.assertThrows(
+                "create() allowed creating a new Segment which already existed.",
+                () -> s.create(segmentName),
+                ex -> ex instanceof StreamSegmentExistsException);
+        Assert.assertTrue("Non-Header Segment does not exist after failed create() attempt.", baseStorage.exists(segmentName));
+        Assert.assertFalse("A header was left behind (after create).",
+                baseStorage.exists(StreamSegmentNameUtils.getHeaderSegmentName(segmentName)));
+
+        // Verify exists().
+        Assert.assertTrue("Unexpected result from exists() when called on a non-header Segment.", s.exists(segmentName));
+
+        // Verify openWrite(), write() and seal(). Verify no rolling even if we exceed default rolling policy.
+        val writeHandle = s.openWrite(segmentName);
+        val os = new ByteArrayOutputStream();
+        populate(s, writeHandle, os);
+        s.seal(writeHandle);
+        byte[] writtenData = os.toByteArray();
+        Assert.assertFalse("A header was left behind (after write).",
+                baseStorage.exists(StreamSegmentNameUtils.getHeaderSegmentName(segmentName)));
+
+        // Verify getInfo().
+        val baseInfo = baseStorage.getStreamSegmentInfo(segmentName);
+        val rollingInfo = s.getStreamSegmentInfo(segmentName);
+        Assert.assertTrue("Segment not sealed.", baseInfo.isSealed());
+        Assert.assertEquals("Unexpected Segment length.", writtenData.length, baseInfo.getLength());
+        Assert.assertEquals("GetInfo.Name mismatch between base and rolling.", baseInfo.getName(), rollingInfo.getName());
+        Assert.assertEquals("GetInfo.Length mismatch between base and rolling.", baseInfo.getLength(), rollingInfo.getLength());
+        Assert.assertEquals("GetInfo.Sealed mismatch between base and rolling.", baseInfo.isSealed(), rollingInfo.isSealed());
+
+        // Verify openRead() and read().
+        val readHandle = s.openRead(segmentName);
+        checkWrittenData(writtenData, readHandle, s);
+
+        // Verify that truncate() is a no-op.
+        for (long truncateOffset = 0; truncateOffset < writtenData.length; truncateOffset += 10) {
+            s.truncate(writeHandle, truncateOffset);
+        }
+        checkWrittenData(writtenData, readHandle, s);
+
+        // Verify concat() with Source & Target non-Header Segments.
+        final String nonHeaderName = "NonHeaderSegment";
+        baseStorage.create(nonHeaderName);
+        val nonHeaderHandle = s.openWrite(nonHeaderName);
+        s.concat(nonHeaderHandle, 0, segmentName);
+        Assert.assertFalse("NonHeader source still exists after concat to NonHeader Segment.", s.exists(segmentName));
+        checkWrittenData(writtenData, s.openRead(nonHeaderName), s);
+
+        // Verify concat() with Source as non-Header Segment, but Target is a Header Segment.
+        final String withHeaderName = "WithHeader";
+        s.create(withHeaderName, DEFAULT_ROLLING_POLICY);
+        s.seal(nonHeaderHandle);
+        val withHeaderHandle = s.openWrite(withHeaderName);
+        s.concat(withHeaderHandle, 0, nonHeaderName);
+        Assert.assertFalse("NonHeader source still exists after concat to Header Segment.", s.exists(nonHeaderName));
+        val h1 = (RollingSegmentHandle) s.openRead(withHeaderName);
+        checkWrittenData(writtenData, h1, s);
+        Assert.assertEquals("Unexpected MaxLength after concat.", DEFAULT_ROLLING_POLICY.getMaxLength(), h1.getRollingPolicy().getMaxLength());
+
+        // Verify concat() with Source as Header Segment, but Target as a non-Header Segment.
+        baseStorage.create(nonHeaderName); // We reuse this Segment Name since it should have been gone by now.
+        populate(s, withHeaderHandle, os); // Need to create a few SubSegments to force a Header concat.
+        s.seal(withHeaderHandle);
+        s.concat(s.openWrite(nonHeaderName), 0, withHeaderName);
+        Assert.assertFalse("NonHeader source still exists after concat to Header Segment.", s.exists(withHeaderName));
+        val h2 = (RollingSegmentHandle) s.openRead(nonHeaderName);
+        checkWrittenData(writtenData, h2, s);
+        Assert.assertEquals("Unexpected MaxLength after concat into non-header segment.",
+                SegmentRollingPolicy.NO_ROLLING.getMaxLength(), h2.getRollingPolicy().getMaxLength());
+
+        // Verify delete().
+        baseStorage.create(segmentName);
+        populate(s, s.openWrite(segmentName), new ByteArrayOutputStream());
+        s.delete(s.openWrite(segmentName));
+        Assert.assertFalse("Segment still exists after deletion.", s.exists(segmentName));
+        Assert.assertFalse("Segment still exists after deletion.", baseStorage.exists(segmentName));
+    }
+
+    //region StorageTestBase Implementation
+
     @Override
     public void testFencing() throws Exception {
         // Fencing is left up to the underlying Storage implementation to handle. There's nothing to test here.
@@ -363,6 +499,10 @@ public class RollingStorageTests extends StorageTestBase {
         val headerHandle = InMemoryStorage.newHandle(headerName, readOnly);
         return new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
     }
+
+    //endregion
+
+    //region Helpers
 
     private void populate(RollingStorage s, SegmentHandle writeHandle, ByteArrayOutputStream writeStream) throws Exception {
         populate(s, writeHandle, WRITE_COUNT, SMALL_WRITE_LENGTH, LARGE_WRITE_LENGTH, writeStream);
@@ -399,10 +539,17 @@ public class RollingStorageTests extends StorageTestBase {
 
     private void checkWrittenData(byte[] writtenData, int offset, SegmentHandle readHandle, RollingStorage s) throws StreamSegmentException {
         byte[] readBuffer = new byte[writtenData.length - offset];
+        if (readBuffer.length == 0) {
+            // Nothing to check.
+            return;
+        }
+
         int bytesRead = s.read(readHandle, offset, readBuffer, 0, readBuffer.length);
         Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
         AssertExtensions.assertArrayEquals("Unexpected data read back.", writtenData, offset, readBuffer, 0, readBuffer.length);
     }
+
+    //endregion
 
     //region TestStorage
 

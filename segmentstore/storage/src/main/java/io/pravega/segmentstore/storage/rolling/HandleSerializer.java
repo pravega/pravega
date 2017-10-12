@@ -15,6 +15,7 @@ import com.google.common.base.Strings;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.AbstractMap;
@@ -54,12 +55,12 @@ final class HandleSerializer {
 
         SegmentRollingPolicy policy = null;
         OffsetAdjuster om = new OffsetAdjuster();
-        long lastOffset = -1;
+        long lastOffset = 0;
         ArrayList<SubSegment> subSegments = new ArrayList<>();
         while (st.hasMoreTokens()) {
             val entry = parse(st.nextToken());
             if (entry.getKey().equalsIgnoreCase(KEY_POLICY_MAX_SIZE)) {
-                // Rolling policy entry; only check if we don't have it set yet.
+                // Rolling policy entry: only check if we don't have it set yet.
                 if (policy == null) {
                     Preconditions.checkArgument(isValidLong(entry.getValue()), "Invalid entry value for '%s'.", entry);
                     policy = new SegmentRollingPolicy(Long.parseLong(entry.getValue()));
@@ -73,7 +74,7 @@ final class HandleSerializer {
                 Preconditions.checkArgument(isValidLong(entry.getKey()), "Invalid key value for '%s'.", entry);
                 long offset = om.adjustOffset(Long.parseLong(entry.getKey()));
                 SubSegment s = new SubSegment(entry.getValue(), offset);
-                Preconditions.checkArgument(lastOffset < s.getStartOffset(),
+                Preconditions.checkArgument(lastOffset <= s.getStartOffset(),
                         "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
                 subSegments.add(s);
                 lastOffset = s.getStartOffset();

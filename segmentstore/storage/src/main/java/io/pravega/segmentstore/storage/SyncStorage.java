@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import java.io.InputStream;
@@ -91,15 +90,27 @@ public interface SyncStorage extends AutoCloseable {
     SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException;
 
     /**
-     * Creates a new StreamSegment in this Storage Layer.
+     * Creates a new StreamSegment.
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @return A SegmentProperties describing the newly created Segment.
-     * @throws StreamSegmentExistsException If the Segment does not exist.
-     * @throws StorageNotPrimaryException   When this Storage instance is no longer primary for this Segment (it was
-     *                                      fenced out).
+     * @throws StreamSegmentException If an exception occurred.
      */
     SegmentProperties create(String streamSegmentName) throws StreamSegmentException;
+
+    /**
+     * Creates a new StreamSegment with given SegmentRollingPolicy.
+     *
+     * @param streamSegmentName The full name of the StreamSegment.
+     * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
+     * @return A SegmentProperties describing the newly created Segment.
+     * @throws StreamSegmentException If an exception occurred.
+     */
+    default SegmentProperties create(String streamSegmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
+        // By default this creates a blank Segment. This is the default behavior for Storage implementations that do not
+        // support Segment Rolling.
+        return create(streamSegmentName);
+    }
 
     /**
      * Deletes a StreamSegment.
