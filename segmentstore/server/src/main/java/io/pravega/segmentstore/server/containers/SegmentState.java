@@ -26,7 +26,7 @@ import lombok.Getter;
 class SegmentState {
     //region Members
 
-    private static final byte SERIALIZATION_VERSION = 0;
+    private static final byte SERIALIZATION_VERSION = 1;
     @Getter
     private final String segmentName;
     @Getter
@@ -85,13 +85,20 @@ class SegmentState {
      */
     public static SegmentState deserialize(DataInputStream source) throws IOException, DataCorruptionException {
         try {
+            // TODO: implement a more elegant versioned deserializer (https://github.com/pravega/pravega/issues/1956)
             byte version = source.readByte();
             if (version == SERIALIZATION_VERSION) {
+                // Up-to-date.
                 long segmentId = source.readLong();
                 String segmentName = source.readUTF();
                 long startOffset = source.readLong();
                 Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
                 return new SegmentState(segmentId, segmentName, startOffset, attributes);
+            } else if (version == 0) {
+                long segmentId = source.readLong();
+                String segmentName = source.readUTF();
+                Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
+                return new SegmentState(segmentId, segmentName, 0L, attributes);
             } else {
                 throw new DataCorruptionException(String.format("Unsupported State File version: %d.", version));
             }
