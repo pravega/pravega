@@ -387,7 +387,7 @@ abstract class AbstractFailoverTests {
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
-                                    .transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
+                                    .transactionTimeoutTime(35000).transactionTimeoutScaleGracePeriod(40000).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
@@ -462,7 +462,7 @@ abstract class AbstractFailoverTests {
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
-                                    .transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
+                                    .transactionTimeoutTime(35000).transactionTimeoutScaleGracePeriod(40000).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
