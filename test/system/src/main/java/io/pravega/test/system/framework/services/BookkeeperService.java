@@ -64,7 +64,7 @@ public class BookkeeperService extends MarathonBasedService {
         try {
             marathonClient.createApp(createBookieApp());
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                waitUntilServiceRunning().get(10, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
