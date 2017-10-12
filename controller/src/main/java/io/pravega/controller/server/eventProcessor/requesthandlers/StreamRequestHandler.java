@@ -31,6 +31,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
+
 @Slf4j
 public class StreamRequestHandler extends SerializedRequestHandler<ControllerEvent> implements RequestProcessor {
     private static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> e instanceof StoreException.OperationNotAllowedException;
@@ -108,7 +110,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
                                                                                T event,
                                                                                Predicate<Throwable> writeBackPredicate) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        task.execute(event)
+        withRetries(() -> task.execute(event), executor)
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
                         Throwable cause = ExceptionHelpers.getRealException(e);

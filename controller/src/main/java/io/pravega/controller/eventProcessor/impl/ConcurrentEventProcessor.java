@@ -127,11 +127,10 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     private CompletableFuture<Void> handleProcessingError(R request, Throwable e) {
         CompletableFuture<Void> future;
-        Throwable cause;
-        if (e instanceof RetriesExhaustedException) {
-            cause = e.getCause();
-        } else {
-            cause = ExceptionHelpers.getRealException(e);
+        Throwable cause = ExceptionHelpers.getRealException(e);
+
+        if (cause instanceof RetriesExhaustedException) {
+            cause = cause.getCause();
         }
 
         if (RetryableException.isRetryable(cause)) {
