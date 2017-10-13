@@ -9,7 +9,6 @@
  */
 package io.pravega.client.stream.notifications;
 
-import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 
 /**
@@ -25,11 +24,4 @@ public interface ReaderGroupEventListener {
      * @return Observable of type ScaleEvent.
      */
     Observable<ScaleEvent> getScaleEventNotifier();
-
-    /**
-     * Get a custom scale event notifier for a given readergroup.
-     *
-     * @return Observable of type CustomEvent.
-     */
-    Observable<CustomEvent> getCustomEventNotifier();
 }

@@ -13,7 +13,6 @@ import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.notifier.CustomEventNotifier;
 import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 import lombok.Synchronized;
 
@@ -22,13 +21,11 @@ import lombok.Synchronized;
  */
 public class NotifierFactory {
 
-    private final CustomEventNotifier customEventNotifier;
     private final NotificationSystem system;
     private ScaleEventNotifier scaleEventNotifier;
 
     public NotifierFactory(final NotificationSystem notificationSystem) {
         this.system = notificationSystem;
-        this.customEventNotifier = new CustomEventNotifier(this.system);
     }
 
     @Synchronized
@@ -37,10 +34,6 @@ public class NotifierFactory {
             scaleEventNotifier = new ScaleEventNotifier(this.system, stateSyncronizerSupplier);
         }
         return scaleEventNotifier;
-    }
-
-    public CustomEventNotifier getCustomNotifier() {
-        return customEventNotifier;
     }
 
     // multiple such notifiers can be added.

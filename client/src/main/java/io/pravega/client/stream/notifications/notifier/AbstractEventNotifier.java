@@ -24,7 +24,7 @@ public abstract class AbstractEventNotifier<T extends Event> implements Observab
 
     protected final NotificationSystem notifySystem;
 
-    AbstractEventNotifier(final NotificationSystem notifySystem) {
+    protected AbstractEventNotifier(final NotificationSystem notifySystem) {
         this.notifySystem = notifySystem;
     }
 

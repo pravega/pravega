@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications.events;
+package io.pravega.client.stream.notifications;
 
+import io.pravega.client.stream.notifications.events.Event;
 import lombok.Builder;
 
 /**

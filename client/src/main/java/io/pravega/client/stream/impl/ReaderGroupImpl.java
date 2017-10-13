@@ -33,7 +33,6 @@ import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
-import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
@@ -216,8 +215,4 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return this.notifierFactory.getScaleNotifier(this::createSynchronizer);
     }
 
-    @Override
-    public Observable<CustomEvent> getCustomEventNotifier() {
-        return this.notifierFactory.getCustomNotifier();
-    }
 }

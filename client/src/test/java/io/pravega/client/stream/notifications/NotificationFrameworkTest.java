@@ -25,7 +25,6 @@ import org.mockito.junit.MockitoJUnitRunner;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 import io.pravega.test.common.InlineExecutor;
@@ -37,10 +36,9 @@ public class NotificationFrameworkTest {
     @Spy
     private final ReaderGroupImpl readerGroup = new ReaderGroupImpl("testScope", "rg1", null, null, null,
             null, null, null);
+    private final NotificationSystem notificationSystem = readerGroup.getNotificationSystem();
     @Mock
     private StateSynchronizer<ReaderGroupState> sync;
-
-    private final NotificationSystem notificationSystem = readerGroup.getNotificationSystem();
 
     @Test
     public void scaleEventTest() {
@@ -109,7 +107,7 @@ public class NotificationFrameworkTest {
         Listener<ScaleEvent> scaleEventListener = event -> scaleEventListenerInvoked.set(true);
         scaleNotifier.registerListener(scaleEventListener, executor);
 
-        Observable<CustomEvent> customEventNotifier = readerGroup.getCustomEventNotifier();
+        Observable<CustomEvent> customEventNotifier = new CustomEventNotifier(notificationSystem);
         Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
         customEventNotifier.registerListener(customEventListener, executor);
 

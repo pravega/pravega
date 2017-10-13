@@ -7,10 +7,9 @@
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications.notifier;
+package io.pravega.client.stream.notifications;
 
-import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.events.CustomEvent;
+import io.pravega.client.stream.notifications.notifier.AbstractEventNotifier;
 
 public class CustomEventNotifier extends AbstractEventNotifier<CustomEvent> {
 
