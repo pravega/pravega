@@ -15,34 +15,35 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ScaleEventNotifier implements Observable<ScaleEvent> {
+public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
 
     private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
             System.getProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(120)));
-    private final NotificationSystem system;
-    private final Supplier<ScaleEvent> scaleEventSupplier;
+    private final StateSynchronizer<ReaderGroupState> synchronizer;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
     @GuardedBy("$lock")
     private ScheduledFuture<?> future;
 
-    public ScaleEventNotifier(final NotificationSystem system, final Supplier<ScaleEvent> scaleEventSupplier) {
-        this.system = system;
-        this.scaleEventSupplier = scaleEventSupplier;
+    public ScaleEventNotifier(final NotificationSystem notifySystem,
+                              final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
+        super(notifySystem);
+        this.synchronizer = synchronizerSupplier.get();
     }
 
     @Override
     @Synchronized
-    public void addListener(final Listener<ScaleEvent> listener, final ScheduledExecutorService executor) {
-        system.addListeners(getType(), listener, executor);
+    public void registerListener(final Listener<ScaleEvent> listener, final ScheduledExecutorService executor) {
+        notifySystem.addListeners(getType(), listener, executor);
         //periodically fetch the scale
         if (!pollingStarted.getAndSet(true)) { //schedule the  only once
             future = executor.scheduleAtFixedRate(this::checkAndTriggerScaleNotification, 0,
@@ -52,18 +53,20 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
 
     @Override
     @Synchronized
-    public void removeListener(final Listener<ScaleEvent> listener) {
-        system.removeListener(getType(), listener);
-        if (!system.isListenerPresent(getType())) {
+    public void unregisterListener(final Listener<ScaleEvent> listener) {
+        notifySystem.removeListener(getType(), listener);
+        if (!notifySystem.isListenerPresent(getType())) {
             cancelScheduledTask();
+            synchronizer.close();
         }
     }
 
     @Override
     @Synchronized
-    public void removeListeners() {
-        this.system.removeListeners(getType());
+    public void unregisterListeners() {
+        this.notifySystem.removeListeners(getType());
         cancelScheduledTask();
+        synchronizer.close();
     }
 
     @Override
@@ -72,9 +75,13 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
     }
 
     private void checkAndTriggerScaleNotification() {
-        ScaleEvent event = scaleEventSupplier.get();
+        this.synchronizer.fetchUpdates();
+        ReaderGroupState state = this.synchronizer.getState();
+        ScaleEvent event = ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
+                         .numOfReaders(state.getOnlineReaders().size())
+                         .build();
         if (event.getNumOfReaders() != event.getNumOfSegments()) {
-            system.notify(event);
+            notifySystem.notify(event);
         }
     }
 

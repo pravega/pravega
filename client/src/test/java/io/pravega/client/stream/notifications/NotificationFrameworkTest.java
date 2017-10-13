@@ -17,17 +17,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
 
+import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
+import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
 import io.pravega.test.common.InlineExecutor;
 
+@RunWith(MockitoJUnitRunner.class)
 public class NotificationFrameworkTest {
 
     private final ScheduledExecutorService executor = new InlineExecutor();
+    @Spy
     private final ReaderGroupImpl readerGroup = new ReaderGroupImpl("testScope", "rg1", null, null, null,
             null, null, null);
+    @Mock
+    private StateSynchronizer<ReaderGroupState> sync;
+
     private final NotificationSystem notificationSystem = readerGroup.getNotificationSystem();
 
     @Test
@@ -35,8 +47,8 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
         //Application can subscribe to scale events in the following way.
-        Observable<ScaleEvent> notifier = readerGroup.getScaleEventNotifier();
-        notifier.addListener(scaleEvent -> {
+        Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync);
+        notifier.registerListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();
             if (numReader < segments) {
@@ -59,7 +71,7 @@ public class NotificationFrameworkTest {
 
         scaleEventReceived.set(false);
 
-        notifier.removeListeners();
+        notifier.unregisterListeners();
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());
@@ -69,16 +81,16 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.addListener(listener1, executor);
-        notifier.addListener(listener2, executor);
+        notifier.registerListener(listener1, executor);
+        notifier.registerListener(listener2, executor);
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
-        notifier.removeListener(listener1);
-        notifier.removeListener(listener2);
+        notifier.unregisterListener(listener1);
+        notifier.unregisterListener(listener2);
 
         listener1Invoked.set(false);
         listener2Invoked.set(false);
@@ -93,13 +105,13 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventListenerInvoked = new AtomicBoolean();
         final AtomicBoolean customEventListenerInvoked = new AtomicBoolean();
 
-        Observable<ScaleEvent> scaleNotifier = readerGroup.getScaleEventNotifier();
+        Observable<ScaleEvent> scaleNotifier = new ScaleEventNotifier(notificationSystem, () -> sync);
         Listener<ScaleEvent> scaleEventListener = event -> scaleEventListenerInvoked.set(true);
-        scaleNotifier.addListener(scaleEventListener, executor);
+        scaleNotifier.registerListener(scaleEventListener, executor);
 
         Observable<CustomEvent> customEventNotifier = readerGroup.getCustomEventNotifier();
         Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
-        customEventNotifier.addListener(customEventListener, executor);
+        customEventNotifier.registerListener(customEventListener, executor);
 
         //trigger notifications
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
@@ -113,7 +125,7 @@ public class NotificationFrameworkTest {
         assertFalse(scaleEventListenerInvoked.get());
         assertTrue(customEventListenerInvoked.get());
 
-        customEventNotifier.removeListeners();
+        customEventNotifier.unregisterListeners();
         customEventListenerInvoked.set(false);
 
         //trigger notifications
@@ -127,8 +139,8 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
         //Application can subscribe to scale events in the following way.
-        final Observable<ScaleEvent> notifier = readerGroup.getScaleEventNotifier();
-        notifier.addListener(scaleEvent -> {
+        final Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync);
+        notifier.registerListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();
             if (numReader < segments) {
@@ -151,7 +163,7 @@ public class NotificationFrameworkTest {
 
         scaleEventReceived.set(false);
 
-        notifier.removeListeners();
+        notifier.unregisterListeners();
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         Assert.assertFalse("Scale Event notification should not be received", scaleEventReceived.get());
@@ -161,16 +173,16 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.addListener(listener1, executor);
-        notifier.addListener(listener2, executor);
+        notifier.registerListener(listener1, executor);
+        notifier.registerListener(listener2, executor);
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
         assertTrue("Scale Event notification not received on listener 1", listener1Invoked.get());
         assertTrue("Scale Event notification not received on listener 2", listener2Invoked.get());
 
-        notifier.removeListener(listener1);
-        notifier.removeListener(listener2);
+        notifier.unregisterListener(listener1);
+        notifier.unregisterListener(listener2);
 
         listener1Invoked.set(false);
         listener2Invoked.set(false);

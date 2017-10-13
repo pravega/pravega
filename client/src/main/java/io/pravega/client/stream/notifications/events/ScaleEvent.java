@@ -9,16 +9,17 @@
  */
 package io.pravega.client.stream.notifications.events;
 
-import io.pravega.client.stream.notifications.Event;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
- * Class to represent a scale event.
+ * Class to represent a scale event. This contains the current number of segments and the current number of readers.
  */
 @Data
+@EqualsAndHashCode(callSuper = false)
 @Builder
-public class ScaleEvent implements Event {
+public class ScaleEvent extends Event {
     private int numOfSegments;
     private int numOfReaders;
 }

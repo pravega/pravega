@@ -37,7 +37,7 @@ import lombok.val;
  * This class encapsulates the state machine of a reader group. The class represents the full state, and each
  * of the nested classes are state transitions that can occur.
  */
-class ReaderGroupState implements Revisioned {
+public class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String scopedSynchronizerStream;
@@ -98,7 +98,7 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    Set<String> getOnlineReaders() {
+    public Set<String> getOnlineReaders() {
         return new HashSet<>(assignedSegments.keySet());
     }
     
@@ -172,7 +172,7 @@ class ReaderGroupState implements Revisioned {
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
      */
     @Synchronized
-    int getNumberOfSegments() {
+    public int getNumberOfSegments() {
         return assignedSegments.values().stream().mapToInt(Map::size).sum() + unassignedSegments.size();
     }
     

@@ -14,6 +14,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
+import io.pravega.client.stream.notifications.events.Event;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.Synchronized;
@@ -45,7 +47,10 @@ public class NotificationSystem {
         String type = event.getClass().getSimpleName();
         map.get(type).forEach(l -> {
             log.info("Executing listener of type: {} for event: {}", type, event);
-            l.getExecutor().submit(() -> l.getListener().onEvent(event));
+            ExecutorServiceHelpers.execute(() -> l.getListener().onEvent(event),
+                    throwable -> log.error("Exception while executing listener for event: {}", event),
+                    () -> log.info("Completed execution of notify for event :{}", event),
+                    l.getExecutor());
         });
     }
 

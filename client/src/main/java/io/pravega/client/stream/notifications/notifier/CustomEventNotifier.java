@@ -9,34 +9,13 @@
  */
 package io.pravega.client.stream.notifications.notifier;
 
-import java.util.concurrent.ScheduledExecutorService;
-
-import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.events.CustomEvent;
 
-public class CustomEventNotifier implements Observable<CustomEvent> {
-
-    private final NotificationSystem system;
+public class CustomEventNotifier extends AbstractEventNotifier<CustomEvent> {
 
     public CustomEventNotifier(final NotificationSystem system) {
-        this.system = system;
-    }
-
-    @Override
-    public void addListener(final Listener<CustomEvent> listener, final ScheduledExecutorService executor) {
-        this.system.addListeners(getType(), listener, executor);
-    }
-
-    @Override
-    public void removeListener(final Listener<CustomEvent> listener) {
-        this.system.removeListener(getType(), listener);
-    }
-
-    @Override
-    public void removeListeners() {
-        this.system.removeListeners(getType());
+        super(system);
     }
 
     @Override

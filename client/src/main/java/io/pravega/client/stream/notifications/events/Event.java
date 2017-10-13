@@ -7,10 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications;
+package io.pravega.client.stream.notifications.events;
+
+import lombok.Data;
 
 /**
  * Represents base Event type for a notification.
  */
-public interface Event {
+@Data
+public class Event {
 }

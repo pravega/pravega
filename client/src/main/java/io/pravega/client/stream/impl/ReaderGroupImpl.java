@@ -213,17 +213,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Observable<ScaleEvent> getScaleEventNotifier() {
-        return this.notifierFactory.getScaleNotifier(this::getCurrentScaleEvent);
-    }
-
-    private ScaleEvent getCurrentScaleEvent() {
-        @Cleanup
-        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        synchronizer.fetchUpdates();
-        ReaderGroupState state = synchronizer.getState();
-        return ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
-                         .numOfReaders(state.getOnlineReaders().size())
-                         .build();
+        return this.notifierFactory.getScaleNotifier(this::createSynchronizer);
     }
 
     @Override
