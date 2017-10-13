@@ -40,7 +40,7 @@ public class CustomEventNotifier implements Observable<CustomEvent> {
     }
 
     @Override
-    public Class<CustomEvent> getType() {
-        return CustomEvent.class;
+    public String getType() {
+        return CustomEvent.class.getSimpleName();
     }
 }

@@ -67,8 +67,8 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
     }
 
     @Override
-    public Class<ScaleEvent> getType() {
-        return ScaleEvent.class;
+    public String getType() {
+        return ScaleEvent.class.getSimpleName();
     }
 
     private void checkAndTriggerScaleNotification() {

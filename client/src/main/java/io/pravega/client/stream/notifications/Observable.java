@@ -38,5 +38,5 @@ public interface Observable<T> {
      * Get the event type.
      * @return Class of event type.
      */
-    Class<T> getType();
+    String getType();
 }

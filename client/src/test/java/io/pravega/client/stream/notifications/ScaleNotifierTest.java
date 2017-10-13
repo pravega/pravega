@@ -65,6 +65,6 @@ public class ScaleNotifierTest {
         notifier.addListener(listener1, executor); //duplicate listener
 
         notifier.removeListeners();
-        verify(system, times(1)).removeListeners(ScaleEvent.class);
+        verify(system, times(1)).removeListeners(ScaleEvent.class.getSimpleName());
     }
 }
