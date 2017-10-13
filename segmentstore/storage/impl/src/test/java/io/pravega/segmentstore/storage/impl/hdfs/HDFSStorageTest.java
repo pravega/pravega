@@ -14,10 +14,10 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Collections;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -117,19 +117,50 @@ public class HDFSStorageTest extends StorageTestBase {
     //endregion
 
     @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        val allFiles = Collections.singletonList(new FileDescriptor(new Path("/" + segmentName + "_0_0"), 0, 0, 0, false));
-        if (readOnly) {
-            return HDFSSegmentHandle.read(segmentName, allFiles);
-        } else {
-            return HDFSSegmentHandle.write(segmentName, allFiles);
-        }
-    }
-
-    @Override
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new TestHDFSStorage(this.adapterConfig), executorService());
     }
+
+    //region RollingStorageTests
+
+    /**
+     * Tests the HDFSStorage adapter with a RollingStorage wrapper.
+     */
+    public static class RollingStorageTests extends RollingStorageTestBase {
+        @Rule
+        public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+        private File baseDir = null;
+        private MiniDFSCluster hdfsCluster = null;
+        private HDFSStorageConfig adapterConfig;
+
+        @Before
+        public void setUp() throws Exception {
+            this.baseDir = Files.createTempDirectory("test_hdfs").toFile().getAbsoluteFile();
+            this.hdfsCluster = HDFSClusterHelpers.createMiniDFSCluster(this.baseDir.getAbsolutePath());
+            this.adapterConfig = HDFSStorageConfig
+                    .builder()
+                    .with(HDFSStorageConfig.REPLICATION, 1)
+                    .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
+                    .build();
+        }
+
+        @After
+        public void tearDown() {
+            if (hdfsCluster != null) {
+                hdfsCluster.shutdown();
+                hdfsCluster = null;
+                FileHelpers.deleteFileOrDirectory(baseDir);
+                baseDir = null;
+            }
+        }
+
+        @Override
+        protected Storage createStorage() {
+            return wrap(new TestHDFSStorage(this.adapterConfig));
+        }
+    }
+
+    //endregion
 
     //region TestHDFSStorage
 

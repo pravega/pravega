@@ -53,6 +53,16 @@ import lombok.val;
  * * A Segment is considered to exist if it has a non-empty Header and if its last SubSegment exists. If it does not have
  * any SubSegments (freshly created), it is considered to exist.
  * * A Segment is considered to be Sealed if its Header is sealed.
+ *
+ * A note about compatibility:
+ * * The RollingStorage wrapper is fully compatible with data and Segments that were created before RollingStorage was
+ * applied. That means that it can access and modify existing Segments that were created without a Header, but all new
+ * Segments will have a header. As such, there is no need to do any sort of migration when starting to use this class.
+ * * Should the RollingStorage need to be discontinued without having to do a migration:
+ * ** The create() method should be overridden (in a derived class) to create new Segments natively (without a Header).
+ * ** The concat() method should be overridden (in a derived class) to not convert Segments without Header into Segments
+ * with Header.
+ * ** Existing Segments (made up of Header and multi-SubSegments) can still be accessed by means of this class.
  */
 @Slf4j
 public class RollingStorage implements SyncStorage {
@@ -65,6 +75,15 @@ public class RollingStorage implements SyncStorage {
     //endregion
 
     //region Constructor
+
+    /**
+     * Creates a new instance of the RollingStorage class with a default SegmentRollingPolicy set to NoRolling.
+     *
+     * @param baseStorage          A SyncStorage that will be used to execute operations.
+     */
+    public RollingStorage(SyncStorage baseStorage) {
+        this(baseStorage, SegmentRollingPolicy.NO_ROLLING);
+    }
 
     /**
      * Creates a new instance of the RollingStorage class.
@@ -703,7 +722,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     private RollingSegmentHandle asReadableHandle(SegmentHandle handle) {
-        Preconditions.checkArgument(handle instanceof RollingSegmentHandle, "handle must be of type HDFSSegmentHandle.");
+        Preconditions.checkArgument(handle instanceof RollingSegmentHandle, "handle must be of type RollingSegmentHandle.");
         return (RollingSegmentHandle) handle;
     }
 

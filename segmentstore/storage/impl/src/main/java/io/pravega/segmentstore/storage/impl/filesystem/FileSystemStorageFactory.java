@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -38,6 +38,7 @@ public class FileSystemStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new AsyncStorageWrapper(new FileSystemStorage(this.config), this.executor);
+        FileSystemStorage s = new FileSystemStorage(this.config);
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
 }

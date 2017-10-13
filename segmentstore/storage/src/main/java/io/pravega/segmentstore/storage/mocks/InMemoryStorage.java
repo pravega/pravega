@@ -182,14 +182,12 @@ public class InMemoryStorage implements SyncStorage {
 
     @Override
     public void truncate(SegmentHandle handle, long offset) throws StreamSegmentNotExistsException {
-        ensurePreconditions();
-        Preconditions.checkArgument(!handle.isReadOnly(), "Cannot truncate using a read-only handle.");
-        getStreamSegmentData(handle.getSegmentName()).truncate(offset);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean supportsTruncation() {
-        return true;
+        return false;
     }
 
     /**
@@ -259,8 +257,6 @@ public class InMemoryStorage implements SyncStorage {
         @GuardedBy("lock")
         private boolean sealed;
         @GuardedBy("lock")
-        private long truncateOffset;
-        @GuardedBy("lock")
         private int firstBufferOffset;
 
         StreamSegmentData(String name, SyncContext context) {
@@ -270,7 +266,6 @@ public class InMemoryStorage implements SyncStorage {
             this.sealed = false;
             this.context = context;
             this.currentOwnerId = Long.MIN_VALUE;
-            this.truncateOffset = 0;
             this.firstBufferOffset = 0;
         }
 
@@ -305,7 +300,6 @@ public class InMemoryStorage implements SyncStorage {
             synchronized (this.lock) {
                 Exceptions.checkArrayRange(targetOffset, length, target.length, "targetOffset", "length");
                 Exceptions.checkArrayRange(startOffset, length, this.length, "startOffset", "length");
-                Preconditions.checkArgument(startOffset >= this.truncateOffset, "startOffset (%s) is before the truncation offset (%s).", startOffset, this.truncateOffset);
 
                 long offset = startOffset;
                 int readBytes = 0;
@@ -344,7 +338,6 @@ public class InMemoryStorage implements SyncStorage {
                 // on SyncContext.syncRoot.
                 synchronized (other.lock) {
                     Preconditions.checkState(other.sealed, "Cannot concat segment '%s' into '%s' because it is not sealed.", other.name, this.name);
-                    Preconditions.checkState(other.truncateOffset == 0, "Cannot concat segment '%s' into '%s' because it is truncated.", other.name, this.name);
                     other.checkOpened();
                     synchronized (this.lock) {
                         checkOpened();
@@ -367,24 +360,6 @@ public class InMemoryStorage implements SyncStorage {
             }
         }
 
-        void truncate(long offset) {
-            synchronized (this.lock) {
-                Preconditions.checkArgument(offset >= 0 && offset <= this.length, "Offset (%s) must be non-negative and less than or equal to the Segment's length (%s).", offset, this.length);
-
-                // Adjust the 'firstBufferOffset' to point to the first byte that will not be truncated after this is done.
-                this.firstBufferOffset += offset - this.truncateOffset;
-
-                // Trim away, from the beginning, all data buffers until we can no longer trim.
-                while (this.firstBufferOffset >= BUFFER_SIZE && this.data.size() > 0) {
-                    this.data.remove(0);
-                    this.firstBufferOffset -= BUFFER_SIZE;
-                }
-
-                assert this.firstBufferOffset < BUFFER_SIZE : "Not all bytes were correctly truncated";
-                this.truncateOffset = offset;
-            }
-        }
-
         SegmentProperties getInfo() {
             synchronized (this.lock) {
                 return StreamSegmentInformation.builder().name(this.name).length(this.length).sealed(this.sealed).build();
@@ -402,8 +377,7 @@ public class InMemoryStorage implements SyncStorage {
 
         @GuardedBy("lock")
         private OffsetLocation getOffsetLocation(long offset) {
-            // Adjust for truncation offset and first buffer offset.
-            offset += this.firstBufferOffset - this.truncateOffset;
+            offset += this.firstBufferOffset;
             return new OffsetLocation((int) (offset / BUFFER_SIZE), (int) (offset % BUFFER_SIZE));
         }
 

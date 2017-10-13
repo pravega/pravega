@@ -15,6 +15,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -44,6 +45,7 @@ public class ExtendedS3StorageFactory implements StorageFactory {
                 .withSecretKey(config.getSecretKey());
 
         S3JerseyClient client = new S3JerseyClient(s3Config);
-        return new AsyncStorageWrapper(new ExtendedS3Storage(client, this.config), this.executor);
+        ExtendedS3Storage s = new ExtendedS3Storage(client, this.config);
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
 }

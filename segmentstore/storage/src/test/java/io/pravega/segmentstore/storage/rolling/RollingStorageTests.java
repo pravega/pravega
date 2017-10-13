@@ -17,14 +17,12 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
 import java.util.Random;
 import java.util.function.Function;
 import lombok.Cleanup;
@@ -35,7 +33,7 @@ import org.junit.Test;
 /**
  * Unit tests for the RollingStorage class.
  */
-public class RollingStorageTests extends StorageTestBase {
+public class RollingStorageTests extends RollingStorageTestBase {
     private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(100);
     private static final String SEGMENT_NAME = "RollingSegment";
     private static final int SMALL_WRITE_LENGTH = (int) (DEFAULT_ROLLING_POLICY.getMaxLength() * 0.24);
@@ -484,20 +482,8 @@ public class RollingStorageTests extends StorageTestBase {
     //region StorageTestBase Implementation
 
     @Override
-    public void testFencing() throws Exception {
-        // Fencing is left up to the underlying Storage implementation to handle. There's nothing to test here.
-    }
-
-    @Override
     protected Storage createStorage() {
         return new AsyncStorageWrapper(new RollingStorage(new InMemoryStorage(), DEFAULT_ROLLING_POLICY), executorService());
-    }
-
-    @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        val headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
-        val headerHandle = InMemoryStorage.newHandle(headerName, readOnly);
-        return new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
     }
 
     //endregion

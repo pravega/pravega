@@ -13,6 +13,7 @@ import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.Executor;
 
 /**
@@ -37,6 +38,7 @@ public class HDFSStorageFactory implements StorageFactory {
 
     @Override
     public Storage createStorageAdapter() {
-        return new AsyncStorageWrapper(new HDFSStorage(this.config), this.executor);
+        HDFSStorage s = new HDFSStorage(this.config);
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
 }
