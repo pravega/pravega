@@ -29,15 +29,17 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
 
     private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
             System.getProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(120)));
-    private final StateSynchronizer<ReaderGroupState> synchronizer;
+    private final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
     @GuardedBy("$lock")
     private ScheduledFuture<?> future;
+    @GuardedBy("$lock")
+    private StateSynchronizer<ReaderGroupState> synchronizer;
 
     public ScaleEventNotifier(final NotificationSystem notifySystem,
                               final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
         super(notifySystem);
-        this.synchronizer = synchronizerSupplier.get();
+        this.synchronizerSupplier = synchronizerSupplier;
     }
 
     @Override
@@ -46,6 +48,7 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
         notifySystem.addListeners(getType(), listener, executor);
         //periodically fetch the scale
         if (!pollingStarted.getAndSet(true)) { //schedule the  only once
+            synchronizer = synchronizerSupplier.get();
             future = executor.scheduleAtFixedRate(this::checkAndTriggerScaleNotification, 0,
                     UPDATE_INTERVAL_SECONDS, TimeUnit.SECONDS);
         }
