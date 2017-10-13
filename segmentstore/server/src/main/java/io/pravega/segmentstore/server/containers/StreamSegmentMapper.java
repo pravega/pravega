@@ -18,6 +18,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -30,6 +31,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
@@ -204,9 +206,11 @@ public class StreamSegmentMapper {
      * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
      */
     private CompletableFuture<Void> createSegmentInStorageWithRecovery(String segmentName, Collection<AttributeUpdate> attributes, TimeoutTimer timer) {
+        SegmentRollingPolicy rollingPolicy = getRollingPolicy(attributes);
+
         return FutureHelpers
                 .exceptionallyCompose(
-                        this.storage.create(segmentName, timer.getRemaining()),
+                        this.storage.create(segmentName, rollingPolicy, timer.getRemaining()),
                         ex -> handleStorageCreateException(segmentName, ExceptionHelpers.getRealException(ex), timer))
                 .thenComposeAsync(segmentProps ->
                                 // Need to create the state file before we throw any further exceptions in order to recover from
@@ -604,6 +608,22 @@ public class StreamSegmentMapper {
 
     private boolean isValidStreamSegmentId(long id) {
         return id != ContainerMetadata.NO_STREAM_SEGMENT_ID;
+    }
+
+    /**
+     * Extracts the SegmentRollingPolicy from the given AttributeUpdate Collection. If the list is empty or does not have
+     * an Attributes.ROLLOVER_SIZE attribute, then a NO_ROLLING policy is returned.
+     */
+    private SegmentRollingPolicy getRollingPolicy(Collection<AttributeUpdate> attributes) {
+        SegmentRollingPolicy rollingPolicy = SegmentRollingPolicy.NO_ROLLING;
+        if (attributes != null) {
+            AttributeUpdate a = attributes.stream().filter(au -> au.getAttributeId() == Attributes.ROLLOVER_SIZE).findFirst().orElse(null);
+            if (a != null) {
+                rollingPolicy = new SegmentRollingPolicy(a.getValue());
+            }
+        }
+
+        return rollingPolicy;
     }
 
     /**

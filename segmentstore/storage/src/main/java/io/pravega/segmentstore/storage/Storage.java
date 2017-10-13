@@ -40,7 +40,7 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     CompletableFuture<SegmentHandle> openWrite(String streamSegmentName);
 
     /**
-     * Creates a new StreamSegment in this Storage Layer.
+     * Creates a new StreamSegment in this Storage Layer with an Infinite Rolling Policy (No Rolling).
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
