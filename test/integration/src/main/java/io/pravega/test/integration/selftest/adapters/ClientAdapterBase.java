@@ -51,7 +51,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
     private static final long TXN_TIMEOUT = 30 * 1000;
     private static final long TXN_MAX_EXEC_TIME = TXN_TIMEOUT;
     private static final long TXN_SCALE_GRACE_PERIOD = TXN_TIMEOUT;
-    private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder().build();
+    private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder()
+                                                                            .transactionTimeoutTime(TXN_MAX_EXEC_TIME)
+                                                                            .transactionTimeoutScaleGracePeriod(TXN_SCALE_GRACE_PERIOD)
+                                                                            .build();
     final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, List<EventStreamWriter<byte[]>>> streamWriters;
@@ -194,7 +197,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         ensureRunning();
         return CompletableFuture.supplyAsync(() -> {
             EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
-            UUID txnId = writer.beginTxn(TXN_TIMEOUT, TXN_MAX_EXEC_TIME, TXN_SCALE_GRACE_PERIOD).getTxnId();
+            UUID txnId = writer.beginTxn().getTxnId();
             String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, txnId);
             this.transactionIds.put(txnName, txnId);
             return txnName;

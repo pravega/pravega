@@ -25,7 +25,13 @@ services:
     environment:
       WAIT_FOR: ${ZK_URL:-zookeeper:2181}
       ZK_URL: ${ZK_URL:-zookeeper:2181}
-      JAVA_OPTS: -Dconfig.controller.metricenableCSVReporter=false -Xmx512m
+      JAVA_OPTS: |
+        -Dconfig.controller.metricenableCSVReporter=false
+        -Xmx512m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
 
   segmentstore:
     image: pravega/pravega
@@ -37,4 +43,12 @@ services:
       HDFS_URL: hdfs://${HDFS_URL:-hdfs:8020}
       ZK_URL: ${ZK_URL:-zookeeper:2181}
       CONTROLLER_URL: tcp://controller:9090
-      JAVA_OPTS: -Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress=${PUBLISHED_ADDRESS} -Dpravegaservice.listeningIPAddress=${LISTENING_ADDRESS} -Xmx900m
+      JAVA_OPTS: |
+        -Dmetrics.enableCSVReporter=false
+        -Dpravegaservice.publishedIPAddress=${PUBLISHED_ADDRESS}
+        -Dpravegaservice.listeningIPAddress=${LISTENING_ADDRESS}
+        -Xmx900m
+        -XX:OnError="kill -9 p%"
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+CrashOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError

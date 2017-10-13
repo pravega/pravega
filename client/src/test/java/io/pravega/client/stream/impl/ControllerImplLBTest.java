@@ -13,6 +13,7 @@ import io.grpc.Server;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
@@ -27,7 +28,6 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -189,7 +189,7 @@ public class ControllerImplLBTest {
         final ControllerImpl client = new ControllerImpl(
                 URI.create("pravega://localhost:" + serverPort1 + ",localhost:" + serverPort2),
                 ControllerImplConfig.builder().retryAttempts(1).build(), executor);
-        AssertExtensions.assertThrows(ExecutionException.class, () -> client.getEndpointForSegment("a/b/0").get());
+        AssertExtensions.assertThrows(RetriesExhaustedException.class, () -> client.getEndpointForSegment("a/b/0").get());
     }
 
     @Test
@@ -265,7 +265,7 @@ public class ControllerImplLBTest {
         testRPCServer3.awaitTermination();
         Assert.assertTrue(testRPCServer3.isTerminated());
 
-        AssertExtensions.assertThrows(ExecutionException.class,
+        AssertExtensions.assertThrows(RetriesExhaustedException.class,
                 () -> controllerClient.getEndpointForSegment("a/b/0").get());
     }
 

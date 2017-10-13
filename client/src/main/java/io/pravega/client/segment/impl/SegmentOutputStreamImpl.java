@@ -187,7 +187,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection for segment {} failed due to: {}", segmentName, throwable.getMessage());
                 }
             }
-            if (failSetupConnection) {
+            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
+                setupConnection.releaseExceptionally(throwable);
+            } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);                
             }
             if (oldConnectionSetupCompleted != null) {
@@ -261,6 +263,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 this.closed = closed;
             }
         }
+
+        private Throwable getException() {
+            synchronized (lock) {
+                return exception;
+            }
+        }
     }
 
     private final class ResponseProcessor extends FailingReplyProcessor {
@@ -302,13 +310,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             String segment = noSuchSegment.getSegment();
             checkArgument(segmentName.equals(segment), "Wrong segment name %s, %s", segmentName, segment);
-            log.info("Segment being written to {} no longer exists. Failing all writes", segment);
+            log.warn("Segment being written to {} no longer exists. Failing all writes", segment);
             state.setClosed(true);
-            ClientConnection connection = state.getConnection();
-            if (connection != null) {
-                connection.close();
-            }
             NoSuchSegmentException exception = new NoSuchSegmentException(segment);
+            state.failConnection(exception);
             for (PendingEvent toAck : state.removeInflightBelow(Long.MAX_VALUE)) {
                 if (toAck != null) {
                     toAck.getAckFuture().completeExceptionally(exception);
@@ -415,7 +420,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * Establish a connection and wait for it to be setup. (Retries built in)
      */
     CompletableFuture<ClientConnection> getConnection() throws SegmentSealedException {
-        checkState(!state.isClosed(), "LogOutputStream was already closed");
+        if (state.isClosed()) {
+            throw new IllegalStateException("SegmentOutputStream is already closed", state.getException());
+        }
         if (state.isAlreadySealed()) {
             throw new SegmentSealedException(this.segmentName);
         }
