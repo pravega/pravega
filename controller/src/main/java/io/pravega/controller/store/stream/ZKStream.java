@@ -138,7 +138,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         return CompletableFuture.completedFuture(new CreateStreamResponse(status, config, creationTime));
                     }
 
-                    return getState().thenApply(state -> {
+                    return getState(false).thenApply(state -> {
                         if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                             return new CreateStreamResponse(status, config, creationTime);
                         } else {
@@ -179,7 +179,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(new StreamConfigWithVersion(configuration, 0)))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
@@ -384,15 +384,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration) {
-        return store.setData(configurationPath, new Data<>(SerializationUtils.serialize(configuration), null))
+    public CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration) {
+        return store.setData(configurationPath, new Data<>(SerializationUtils.serialize(configuration), configuration.getVersion() - 1))
                 .whenComplete((r, e) -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    public CompletableFuture<StreamConfiguration> getConfigurationData() {
-        return cache.getCachedData(configurationPath)
-                .thenApply(x -> (StreamConfiguration) SerializationUtils.deserialize(x.getData()));
+    public CompletableFuture<Data<Integer>> getConfigurationData() {
+        return cache.getCachedData(configurationPath);
     }
 
     @Override
@@ -402,7 +401,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getStateData() {
+    CompletableFuture<Data<Integer>> getStateData(boolean ignoreCached) {
+        if (ignoreCached) {
+            cache.invalidateCache(statePath);
+        }
+
         return cache.getCachedData(statePath);
     }
 

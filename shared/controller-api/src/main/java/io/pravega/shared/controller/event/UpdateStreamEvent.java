@@ -19,7 +19,7 @@ public class UpdateStreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
     private final int version;
-    private final Controller.StreamConfig config;
+    private final Controller.StreamConfig streamConfig;
 
     @Override
     public String getKey() {

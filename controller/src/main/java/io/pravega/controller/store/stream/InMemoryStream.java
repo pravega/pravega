@@ -40,7 +40,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
     @GuardedBy("lock")
-    private StreamConfiguration configuration;
+    private StreamConfigWithVersion configuration;
     @GuardedBy("lock")
     private Data<Integer> state;
     @GuardedBy("lock")
@@ -93,7 +93,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
-        final StreamConfiguration config;
+        final StreamConfigWithVersion config;
         final Data<Integer> currentState;
         synchronized (lock) {
             time = creationTime.get();
@@ -103,7 +103,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, config, currentState);
+                handleStreamMetadataExists(timestamp, result, time, config.getConfiguration(), currentState);
             } else {
                 result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
             }
@@ -146,14 +146,14 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         synchronized (lock) {
             if (configuration == null) {
-                configuration = config;
+                configuration = new StreamConfigWithVersion(config, 0);
             }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> setConfigurationData(StreamConfiguration configuration) {
+    CompletableFuture<Void> setConfigurationData(StreamConfigWithVersion configuration) {
         Preconditions.checkNotNull(configuration);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -170,12 +170,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<StreamConfiguration> getConfigurationData() {
+    CompletableFuture<Data<Integer>> getConfigurationData() {
         synchronized (lock) {
             if (this.configuration == null) {
                 return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
-            return CompletableFuture.completedFuture(this.configuration);
+            return CompletableFuture.completedFuture(new Data<>(SerializationUtils.serialize(this.configuration), this.configuration.getVersion()));
         }
     }
 
@@ -209,7 +209,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getStateData() {
+    CompletableFuture<Data<Integer>> getStateData(boolean ignoreCached) {
         synchronized (lock) {
             if (this.state == null) {
                 return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
