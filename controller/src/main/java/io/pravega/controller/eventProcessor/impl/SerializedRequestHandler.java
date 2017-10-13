@@ -105,7 +105,8 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         // if the request handler decides to postpone the processing,
         // put the work at the back of the queue to be picked again.
         // Note: we have not completed the work's result future here.
-        // Since there is at least one event in the queue (we just added) so we will call run again.
+        // Since there is at least one event in the queue (we just
+        // added) so we will call run again.
         synchronized (lock) {
             workers.get(key).add(work);
         }
