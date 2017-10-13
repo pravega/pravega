@@ -158,6 +158,12 @@ public class HDFSStorageTest extends StorageTestBase {
         protected Storage createStorage() {
             return wrap(new TestHDFSStorage(this.adapterConfig));
         }
+
+        @Override
+        protected long getSegmentRollingSize() {
+            // Need to increase this otherwise the test will run for too long.
+            return DEFAULT_ROLLING_SIZE * 5;
+        }
     }
 
     //endregion
