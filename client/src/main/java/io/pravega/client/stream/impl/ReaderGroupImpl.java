@@ -31,6 +31,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.NotificationSystem;
+import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.events.CustomEvent;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
@@ -69,6 +70,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final NotificationSystem notificationSystem = new NotificationSystem();
+    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem);
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -211,7 +213,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Observable<ScaleEvent> getScaleEventNotifier() {
-        return this.notificationSystem.getNotifierFactory().getScaleNotifier(this::getCurrentScaleEvent);
+        return this.notifierFactory.getScaleNotifier(this::getCurrentScaleEvent);
     }
 
     private ScaleEvent getCurrentScaleEvent() {
@@ -226,6 +228,6 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public Observable<CustomEvent> getCustomEventNotifier() {
-        return this.notificationSystem.getNotifierFactory().getCustomNotifier();
+        return this.notifierFactory.getCustomNotifier();
     }
 }

@@ -25,7 +25,7 @@ public class NotifierFactory {
     private final NotificationSystem system;
     private ScaleEventNotifier scaleEventNotifier;
 
-    NotifierFactory(final NotificationSystem notificationSystem) {
+    public NotifierFactory(final NotificationSystem notificationSystem) {
         this.system = notificationSystem;
         this.customEventNotifier = new CustomEventNotifier(this.system);
     }

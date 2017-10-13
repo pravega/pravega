@@ -19,6 +19,7 @@ import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.events.ScaleEvent;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +31,7 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
     private final NotificationSystem system;
     private final Supplier<ScaleEvent> scaleEventSupplier;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
+    @GuardedBy("$lock")
     private ScheduledFuture<?> future;
 
     public ScaleEventNotifier(final NotificationSystem system, final Supplier<ScaleEvent> scaleEventSupplier) {
@@ -76,6 +78,7 @@ public class ScaleEventNotifier implements Observable<ScaleEvent> {
         }
     }
 
+    @GuardedBy("$lock")
     private void cancelScheduledTask() {
         log.debug("Cancel the scheduled task to check for scaling event");
         if (future != null) {

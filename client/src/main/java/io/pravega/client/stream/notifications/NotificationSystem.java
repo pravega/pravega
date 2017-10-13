@@ -14,14 +14,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Data;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class NotificationSystem {
     private final List<ListenerWithType<Event>> listeners = new CopyOnWriteArrayList<>();
-    @Getter
-    private final NotifierFactory notifierFactory = new NotifierFactory(this);
 
     @SuppressWarnings("unchecked")
     public <T extends Event> void addListeners(final Class<T> type,
