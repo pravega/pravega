@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.batch.BatchClient;
+import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -165,6 +167,11 @@ public class ClientFactoryImpl implements ClientFactory {
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
+    }
+    
+    @Override
+    public BatchClient createBatchClient() {
+        return new BatchClientImpl(controller, connectionFactory);
     }
 
     @Override
