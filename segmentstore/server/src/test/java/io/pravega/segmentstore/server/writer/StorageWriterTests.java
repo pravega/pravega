@@ -27,6 +27,7 @@ import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
@@ -522,8 +523,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         sealSegments(transactionIds, context);
         mergeTransactions(transactionIds, segmentContents, context);
 
-        // Seal the parents.
+        // Truncate half of the remaining segments, then seal all, then truncate all segments.
+        truncateSegments(segmentIds.subList(0, segmentIds.size() / 2), context);
         sealSegments(segmentIds, context);
+        truncateSegments(segmentIds, context);
         metadataCheckpoint(context);
 
         // Wait for the writer to complete its job.
@@ -531,6 +534,16 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         // Verify final output.
         verifyFinalOutput(segmentContents, transactionIds, context);
+    }
+
+    private void truncateSegments(Collection<Long> segmentIds, TestContext context) {
+        for (long segmentId : segmentIds) {
+            UpdateableSegmentMetadata segmentMetadata = context.metadata.getStreamSegmentMetadata(segmentId);
+            long truncationOffset = (segmentMetadata.getStartOffset() + segmentMetadata.getLength()) / 2;
+            segmentMetadata.setStartOffset(truncationOffset);
+            StreamSegmentTruncateOperation truncateOp = new StreamSegmentTruncateOperation(segmentId, truncationOffset);
+            context.dataSource.add(truncateOp);
+        }
     }
 
     //region Helpers
@@ -560,6 +573,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             int actualLength = context.storage.read(InMemoryStorage.newHandle(metadata.getName(), true), 0, actual, 0, actual.length, TIMEOUT).join();
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentId, metadata.getStorageLength(), actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentId, expected, actual);
+            Assert.assertEquals("Unexpected truncation offset for segment " + segmentId,
+                    metadata.getStartOffset(), context.storage.getTruncationOffset(metadata.getName()));
         }
     }
 

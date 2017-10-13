@@ -52,14 +52,18 @@ import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.reading.TestReadResultHandler;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
+import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -77,6 +81,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -912,7 +918,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after seal.", expectedAttributes, sp);
 
         // Verify the segment actually made to Storage in one piece.
-        waitForSegmentInStorage(sp, context.storage).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        waitForSegmentInStorage(sp, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val storageInfo = context.storage.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected length in storage for segment.", sp.getLength(), storageInfo.getLength());
 
@@ -1112,7 +1118,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val context = new TestContext();
         val failedWriterFactory = new FailedWriterFactory();
         AtomicReference<OperationLog> log = new AtomicReference<>();
-        val watchableDurableLogFactory = new WatchableOperationlogFactory(context.operationLogFactory, log::set);
+        val watchableDurableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, log::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
                 context.readIndexFactory, failedWriterFactory, context.storageFactory, executorService());
         val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
@@ -1368,29 +1374,24 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
             SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
-            segmentsCompletion.add(waitForSegmentInStorage(sp, context.storage));
+            segmentsCompletion.add(waitForSegmentInStorage(sp, context));
         }
 
         return FutureHelpers.allOf(segmentsCompletion);
     }
 
-    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
-        Function<SegmentProperties, Boolean> meetsConditions = storageProps -> {
-            if (sp.isSealed()) {
-                // Segment is sealed, we can stop when Storage Segment is sealed too.
-                return storageProps.isSealed();
-            } else {
-                // Segment is not sealed, we can stop when Storage Segment's length exceeds the one we have.
-                return storageProps.getLength() >= sp.getLength();
-            }
-        };
+    private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties metadataProps, TestContext context) {
+        Function<SegmentProperties, Boolean> meetsConditions = storageProps ->
+                storageProps.isSealed() == metadataProps.isSealed()
+                        && storageProps.getLength() >= metadataProps.getLength()
+                        && context.storageFactory.truncationOffsets.getOrDefault(metadataProps.getName(), 0L) >= metadataProps.getStartOffset();
 
         AtomicBoolean canContinue = new AtomicBoolean(true);
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         return FutureHelpers.loop(
                 canContinue::get,
-                () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)
-                             .thenCompose(storageProps -> {
+                () -> context.storage.getStreamSegmentInfo(metadataProps.getName(), TIMEOUT)
+                                     .thenCompose(storageProps -> {
                                  if (meetsConditions.apply(storageProps)) {
                                      canContinue.set(false);
                                      return CompletableFuture.completedFuture(null);
@@ -1437,7 +1438,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private class TestContext implements AutoCloseable {
         final SegmentContainerFactory containerFactory;
         final SegmentContainer container;
-        private final InMemoryStorageFactory storageFactory;
+        private final WatchableInMemoryStorageFactory storageFactory;
         private final DurableDataLogFactory dataLogFactory;
         private final OperationLogFactory operationLogFactory;
         private final ReadIndexFactory readIndexFactory;
@@ -1450,7 +1451,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ContainerConfig config) {
-            this.storageFactory = new InMemoryStorageFactory(executorService());
+            this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
             this.cacheFactory = new InMemoryCacheFactory();
@@ -1549,8 +1550,35 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region Helper Classes
+
+    private static class WatchableInMemoryStorageFactory extends InMemoryStorageFactory {
+        private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
+
+        public WatchableInMemoryStorageFactory(ScheduledExecutorService executor) {
+            super(executor);
+        }
+
+        @Override
+        public Storage createStorageAdapter() {
+            return new WatchableAsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
+        }
+
+        private class WatchableAsyncStorageWrapper extends AsyncStorageWrapper {
+            public WatchableAsyncStorageWrapper(SyncStorage syncStorage, Executor executor) {
+                super(syncStorage, executor);
+            }
+
+            @Override
+            public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
+                return super.truncate(handle, offset, timeout)
+                            .thenRun(() -> truncationOffsets.put(handle.getSegmentName(), offset));
+            }
+        }
+    }
+
     @RequiredArgsConstructor
-    private static class WatchableOperationlogFactory implements OperationLogFactory {
+    private static class WatchableOperationLogFactory implements OperationLogFactory {
         private final OperationLogFactory wrappedFactory;
         private final Consumer<OperationLog> onCreateLog;
 
@@ -1585,4 +1613,6 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
     }
+
+    //endregion
 }

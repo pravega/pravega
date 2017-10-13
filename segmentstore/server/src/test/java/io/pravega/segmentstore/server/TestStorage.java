@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
@@ -19,7 +20,9 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.ErrorInjector;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import lombok.Setter;
 
@@ -29,6 +32,7 @@ import lombok.Setter;
  */
 public class TestStorage implements Storage {
     private final Storage wrappedStorage;
+    private final HashMap<String, Long> truncationOffsets;
     private final InMemoryStorage wrappedSyncStorage;
     @Setter
     private ErrorInjector<Exception> writeSyncErrorInjector;
@@ -60,11 +64,14 @@ public class TestStorage implements Storage {
     private SealInterceptor sealInterceptor;
     @Setter
     private ConcatInterceptor concatInterceptor;
+    @Setter
+    private TruncateInterceptor truncateInterceptor;
 
     public TestStorage(InMemoryStorage wrappedStorage, Executor executor) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
         this.wrappedSyncStorage = Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
         this.wrappedStorage = new AsyncStorageWrapper(wrappedStorage, executor);
+        this.truncationOffsets = new HashMap<>();
     }
 
     @Override
@@ -81,13 +88,21 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
-                () -> this.wrappedStorage.create(streamSegmentName, timeout));
+                () -> this.wrappedStorage.create(streamSegmentName, timeout))
+                            .thenApply(sp -> {
+                                this.truncationOffsets.put(streamSegmentName, 0L);
+                                return sp;
+                            });
     }
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
-                () -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout));
+                () -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout))
+                            .thenApply(sp -> {
+                                this.truncationOffsets.put(streamSegmentName, 0L);
+                                return sp;
+                            });
     }
 
     @Override
@@ -146,17 +161,26 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.deleteErrorInjector,
-                () -> this.wrappedStorage.delete(handle, timeout));
+                () -> this.wrappedStorage.delete(handle, timeout))
+                            .thenRun(() -> this.truncationOffsets.remove(handle.getSegmentName()));
     }
 
     @Override
     public CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout) {
-        return this.wrappedStorage.truncate(handle, offset, timeout);
+        TruncateInterceptor ti = this.truncateInterceptor;
+        CompletableFuture<Void> result;
+        if (ti != null) {
+            result = ti.apply(handle.getSegmentName(), offset, this.wrappedStorage);
+        } else {
+            result = CompletableFuture.completedFuture(null);
+        }
+
+        return result.thenRun(() -> truncateDirectly(handle, offset));
     }
 
     @Override
     public boolean supportsTruncation() {
-        return this.wrappedStorage.supportsTruncation();
+        return true;
     }
 
     @Override
@@ -182,6 +206,18 @@ public class TestStorage implements Storage {
         this.wrappedSyncStorage.append(handle, data, length);
     }
 
+    public void truncateDirectly(SegmentHandle handle, long offset) {
+        if (!this.truncationOffsets.containsKey(handle.getSegmentName())) {
+            throw new CompletionException(new StreamSegmentNotExistsException(handle.getSegmentName()));
+        }
+
+        this.truncationOffsets.put(handle.getSegmentName(), offset);
+    }
+
+    public long getTruncationOffset(String streamSegmentName) {
+        return this.truncationOffsets.get(streamSegmentName);
+    }
+
     @FunctionalInterface
     public interface WriteInterceptor {
         CompletableFuture<Void> apply(String streamSegmentName, long offset, InputStream data, int length, Storage wrappedStorage);
@@ -195,5 +231,10 @@ public class TestStorage implements Storage {
     @FunctionalInterface
     public interface ConcatInterceptor {
         CompletableFuture<Void> apply(String targetStreamSegmentName, long offset, String sourceStreamSegmentName, Storage wrappedStorage);
+    }
+
+    @FunctionalInterface
+    public interface TruncateInterceptor {
+        CompletableFuture<Void> apply(String streamSegmentName, long truncateOffset, Storage wrappedStorage);
     }
 }

@@ -22,8 +22,10 @@ import java.util.concurrent.ScheduledExecutorService;
  * In-Memory mock for StorageFactory. Contents is destroyed when object is garbage collected.
  */
 public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
-    private final SharedStorage baseStorage;
-    private final ScheduledExecutorService executor;
+    @VisibleForTesting
+    protected final SharedStorage baseStorage;
+    @VisibleForTesting
+    protected final ScheduledExecutorService executor;
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -52,7 +54,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         return new AsyncStorageWrapper(new InMemoryStorage(), executor);
     }
 
-    //region FencedWrapper
+    //region SharedStorage
 
     private static class SharedStorage extends InMemoryStorage {
         private void closeInternal() {
