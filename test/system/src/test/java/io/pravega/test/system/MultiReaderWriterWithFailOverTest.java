@@ -11,6 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -55,6 +57,7 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
+    private StreamManager streamManager;
 
     @Environment
     public static void initialize() throws MarathonException, URISyntaxException {
@@ -104,7 +107,8 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         testState = new TestState();
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        createScopeAndStream(scope, STREAM_NAME, config, controllerURIDirect);
+        streamManager = new StreamManagerImpl(controllerURIDirect);
+        createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -118,6 +122,7 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();

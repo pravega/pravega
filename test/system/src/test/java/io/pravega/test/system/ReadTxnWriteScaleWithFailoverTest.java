@@ -12,6 +12,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -55,7 +57,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     private static final int NUM_WRITERS = 5;
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(15 * 60);
+    public Timeout globalTimeout = Timeout.seconds(22 * 60);
     private final String scope = "testReadTxnWriteScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
@@ -64,6 +66,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             .streamName(stream).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
+    private StreamManager streamManager;
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -104,7 +107,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
                 "ReadTxnWriteScaleWithFailoverTest-main");
-        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(3,
                 "ReadTxnWriteScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
@@ -113,8 +116,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.txnWrite.set(true);
-
-        createScopeAndStream(scope, stream, config, controllerURIDirect);
+        streamManager = new StreamManagerImpl(controllerURIDirect);
+        createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -127,6 +130,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
