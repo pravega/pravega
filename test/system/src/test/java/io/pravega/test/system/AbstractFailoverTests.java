@@ -75,6 +75,7 @@ abstract class AbstractFailoverTests {
     ScheduledExecutorService controllerExecutorService;
     Controller controller;
     TestState testState;
+    StreamManager streamManager;
 
     static class TestState {
         //read and write count variables
@@ -350,16 +351,17 @@ abstract class AbstractFailoverTests {
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
+        streamManager.close();
     }
 
     void createScopeAndStream(String scope, String stream, StreamConfiguration config, URI uri) {
-        try (StreamManager streamManager = new StreamManagerImpl(uri)) {
+            streamManager = new StreamManagerImpl(uri);
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Creating scope with scope name {}", scope);
             log.debug("Create scope status {}", createScopeStatus);
             Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
             log.debug("Create stream status {}", createStreamStatus);
-        }
+
     }
 
     void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
@@ -387,7 +389,7 @@ abstract class AbstractFailoverTests {
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
-                                    .transactionTimeoutTime(35000).transactionTimeoutScaleGracePeriod(40000).build());
+                                    .transactionTimeoutTime(44000).transactionTimeoutScaleGracePeriod(45000).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
@@ -462,7 +464,7 @@ abstract class AbstractFailoverTests {
                             new JavaSerializer<Long>(),
                             EventWriterConfig.builder().maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
-                                    .transactionTimeoutTime(35000).transactionTimeoutScaleGracePeriod(40000).build());
+                                    .transactionTimeoutTime(44000).transactionTimeoutScaleGracePeriod(45000).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
                     FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
