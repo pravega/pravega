@@ -25,6 +25,7 @@ rat {
             'lombok.config',
             '**/*.log',
             '**/*.lock',
-            '**/*.json'
+            '**/*.json',
+            'CODE_OF_CONDUCT.md'
     ]
 }

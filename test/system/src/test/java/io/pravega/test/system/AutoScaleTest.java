@@ -315,11 +315,11 @@ public class AutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME,
                     new JavaSerializer<>(),
-                    EventWriterConfig.builder().build());
+                    EventWriterConfig.builder().transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
 
             while (!exit.get()) {
                 try {
-                    Transaction<String> transaction = writer.beginTxn(5000, 3600000, 29000);
+                    Transaction<String> transaction = writer.beginTxn();
 
                     for (int i = 0; i < 100; i++) {
                         transaction.writeEvent("0", "txntest");

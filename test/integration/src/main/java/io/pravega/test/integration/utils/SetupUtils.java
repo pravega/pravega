@@ -94,7 +94,7 @@ public final class SetupUtils {
         int controllerRPCPort = TestUtils.getAvailableListenPort();
         int controllerRESTPort = TestUtils.getAvailableListenPort();
         this.controllerWrapper = new ControllerWrapper(
-                this.zkTestServer.getConnectString(), true, true, controllerRPCPort, "localhost", servicePort,
+                this.zkTestServer.getConnectString(), false, true, controllerRPCPort, "localhost", servicePort,
                 Config.HOST_STORE_CONTAINER_COUNT, controllerRESTPort);
         this.controllerWrapper.awaitRunning();
         this.controllerWrapper.getController().createScope(this.scope).get();

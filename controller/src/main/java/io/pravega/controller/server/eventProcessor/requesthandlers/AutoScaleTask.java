@@ -192,6 +192,6 @@ public class AutoScaleTask {
                 false,
                 System.currentTimeMillis());
 
-        return streamMetadataTasks.postScale(event);
+        return streamMetadataTasks.writeEvent(event);
     }
 }
