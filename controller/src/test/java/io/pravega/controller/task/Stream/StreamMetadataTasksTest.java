@@ -218,7 +218,6 @@ public class StreamMetadataTasksTest {
 
                         }), executor).join();
 
-
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
                 .streamName(stream1)
