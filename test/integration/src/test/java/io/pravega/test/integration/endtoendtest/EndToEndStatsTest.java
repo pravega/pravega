@@ -107,14 +107,14 @@ public class EndToEndStatsTest {
 
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
 
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
         assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
 
-        Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
+        Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
