@@ -81,7 +81,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000));
+                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
         List<String> stringList = new ArrayList<>();

@@ -35,7 +35,7 @@ import static org.junit.Assert.assertThat;
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
 
-    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.2-alpha";
+    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
     private int instances = 1;
     private double cpu = 1.0 * Math.pow(10.0, 9.0);
     private long mem = 1024 * 1024 * 1024L;

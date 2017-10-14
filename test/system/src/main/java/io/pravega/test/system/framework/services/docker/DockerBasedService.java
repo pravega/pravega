@@ -73,12 +73,13 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             //list the service with filter 'serviceName'
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             List<Service> serviceList = dockerClient.listServices(criteria);
-
-            for (int i = 0; i < serviceList.size(); i++) {
-                String serviceId = serviceList.get(i).id();
-                if (!serviceId.isEmpty()) {
-                    value = true;
-                    break;
+            int containerCount = dockerClient.listContainers(DockerClient.ListContainersParam.filter("name", serviceName)).size();
+            if(!serviceList.isEmpty()) {
+                long replicas = dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas();
+                if (((long) containerCount) == replicas) {
+                    return true;
+                } else {
+                    return false;
                 }
             }
         } catch (DockerException | InterruptedException e) {
@@ -106,9 +107,8 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             List<Service> serviceList = dockerClient.listServices(criteria);
 
             for (int i = 0; i < serviceList.size(); i++) {
-                URI uri = URI.create("tcp://" + dockerClient.getHost() + ":"
-                        + serviceList.get(i).spec().endpointSpec()
-                        .ports().get(i).targetPort());
+                String ar[] = serviceList.get(i).endpoint().virtualIps().get(0).addr().split("/");
+                URI uri = URI.create("tcp://" + ar[0]+ ":" + ar[1]);
                 uriList.add(uri);
             }
         }  catch (InterruptedException | DockerException e) {
