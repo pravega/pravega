@@ -18,6 +18,7 @@ echo "Master IP of jarvis cluster is $MASTER_1"
 
 if [ $CLUSTER_NAME = null ]; then
   docker swarm init --advertise-addr 127.0.0.1
+  docker network create --driver overlay docker-network
 else
   jarvis save $CLUSTER_NAME
     if [ $MASTER_1 != null ]; then

@@ -12,14 +12,7 @@ package io.pravega.test.system.framework.services.docker;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
-import com.spotify.docker.client.messages.swarm.ContainerSpec;
-import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
-import com.spotify.docker.client.messages.swarm.ResourceRequirements;
-import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.Service;
-import com.spotify.docker.client.messages.swarm.ServiceMode;
-import com.spotify.docker.client.messages.swarm.ServiceSpec;
-import com.spotify.docker.client.messages.swarm.TaskSpec;
+import com.spotify.docker.client.messages.swarm.*;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -86,6 +79,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec =  ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
+                .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(ZKSERVICE_ZKPORT).build()).build())
                                 .taskTemplate(taskSpec)
                 .mode(ServiceMode.withReplicas(instances)).build();
         return spec;

@@ -43,13 +43,6 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
 
     DockerBasedService(String serviceName) {
         dockerClient = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
-        try {
-            if (dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName("docker-network")).isEmpty()) {
-                dockerClient.createNetwork(NetworkConfig.builder().driver("overlay").name("docker-network").build());
-            }
-        } catch (DockerException | InterruptedException e) {
-            log.error("Unable to create network {}", e);
-        }
         this.serviceName = serviceName;
         }
 

@@ -34,17 +34,16 @@ public class PravegaControllerTest {
      *
      * @throws MarathonException if error in setup
      */
-    private Service con;
 
     @Environment
-    public void setup() throws MarathonException {
+    public static void setup() throws MarathonException {
         Service zk = Utils.isDockerLocalExecEnabled()
                 ? new ZookeeperDockerService("zookeeper")
                 : new ZookeeperService("zookeeper");
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        con = Utils.isDockerLocalExecEnabled()
+        Service con = Utils.isDockerLocalExecEnabled()
                 ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
@@ -60,7 +59,7 @@ public class PravegaControllerTest {
     @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
-        con = Utils.isDockerLocalExecEnabled()
+        Service con = Utils.isDockerLocalExecEnabled()
                 ? new PravegaControllerDockerService("controller")
                 : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> conUri = con.getServiceDetails();

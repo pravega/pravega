@@ -51,7 +51,7 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-         Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
                 : new ZookeeperService("zookeeper");
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
