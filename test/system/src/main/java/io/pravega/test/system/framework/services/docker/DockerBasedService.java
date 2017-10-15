@@ -18,6 +18,7 @@ import com.spotify.docker.client.messages.NetworkConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
+import com.spotify.docker.client.messages.swarm.TaskSpec;
 import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
@@ -74,12 +75,10 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             List<Service> serviceList = dockerClient.listServices(criteria);
             int containerCount = dockerClient.listContainers(DockerClient.ListContainersParam.filter("name", serviceName)).size();
-            if(!serviceList.isEmpty()) {
+            if (!serviceList.isEmpty()) {
                 long replicas = dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas();
                 if (((long) containerCount) == replicas) {
                     return true;
-                } else {
-                    return false;
                 }
             }
         } catch (DockerException | InterruptedException e) {
@@ -107,8 +106,9 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
             List<Service> serviceList = dockerClient.listServices(criteria);
 
             for (int i = 0; i < serviceList.size(); i++) {
-                String ar[] = serviceList.get(i).endpoint().virtualIps().get(0).addr().split("/");
-                URI uri = URI.create("tcp://" + ar[0]+ ":" + ar[1]);
+                String[] ar = serviceList.get(i).endpoint().virtualIps().get(0).addr().split("/");
+                int port = serviceList.get(i).endpoint().ports().get(0).publishedPort();
+                URI uri = URI.create("tcp://" + ar[0]+ ":" + port);
                 uriList.add(uri);
             }
         }  catch (InterruptedException | DockerException e) {
@@ -122,8 +122,10 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+            TaskSpec taskSpec = dockerClient.listServices(criteria).get(0).spec().taskTemplate();
             String serviceId = dockerClient.listServices(criteria).get(0).id();
-            dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).build());
+            dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).
+                    taskTemplate(taskSpec).name(serviceName).build());
             String updateState = dockerClient.inspectService(serviceId).updateStatus().state();
             log.info("update state {}", updateState);
             if (wait) {

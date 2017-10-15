@@ -38,7 +38,7 @@ import static org.junit.Assert.assertThat;
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
-    private int instances = 3;
+    private long instances = 3;
     private double cpu = 0.1;
     private double mem = 1024.0;
 
@@ -73,12 +73,12 @@ public class BookkeeperDockerService extends DockerBasedService {
     }
 
     private ServiceSpec setServiceSpec() {
-        Mount mount1 = Mount.builder().type("volume").source("journal-volume").target("/bk/journal")
-                .build();
+        /*Mount mount1 = Mount.builder().type("volume").source("journal-volume").target("/bk/journal")
+                .build();*/
         Mount mount2 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
                 .build();
-        Mount mount3 = Mount.builder().type("volume").source("ledgers-volume").target("/bk/ledger")
-                .build();
+        /*Mount mount3 = Mount.builder().type("volume").source("ledgers-volume").target("/bk/ledger")
+                .build();*/
         Mount mount4 = Mount.builder().type("volume").source("logs-volume")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
@@ -98,7 +98,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder()
                         .image(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
-                        .mounts(Arrays.asList(mount1, mount2, mount3, mount4))
+                        .mounts(Arrays.asList(mount2, mount4))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
@@ -107,10 +107,9 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName)
+                .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(BK_PORT).build()).build())
                 .taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().protocol("TCP").
-                        publishedPort(BK_PORT).targetPort(BK_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST)
-                        .build()).mode(EndpointSpec.Mode.RESOLUTION_MODE_VIP).build()).build();
+                .build();
         return spec;
     }
 }

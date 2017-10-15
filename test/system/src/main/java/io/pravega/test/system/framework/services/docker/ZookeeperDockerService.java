@@ -13,9 +13,7 @@ import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
-import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
-import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.Service;
@@ -36,7 +34,7 @@ import static org.junit.Assert.assertThat;
 public class ZookeeperDockerService extends DockerBasedService {
 
     private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
-    private int instances = 1;
+    private long instances = 1;
     private double cpu = 1.0 * Math.pow(10.0, 9.0);
     private long mem = 1024 * 1024 * 1024L;
 
@@ -87,12 +85,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName)
-                .endpointSpec(EndpointSpec.builder()
-                        .mode(EndpointSpec.Mode.RESOLUTION_MODE_VIP)
-                        .addPort(PortConfig.builder().protocol("TCP").
-            publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT)
-                                .publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
+        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
                                 .taskTemplate(taskSpec)
                 .mode(ServiceMode.withReplicas(instances)).build();
         return spec;

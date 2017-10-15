@@ -42,7 +42,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
     private static final String ENV_SEPARATOR = ";;";
     private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
-    private int instances = 1;
+    private long instances = 1;
     private double cpu = 0.1;
     private double mem = 1000.0;
 
@@ -106,6 +106,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
@@ -116,9 +117,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
-                .endpointSpec(EndpointSpec.builder().addPort(PortConfig.builder().
-                        targetPort(SEGMENTSTORE_PORT).protocol("TCP").build())
+                .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().
+                        publishedPort(SEGMENTSTORE_PORT).build())
                         .build()).build();
         return spec;
     }

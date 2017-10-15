@@ -89,6 +89,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringList.add(env2);
         final TaskSpec taskSpec = TaskSpec
                 .builder()
+                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
@@ -99,12 +100,11 @@ public class PravegaControllerDockerService extends DockerBasedService {
                         .build())
                 .build();
         List<PortConfig> portConfigs = new ArrayList<>();
-        PortConfig port1 = PortConfig.builder().publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).protocol("TCP").build();
-        PortConfig port2 = PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).protocol("TCP").build();
+        PortConfig port1 = PortConfig.builder().publishedPort(CONTROLLER_PORT).build();
+        PortConfig port2 = PortConfig.builder().publishedPort(REST_PORT).build();
         portConfigs.add(port1);
         portConfigs.add(port2);
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .name(serviceName).networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;
