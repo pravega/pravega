@@ -144,9 +144,9 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
 
         stopWriters();
         stopReaders();
-        validateResults(readerGroupManager, readerGroupName);
+        validateResults();
 
-        cleanUp(scope, STREAM_NAME); //cleanup if validation is successful.
+        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
         log.info("Test MultiReaderWriterWithFailOver succeeds");
     }

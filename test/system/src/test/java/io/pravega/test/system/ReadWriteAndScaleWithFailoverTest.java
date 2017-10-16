@@ -197,9 +197,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         stopWriters();
         stopReaders();
-        validateResults(readerGroupManager, readerGroupName);
+        validateResults();
 
-        cleanUp(scope, SCALE_STREAM); //cleanup if validation is successful.
+        cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
         log.info("Test ReadWriteAndScaleWithFailover succeeds");
     }
 }

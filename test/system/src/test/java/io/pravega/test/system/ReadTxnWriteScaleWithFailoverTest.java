@@ -199,9 +199,9 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         stopWriters();
         waitForTxnsToComplete();
         stopReaders();
-        validateResults(readerGroupManager, readerGroupName);
+        validateResults();
 
-        cleanUp(scope, stream); //cleanup if validation is successful.
+        cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
         log.info("Test ReadTxnWriteScaleWithFailover succeeds");
     }
 

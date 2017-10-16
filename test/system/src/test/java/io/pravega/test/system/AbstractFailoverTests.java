@@ -340,13 +340,15 @@ abstract class AbstractFailoverTests {
         }
     }
 
-    void cleanUp(String scope, String stream) throws InterruptedException, ExecutionException {
+    void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
         log.info("Deleting stream {}", stream);
         assertTrue(deleteStreamStatus.get());
+        log.info("Deleting readergroup {}", readerGroupName);
+        readerGroupManager.deleteReaderGroup(readerGroupName);
         CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
         log.info("Deleting scope {}", scope);
         assertTrue(deleteScopeStatus.get());
@@ -509,13 +511,11 @@ abstract class AbstractFailoverTests {
         }
     }
 
-    void validateResults(ReaderGroupManager readerGroupManager, String readerGroupName) {
+    void validateResults() {
         log.info("All writers and readers have stopped. Event Written Count:{}, Event Read " +
                 "Count: {}", testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), testState.eventsReadFromPravega.size());
         assertEquals(testState.eventWriteCount.get(), new TreeSet<>(testState.eventsReadFromPravega).size()); //check unique events.
-        log.info("Deleting readergroup {}", readerGroupName);
-        readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 
     void waitForScaling(String scope, String stream) {
