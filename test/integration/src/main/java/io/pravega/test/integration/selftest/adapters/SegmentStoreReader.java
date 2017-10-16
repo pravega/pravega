@@ -231,7 +231,7 @@ class SegmentStoreReader implements StoreReader {
 
         private CompletableFuture<Void> truncateIfPossible(long offset) {
             if (SegmentStoreReader.this.storage instanceof Storage) {
-                Storage s = ((Storage) SegmentStoreReader.this.storage);
+                Storage s = (Storage) SegmentStoreReader.this.storage;
                 if (s.supportsTruncation()) {
                     return s.openWrite(this.segmentName)
                             .thenCompose(handle -> s.truncate(handle, offset, SegmentStoreReader.this.testConfig.getTimeout()));
