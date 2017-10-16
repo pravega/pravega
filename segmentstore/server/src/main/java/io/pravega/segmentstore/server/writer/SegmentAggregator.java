@@ -625,7 +625,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private CompletableFuture<FlushResult> flushPendingTruncate(FlushResult flushResult, Duration timeout) {
         StorageOperation op = this.operations.getFirst();
-        if (!isTruncateOperation(op)) {
+        if (!isTruncateOperation(op) || !this.storage.supportsTruncation()) {
             // Nothing to do.
             return CompletableFuture.completedFuture(flushResult);
         }

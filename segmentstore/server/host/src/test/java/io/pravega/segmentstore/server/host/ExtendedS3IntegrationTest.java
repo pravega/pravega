@@ -26,6 +26,7 @@ import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.S3FileSystemImpl;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
@@ -122,7 +123,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            return new AsyncStorageWrapper(new ExtendedS3Storage(client, config), this.executor);
+            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.executor);
         }
     }
     //endregion
