@@ -17,14 +17,14 @@ import feign.RequestLine;
 import feign.Response;
 import feign.auth.BasicAuthRequestInterceptor;
 import feign.gson.GsonEncoder;
-import lombok.Data;
-import mesosphere.client.common.ModelUtils;
+import java.util.Collection;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
-import java.util.Collection;
+import lombok.Data;
+import mesosphere.marathon.client.utils.ModelUtils;
 
-import static io.pravega.test.system.framework.Utils.getConfig;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.pravega.test.system.framework.Utils.getConfig;
 
 /**
  * This class is used to handle the Authentication with the authentication-service.

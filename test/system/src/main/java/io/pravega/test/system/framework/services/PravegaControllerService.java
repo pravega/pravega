@@ -11,14 +11,6 @@ package io.pravega.test.system.framework.services;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
-import mesosphere.marathon.client.model.v2.App;
-import mesosphere.marathon.client.model.v2.Container;
-import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.Volume;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +21,15 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.model.v2.App;
+import mesosphere.marathon.client.model.v2.Container;
+import mesosphere.marathon.client.model.v2.Docker;
+import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Parameter;
+import mesosphere.marathon.client.model.v2.Volume;
+import mesosphere.marathon.client.utils.MarathonException;
+
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 /**
@@ -140,7 +141,7 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
-        Map<String, Object> map = new HashMap<>();
+        Map<String, String> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("controller"));
