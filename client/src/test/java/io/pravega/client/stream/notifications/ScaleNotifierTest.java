@@ -68,16 +68,16 @@ public class ScaleNotifierTest {
         Listener<ScaleEvent> listener2 = event -> {
         };
 
-        ScaleEventNotifier notifier = new ScaleEventNotifier(system, () -> sync);
-        notifier.registerListener(listener1, executor);
+        ScaleEventNotifier notifier = new ScaleEventNotifier(system, () -> sync, executor);
+        notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
         latch.await();
         assertTrue(listenerInvoked.get());
 
-        notifier.registerListener(listener2, executor);
+        notifier.registerListener(listener2);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 
-        notifier.registerListener(listener1, executor); //duplicate listener
+        notifier.registerListener(listener1); //duplicate listener
 
         notifier.unregisterListeners();
         verify(system, times(1)).removeListeners(ScaleEvent.class.getSimpleName());

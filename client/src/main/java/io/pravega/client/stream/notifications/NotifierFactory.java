@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.notifications;
 
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
@@ -29,9 +30,11 @@ public class NotifierFactory {
     }
 
     @Synchronized
-    public ScaleEventNotifier getScaleNotifier(Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier) {
+    public ScaleEventNotifier getScaleNotifier(
+            final Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier,
+            final ScheduledExecutorService executor) {
         if (scaleEventNotifier == null) {
-            scaleEventNotifier = new ScaleEventNotifier(this.system, stateSyncronizerSupplier);
+            scaleEventNotifier = new ScaleEventNotifier(this.system, stateSyncronizerSupplier, executor);
         }
         return scaleEventNotifier;
     }

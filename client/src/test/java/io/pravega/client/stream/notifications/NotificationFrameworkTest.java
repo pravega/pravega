@@ -45,7 +45,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
         //Application can subscribe to scale events in the following way.
-        Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync);
+        Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync, executor);
         notifier.registerListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();
@@ -55,7 +55,7 @@ public class NotificationFrameworkTest {
                 System.out.println("More readers available time to shut down some");
             }
             scaleEventReceived.set(true);
-        }, executor);
+        });
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
@@ -79,8 +79,8 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.registerListener(listener1, executor);
-        notifier.registerListener(listener2, executor);
+        notifier.registerListener(listener1);
+        notifier.registerListener(listener2);
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
@@ -103,13 +103,13 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventListenerInvoked = new AtomicBoolean();
         final AtomicBoolean customEventListenerInvoked = new AtomicBoolean();
 
-        Observable<ScaleEvent> scaleNotifier = new ScaleEventNotifier(notificationSystem, () -> sync);
+        Observable<ScaleEvent> scaleNotifier = new ScaleEventNotifier(notificationSystem, () -> sync, executor);
         Listener<ScaleEvent> scaleEventListener = event -> scaleEventListenerInvoked.set(true);
-        scaleNotifier.registerListener(scaleEventListener, executor);
+        scaleNotifier.registerListener(scaleEventListener);
 
-        Observable<CustomEvent> customEventNotifier = new CustomEventNotifier(notificationSystem);
+        Observable<CustomEvent> customEventNotifier = new CustomEventNotifier(notificationSystem, executor);
         Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
-        customEventNotifier.registerListener(customEventListener, executor);
+        customEventNotifier.registerListener(customEventListener);
 
         //trigger notifications
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());
@@ -137,7 +137,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean scaleEventReceived = new AtomicBoolean(false);
 
         //Application can subscribe to scale events in the following way.
-        final Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync);
+        final Observable<ScaleEvent> notifier = new ScaleEventNotifier(notificationSystem, () -> sync, executor);
         notifier.registerListener(scaleEvent -> {
             int numReader = scaleEvent.getNumOfReaders();
             int segments = scaleEvent.getNumOfSegments();
@@ -147,7 +147,7 @@ public class NotificationFrameworkTest {
                 System.out.println("More readers available time to shut down some");
             }
             scaleEventReceived.set(true);
-        }, executor);
+        });
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(3).numOfReaders(4).build());
@@ -171,8 +171,8 @@ public class NotificationFrameworkTest {
 
         Listener<ScaleEvent> listener1 = event -> listener1Invoked.set(true);
         Listener<ScaleEvent> listener2 = event -> listener2Invoked.set(true);
-        notifier.registerListener(listener1, executor);
-        notifier.registerListener(listener2, executor);
+        notifier.registerListener(listener1);
+        notifier.registerListener(listener2);
 
         //Trigger notification.
         notificationSystem.notify(ScaleEvent.builder().numOfSegments(5).numOfReaders(4).build());

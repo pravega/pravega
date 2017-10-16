@@ -9,8 +9,6 @@
  */
 package io.pravega.client.stream.notifications;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 /**
  * This represents an observable notification.
  * @param <T>
@@ -19,9 +17,9 @@ public interface Observable<T> {
     /**
      * Register listener for event type T. Multiple listeners can be added for the same type.
      * @param listener This is the listener which will be invoked incase of an Event.
-     * @param executor This is the executor on which the listener will be executed.
+     *
      */
-    void registerListener(final Listener<T> listener, final ScheduledExecutorService executor);
+    void registerListener(final Listener<T> listener);
 
     /**
      * Remove a listener.

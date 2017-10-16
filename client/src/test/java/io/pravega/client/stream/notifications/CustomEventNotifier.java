@@ -9,12 +9,14 @@
  */
 package io.pravega.client.stream.notifications;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 import io.pravega.client.stream.notifications.notifier.AbstractEventNotifier;
 
 public class CustomEventNotifier extends AbstractEventNotifier<CustomEvent> {
 
-    public CustomEventNotifier(final NotificationSystem system) {
-        super(system);
+    public CustomEventNotifier(final NotificationSystem system, final ScheduledExecutorService executor) {
+        super(system, executor);
     }
 
     @Override

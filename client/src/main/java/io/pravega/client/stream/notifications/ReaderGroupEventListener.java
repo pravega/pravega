@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.notifications;
 
+import java.util.concurrent.ScheduledExecutorService;
+
 import io.pravega.client.stream.notifications.events.ScaleEvent;
 
 /**
@@ -21,7 +23,9 @@ public interface ReaderGroupEventListener {
      * number of segments when compared to the number of readers or vice versa. Listeners can be registered which will
      * notify in case of a scale event.
      *
+     * @param executor executor on which the listeners run.
      * @return Observable of type ScaleEvent.
+     *
      */
-    Observable<ScaleEvent> getScaleEventNotifier();
+    Observable<ScaleEvent> getScaleEventNotifier(final ScheduledExecutorService executor);
 }

@@ -23,9 +23,11 @@ import io.pravega.client.stream.notifications.Observable;
 public abstract class AbstractEventNotifier<T extends Event> implements Observable<T> {
 
     protected final NotificationSystem notifySystem;
+    protected final ScheduledExecutorService executor;
 
-    protected AbstractEventNotifier(final NotificationSystem notifySystem) {
+    protected AbstractEventNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor) {
         this.notifySystem = notifySystem;
+        this.executor = executor;
     }
 
     @Override
@@ -39,7 +41,7 @@ public abstract class AbstractEventNotifier<T extends Event> implements Observab
     }
 
     @Override
-    public void registerListener(final Listener<T> listener, final ScheduledExecutorService executor) {
-        this.notifySystem.addListeners(getType(), listener, executor);
+    public void registerListener(final Listener<T> listener) {
+        this.notifySystem.addListeners(getType(), listener, this.executor);
     }
 }

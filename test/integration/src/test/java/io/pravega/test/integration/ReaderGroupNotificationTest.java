@@ -151,7 +151,7 @@ public class ReaderGroupNotificationTest {
             listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
-        readerGroup.getScaleEventNotifier().registerListener(l1, executor);
+        readerGroup.getScaleEventNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
 
@@ -167,14 +167,14 @@ public class ReaderGroupNotificationTest {
         numberOfSegments.set(0);
         numberOfReaders.set(0);
         listenerLatch.reset();
-        readerGroup.getScaleEventNotifier().unregisterListeners();
+        readerGroup.getScaleEventNotifier(executor).unregisterListeners();
 
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         reader1.readNextEvent(1000);
 
-        readerGroup.getScaleEventNotifier().registerListener(l1, executor);
+        readerGroup.getScaleEventNotifier(executor).registerListener(l1);
         listenerLatch.await();
         assertTrue("Listener invoked", listenerInvoked.get());
         assertEquals(3, numberOfSegments.get());

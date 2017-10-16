@@ -211,8 +211,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public Observable<ScaleEvent> getScaleEventNotifier() {
-        return this.notifierFactory.getScaleNotifier(this::createSynchronizer);
+    public Observable<ScaleEvent> getScaleEventNotifier(ScheduledExecutorService executor) {
+        return this.notifierFactory.getScaleNotifier(this::createSynchronizer, executor);
     }
 
 }

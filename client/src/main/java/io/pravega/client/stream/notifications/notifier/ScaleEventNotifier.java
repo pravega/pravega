@@ -37,15 +37,16 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
     private StateSynchronizer<ReaderGroupState> synchronizer;
 
     public ScaleEventNotifier(final NotificationSystem notifySystem,
-                              final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
-        super(notifySystem);
+                              final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
+                              final ScheduledExecutorService executor) {
+        super(notifySystem, executor);
         this.synchronizerSupplier = synchronizerSupplier;
     }
 
     @Override
     @Synchronized
-    public void registerListener(final Listener<ScaleEvent> listener, final ScheduledExecutorService executor) {
-        notifySystem.addListeners(getType(), listener, executor);
+    public void registerListener(final Listener<ScaleEvent> listener) {
+        notifySystem.addListeners(getType(), listener, this.executor);
         //periodically fetch the scale
         if (!pollingStarted.getAndSet(true)) { //schedule the  only once
             synchronizer = synchronizerSupplier.get();
