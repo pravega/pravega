@@ -143,16 +143,31 @@ public abstract class PersistentStreamBase<T> implements Stream {
     /**
      * Update configuration at configurationPath.
      *
-     * @param configurationWithVersion new stream configuration.
-     * @return : future of boolean
+     * @param newConfiguration new stream configuration.
+     * @return : future of new configuration with version
      */
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final StreamConfigWithVersion configurationWithVersion) {
-        // replace the configurationPath with new configurationPath
-        return verifyState(() -> updateState(State.UPDATING)
-                .thenApply(x -> setConfigurationData(configurationWithVersion))
-                .thenApply(x -> true),
-                Lists.newArrayList(State.ACTIVE, State.UPDATING));
+    public CompletableFuture<Void> startUpdateConfiguration(final StreamConfiguration newConfiguration) {
+        return getConfigurationData(true)
+                .thenCompose(configData -> {
+                    StreamProperty<StreamConfiguration> update = StreamProperty.startUpdate(
+                            SerializationUtils.deserialize(configData.getData()), newConfiguration);
+                    return setConfigurationData(new Data<>(SerializationUtils.serialize(update), configData.getVersion()));
+                });
+    }
+
+    /**
+     * Update configuration at configurationPath.
+     *
+     * @return : future of new configuration with version
+     */
+    @Override
+    public CompletableFuture<Void> completeUpdateConfiguration() {
+        return getConfigurationData(true)
+                .thenCompose(configData -> {
+                    StreamProperty<StreamConfiguration> configProperty = StreamProperty.complete(SerializationUtils.deserialize(configData.getData()));
+                    return setConfigurationData(new Data<>(SerializationUtils.serialize(configProperty), configData.getVersion()));
+                });
     }
 
     /**
@@ -162,18 +177,42 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
-        return getConfigurationData().thenApply(data -> (StreamConfigWithVersion) SerializationUtils.deserialize(data.getData()))
-                .thenApply(StreamConfigWithVersion::getConfiguration);
+        return getConfigurationProperty(false).thenApply(StreamProperty::getProperty);
     }
 
-    /**
-     * Fetch configuration at configurationPath.
-     *
-     * @return Future of stream configuration
-     */
     @Override
-    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion() {
-        return getConfigurationData()
+    public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached) {
+        return getConfigurationData(ignoreCached)
+                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
+    }
+
+    @Override
+    public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
+        return getStreamCutData(true)
+                .thenCompose(streamCutData -> {
+                    StreamProperty<Map<Integer, Long>> update = StreamProperty.startUpdate(
+                            SerializationUtils.deserialize(streamCutData.getData()), streamCut);
+                    return setStreamCutData(new Data<>(SerializationUtils.serialize(update), streamCutData.getVersion()));
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation() {
+        return getStreamCutData(true)
+                .thenCompose(cutData -> {
+                    StreamProperty<Map<Integer, Long>> configProperty = StreamProperty.complete(SerializationUtils.deserialize(cutData.getData()));
+                    return setStreamCutData(new Data<>(SerializationUtils.serialize(configProperty), cutData.getVersion()));
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<Integer, Long>> getStreamCut() {
+        return getStreamCutProperty(false).thenApply(StreamProperty::getProperty);
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(boolean ignoreCached) {
+        return getStreamCutData(ignoreCached)
                 .thenApply(data -> SerializationUtils.deserialize(data.getData()));
     }
 
@@ -984,9 +1023,13 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration);
 
-    abstract CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration);
+    abstract CompletableFuture<Void> setConfigurationData(final Data<T> configuration);
 
-    abstract CompletableFuture<Data<T>> getConfigurationData();
+    abstract CompletableFuture<Data<T>> getConfigurationData(boolean ignoreCached);
+
+    abstract CompletableFuture<Void> setStreamCutData(final Data<T> streamCut);
+
+    abstract CompletableFuture<Data<T>> getStreamCutData(boolean ignoreCached);
 
     abstract CompletableFuture<Void> createStateIfAbsent(final State state);
 

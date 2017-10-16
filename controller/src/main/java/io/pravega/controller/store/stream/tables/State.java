@@ -23,6 +23,7 @@ public enum State {
     ACTIVE,
     UPDATING,
     SCALING,
+    TRUNCATING,
     SEALING,
     SEALED;
 
@@ -31,6 +32,7 @@ public enum State {
         CREATING(State.CREATING, State.ACTIVE),
         ACTIVE(State.ACTIVE, State.SCALING, State.SEALING, State.SEALED, State.UPDATING),
         SCALING(State.SCALING, State.ACTIVE),
+        TRUNCATING(State.TRUNCATING, State.ACTIVE),
         UPDATING(State.UPDATING, State.ACTIVE),
         SEALING(State.SEALING, State.SEALED),
         SEALED(State.SEALED);

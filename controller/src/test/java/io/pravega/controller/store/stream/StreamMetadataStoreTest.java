@@ -9,13 +9,14 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Assert;
@@ -444,30 +445,29 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        // region idempotent
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
-        StreamConfigWithVersion configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-
+        StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true,null, executor).join();
+        assertFalse(configProperty.isUpdating());
         // run update configuration multiple times
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
-        assertEquals(State.UPDATING, store.getState(scope, stream, false, null, executor).get());
+        assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
+        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
 
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
+        assertTrue(configProperty.isUpdating());
 
-        store.setState(scope, stream, State.ACTIVE, null, executor).get();
-        configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-        // set state to updating and run update configuration
-        store.setState(scope, stream, State.UPDATING, null, executor).get();
-        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
-        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        assertFalse(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+
+        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+
+        configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
+        assertEquals(configuration2, configProperty.getProperty());
+
+        assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
 
         // endregion
-
-        StreamConfigWithVersion configWithVersion2 = store.getConfigurationWithVersion(scope, stream, null, executor).join();
-        store.setState(scope, stream, State.SCALING, null, executor).get();
-        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion2, configuration2), null, executor).get(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
     }
 
     @Test

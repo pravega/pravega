@@ -60,12 +60,19 @@ interface Stream {
     CompletableFuture<Void> delete();
 
     /**
-     * Updates the configuration of an existing stream.
+     * Starts updating the configuration of an existing stream.
      *
      * @param configuration new stream configuration.
-     * @return boolean indicating whether the stream was updated.
+     * @return future of new StreamConfigWithVersion.
      */
-    CompletableFuture<Boolean> updateConfiguration(final StreamConfigWithVersion configuration);
+    CompletableFuture<Void> startUpdateConfiguration(final StreamConfiguration configuration);
+
+    /**
+     * Completes an ongoing updates configuration of an existing stream.
+     *
+     * @return future of new StreamConfigWithVersion.
+     */
+    CompletableFuture<Void> completeUpdateConfiguration();
 
     /**
      * Fetches the current stream configuration.
@@ -77,9 +84,42 @@ interface Stream {
     /**
      * Fetches the current stream configuration.
      *
+     * @param ignoreCached ignore cached
+     *
      * @return current stream configuration.
      */
-    CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion();
+    CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached);
+
+    /**
+     * Starts truncating an existing stream.
+     *
+     * @param streamCut new stream cut.
+     * @return future of new StreamProperty.
+     */
+    CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut);
+
+    /**
+     * Completes an ongoing stream truncation.
+     *
+     * @return future of operation.
+     */
+    CompletableFuture<Void> completeTruncation();
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @return current stream cut.
+     */
+    CompletableFuture<Map<Integer, Long>> getStreamCut();
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @param ignoreCached ignore cached
+     *
+     * @return current stream cut.
+     */
+    CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(boolean ignoreCached);
 
     /**
      * Update the state of the stream.

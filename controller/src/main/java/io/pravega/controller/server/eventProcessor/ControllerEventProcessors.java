@@ -39,6 +39,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
@@ -130,6 +131,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 executor);
         this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);

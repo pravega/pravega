@@ -28,6 +28,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -36,8 +37,8 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.StreamConfigWithVersion;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamProperty;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -130,6 +131,7 @@ public class StreamMetadataTasksTest {
                 new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new SealStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 executor);
         consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
@@ -172,17 +174,16 @@ public class StreamMetadataTasksTest {
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        StreamConfigWithVersion configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
-        assertTrue(configWithVersion.getVersion() == 0);
+        StreamProperty<StreamConfiguration> configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
+        assertFalse(configWithVersion.isUpdating());
         // 1. happy day test
         // update.. should succeed
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
         assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
-        configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
-        assertTrue(configWithVersion.getVersion() == 1);
-        assertTrue(configWithVersion.getConfiguration().equals(streamConfiguration));
+        configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
+        assertTrue(configWithVersion.getProperty().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -222,9 +223,8 @@ public class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture2.join());
 
-        configWithVersion = streamStorePartialMock.getConfigurationWithVersion(SCOPE, stream1, null, executor).join();
-        assertTrue(configWithVersion.getVersion() == 2);
-        assertTrue(configWithVersion.getConfiguration().equals(streamConfiguration1));
+        configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
+        assertTrue(configWithVersion.getProperty().equals(streamConfiguration1));
     }
 
     @Test(timeout = 30000)

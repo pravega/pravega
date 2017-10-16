@@ -23,6 +23,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamT
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -71,6 +72,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamStore, executorService),
                 new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));

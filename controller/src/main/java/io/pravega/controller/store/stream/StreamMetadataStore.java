@@ -147,11 +147,27 @@ public interface StreamMetadataStore {
      * @param configuration new stream configuration.
      * @param context       operation context
      * @param executor      callers executor
-     * @return boolean indicating whether the stream was updated
+     * @return Future of operation
      */
-    CompletableFuture<Boolean> updateConfiguration(final String scope, final String name, final StreamConfigWithVersion configuration,
-                                                   final OperationContext context,
-                                                   final Executor executor);
+    CompletableFuture<Void> startUpdateConfiguration(final String scope,
+                                                     final String name,
+                                                     final StreamConfiguration configuration,
+                                                     final OperationContext context,
+                                                     final Executor executor);
+
+    /**
+     * Complete an ongoing update of stream configuration.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return future of opration
+     */
+    CompletableFuture<Void> completeUpdateConfiguration(final String scope,
+                                                        final String name,
+                                                        final OperationContext context,
+                                                        final Executor executor);
 
     /**
      * Fetches the current stream configuration.
@@ -175,9 +191,68 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return current stream configuration.
      */
-    CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion(final String scope, final String name,
-                                                                           final OperationContext context,
-                                                                           final Executor executor);
+    CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope, final String name,
+                                                                                    final boolean ignoreCached,
+                                                                                    final OperationContext context,
+                                                                                    final Executor executor);
+
+    /**
+     * Start new stream truncation.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param streamCut     new stream cut.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return future of operation.
+     */
+    CompletableFuture<Void> startTruncation(final String scope,
+                                            final String name,
+                                            final Map<Integer, Long> streamCut,
+                                            final OperationContext context,
+                                            final Executor executor);
+
+    /**
+     * Complete an ongoing stream truncation.
+     *
+     * @param scope         stream scope
+     * @param name          stream name.
+     * @param context       operation context
+     * @param executor      callers executor
+     * @return boolean indicating whether the stream was updated
+     */
+    CompletableFuture<Void> completeTruncation(final String scope,
+                                               final String name,
+                                               final OperationContext context,
+                                               final Executor executor);
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @param scope    stream scope
+     * @param name     stream name.
+     * @param context  operation context
+     * @param executor callers executor
+     * @return current stream cut.
+     */
+    CompletableFuture<Map<Integer, Long>> getStreamCut(final String scope, final String name,
+                                                       final OperationContext context,
+                                                       final Executor executor);
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param ignoreCached ignore cached value.
+     * @param context      operation context
+     * @param executor     callers executor
+     * @return current stream cut property.
+     */
+    CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(final String scope, final String name,
+                                                                               final boolean ignoreCached,
+                                                                               final OperationContext context,
+                                                                               final Executor executor);
 
     /**
      * Set the stream state to sealed.

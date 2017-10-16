@@ -242,11 +242,18 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final String scope,
-                                                          final String name,
-                                                          final StreamConfigWithVersion configuration,
-                                                          final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateConfiguration(configuration), executor);
+    public CompletableFuture<Void> startUpdateConfiguration(final String scope,
+                                                            final String name,
+                                                            final StreamConfiguration configuration,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
+        return withCompletion(getStream(scope, name, context).startUpdateConfiguration(configuration), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeUpdateConfiguration(final String scope, final String name,
+                                                               final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeUpdateConfiguration(), executor);
     }
 
     @Override
@@ -257,10 +264,42 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion(final String scope,
-                                                                                  final String name,
-                                                                                  final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getConfigurationWithVersion(), executor);
+    public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope,
+                                                                                           final String name,
+                                                                                           final boolean ignoreCached,
+                                                                                           final OperationContext context,
+                                                                                           final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getConfigurationProperty(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> startTruncation(final String scope,
+                                                   final String name,
+                                                   final Map<Integer, Long> streamCut,
+                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).startTruncation(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name,
+                                                      final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeTruncation(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Map<Integer, Long>> getStreamCut(final String scope,
+                                                              final String name,
+                                                              final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getStreamCut(), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(final String scope,
+                                                                                      final String name,
+                                                                                      final boolean ignoreCached,
+                                                                                      final OperationContext context,
+                                                                                      final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getStreamCutProperty(ignoreCached), executor);
     }
 
     @Override

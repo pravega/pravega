@@ -43,6 +43,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
+    private static final String STREAM_CUT_PATH = STREAM_PATH + "/streamCut";
     private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
@@ -52,6 +53,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final ZKStoreHelper store;
     private final String creationPath;
     private final String configurationPath;
+    private final String streamCutPath;
     private final String statePath;
     private final String segmentPath;
     private final String historyPath;
@@ -64,13 +66,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final Cache<Integer> cache;
 
-    public ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
+        streamCutPath = String.format(STREAM_CUT_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
         segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
@@ -179,7 +182,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(new StreamConfigWithVersion(configuration, 0)))
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(
+                StreamProperty.builder().property(configuration).updating(false).build()))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
@@ -384,13 +388,32 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration) {
-        return store.setData(configurationPath, new Data<>(SerializationUtils.serialize(configuration), configuration.getVersion() - 1))
+    CompletableFuture<Void> setStreamCutData(final Data<Integer> configuration) {
+        return store.setData(streamCutPath, configuration)
+                .whenComplete((r, e) -> cache.invalidateCache(streamCutPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getStreamCutData(boolean ignoreCached) {
+        if (ignoreCached) {
+            cache.invalidateCache(streamCutPath);
+        }
+
+        return cache.getCachedData(streamCutPath);
+    }
+
+    @Override
+    CompletableFuture<Void> setConfigurationData(final Data<Integer> configuration) {
+        return store.setData(configurationPath, configuration)
                 .whenComplete((r, e) -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    public CompletableFuture<Data<Integer>> getConfigurationData() {
+    CompletableFuture<Data<Integer>> getConfigurationData(boolean ignoreCached) {
+        if (ignoreCached) {
+            cache.invalidateCache(configurationPath);
+        }
+
         return cache.getCachedData(configurationPath);
     }
 
