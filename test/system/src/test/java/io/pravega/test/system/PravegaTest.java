@@ -116,7 +116,7 @@ public class PravegaTest {
         List<URI> conUris = new ArrayList<>();
         conUris = conService.getServiceDetails();
         log.debug("Pravega Controller service details: {}", conUris);
-        
+
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
                 new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
