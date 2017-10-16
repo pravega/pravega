@@ -36,8 +36,8 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
 
-    static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    static final int CONTROLLER_PORT = 9090;
+    private static final int REST_PORT = 9091;
     private int instances = 1;
     private double cpu = 0.1;
     private double mem = 700.0;
@@ -76,7 +76,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
         String zk = "zookeeper:" + ZKSERVICE_ZKPORT;
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", dockerClient.getHost()) +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", "controller") +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +

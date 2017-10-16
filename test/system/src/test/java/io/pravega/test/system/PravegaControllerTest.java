@@ -19,6 +19,7 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -66,7 +67,7 @@ public class PravegaControllerTest {
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {
             int port = conUri.get(i).getPort();
-            boolean boolPort = port == 9092 || port == 10080;
+            boolean boolPort =  Utils.isDockerLocalExecEnabled() ? (port == 9090 ||  port == 9091) : (port == 9092 || port == 10080);
             assertEquals(true, boolPort);
         }
         log.debug("ControllerTest  execution completed");

@@ -55,15 +55,7 @@ public class DockerRemoteSequential implements TestExecutor {
 
         return CompletableFuture.runAsync(() -> {
             startTest(containerName, className, methodName);
-        }).thenCompose(v2 -> waitForJobCompletion(containerName))
-                .whenComplete((v, ex) -> {
-            stopContainer(); //stop container once execution is complete.
-                    if (ex != null) {
-                        log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
-                                methodName);
-                    }
-                }
-                );
+        }).thenCompose(v2 -> waitForJobCompletion(containerName));
     }
 
 
