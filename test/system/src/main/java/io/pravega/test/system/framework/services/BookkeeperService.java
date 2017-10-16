@@ -11,6 +11,7 @@ package io.pravega.test.system.framework.services;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -113,7 +114,7 @@ public class BookkeeperService extends MarathonBasedService {
         app.setRequirePorts(true);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
         map.put("bookiePort", String.valueOf(BK_PORT));
