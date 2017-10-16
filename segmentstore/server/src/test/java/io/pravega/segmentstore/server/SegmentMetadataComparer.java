@@ -31,7 +31,7 @@ public final class SegmentMetadataComparer {
         String idPrefix = message + " SegmentId " + expected.getId();
         Assert.assertEquals(idPrefix + " getId() mismatch.", expected.getId(), actual.getId());
         Assert.assertEquals(idPrefix + " getParentId() mismatch.", expected.getParentId(), actual.getParentId());
-        Assert.assertEquals(idPrefix + " getName() isDeleted.", expected.isDeleted(), actual.isDeleted());
+        Assert.assertEquals(idPrefix + " isDeleted() mismatch.", expected.isDeleted(), actual.isDeleted());
         Assert.assertEquals(idPrefix + " getStorageLength() mismatch.", expected.getStorageLength(), actual.getStorageLength());
         Assert.assertEquals(idPrefix + " getLength() mismatch.", expected.getLength(), actual.getLength());
         Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());

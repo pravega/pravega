@@ -10,14 +10,20 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -43,16 +49,40 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
 
     @Override
     public CompletableFuture<Void> execute(final SealStreamEvent request) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
+        String scope = request.getScope();
+        String stream = request.getStream();
+        final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-        // TODO: implement seal stream task (issue 1738)
-        // 1. check precondition
-        // 2. set state sealing
-        // 3. seal
-        // 4. set state to sealed
+        // when seal stream task is picked, if the state is sealing/sealed, process sealing, else postpone.
+        return streamMetadataStore.getState(scope, stream, true, context, executor)
+                .thenAccept(state -> {
+                    if (!state.equals(State.SEALING) && !state.equals(State.SEALED)) {
+                        throw new TaskExceptions.StartException("Seal stream task not started yet.");
+                    }
+                })
+                .thenCompose(x -> streamMetadataStore.getActiveSegments(scope, stream, context, executor))
+                .thenCompose(activeSegments -> {
+                    if (activeSegments.isEmpty()) {
+                        // idempotent check
+                        // if active segment set is empty then the stream is sealed.
+                        // Do not update the state if the stream is already sealed.
+                        return CompletableFuture.completedFuture(null);
+                    } else {
+                        return notifySealed(scope, stream, context, activeSegments);
+                    }
+                });
+    }
 
-        return result;
+    private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments) {
+        List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
+                collect(Collectors.toList());
+        log.debug("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
+        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed)
+                .thenCompose(v -> setSealed(scope, stream, context));
+    }
+
+    private CompletableFuture<Void> setSealed(String scope, String stream, OperationContext context) {
+        return FutureHelpers.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor));
     }
 
     @Override

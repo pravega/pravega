@@ -24,13 +24,13 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
@@ -51,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -299,19 +298,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         this.metrics.getInfo();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        Function<Long, CompletableFuture<SegmentProperties>> metadataRetriever =
-                streamSegmentId -> CompletableFuture.completedFuture(this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
 
         if (waitForPendingOps) {
             // We have been instructed to wait for all pending operations to complete. Use an op barrier and wait for it
             // before proceeding.
+            TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.durableLog
                     .operationProcessingBarrier(timer.getRemaining())
-                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever), this.executor);
+                    .thenComposeAsync(v -> this.segmentMapper.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()), this.executor);
         } else {
-            return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever);
+            return this.segmentMapper.getStreamSegmentInfo(streamSegmentName, timeout);
         }
     }
 

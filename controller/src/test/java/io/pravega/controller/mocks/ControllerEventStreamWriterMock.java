@@ -13,8 +13,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.shared.controller.event.ScaleOpEvent;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;
 
@@ -26,17 +25,14 @@ import java.util.concurrent.ScheduledExecutorService;
  * Mock EventStreamWriter.
  */
 @Data
-public class ScaleEventStreamWriterMock implements EventStreamWriter<ControllerEvent> {
-    private final StreamMetadataTasks streamMetadataTasks;
+public class ControllerEventStreamWriterMock implements EventStreamWriter<ControllerEvent> {
+    private final StreamRequestHandler streamRequestHandler;
     private final ScheduledExecutorService executor;
 
     @Override
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
-        if (event instanceof ScaleOpEvent) {
-            ScaleOpEvent scaleOp = (ScaleOpEvent) event;
-            FutureHelpers.delayedFuture(() ->
-                    streamMetadataTasks.startScale(scaleOp, scaleOp.isRunOnlyIfStarted(), null), 1000, executor);
-        }
+        FutureHelpers.delayedFuture(() ->
+                streamRequestHandler.processEvent(event), 1000, executor);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -46,7 +42,7 @@ public class ScaleEventStreamWriterMock implements EventStreamWriter<ControllerE
     }
 
     @Override
-    public Transaction<ControllerEvent> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod) {
+    public Transaction<ControllerEvent> beginTxn() {
         return null;
     }
 
