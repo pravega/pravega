@@ -1161,10 +1161,18 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             byte[] expectedData = segmentContents.get(segmentId).toByteArray();
 
             if (startOffset > 0) {
+                @Cleanup
+                ReadResult truncatedResult = context.readIndex.read(segmentId, 0, 1, TIMEOUT);
+                val first = truncatedResult.next();
+                Assert.assertEquals("Read request for a truncated offset did not start with a Truncated ReadResultEntryType.",
+                        ReadResultEntryType.Truncated, first.getType());
                 AssertExtensions.assertThrows(
-                        "Read request for a truncated offset was not rejected.",
-                        () -> context.readIndex.read(segmentId, 0, 1, TIMEOUT),
-                        ex -> ex instanceof IllegalArgumentException);
+                        "Truncate ReadResultEntryType did not throw when getContent() was invoked.",
+                        () -> {
+                            first.requestContent(TIMEOUT);
+                            return first.getContent();
+                        },
+                        ex -> ex instanceof StreamSegmentTruncatedException);
             }
 
             long expectedCurrentOffset = startOffset;
