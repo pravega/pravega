@@ -67,7 +67,7 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
 
     @Override
     @Synchronized
-    public void unregisterListeners() {
+    public void unregisterAllListeners() {
         this.notifySystem.removeListeners(getType());
         cancelScheduledTask();
         synchronizer.close();
@@ -84,7 +84,7 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
         ScaleEvent event = ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
                          .numOfReaders(state.getOnlineReaders().size())
                          .build();
-        if (event.getNumOfReaders() != event.getNumOfSegments()) {
+        if (event.getNumOfReaders() > 0) { //Notify only if there are online readers in the reader group.
             notifySystem.notify(event);
         }
     }

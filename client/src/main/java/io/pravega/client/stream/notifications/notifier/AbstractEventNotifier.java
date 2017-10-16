@@ -36,7 +36,7 @@ public abstract class AbstractEventNotifier<T extends Event> implements Observab
     }
 
     @Override
-    public void unregisterListeners() {
+    public void unregisterAllListeners() {
         this.notifySystem.removeListeners(getType());
     }
 

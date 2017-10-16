@@ -79,7 +79,7 @@ public class ScaleNotifierTest {
 
         notifier.registerListener(listener1); //duplicate listener
 
-        notifier.unregisterListeners();
+        notifier.unregisterAllListeners();
         verify(system, times(1)).removeListeners(ScaleEvent.class.getSimpleName());
     }
 }

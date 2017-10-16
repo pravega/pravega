@@ -106,7 +106,7 @@ public class ReaderGroupNotificationTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testScaleNotifications() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
@@ -167,7 +167,7 @@ public class ReaderGroupNotificationTest {
         numberOfSegments.set(0);
         numberOfReaders.set(0);
         listenerLatch.reset();
-        readerGroup.getScaleEventNotifier(executor).unregisterListeners();
+        readerGroup.getScaleEventNotifier(executor).unregisterAllListeners();
 
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "reader", new JavaSerializer<>(),

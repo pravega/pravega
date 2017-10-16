@@ -30,7 +30,7 @@ public interface Observable<T> {
     /**
      * Remove all listeners for a given type.
      */
-    void unregisterListeners();
+    void unregisterAllListeners();
 
     /**
      * Get the event type.

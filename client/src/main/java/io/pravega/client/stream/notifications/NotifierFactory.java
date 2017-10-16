@@ -19,6 +19,8 @@ import lombok.Synchronized;
 
 /**
  * Factory used to create different types of notifiers.
+ * To add a new notifier add a method which returns a new Notifier object which internally implements
+ * {@link io.pravega.client.stream.notifications.Observable}
  */
 public class NotifierFactory {
 
