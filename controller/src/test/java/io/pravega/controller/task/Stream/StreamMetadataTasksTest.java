@@ -73,6 +73,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -207,6 +208,13 @@ public class StreamMetadataTasksTest {
 
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration1, null);
+
+        // ensure that previous updatestream has posted the event and set status to updating,
+        // only then call second updateStream
+        AtomicReference<State> streamState = new AtomicReference<>(State.ACTIVE);
+        FutureHelpers.loop(() -> streamState.get().equals(State.ACTIVE),
+                () -> streamStorePartialMock.getState(SCOPE, stream1, true, null, executor)
+                        .thenAccept(streamState::set), executor).join();
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
