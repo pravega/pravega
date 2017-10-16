@@ -19,7 +19,6 @@ import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.net.URI;
@@ -45,7 +44,7 @@ public class PravegaControllerTest {
             zk.start(true);
         }
         Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
                 : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
@@ -61,7 +60,7 @@ public class PravegaControllerTest {
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", null)
                 : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);

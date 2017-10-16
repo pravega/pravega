@@ -107,7 +107,7 @@ public class ReaderCheckpointTest {
         //get the zk ip details and pass it to bk, host, controller
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper") : new BookkeeperService("bookkeeper", zkUris.get(0));
+                new BookkeeperDockerService("bookkeeper", zkUris.get(0)) : new BookkeeperService("bookkeeper", zkUris.get(0));
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -115,7 +115,7 @@ public class ReaderCheckpointTest {
 
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
                 : new PravegaControllerService("controller", zkUris.get(0));
         if (!conService.isRunning()) {
             conService.start(true);
@@ -125,7 +125,7 @@ public class ReaderCheckpointTest {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

@@ -55,7 +55,7 @@ public class ZookeeperTest {
                 : new ZookeeperService("zookeeper");
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
-                CuratorFrameworkFactory.newClient(zkUri.getHost()+":"+2181, new RetryOneTime(5000));
+                CuratorFrameworkFactory.newClient(zkUri.getHost() +":2181", new RetryOneTime(5000));
         curatorFrameworkClient.start();
         log.info("CuratorFramework status {} ", curatorFrameworkClient.getState());
         assertEquals("Connection to zk client ", STARTED, curatorFrameworkClient.getState());

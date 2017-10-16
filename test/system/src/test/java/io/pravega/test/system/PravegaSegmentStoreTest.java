@@ -47,7 +47,7 @@ public class PravegaSegmentStoreTest {
             zk.start(true);
         }
         Service bk = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper")
+                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0))
                 : new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
@@ -60,13 +60,13 @@ public class PravegaSegmentStoreTest {
             }
         }
         Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
                 : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }
         Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0))
                 : new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0));
         if (!seg.isRunning()) {
             seg.start(true);
@@ -82,7 +82,7 @@ public class PravegaSegmentStoreTest {
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
         Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", null, null)
                 : new PravegaSegmentStoreService("segmentstore", null, null,  0, 0.0, 0.0);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);

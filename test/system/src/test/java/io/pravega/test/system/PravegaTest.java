@@ -40,6 +40,7 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -88,7 +89,7 @@ public class PravegaTest {
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
         Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper")
+                new BookkeeperDockerService("bookkeeper", zkUri)
                 : new BookkeeperService("bookkeeper", zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
@@ -107,18 +108,18 @@ public class PravegaTest {
 
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", zkUri)
                 : new PravegaControllerService("controller", zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
-
-        List<URI> conUris = conService.getServiceDetails();
+        List<URI> conUris = new ArrayList<>();
+        conUris = conService.getServiceDetails();
         log.debug("Pravega Controller service details: {}", conUris);
-
+        
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore")
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -145,10 +146,12 @@ public class PravegaTest {
     public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
 
         Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller")
+                ? new PravegaControllerDockerService("controller", null)
                 : new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         log.info("Invoking create stream with Controller URI: {}", controllerUri);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
@@ -172,6 +175,7 @@ public class PravegaTest {
         Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
+
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);

@@ -1,0 +1,217 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.test.system;
+
+import io.pravega.client.ClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.test.system.framework.Environment;
+import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
+import io.pravega.test.system.framework.services.marathon.BookkeeperService;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
+import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+import java.io.Serializable;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertTrue;
+
+@Slf4j
+@RunWith(SystemTestRunner.class)
+public class PravegaTest {
+
+    private final static String STREAM_NAME = "testStreamSampleY";
+    private final static String STREAM_SCOPE = "testScopeSampleY";
+    private final static String READER_GROUP = "ExampleReaderGroupY";
+    private final static int NUM_EVENTS = 100;
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
+    private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+
+    /**
+     * This is used to setup the various services required by the system test framework.
+     *
+     * @throws InterruptedException If interrupted
+     * @throws MarathonException    when error in setup
+     * @throws URISyntaxException   If URI is invalid
+     */
+    @Environment
+    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+
+        //1. check if zk is running, if not start it
+        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
+        if (!zkService.isRunning()) {
+            zkService.start(true);
+        }
+
+        List<URI> zkUris = zkService.getServiceDetails();
+        log.debug("zookeeper service details: {}", zkUris);
+        //get the zk ip details and pass it to bk, host, controller
+        URI zkUri = zkUris.get(0);
+        //2, check if bk is running, otherwise start, get the zk ip
+        Service bkService = Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper", zkUri)
+                : new BookkeeperService("bookkeeper", zkUri);
+        if (!bkService.isRunning()) {
+            bkService.start(true);
+        }
+
+        List<URI> bkUris = bkService.getServiceDetails();
+        log.debug("bookkeeper service details: {}", bkUris);
+
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+        }
+
+        //3. start controller
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUri)
+                : new PravegaControllerService("controller", zkUri);
+        if (!conService.isRunning()) {
+            conService.start(true);
+        }
+        List<URI> conUris = new ArrayList<>();
+        conUris = conService.getServiceDetails();
+        log.debug("Pravega Controller service details: {}", conUris);
+
+
+        //4.start host
+        Service segService = Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
+                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        if (!segService.isRunning()) {
+            segService.start(true);
+        }
+
+        List<URI> segUris = segService.getServiceDetails();
+        log.debug("pravega host service details: {}", segUris);
+        URI segUri = segUris.get(0);
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        // This is the placeholder to perform any operation on the services before executing the system tests
+    }
+
+    /**
+     * Invoke the createStream method, ensure we are able to create stream.
+     *
+     * @throws InterruptedException if interrupted
+     * @throws URISyntaxException   If URI is invalid
+     * @throws ExecutionException   if error in create stream
+     */
+    @Before
+    public void createStream() throws InterruptedException, URISyntaxException, ExecutionException {
+
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", null)
+                : new PravegaControllerService("controller", null,  0, 0.0, 0.0);
+
+        List<URI> ctlURIs = conService.getServiceDetails();
+        URI controllerUri = ctlURIs.get(0);
+
+        log.info("Invoking create stream with Controller URI: {}", controllerUri);
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ControllerImpl controller = new ControllerImpl(controllerUri,
+                ControllerImplConfig.builder().build(), connectionFactory.getInternalExecutor());
+
+        assertTrue(controller.createScope(STREAM_SCOPE).get());
+        assertTrue(controller.createStream(config).get());
+    }
+
+    /**
+     * Invoke the simpleTest, ensure we are able to produce  events.
+     * The test fails incase of exceptions while writing to the stream.
+     *
+     * @throws InterruptedException if interrupted
+     * @throws URISyntaxException   If URI is invalid
+     */
+    @Test(timeout = 10 * 60 * 1000)
+    public void simpleTest() throws InterruptedException, URISyntaxException {
+
+        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        List<URI> ctlURIs = conService.getServiceDetails();
+        URI controllerUri = ctlURIs.get(0);
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, controllerUri);
+        log.info("Invoking Writer test with Controller URI: {}", controllerUri);
+        @Cleanup
+        EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
+                new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            String event = "Publish " + i + "\n";
+            log.debug("Producing event: {} ", event);
+            writer.writeEvent("", event);
+            writer.flush();
+            Thread.sleep(500);
+        }
+        log.info("Invoking Reader test.");
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, controllerUri);
+        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().startingTime(0).build(),
+                                       Collections.singleton(STREAM_NAME));
+        EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
+                READER_GROUP,
+                new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+        for (int i = 0; i < NUM_EVENTS; i++) {
+            try {
+                String event = reader.readNextEvent(6000).getEvent();
+                if (event != null) {
+                    log.debug("Read event: {} ", event);
+                }
+            } catch (ReinitializationRequiredException e) {
+                log.error("Unexpected request to reinitialize {}", e);
+                System.exit(0);
+            }
+        }
+        reader.close();
+        groupManager.deleteReaderGroup(READER_GROUP);
+    }
+
+}
