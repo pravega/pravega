@@ -303,7 +303,7 @@ public class StreamSegmentMapper {
                 TimeoutTimer timer = new TimeoutTimer(timeout);
                 result = this.storage
                         .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
-                        .thenComposeAsync(si -> retrieveAttributes(si, timer.getRemaining()), this.executor)
+                        .thenComposeAsync(si -> retrieveState(si, timer.getRemaining()), this.executor)
                         .thenApply(si -> si.properties);
             }
         }

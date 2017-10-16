@@ -195,7 +195,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupStorageGetHandler(context, storageSegments, sn -> {
             throw new CompletionException(new StreamSegmentNotExistsException(sn));
         });
-        setAttributes(segmentName, segmentId, ATTRIBUTE_COUNT, context);
+        setSavedState(segmentName, segmentId, 0, ATTRIBUTE_COUNT, context);
         val segmentState = context.stateStore.get(segmentName, TIMEOUT).join();
         Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
 
@@ -257,7 +257,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             storageGetCount.incrementAndGet();
             return storageInfo;
         });
-        setAttributes(segmentName, segmentId, ATTRIBUTE_COUNT, context);
+        setSavedState(segmentName, segmentId, 0L, ATTRIBUTE_COUNT, context);
         val segmentState = context.stateStore.get(segmentName, TIMEOUT).join();
         Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
 
