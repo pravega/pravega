@@ -51,7 +51,7 @@ public class StreamMetadataTest {
         @Cleanup
         ControllerWrapper controllerWrapper = new ControllerWrapper(
                 zkTestServer.getConnectString(),
-                true,
+                false,
                 controllerPort,
                 "localhost",
                 servicePort,

@@ -162,8 +162,7 @@ public class AutoScaleProcessorTest {
             }
 
             @Override
-            public Transaction<AutoScaleEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
-                                                        long scaleGracePeriod) {
+            public Transaction<AutoScaleEvent> beginTxn() {
                 return null;
             }
 

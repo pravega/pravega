@@ -212,7 +212,6 @@ public class TaskTest {
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));
-        final int newSegments = initialSegments - sealSegments.size() + newRanges.size();
 
         // Create objects.
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
@@ -225,15 +224,6 @@ public class TaskTest {
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
-        // Update stream test.
-        completePartialTask(mockStreamTasks.updateStream(SCOPE, stream, configuration1, null), deadHost, sweeper);
-
-        // Seal stream test.
-        completePartialTask(mockStreamTasks.sealStream(SCOPE, stream, null), deadHost, sweeper);
-        Assert.assertEquals(0, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
-
-        // Delete stream test.
-        completePartialTask(mockStreamTasks.deleteStream(SCOPE, stream, null), deadHost, sweeper);
         List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
         Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
     }

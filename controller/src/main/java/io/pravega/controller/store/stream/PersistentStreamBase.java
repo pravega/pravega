@@ -14,6 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
@@ -96,7 +97,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenCompose((Void v) -> createConfigurationIfAbsent(createStreamResponse.getConfiguration()))
                         .thenCompose((Void v) -> createStateIfAbsent(State.CREATING))
                         .thenCompose((Void v) -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
-                        .thenCompose((Void v) -> getState())
+                        .thenCompose((Void v) -> getState(true))
                         .thenCompose(state -> {
                             if (state.equals(State.CREATING)) {
                                 return createNewEpoch(0);
@@ -142,14 +143,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
     /**
      * Update configuration at configurationPath.
      *
-     * @param configuration new stream configuration.
+     * @param configurationWithVersion new stream configuration.
      * @return : future of boolean
      */
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration) {
+    public CompletableFuture<Boolean> updateConfiguration(final StreamConfigWithVersion configurationWithVersion) {
         // replace the configurationPath with new configurationPath
         return verifyState(() -> updateState(State.UPDATING)
-                .thenApply(x -> setConfigurationData(configuration))
+                .thenApply(x -> setConfigurationData(configurationWithVersion))
                 .thenApply(x -> true),
                 Lists.newArrayList(State.ACTIVE, State.UPDATING));
     }
@@ -157,18 +158,30 @@ public abstract class PersistentStreamBase<T> implements Stream {
     /**
      * Fetch configuration at configurationPath.
      *
-     * @return : future of stream configuration
+     * @return Future of stream configuration
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
-        return getConfigurationData();
+        return getConfigurationData().thenApply(data -> (StreamConfigWithVersion) SerializationUtils.deserialize(data.getData()))
+                .thenApply(StreamConfigWithVersion::getConfiguration);
+    }
+
+    /**
+     * Fetch configuration at configurationPath.
+     *
+     * @return Future of stream configuration
+     */
+    @Override
+    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion() {
+        return getConfigurationData()
+                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
     }
 
     @Override
     public CompletableFuture<Boolean> updateState(final State state) {
-        return getStateData()
+        return getStateData(true)
                 .thenCompose(currState -> {
-                    if (State.isTransitionAllowed((State) SerializationUtils.deserialize(currState.getData()), state)) {
+                    if (State.isTransitionAllowed(SerializationUtils.deserialize(currState.getData()), state)) {
                         return setStateData(new Data<>(SerializationUtils.serialize(state), currState.getVersion()))
                                 .thenApply(x -> true);
                     } else {
@@ -180,8 +193,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
-    public CompletableFuture<State> getState() {
-        return getStateData()
+    public CompletableFuture<State> getState(boolean ignoreCached) {
+        return getStateData(ignoreCached)
                 .thenApply(x -> (State) SerializationUtils.deserialize(x.getData()));
     }
 
@@ -376,7 +389,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                         if (runOnlyIfStarted) {
                             log.info("scale not started, retry later.");
-                            throw new ScaleOperationExceptions.ScaleStartException();
+                            throw new TaskExceptions.StartException("Scale not started yet.");
                         }
 
                         log.info("Scale {}/{} for segments started. Creating new segments. SegmentsToSeal {}", scope, name, sealedSegments);
@@ -430,7 +443,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         } else {
             log.debug("scale conflict for stream {}/{} with segments to seal {}", scope, name, sealedSegments);
 
-            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleStartException());
+            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleConflictException());
         }
     }
 
@@ -797,7 +810,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private <U> CompletableFuture<U> verifyState(Supplier<CompletableFuture<U>> future, List<State> states) {
-        return getState()
+        return getState(false)
                 .thenCompose(state -> {
                     if (state != null && states.contains(state)) {
                         return future.get();
@@ -809,7 +822,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> verifyLegalState() {
-        return getState().thenApply(state -> {
+        return getState(false).thenApply(state -> {
             if (state == null || state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
                 throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
                         "Stream: " + getName() + " State: " + state.name());
@@ -971,15 +984,15 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration);
 
-    abstract CompletableFuture<Void> setConfigurationData(final StreamConfiguration configuration);
+    abstract CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration);
 
-    abstract CompletableFuture<StreamConfiguration> getConfigurationData();
+    abstract CompletableFuture<Data<T>> getConfigurationData();
 
     abstract CompletableFuture<Void> createStateIfAbsent(final State state);
 
     abstract CompletableFuture<Void> setStateData(final Data<T> state);
 
-    abstract CompletableFuture<Data<T>> getStateData();
+    abstract CompletableFuture<Data<T>> getStateData(boolean ignoreCached);
 
     abstract CompletableFuture<Void> createSegmentTableIfAbsent(final Data<T> data);
 

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -336,7 +337,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, true, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleStartException);
+                e -> ExceptionHelpers.getRealException(e) instanceof TaskExceptions.StartException);
 
         // 1. start scale
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
@@ -401,7 +402,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleStartException);
+                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConflictException);
 
         // rerun of scale 1's new segments created method
         AssertExtensions.assertThrows("", () ->
@@ -446,22 +447,26 @@ public abstract class StreamMetadataStoreTest {
         // region idempotent
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
+        StreamConfigWithVersion configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
+
         // run update configuration multiple times
-        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
-        assertEquals(State.UPDATING, store.getState(scope, stream, null, executor).get());
-        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
+        assertEquals(State.UPDATING, store.getState(scope, stream, false, null, executor).get());
+
+        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
 
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
-
+        configWithVersion = store.getConfigurationWithVersion(scope, stream, null, executor).join();
         // set state to updating and run update configuration
         store.setState(scope, stream, State.UPDATING, null, executor).get();
-        assertTrue(store.updateConfiguration(scope, stream, configuration2, null, executor).get());
+        assertTrue(store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion, configuration2), null, executor).get());
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         // endregion
 
+        StreamConfigWithVersion configWithVersion2 = store.getConfigurationWithVersion(scope, stream, null, executor).join();
         store.setState(scope, stream, State.SCALING, null, executor).get();
-        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, configuration2, null, executor).get(),
+        AssertExtensions.assertThrows("", () -> store.updateConfiguration(scope, stream, StreamConfigWithVersion.generateNext(configWithVersion2, configuration2), null, executor).get(),
                 e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
     }
 

@@ -267,6 +267,52 @@ public class StreamSegmentMapper {
 
     //endregion
 
+    //region GetSegmentInfo
+
+    /**
+     * Gets information about a StreamSegment. If the Segment is active, it returns this information directly from the
+     * in-memory Metadata. If the Segment is not active, it fetches the information from Storage and returns it, without
+     * activating the segment in the Metadata or otherwise touching the DurableLog.
+     *
+     * @param streamSegmentName The case-sensitive StreamSegment Name.
+     * @param timeout           Timeout for the Operation.
+     * @return A CompletableFuture that, when complete, will contain a SegmentProperties object with the desired
+     * information. If failed, it will contain the exception that caused the failure.
+     */
+    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
+        long streamSegmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
+        CompletableFuture<SegmentProperties> result;
+        if (isValidStreamSegmentId(streamSegmentId)) {
+            // Looks like the Segment is active and we have it in our Metadata. Return the result from there.
+            SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
+            if (sm.isDeleted()) {
+                result = FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+            } else {
+                result = CompletableFuture.completedFuture(sm.getSnapshot());
+            }
+        } else {
+            // The Segment is not yet active.
+            // First, check to see if we have a pending assignment. If so, piggyback on that.
+            QueuedCallback<SegmentProperties> queuedCallback = checkConcurrentAssignment(streamSegmentName,
+                    id -> CompletableFuture.completedFuture(this.containerMetadata.getStreamSegmentMetadata(id).getSnapshot()));
+
+            if (queuedCallback != null) {
+                result = queuedCallback.result;
+            } else {
+                // Not in metadata and no concurrent assignments. Go to Storage and get what's needed.
+                TimeoutTimer timer = new TimeoutTimer(timeout);
+                result = this.storage
+                        .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                        .thenComposeAsync(si -> retrieveAttributes(si, timer.getRemaining()), this.executor)
+                        .thenApply(si -> si.properties);
+            }
+        }
+
+        return result;
+    }
+
+    //endregion
+
     //region Segment Id Assignment
 
     /**
@@ -304,15 +350,7 @@ public class StreamSegmentMapper {
                 // Even though we have the value in the metadata, we need to be very careful not to invoke this callback
                 // before any other existing callbacks are invoked. As such, verify if we have an existing PendingRequest
                 // for this segment - if so, tag onto it so we invoke these callbacks in the correct order.
-                QueuedCallback<T> queuedCallback = null;
-                synchronized (this.assignmentLock) {
-                    PendingRequest pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
-                    if (pendingRequest != null) {
-                        queuedCallback = new QueuedCallback<>(thenCompose);
-                        pendingRequest.callbacks.add(queuedCallback);
-                    }
-                }
-
+                QueuedCallback<T> queuedCallback = checkConcurrentAssignment(streamSegmentName, thenCompose);
                 return queuedCallback == null ? thenCompose.apply(streamSegmentId) : queuedCallback.result;
             }
         }
@@ -585,6 +623,29 @@ public class StreamSegmentMapper {
 
             completionMethod.accept(pendingRequest, completionArgument);
         }
+    }
+
+    /**
+     * Attempts to piggyback a task on any existing concurrent assignment, if any such assignment exists.
+     *
+     * @param streamSegmentName The Name of the StreamSegment to attempt to piggyback on.
+     * @param thenCompose       A Function that consumes a StreamSegmentId and returns a CompletableFuture that will indicate
+     *                          when the consumption of that StreamSegmentId is complete. This Function will be invoked
+     *                          synchronously if the StreamSegmentId is already mapped, or async, otherwise, after assignment.
+     * @param <T>               Type of the return value.
+     * @return A QueuedCallback representing the callback object for this task, if it was piggybacked on any existing
+     * assignment. If no assignment was found, returns null.
+     */
+    private <T> QueuedCallback<T> checkConcurrentAssignment(String streamSegmentName, Function<Long, CompletableFuture<T>> thenCompose) {
+        QueuedCallback<T> queuedCallback = null;
+        synchronized (this.assignmentLock) {
+            PendingRequest pendingRequest = this.pendingRequests.getOrDefault(streamSegmentName, null);
+            if (pendingRequest != null) {
+                queuedCallback = new QueuedCallback<>(thenCompose);
+                pendingRequest.callbacks.add(queuedCallback);
+            }
+        }
+        return queuedCallback;
     }
 
     private CompletableFuture<Long> withFailureHandler(CompletableFuture<Long> source, String segmentName) {
