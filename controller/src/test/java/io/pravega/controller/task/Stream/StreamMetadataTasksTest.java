@@ -213,10 +213,7 @@ public class StreamMetadataTasksTest {
         AtomicReference<State> streamState = new AtomicReference<>(State.ACTIVE);
         FutureHelpers.loop(() -> streamState.get().equals(State.ACTIVE),
                 () -> streamStorePartialMock.getState(SCOPE, stream1, true, null, executor)
-                        .thenAccept(state -> {
-                            streamState.set(state);
-
-                        }), executor).join();
+                        .thenAccept(streamState::set), executor).join();
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
