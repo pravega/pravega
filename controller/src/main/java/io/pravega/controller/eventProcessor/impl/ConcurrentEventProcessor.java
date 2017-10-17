@@ -7,14 +7,14 @@
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.Position;
 import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
+import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
@@ -34,9 +34,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.indefiniteRetries;
-import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.withRetries;
-import static io.pravega.controller.server.eventProcessor.EventProcessorHelper.writeBack;
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.indefiniteRetries;
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
+import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.writeBack;
 
 /**
  * This event processor allows concurrent event processing.
@@ -60,7 +60,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
     private final Semaphore semaphore;
     private final ScheduledFuture periodicCheckpoint;
     private final Checkpointer checkpointer;
-    private final EventProcessor.Writer<R> internalWriter;
+    private final Writer<R> internalWriter;
 
     public ConcurrentEventProcessor(final H requestHandler,
                                     final ScheduledExecutorService executor) {
@@ -72,7 +72,7 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
                              final int maxConcurrent,
                              final ScheduledExecutorService executor,
                              final Checkpointer checkpointer,
-                             final EventProcessor.Writer<R> writer,
+                             final Writer<R> writer,
                              final long checkpointPeriod,
                              final TimeUnit timeUnit) {
         Preconditions.checkNotNull(requestHandler);
@@ -127,17 +127,16 @@ public class ConcurrentEventProcessor<R extends ControllerEvent, H extends Reque
 
     private CompletableFuture<Void> handleProcessingError(R request, Throwable e) {
         CompletableFuture<Void> future;
-        Throwable cause;
-        if (e instanceof RetriesExhaustedException) {
-            cause = e.getCause();
-        } else {
-            cause = ExceptionHelpers.getRealException(e);
+        Throwable cause = ExceptionHelpers.getRealException(e);
+
+        if (cause instanceof RetriesExhaustedException) {
+            cause = cause.getCause();
         }
 
         if (RetryableException.isRetryable(cause)) {
             log.info("ConcurrentEventProcessor Processing failed, Retryable Exception {}. Putting the event back.", cause.getClass().getName());
 
-            EventProcessor.Writer<R> writer;
+            Writer<R> writer;
             if (internalWriter != null) {
                 writer = internalWriter;
             } else if (getSelfWriter() != null) {

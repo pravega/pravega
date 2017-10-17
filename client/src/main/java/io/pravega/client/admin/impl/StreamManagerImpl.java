@@ -95,6 +95,9 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public void close() {
+        if (this.controller != null) {
+            this.controller.close();
+        }
         if (this.executor != null) {
             this.executor.shutdown();
         }

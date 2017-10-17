@@ -11,6 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -26,15 +28,6 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -44,6 +37,16 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.utils.MarathonException;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -64,6 +67,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
+    private StreamManager streamManager;
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -111,8 +115,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                                         controllerExecutorService);
         testState = new TestState();
         testState.writersListComplete.add(0, testState.writersComplete);
-
-        createScopeAndStream(scope, SCALE_STREAM, config, controllerURIDirect);
+        streamManager = new StreamManagerImpl(controllerURIDirect);
+        createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -125,6 +129,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
@@ -154,8 +159,11 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         Map<Double, Double> keyRanges = new HashMap<>();
-        keyRanges.put(0.0, 0.5);
-        keyRanges.put(0.5, 1.0);
+        keyRanges.put(0.0, 0.2);
+        keyRanges.put(0.2, 0.4);
+        keyRanges.put(0.4, 0.6);
+        keyRanges.put(0.6, 0.8);
+        keyRanges.put(0.8, 1.0);
 
         CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
                 Collections.singletonList(0),
@@ -190,9 +198,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         stopWriters();
         stopReaders();
-        validateResults(readerGroupManager, readerGroupName);
+        validateResults();
 
-        cleanUp(scope, SCALE_STREAM); //cleanup if validation is successful.
-        log.info("Test {} succeeds ", "ReadWriteAndScaleWithFailover");
+        cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        log.info("Test ReadWriteAndScaleWithFailover succeeds");
     }
 }

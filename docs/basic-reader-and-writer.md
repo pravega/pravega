@@ -366,4 +366,46 @@ altered and the set of Streams being read has therefore been changed.
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
 
- 
+## ReaderGroup Notifications
+
+The ReaderGroup api supports different types of notifications. Currently, we
+have one type implemented, but we plan to add more over time.
+The type we currently support is the following:
+
+1. SegmentEvent Notification
+
+A segment event is triggered when the total number of segments managed by the
+reader group changes. During a scale operation segments can be split into
+multiple or merged into some other segment causing the total number of segments
+to change. The total number of segments can also change when the configuration
+of the reader group changes, for example, when it adds or removes a stream.
+
+The method for subscribing to SegmentEvent notifications is shown below
+```
+@Cleanup
+ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
+        connectionFactory);
+ReaderGroup readerGroup = groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig
+        .builder().build(), Collections.singleton(STREAM));
+
+readerGroup.getSegmentEventNotifier(executor).registerListener(segmentEvent -> {
+       int numOfReaders = segmentEvent.getNumOfReaders();
+       int segments = segmentEvent.getNumOfSegments();
+       if (numOfReaders < segments) {
+          //Scale up number of readers based on application capacity
+       } else {
+         //More readers available time to shut down some
+       }
+});
+
+```
+The application can register a listener to be notified of `SegmentEvent` using
+the `registerListener` api. This api takes
+`io.pravega.client.stream.notifications.Listener` as a parameter. Here the
+application can add custom logic to change the set of online readers according
+to the number of segments. For example, if the number of segments increases,
+then application might consider increasing the number of online readers. If the
+number of segments instead decreases according to a segment event, then the
+application might want to change the set of online readers accordingly.
+
+

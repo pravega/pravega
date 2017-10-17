@@ -65,6 +65,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         final String authority = targetUri.getAuthority();
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {
             final String[] strings = host.split(":");
+            Preconditions.checkArgument(strings.length == 2, "URI should have both address and port");
             return InetSocketAddress.createUnresolved(strings[0], Integer.valueOf(strings[1]));
         }).collect(Collectors.toList());
 
@@ -187,7 +188,9 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         public void shutdown() {
             if (!shutdown) {
                 log.info("Shutting down ControllerNameResolver");
-                this.scheduledExecutor.shutdownNow();
+                if (this.scheduledExecutor != null) {
+                    this.scheduledExecutor.shutdownNow();
+                }
                 shutdown = true;
             }
         }

@@ -42,7 +42,8 @@ public class ExtendedS3StorageFactory implements StorageFactory {
     public Storage createStorageAdapter() {
         S3Config s3Config = new S3Config(config.getUrl())
                 .withIdentity(config.getAccessKey())
-                .withSecretKey(config.getSecretKey());
+                .withSecretKey(config.getSecretKey())
+                .withNamespace(config.getNamespace());
 
         S3JerseyClient client = new S3JerseyClient(s3Config);
         ExtendedS3Storage s = new ExtendedS3Storage(client, this.config);

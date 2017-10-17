@@ -643,10 +643,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
         Exceptions.checkArgument(startOffset >= 0, "startOffset", "startOffset must be a non-negative number.");
         Exceptions.checkArgument(maxLength >= 0, "maxLength", "maxLength must be a non-negative number.");
-        Exceptions.checkArgument(checkReadAvailability(startOffset, true) == ReadAvailability.Available,
-                "startOffset", "Unable to read at this offset (%s). Either it is before StartOffset (%s) " +
-                        "or Segment is sealed and it is beyond the last offset of the StreamSegment (%s).", startOffset,
-                this.metadata.getStartOffset(), this.metadata.getLength() - 1);
+
+        // We only check if we exceeded the last offset of a Sealed Segment. If we attempted to read from a truncated offset
+        // that will be handled by returning a Truncated ReadResultEntryType.
+        Exceptions.checkArgument(checkReadAvailability(startOffset, true) != ReadAvailability.BeyondLastOffset,
+                "startOffset", "StreamSegment is sealed and startOffset is beyond the last offset of the StreamSegment.");
 
         log.debug("{}: Read (Offset = {}, MaxLength = {}).", this.traceObjectId, startOffset, maxLength);
         return new StreamSegmentReadResult(startOffset, maxLength, this::getMultiReadResultEntry, this.traceObjectId);

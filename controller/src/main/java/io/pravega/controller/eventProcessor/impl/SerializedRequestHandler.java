@@ -7,10 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
@@ -38,15 +38,16 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public abstract class SerializedRequestHandler<T extends ControllerEvent> implements RequestHandler<T> {
 
+    protected final ScheduledExecutorService executor;
+
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<String, ConcurrentLinkedQueue<Work>> workers = new HashMap<>();
-    private final ExecutorService executor;
 
     @Override
-    public CompletableFuture<Void> process(final T streamEvent) {
+    public final CompletableFuture<Void> process(final T streamEvent) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        Work work = new Work(streamEvent, result);
+        Work work = new Work(streamEvent, System.currentTimeMillis(), result);
         String key = streamEvent.getKey();
 
         final ConcurrentLinkedQueue<Work> queue;
@@ -69,7 +70,12 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
         return result;
     }
 
-    abstract CompletableFuture<Void> processEvent(final T event);
+    public abstract CompletableFuture<Void> processEvent(final T event);
+
+    public boolean toPostpone(final T event, final long pickupTime, final Throwable exception) {
+        return false;
+    }
+
 
     /**
      * Run method is called only if work queue is not empty. So we can safely do a workQueue.poll.
@@ -80,8 +86,36 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        FutureHelpers.completeAfter(() -> processEvent(work.getEvent()), work.getResult());
-        work.getResult().whenComplete((r, e) -> {
+        processEvent(work.getEvent()).whenComplete((r, e) -> {
+            if (e != null && toPostpone(work.getEvent(), work.getPickupTime(), e)) {
+                handleWorkPostpone(key, workQueue, work);
+            } else {
+                if (e != null) {
+                    work.getResult().completeExceptionally(e);
+                } else {
+                    work.getResult().complete(r);
+                }
+
+                handleWorkComplete(key, workQueue, work);
+            }
+        });
+    }
+
+    private void handleWorkPostpone(String key, ConcurrentLinkedQueue<Work> workQueue, Work work) {
+        // if the request handler decides to postpone the processing,
+        // put the work at the back of the queue to be picked again.
+        // Note: we have not completed the work's result future here.
+        // Since there is at least one event in the queue (we just
+        // added) so we will call run again.
+        synchronized (lock) {
+            workers.get(key).add(work);
+        }
+
+        executor.execute(() -> run(key, workQueue));
+    }
+
+    private void handleWorkComplete(String key, ConcurrentLinkedQueue<Work> workQueue, Work work) {
+        work.getResult().whenComplete((rw, ew) -> {
             boolean toExecute = false;
             synchronized (lock) {
                 if (workQueue.isEmpty()) {
@@ -113,6 +147,8 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
     @Data
     private class Work {
         private final T event;
+        private final long pickupTime;
         private final CompletableFuture<Void> result;
     }
+
 }

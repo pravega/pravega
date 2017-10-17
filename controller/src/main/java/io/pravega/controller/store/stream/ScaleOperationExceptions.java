@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.retryable.RetryableException;
-
 public class ScaleOperationExceptions {
     public static class ScaleOperationException extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -25,12 +23,6 @@ public class ScaleOperationExceptions {
     public static class ScaleConditionInvalidException extends ScaleOperationException {
     }
 
-    public static class ScaleStartException extends ScaleOperationException implements RetryableException {
-    }
-
-    public static class ScalePostException extends ScaleOperationException implements RetryableException {
-    }
-
-    public static class ScaleRequestNotEnabledException extends ScaleOperationException {
+    public static class ScaleConflictException extends ScaleOperationException {
     }
 }

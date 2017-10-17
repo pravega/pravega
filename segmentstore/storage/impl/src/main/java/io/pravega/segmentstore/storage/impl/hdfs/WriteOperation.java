@@ -80,6 +80,7 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
             // of bytes to copy.
             IOUtils.copyBytes(this.data, stream, (long) this.length, false);
+
             stream.flush();
             lastFile.increaseLength(this.length);
         } catch (FileNotFoundException | AclException ex) {

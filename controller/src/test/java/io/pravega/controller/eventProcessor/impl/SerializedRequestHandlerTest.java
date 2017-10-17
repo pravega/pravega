@@ -7,23 +7,29 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.eventProcessor;
+package io.pravega.controller.eventProcessor.impl;
 
+import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -31,13 +37,12 @@ import static org.junit.Assert.assertTrue;
 public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 10000)
-    public void testConcurrentEventProcessor() throws InterruptedException, ExecutionException {
-        EventProcessor.Writer<TestEvent> writer = event -> CompletableFuture.completedFuture(null);
+    public void testProcessEvent() throws InterruptedException, ExecutionException {
         final ConcurrentHashMap<String, List<Integer>> orderOfProcessing = new ConcurrentHashMap<>();
 
         SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
             @Override
-            CompletableFuture<Void> processEvent(TestEvent event) {
+            public CompletableFuture<Void> processEvent(TestEvent event) {
                 orderOfProcessing.compute(event.getKey(), (x, y) -> {
                     if (y == null) {
                         y = new ArrayList<>();
@@ -146,6 +151,91 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         assertTrue(orderOfProcessing.get(s1e1.getKey()).get(3) == 4);
     }
 
+    @Test(timeout = 10000)
+    public void testPostponeEvent() throws InterruptedException, ExecutionException {
+        AtomicInteger postponeS1e1Count = new AtomicInteger();
+        AtomicInteger postponeS1e2Count = new AtomicInteger();
+        AtomicBoolean allowCompletion = new AtomicBoolean(false);
+
+        SerializedRequestHandler<TestEvent> requestHandler = new SerializedRequestHandler<TestEvent>(executorService()) {
+            @Override
+            public CompletableFuture<Void> processEvent(TestEvent event) {
+                if (!event.future.isDone()) {
+                    return FutureHelpers.failedFuture(new TestPostponeException());
+                }
+                return event.getFuture();
+            }
+
+            @Override
+            public boolean toPostpone(TestEvent event, long pickupTime, Throwable exception) {
+
+                boolean retval = true;
+
+                if (allowCompletion.get()) {
+                    if (event.number == 1) {
+                        postponeS1e1Count.incrementAndGet();
+                        retval = exception instanceof TestPostponeException && postponeS1e1Count.get() < 2;
+                    }
+
+                    if (event.number == 2) {
+                        postponeS1e2Count.incrementAndGet();
+                        retval = exception instanceof TestPostponeException && (System.currentTimeMillis() - pickupTime < Duration.ofMillis(100).toMillis());
+                    }
+                }
+
+                return retval;
+            }
+        };
+
+        List<Pair<TestEvent, CompletableFuture<Void>>> stream1Queue =
+                requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
+        assertNull(stream1Queue);
+        // post 3 work for stream1
+        TestEvent s1e1 = new TestEvent("scope", "stream1", 1);
+        CompletableFuture<Void> s1p1 = requestHandler.process(s1e1);
+        TestEvent s1e2 = new TestEvent("scope", "stream1", 2);
+        CompletableFuture<Void> s1p2 = requestHandler.process(s1e2);
+        TestEvent s1e3 = new TestEvent("scope", "stream1", 3);
+        CompletableFuture<Void> s1p3 = requestHandler.process(s1e3);
+
+        // post events for some more arbitrary streams in background
+        AtomicBoolean stop = new AtomicBoolean(false);
+
+        runBackgroundStreamProcessing("stream2", requestHandler, stop);
+        runBackgroundStreamProcessing("stream3", requestHandler, stop);
+        runBackgroundStreamProcessing("stream4", requestHandler, stop);
+
+        s1e3.complete();
+        // verify that s1p3 completes.
+        assertTrue(FutureHelpers.await(s1p3));
+        // verify that s1e1 and s1e2 are still not complete.
+        assertTrue(!s1e1.getFuture().isDone());
+        assertTrue(!s1p1.isDone());
+        assertTrue(!s1e2.getFuture().isDone());
+        assertTrue(!s1p2.isDone());
+
+        // Allow completion
+        allowCompletion.set(true);
+
+        assertFalse(FutureHelpers.await(s1p1));
+        assertFalse(FutureHelpers.await(s1p2));
+        AssertExtensions.assertThrows("", s1p1::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
+        AssertExtensions.assertThrows("", s1p2::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
+        assertTrue(postponeS1e1Count.get() == 2);
+        assertTrue(postponeS1e2Count.get() > 0);
+        stop.set(true);
+    }
+
+    private void runBackgroundStreamProcessing(String streamName, SerializedRequestHandler<TestEvent> requestHandler, AtomicBoolean stop) {
+        CompletableFuture.runAsync(() -> {
+            while (!stop.get()) {
+                TestEvent event = new TestEvent("scope", streamName, 0);
+                event.complete();
+                FutureHelpers.await(requestHandler.process(event));
+            }
+        });
+    }
+
     private String getKeyForStream(String scope, String stream) {
         return String.format("%s/%s", scope, stream);
     }
@@ -167,8 +257,16 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
             return String.format("%s/%s", scope, stream);
         }
 
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return CompletableFuture.completedFuture(null);
+        }
+
         public void complete() {
             future.complete(null);
         }
+    }
+
+    private static class TestPostponeException extends RuntimeException {
     }
 }

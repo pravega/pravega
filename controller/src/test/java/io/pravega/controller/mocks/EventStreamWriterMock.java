@@ -41,7 +41,7 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     @Override
-    public Transaction<T> beginTxn(long transactionTimeout, long maxExecutionTime, long scaleGracePeriod) {
+    public Transaction<T> beginTxn() {
         throw new NotImplementedException("beginTxn");
     }
 

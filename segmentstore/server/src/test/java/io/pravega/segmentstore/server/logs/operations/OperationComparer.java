@@ -168,6 +168,8 @@ public class OperationComparer {
             assertSame(message, (TransactionMapOperation) expected, (TransactionMapOperation) actual);
         } else if (expected instanceof UpdateAttributesOperation) {
             assertSame(message, (UpdateAttributesOperation) expected, (UpdateAttributesOperation) actual);
+        } else if (expected instanceof StreamSegmentTruncateOperation) {
+            assertSame(message, (StreamSegmentTruncateOperation) expected, (StreamSegmentTruncateOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
