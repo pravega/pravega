@@ -10,13 +10,12 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamProperty;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
-import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
@@ -51,7 +50,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
 
-        return streamMetadataStore.getStreamCutProperty(scope, stream, true, context, executor)
+        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
                 .thenCompose(property -> {
                     if (!property.isUpdating()) {
                         throw new TaskExceptions.StartException("Truncate Stream not started yet.");
@@ -61,9 +60,12 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                 });
     }
 
-    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamProperty<Map<Integer, Long>> streamCut,
+    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamProperty<StreamTruncationRecord> streamCut,
                                                     OperationContext context) {
         // TODO: shivesh
+        // find segments to delete --> all predecessors till a certain point.
+        //
+//        streamMetadataStore.completeTruncation(scope, stream, Collections.emptySet(), context, executor);
         return null;
     }
 

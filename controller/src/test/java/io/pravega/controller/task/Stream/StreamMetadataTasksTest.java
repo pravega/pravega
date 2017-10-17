@@ -73,6 +73,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -190,15 +191,27 @@ public class StreamMetadataTasksTest {
                 .scope(SCOPE)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
+
         // 2. change state to scaling
         streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
         // call update should fail without posting the event
-        updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
-        assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture.get());
+        streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
+
+        AtomicBoolean loop = new AtomicBoolean(false);
+        FutureHelpers.loop(() -> !loop.get(),
+                () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
+                        .thenApply(StreamProperty::isUpdating)
+                        .thenAccept(loop::set), executor).join();
+
+        // event posted, first step performed. now pick the event for processing
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
-        AssertExtensions.assertThrows("", updateStreamTask.execute((UpdateStreamEvent) requestEventWriter.eventQueue.take()),
-                e -> ExceptionHelpers.getRealException(e) instanceof TaskExceptions.StartException);
+        UpdateStreamEvent take = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
+        AssertExtensions.assertThrows("", updateStreamTask.execute(take),
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+
+        assertTrue(FutureHelpers.await(updateStreamTask.execute(take)));
 
         // 3. multiple back to back updates
         StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
@@ -211,10 +224,11 @@ public class StreamMetadataTasksTest {
 
         // ensure that previous updatestream has posted the event and set status to updating,
         // only then call second updateStream
-        AtomicReference<State> streamState = new AtomicReference<>(State.ACTIVE);
-        FutureHelpers.loop(() -> streamState.get().equals(State.ACTIVE),
-                () -> streamStorePartialMock.getState(SCOPE, stream1, true, null, executor)
-                        .thenAccept(streamState::set), executor).join();
+        AtomicBoolean loop2 = new AtomicBoolean(false);
+        FutureHelpers.loop(() -> !loop2.get(),
+                () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
+                        .thenApply(StreamProperty::isUpdating)
+                        .thenAccept(loop2::set), executor).join();
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -225,8 +239,6 @@ public class StreamMetadataTasksTest {
                 streamConfiguration2, null);
 
         assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
-
-        assertFalse(FutureHelpers.await(updateStreamTask.execute((UpdateStreamEvent) requestEventWriter.eventQueue.take())));
 
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture2.join());

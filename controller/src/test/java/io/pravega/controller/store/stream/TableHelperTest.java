@@ -77,22 +77,22 @@ public class TableHelperTest {
         activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, newSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable, null);
         assertEquals(newSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable, null);
         assertEquals(newSegments, activeSegments);
     }
 

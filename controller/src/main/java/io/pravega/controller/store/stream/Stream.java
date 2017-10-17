@@ -9,9 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
@@ -19,6 +20,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -101,16 +103,18 @@ interface Stream {
     /**
      * Completes an ongoing stream truncation.
      *
+     * @param truncationEpoch closest epoch to this truncation.
+     * @param deleted         segments deleted as part of this truncation.
      * @return future of operation.
      */
-    CompletableFuture<Void> completeTruncation();
+    CompletableFuture<Void> completeTruncation(final int truncationEpoch, final Set<Integer> deleted);
 
     /**
      * Fetches the current stream cut.
      *
      * @return current stream cut.
      */
-    CompletableFuture<Map<Integer, Long>> getStreamCut();
+    CompletableFuture<StreamTruncationRecord> getTruncationRecord();
 
     /**
      * Fetches the current stream cut.
@@ -119,7 +123,7 @@ interface Stream {
      *
      * @return current stream cut.
      */
-    CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(boolean ignoreCached);
+    CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached);
 
     /**
      * Update the state of the stream.

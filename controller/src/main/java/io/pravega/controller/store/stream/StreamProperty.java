@@ -8,27 +8,21 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 @Data
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class StreamProperty<T> implements Serializable{
     private final T property;
     private final boolean updating;
 
-    public static <T> StreamProperty<T> startUpdate(final StreamProperty<T> current, final T update) {
-        Preconditions.checkNotNull(current);
-        Preconditions.checkNotNull(current.property);
+    public static <T> StreamProperty<T> update(final T update) {
         Preconditions.checkNotNull(update);
-        Preconditions.checkArgument(!current.updating);
 
         return new StreamProperty<>(update, true);
     }
 
-    public static <T> StreamProperty<T> complete(final StreamProperty<T> versionedProperty) {
-        Preconditions.checkNotNull(versionedProperty);
-        Preconditions.checkNotNull(versionedProperty.property);
-        Preconditions.checkArgument(versionedProperty.updating);
+    public static <T> StreamProperty<T> complete(final T complete) {
+        Preconditions.checkNotNull(complete);
 
-        return new StreamProperty<>(versionedProperty.property, false);
+        return new StreamProperty<>(complete, false);
     }
 }

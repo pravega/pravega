@@ -94,13 +94,15 @@ public class TableHelper {
      * Note: index table may be stale or not reflect lastest state of history table.
      * So we may need to fall through in the history table from the record being pointed to by index
      * until we find the correct record.
-     *
-     * @param timestamp    timestamp
-     * @param indexTable   indextable
-     * @param historyTable history table
-     * @return
+     * Once we find the segments, compare them to truncationRecord and take the more recent of the two.
+     * @param timestamp        timestamp
+     * @param indexTable       index table
+     * @param historyTable     history table
+     * @param truncationRecord truncation record
+     * @return list of active segments.
      */
-    public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable) {
+    public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable,
+                                                  final StreamTruncationRecord truncationRecord) {
         Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0, true);
         if (record.isPresent() && timestamp > record.get().getScaleTime()) {
             final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
@@ -108,6 +110,8 @@ public class TableHelper {
 
             record = findRecordInHistoryTable(startingOffset, timestamp, historyTable, true);
         }
+
+        // TODO: shivesh
         return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
     }
 

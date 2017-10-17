@@ -181,9 +181,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(
-                StreamProperty.builder().property(configuration).updating(false).build()))
+    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamProperty<StreamConfiguration> configuration) {
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
@@ -388,18 +387,34 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setStreamCutData(final Data<Integer> configuration) {
-        return store.setData(streamCutPath, configuration)
+    CompletableFuture<Void> setTruncationRecordData(final Data<Integer> truncationRecord) {
+        return store.setData(streamCutPath, truncationRecord)
                 .whenComplete((r, e) -> cache.invalidateCache(streamCutPath));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getStreamCutData(boolean ignoreCached) {
+    CompletableFuture<Data<Integer>> getTruncationRecordData(boolean ignoreCached) {
+        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
         if (ignoreCached) {
             cache.invalidateCache(streamCutPath);
         }
 
-        return cache.getCachedData(streamCutPath);
+        cache.getCachedData(streamCutPath)
+                .whenComplete((res, ex) -> {
+                    if (ex != null) {
+                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        if (cause instanceof StoreException.DataNotFoundException) {
+                            result.complete(null);
+                        } else {
+                            result.completeExceptionally(cause);
+                        }
+                    } else {
+                        result.complete(res);
+                    }
+                });
+
+        return result;
     }
 
     @Override

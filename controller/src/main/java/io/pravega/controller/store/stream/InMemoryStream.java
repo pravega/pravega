@@ -42,7 +42,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     @GuardedBy("lock")
     private Data<Integer> configuration;
     @GuardedBy("lock")
-    private Data<Integer> streamCut;
+    private Data<Integer> truncationRecord;
     @GuardedBy("lock")
     private Data<Integer> state;
     @GuardedBy("lock")
@@ -143,13 +143,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfiguration config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(StreamProperty<StreamConfiguration> config) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
             if (configuration == null) {
-                configuration = new Data<>(SerializationUtils.serialize(StreamProperty.builder().property(config)
-                        .updating(false).build()), 0);
+                configuration = new Data<>(SerializationUtils.serialize(config), 0);
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -189,17 +188,17 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setStreamCutData(Data<Integer> newCut) {
-        Preconditions.checkNotNull(newCut);
+    CompletableFuture<Void> setTruncationRecordData(Data<Integer> truncationRecord) {
+        Preconditions.checkNotNull(truncationRecord);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         synchronized (lock) {
-            if (this.streamCut == null) {
-                this.streamCut = new Data<>(newCut.getData(), 0);
+            if (this.truncationRecord == null) {
+                this.truncationRecord = new Data<>(truncationRecord.getData(), 0);
             } else {
-                if (Objects.equals(this.streamCut.getVersion(), newCut.getVersion())) {
-                    this.streamCut = new Data<>(newCut.getData(), this.streamCut.getVersion() + 1);
+                if (Objects.equals(this.truncationRecord.getVersion(), truncationRecord.getVersion())) {
+                    this.truncationRecord = new Data<>(truncationRecord.getData(), this.truncationRecord.getVersion() + 1);
                     result.complete(null);
                 } else {
                     result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, getName()));
@@ -212,12 +211,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getStreamCutData(boolean ignoreCached) {
+    CompletableFuture<Data<Integer>> getTruncationRecordData(boolean ignoreCached) {
         synchronized (lock) {
-            if (this.streamCut == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
-            }
-            return CompletableFuture.completedFuture(copy(this.streamCut));
+            return CompletableFuture.completedFuture(copy(this.truncationRecord));
         }
     }
 

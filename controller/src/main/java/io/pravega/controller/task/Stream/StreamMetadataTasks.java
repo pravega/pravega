@@ -188,16 +188,16 @@ public class StreamMetadataTasks extends TaskBase {
                                                                        final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        // 1. get configuration
-        return streamMetadataStore.getStreamCutProperty(scope, stream, true, context, executor)
+        // 1. get stream cut
+        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
                 .thenCompose(property -> {
-                    // 2. post event with configuration update + version
+                    // 2. post event with new stream cut if no truncation is ongoing
                     if (!property.isUpdating()) {
                         return writeEvent(new TruncateStreamEvent(scope, stream))
-                                // 3. update new configuration in the store with updating flag = true
+                                // 3. start truncation
                                 .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
-                                // 4. check for update to complete
+                                // 4. check for truncation to complete
                                 .thenCompose(truncation -> checkDone(scope, stream, () -> isTruncated(scope, stream, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                     } else {
@@ -212,7 +212,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, OperationContext context) {
-        return streamMetadataStore.getStreamCutProperty(scope, stream, true, context, executor)
+        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
                 .thenApply(state -> !state.equals(State.TRUNCATING));
     }
 

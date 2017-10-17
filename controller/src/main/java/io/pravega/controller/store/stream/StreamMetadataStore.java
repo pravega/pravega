@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -215,14 +216,18 @@ public interface StreamMetadataStore {
     /**
      * Complete an ongoing stream truncation.
      *
-     * @param scope         stream scope
-     * @param name          stream name.
-     * @param context       operation context
-     * @param executor      callers executor
+     * @param scope           stream scope
+     * @param name            stream name.
+     * @param truncationEpoch epoch closest to current truncation.
+     * @param deletedSegments segments deleted as part of this truncation.
+     * @param context         operation context
+     * @param executor        callers executor
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
                                                final String name,
+                                               final int truncationEpoch,
+                                               final Set<Integer> deletedSegments,
                                                final OperationContext context,
                                                final Executor executor);
 
@@ -233,11 +238,11 @@ public interface StreamMetadataStore {
      * @param name     stream name.
      * @param context  operation context
      * @param executor callers executor
-     * @return current stream cut.
+     * @return current truncation record.
      */
-    CompletableFuture<Map<Integer, Long>> getStreamCut(final String scope, final String name,
-                                                       final OperationContext context,
-                                                       final Executor executor);
+    CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope, final String name,
+                                                                  final OperationContext context,
+                                                                  final Executor executor);
 
     /**
      * Fetches the current stream cut.
@@ -247,12 +252,12 @@ public interface StreamMetadataStore {
      * @param ignoreCached ignore cached value.
      * @param context      operation context
      * @param executor     callers executor
-     * @return current stream cut property.
+     * @return current truncation property.
      */
-    CompletableFuture<StreamProperty<Map<Integer, Long>>> getStreamCutProperty(final String scope, final String name,
-                                                                               final boolean ignoreCached,
-                                                                               final OperationContext context,
-                                                                               final Executor executor);
+    CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope, final String name,
+                                                                                final boolean ignoreCached,
+                                                                                final OperationContext context,
+                                                                                final Executor executor);
 
     /**
      * Set the stream state to sealed.
