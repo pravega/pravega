@@ -368,17 +368,17 @@ until there are no more Events, and then the application terminates.
 
 ## ReaderGroup Notifications
 
-ReaderGroup api supports different types of notifications. The supported
-notifications are
+The ReaderGroup api supports different types of notifications. Currently, we
+have one type implemented, but we plan to add more over time.
+The type we currently support is the following:
 
 1. SegmentEvent Notification
 
 A segment event is triggered when the total number of segments managed by the
-ReaderGroup changes. During a scale operation segments can be split into
+reader group changes. During a scale operation segments can be split into
 multiple or merged into some other segment causing the total number of segments
-to change. The total number of segments can also change when configuration
-of the reader group is changed, for example modify the configuration of a reader
-group to add/remove a stream.
+to change. The total number of segments can also change when the configuration
+of the reader group changes, for example, when it adds or removes a stream.
 
 The method for subscribing to SegmentEvent notifications is shown below
 ```
@@ -399,11 +399,13 @@ readerGroup.getSegmentEventNotifier(executor).registerListener(segmentEvent -> {
 });
 
 ```
-The application can register a listener to be notified of SegmentEvents using
-the registerListener api. The registerListener api takes
+The application can register a listener to be notified of `SegmentEvent` using
+the `registerListener` api. This api takes
 `io.pravega.client.stream.notifications.Listener` as a parameter. Here the
-application can add custom logic to increase the number of readers in case the
-number of segments managed by the Readergroup is more than the available number
-of readers. It can reduce the number of readers if the number of segments
-managed by the Readergroup is less than the online readers.
+application can add custom logic to change the set of online readers according
+to the number of segments. For example, if the number of segments increases,
+then application might consider increasing the number of online readers. If the
+number of segments instead decreases according to a segment event, then the
+application might want to change the set of online readers accordingly.
+
 
