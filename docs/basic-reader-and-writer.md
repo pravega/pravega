@@ -399,9 +399,11 @@ readerGroup.getSegmentEventNotifier(executor).registerListener(segmentEvent -> {
 });
 
 ```
-The application can register a listener to be notified of SegmentEvents using the registerListener api.
-The registerListener api takes `io.pravega.client.stream.notifications.Listener` as a parameter.
-Here the application can add custom logic to increase the number of readers in case the number of segments
-managed by the Readergroup is more than the available number of readers. It can reduce the number of readers
-if the number of segments managed by the Readergroup is less than the online readers.
+The application can register a listener to be notified of SegmentEvents using
+the registerListener api. The registerListener api takes
+`io.pravega.client.stream.notifications.Listener` as a parameter. Here the
+application can add custom logic to increase the number of readers in case the
+number of segments managed by the Readergroup is more than the available number
+of readers. It can reduce the number of readers if the number of segments
+managed by the Readergroup is less than the online readers.
 
