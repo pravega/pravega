@@ -33,7 +33,7 @@ public class ZkCheckpointStoreConnectivityTest {
 
     @Before
     public void setup() throws Exception {
-        cli = CuratorFrameworkFactory.newClient("localhost:0000", 1, 1, (r, e, s) -> false);
+        cli = CuratorFrameworkFactory.newClient("localhost:0000", 10000, 1, (r, e, s) -> false);
         cli.start();
         checkpointStore = CheckpointStoreFactory.createZKStore(cli);
     }
