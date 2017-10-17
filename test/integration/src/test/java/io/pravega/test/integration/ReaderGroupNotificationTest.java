@@ -112,7 +112,7 @@ public class ReaderGroupNotificationTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 40000)
     public void testSegmentNotifications() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
@@ -160,16 +160,14 @@ public class ReaderGroupNotificationTest {
         ScheduledExecutorService executor = new InlineExecutor();
         readerGroup.getSegmentEventNotifier(executor).registerListener(l1);
 
-        EventRead<String> event1 = reader1.readNextEvent(10000);
-        EventRead<String> event2 = reader1.readNextEvent(10000);
+        EventRead<String> event1 = reader1.readNextEvent(15000);
+        EventRead<String> event2 = reader1.readNextEvent(15000);
         assertNotNull(event1);
         assertEquals("data1", event1.getEvent());
         assertNotNull(event2);
         assertEquals("data2", event2.getEvent());
 
         listenerLatch.await();
-        assertNotNull(event1);
-        assertEquals("data1", event1.getEvent());
         assertTrue("Listener invoked", listenerInvoked.get());
         assertEquals(2, numberOfSegments.get());
         assertEquals(1, numberOfReaders.get());
