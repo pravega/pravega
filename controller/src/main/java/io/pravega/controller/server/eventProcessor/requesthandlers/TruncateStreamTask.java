@@ -55,17 +55,16 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                     if (!property.isUpdating()) {
                         throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                     } else {
-                        return processTruncate(scope, stream, property, context);
+                        return processTruncate(scope, stream, property.getProperty(), context);
                     }
                 });
     }
 
-    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamProperty<StreamTruncationRecord> streamCut,
+    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
                                                     OperationContext context) {
-        // TODO: shivesh
-        // find segments to delete --> all predecessors till a certain point.
-        //
-//        streamMetadataStore.completeTruncation(scope, stream, Collections.emptySet(), context, executor);
+        // 1. highepoch = find epoch for highest segment number in truncation record
+        // 2. low epoch = fall back one record at a time to find the record that overlaps with this truncation record.
+        // 3. so this becomes our high and low
         return null;
     }
 

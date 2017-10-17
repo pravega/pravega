@@ -17,6 +17,7 @@ import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang3.SerializationUtils;
 
@@ -155,6 +156,18 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
+    CompletableFuture<Void> createTruncationDataIfAbsent(StreamProperty<StreamTruncationRecord> truncation) {
+        Preconditions.checkNotNull(truncation);
+
+        synchronized (lock) {
+            if (truncationRecord == null) {
+                truncationRecord = new Data<>(SerializationUtils.serialize(truncation), 0);
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     CompletableFuture<Void> setConfigurationData(Data<Integer> newConfig) {
         Preconditions.checkNotNull(newConfig);
 
@@ -188,7 +201,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setTruncationRecordData(Data<Integer> truncationRecord) {
+    CompletableFuture<Void> setTruncationData(Data<Integer> truncationRecord) {
         Preconditions.checkNotNull(truncationRecord);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -211,7 +224,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getTruncationRecordData(boolean ignoreCached) {
+    CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
         synchronized (lock) {
             return CompletableFuture.completedFuture(copy(this.truncationRecord));
         }

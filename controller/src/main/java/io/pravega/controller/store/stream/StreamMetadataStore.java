@@ -216,17 +216,19 @@ public interface StreamMetadataStore {
     /**
      * Complete an ongoing stream truncation.
      *
-     * @param scope           stream scope
-     * @param name            stream name.
-     * @param truncationEpoch epoch closest to current truncation.
-     * @param deletedSegments segments deleted as part of this truncation.
-     * @param context         operation context
-     * @param executor        callers executor
+     * @param scope               stream scope
+     * @param name                stream name.
+     * @param truncationEpochLow  highest epoch when all segments in stream cut were unsealed or not created.
+     * @param truncationEpochHigh lowest epoch when all segments in stream cut were created.
+     * @param deletedSegments     segments deleted as part of this truncation.
+     * @param context             operation context
+     * @param executor            callers executor
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
                                                final String name,
-                                               final int truncationEpoch,
+                                               final int truncationEpochLow,
+                                               final int truncationEpochHigh,
                                                final Set<Integer> deletedSegments,
                                                final OperationContext context,
                                                final Executor executor);

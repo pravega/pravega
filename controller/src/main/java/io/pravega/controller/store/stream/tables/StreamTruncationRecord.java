@@ -9,32 +9,32 @@
  */
 package io.pravega.controller.store.stream.tables;
 
-import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @Data
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class StreamTruncationRecord implements Serializable {
-    public static final StreamTruncationRecord EMPTY = new StreamTruncationRecord(Collections.emptyMap(), Integer.MIN_VALUE, Collections.emptySet());
+    public static final StreamTruncationRecord EMPTY = new StreamTruncationRecord(Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptySet());
 
     private final Map<Integer, Long> streamCut;
-    private final int truncationEpoch;
+    private final Map<Integer, List<Integer>> truncationEpochMap;
     private final Set<Integer> deletedSegments;
 
-    public static StreamTruncationRecord newStreamCut(StreamTruncationRecord previous, Map<Integer, Long> streamCut) {
-        Preconditions.checkNotNull(previous);
-        return new StreamTruncationRecord(streamCut, previous.getTruncationEpoch(), previous.getDeletedSegments());
+    int getTruncationEpochLow() {
+        return truncationEpochMap.keySet().stream().min(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
 
-    public static StreamTruncationRecord truncated(StreamTruncationRecord previous, int truncationEpoch, Set<Integer> deletedSegments) {
-        Preconditions.checkNotNull(previous);
-        return new StreamTruncationRecord(previous.getStreamCut(), truncationEpoch, deletedSegments);
+    int getTruncationEpochHigh() {
+        return truncationEpochMap.keySet().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
 }

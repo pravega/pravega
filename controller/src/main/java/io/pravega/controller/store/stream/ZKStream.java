@@ -18,6 +18,7 @@ import io.pravega.controller.store.stream.tables.Cache;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
@@ -43,7 +44,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
-    private static final String STREAM_CUT_PATH = STREAM_PATH + "/streamCut";
+    private static final String TRUNCATION_PATH = STREAM_PATH + "/truncation";
     private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
@@ -53,7 +54,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final ZKStoreHelper store;
     private final String creationPath;
     private final String configurationPath;
-    private final String streamCutPath;
+    private final String truncationPath;
     private final String statePath;
     private final String segmentPath;
     private final String historyPath;
@@ -73,7 +74,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
-        streamCutPath = String.format(STREAM_CUT_PATH, scopeName, streamName);
+        truncationPath = String.format(TRUNCATION_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
         segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
@@ -387,20 +388,26 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setTruncationRecordData(final Data<Integer> truncationRecord) {
-        return store.setData(streamCutPath, truncationRecord)
-                .whenComplete((r, e) -> cache.invalidateCache(streamCutPath));
+    public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamProperty<StreamTruncationRecord> truncationRecord) {
+        return store.createZNodeIfNotExist(truncationPath, SerializationUtils.serialize(truncationRecord))
+                .thenApply(x -> cache.invalidateCache(truncationPath));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getTruncationRecordData(boolean ignoreCached) {
+    CompletableFuture<Void> setTruncationData(final Data<Integer> truncationRecord) {
+        return store.setData(truncationPath, truncationRecord)
+                .whenComplete((r, e) -> cache.invalidateCache(truncationPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
         final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
 
         if (ignoreCached) {
-            cache.invalidateCache(streamCutPath);
+            cache.invalidateCache(truncationPath);
         }
 
-        cache.getCachedData(streamCutPath)
+        cache.getCachedData(truncationPath)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
                         Throwable cause = ExceptionHelpers.getRealException(ex);

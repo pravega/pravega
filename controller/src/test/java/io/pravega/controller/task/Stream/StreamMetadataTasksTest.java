@@ -176,16 +176,16 @@ public class StreamMetadataTasksTest {
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
-        StreamProperty<StreamConfiguration> configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
-        assertFalse(configWithVersion.isUpdating());
+        StreamProperty<StreamConfiguration> configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
+        assertFalse(configProp.isUpdating());
         // 1. happy day test
         // update.. should succeed
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
         assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
-        configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
-        assertTrue(configWithVersion.getProperty().equals(streamConfiguration));
+        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
+        assertTrue(configProp.getProperty().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
                 .scope(SCOPE)
@@ -205,15 +205,16 @@ public class StreamMetadataTasksTest {
 
         // event posted, first step performed. now pick the event for processing
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
-        UpdateStreamEvent take = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
-        AssertExtensions.assertThrows("", updateStreamTask.execute(take),
+        UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
+        AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
                 e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
-        assertTrue(FutureHelpers.await(updateStreamTask.execute(take)));
+        // now with state = active, process the same event. it should succeed now.
+        assertTrue(FutureHelpers.await(updateStreamTask.execute(taken)));
 
-        // 3. multiple back to back updates
+        // 3. multiple back to back updates.
         StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
                 .scope(SCOPE)
                 .streamName(stream1)
@@ -230,21 +231,26 @@ public class StreamMetadataTasksTest {
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop2::set), executor).join();
 
+        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
+        assertTrue(configProp.getProperty().equals(streamConfiguration1) && configProp.isUpdating());
+
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
                 .scope(SCOPE)
                 .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(7)).build();
 
+        // post the second update request. This should fail here itself as previous one has started.
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture2 = streamMetadataTasks.updateStream(SCOPE, stream1,
                 streamConfiguration2, null);
-
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
-
-        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture2.join());
 
-        configWithVersion = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
-        assertTrue(configWithVersion.getProperty().equals(streamConfiguration1));
+        // process event
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        // verify that first request for update also completes with success.
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
+
+        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
+        assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
     }
 
     @Test(timeout = 30000)

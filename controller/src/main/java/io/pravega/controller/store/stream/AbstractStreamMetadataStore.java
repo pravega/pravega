@@ -282,10 +282,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final int truncationEpoch,
-                                                      final Set<Integer> deletedSegments, final OperationContext context,
-                                                      final Executor executor) {
-        return withCompletion(getStream(scope, name, context).completeTruncation(truncationEpoch, deletedSegments), executor);
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final int truncationEpochLow,
+                                                      final int truncationEpochHigh, final Set<Integer> deletedSegments,
+                                                      final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeTruncation(truncationEpochLow, truncationEpochHigh,
+                deletedSegments), executor);
     }
 
     @Override

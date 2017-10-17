@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -19,7 +21,9 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -103,16 +107,80 @@ public class TableHelper {
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable,
                                                   final StreamTruncationRecord truncationRecord) {
-        Optional<HistoryRecord> record = HistoryRecord.readRecord(historyTable, 0, true);
-        if (record.isPresent() && timestamp > record.get().getScaleTime()) {
-            final Optional<IndexRecord> recordOpt = IndexRecord.search(timestamp, indexTable).getValue();
-            final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
+        Optional<HistoryRecord> recordOpt = HistoryRecord.readRecord(historyTable, 0, true);
+        if (recordOpt.isPresent() && timestamp > recordOpt.get().getScaleTime()) {
+            final Optional<IndexRecord> indexOpt = IndexRecord.search(timestamp, indexTable).getValue();
+            final int startingOffset = indexOpt.map(IndexRecord::getHistoryOffset).orElse(0);
 
-            record = findRecordInHistoryTable(startingOffset, timestamp, historyTable, true);
+            recordOpt = findRecordInHistoryTable(startingOffset, timestamp, historyTable, true);
         }
 
+        return recordOpt.map(record -> {
+            List<Integer> segments;
+            if (truncationRecord == null) {
+                segments = record.getSegments();
+            } else {
+                if (record.getEpoch() < truncationRecord.getTruncationEpochLow()) {
+                    segments = Lists.newArrayList(truncationRecord.getStreamCut().keySet());
+                } else if (record.getEpoch() > truncationRecord.getTruncationEpochHigh()) {
+                    segments = record.getSegments();
+                } else {
+                    segments = new ArrayList<>();
+                    // all segments from stream cut that have epoch >= this epoch
+                    List<Integer> fromStreamCut = truncationRecord.getTruncationEpochMap().entrySet().stream()
+                            .filter(x -> x.getKey() >= record.getEpoch())
+                            .map(Map.Entry::getValue).flatMap(List::stream)
+                            .collect(Collectors.toList());
+
+                    segments.addAll(fromStreamCut);
+                    // remaining segments that dont overlap with those taken from streamCut.
+                    // TODO: shivesh: get segment table
+                    segments.addAll(record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
+                            getSegment(x, segmentTable).overlaps(getSegment(y, segmentTable))))
+                            .collect(Collectors.toList()));
+                }
+            }
+            return segments;
+        }).orElse(new ArrayList<>());
+    }
+
+    public static StreamTruncationRecord computeTruncationRecord(final byte[] indexTable, final byte[] historyTable,
+                                                                 final byte[] segmentTable, final Map<Integer, Long> streamCut,
+                                                                 final StreamTruncationRecord previousTruncationRecord) {
+        Preconditions.checkNotNull(streamCut);
+        Preconditions.checkNotNull(indexTable);
+        Preconditions.checkNotNull(historyTable);
+        Preconditions.checkNotNull(segmentTable);
+        Preconditions.checkArgument(!streamCut.isEmpty());
+
         // TODO: shivesh
-        return record.map(HistoryRecord::getSegments).orElse(new ArrayList<>());
+        // verify that streamcut and previous truncation are disjoint and stream cut is strictly greater than previous
+
+
+
+        // 1. find epoch for highest segment number in the stream cut
+        int mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
+        SegmentRecord mostRecentSegment = SegmentRecord.readRecord(segmentTable, mostRecent).get();
+
+        final HistoryRecord highEpochRecord = segmentCreationHistoryRecord(mostRecent, mostRecentSegment.getStartTime(),
+                indexTable, historyTable).get();
+
+        Map<Integer, List<Integer>> epochStreamCutMap = new HashMap<>();
+        // 2. If there are segments in stream cut not present in the epoch then stream cut is composed of multiple epochs.
+
+        List<Integer> toFind = new ArrayList<>(streamCut.keySet());
+        HistoryRecord epochRecord = highEpochRecord;
+
+        while (!toFind.isEmpty()) {
+            List<Integer> epochSegments = epochRecord.getSegments();
+            Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
+            toFind = group.get(false);
+            epochStreamCutMap.put(epochRecord.getEpoch(), group.get(true));
+            epochRecord = HistoryRecord.fetchPrevious(epochRecord, historyTable).get();
+        }
+
+        // TODO: shivesh: compute deleted segments
+        return new StreamTruncationRecord(streamCut, epochStreamCutMap, null);
     }
 
     public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
@@ -164,12 +232,7 @@ public class TableHelper {
         // fetch record corresponding to Ic. If segment present in that history record, fall through history table
         // else perform binary searchIndex
         // Note: if segment is present at Ic, we will fall through in the history table one record at a time
-        Pair<Integer, Optional<IndexRecord>> search = IndexRecord.search(segment.getStart(), indexTable);
-        final Optional<IndexRecord> recordOpt = search.getValue();
-        final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
-
-        final Optional<HistoryRecord> segmentCreatedHistoryRecordOpt = findSegmentCreatedEvent(startingOffset,
-                segment, historyTable);
+        final Optional<HistoryRecord> segmentCreatedHistoryRecordOpt = segmentCreationHistoryRecord(segment, indexTable, historyTable);
 
         // segment information not in history table
         if (!segmentCreatedHistoryRecordOpt.isPresent()) {
@@ -243,11 +306,7 @@ public class TableHelper {
             final Segment segment,
             final byte[] indexTable,
             final byte[] historyTable) {
-        final Optional<IndexRecord> recordOpt = IndexRecord.search(segment.getStart(), indexTable)
-                .getValue();
-        final int startingOffset = recordOpt.isPresent() ? recordOpt.get().getHistoryOffset() : 0;
-
-        Optional<HistoryRecord> historyRecordOpt = findSegmentCreatedEvent(startingOffset, segment, historyTable);
+        Optional<HistoryRecord> historyRecordOpt = segmentCreationHistoryRecord(segment, indexTable, historyTable);
         if (!historyRecordOpt.isPresent()) {
             // cant compute predecessors because the creation event is not present in history table yet.
             return new ArrayList<>();
@@ -645,12 +704,26 @@ public class TableHelper {
         }
     }
 
+    private static Optional<HistoryRecord> segmentCreationHistoryRecord(Segment segment, byte[] indexTable, byte[] historyTable) {
+        return segmentCreationHistoryRecord(segment.getNumber(), segment.getStart(), indexTable, historyTable);
+    }
+
+    private static Optional<HistoryRecord> segmentCreationHistoryRecord(int segmentNumber, long startTime,
+                                                                        byte[] indexTable, byte[] historyTable) {
+        final Optional<IndexRecord> recordOpt = IndexRecord.search(startTime, indexTable)
+                .getValue();
+        final int startingOffset = recordOpt.map(IndexRecord::getHistoryOffset).orElse(0);
+
+        return findSegmentCreatedEvent(startingOffset, segmentNumber, startTime, historyTable);
+    }
+
     private static Optional<HistoryRecord> findSegmentCreatedEvent(final int startingOffset,
-                                                                   final Segment segment,
+                                                                   final int segmentNumber,
+                                                                   final long segmentCreationTime,
                                                                    final byte[] historyTable) {
 
         Optional<HistoryRecord> historyRecordOpt = findRecordInHistoryTable(startingOffset,
-                segment.getStart(), historyTable, false);
+                segmentCreationTime, historyTable, false);
 
         if (!historyRecordOpt.isPresent()) {
             // segment not present in history record.
@@ -664,7 +737,7 @@ public class TableHelper {
         // This is not true for initial sets of segments though where segment.createTime == historyrecord.eventTime.
         // So we will need to check at both records. We are guaranteed that it cannot be before this though.
         // Question is should we fall thru more than one entry because of clock mismatch between controller instances.
-        while (historyRecordOpt.isPresent() && !historyRecordOpt.get().getSegments().contains(segment.getNumber())) {
+        while (historyRecordOpt.isPresent() && !historyRecordOpt.get().getSegments().contains(segmentNumber)) {
             historyRecordOpt = HistoryRecord.fetchNext(historyRecordOpt.get(), historyTable, false);
         }
 
@@ -694,7 +767,7 @@ public class TableHelper {
      * @param input list of key ranges.
      * @return reduced list of key ranges.
      */
-    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
+    public static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
         List<AbstractMap.SimpleEntry<Double, Double>> ranges = new ArrayList<>(input);
         ranges.sort(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
         List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();
