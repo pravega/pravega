@@ -103,7 +103,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS + 1,
                 "ReadTxnWriteAutoScaleWithFailoverTest-main");
-        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(3,
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "ReadTxnWriteAutoScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
