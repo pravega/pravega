@@ -65,7 +65,7 @@ interface Stream {
      * @param configuration new stream configuration.
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration);
+    CompletableFuture<Boolean> updateConfiguration(final StreamConfigWithVersion configuration);
 
     /**
      * Fetches the current stream configuration.
@@ -73,6 +73,13 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<StreamConfiguration> getConfiguration();
+
+    /**
+     * Fetches the current stream configuration.
+     *
+     * @return current stream configuration.
+     */
+    CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion();
 
     /**
      * Update the state of the stream.
@@ -85,8 +92,9 @@ interface Stream {
      * Get the state of the stream.
      *
      * @return state othe given stream.
+     * @param ignoreCached ignore cached value and fetch from store
      */
-    CompletableFuture<State> getState();
+    CompletableFuture<State> getState(boolean ignoreCached);
 
     /**
      * Fetches details of specified segment.
