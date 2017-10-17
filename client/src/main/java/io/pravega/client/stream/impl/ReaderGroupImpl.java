@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -30,6 +31,10 @@ import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
+import io.pravega.client.stream.notifications.NotificationSystem;
+import io.pravega.client.stream.notifications.NotifierFactory;
+import io.pravega.client.stream.notifications.Observable;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -49,6 +54,7 @@ import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.FutureHelpers.allOfWithResults;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -64,6 +70,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final ClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
+    private final NotificationSystem notificationSystem = new NotificationSystem();
+    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem);
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -202,6 +210,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             totalLength -= bytesRead;
         }
         return totalLength;
+    }
+
+    @Override
+    public Observable<SegmentEvent> getSegmentEventNotifier(ScheduledExecutorService executor) {
+        checkNotNull(executor, "executor");
+        return this.notifierFactory.getSegmentNotifier(this::createSynchronizer, executor);
     }
 
 }
