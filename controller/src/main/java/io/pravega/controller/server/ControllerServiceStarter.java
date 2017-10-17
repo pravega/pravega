@@ -143,7 +143,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
+                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory);
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
