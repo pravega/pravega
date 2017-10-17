@@ -14,6 +14,12 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -22,11 +28,18 @@ import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
+import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -34,12 +47,9 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -70,20 +80,15 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final String objectId;
     private final ControllerEventProcessorConfig config;
     private final CheckpointStore checkpointStore;
-    private final StreamMetadataStore streamMetadataStore;
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final HostControllerStore hostControllerStore;
     private final EventProcessorSystem system;
-    private final SegmentHelper segmentHelper;
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
     private final ClientFactory clientFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
-    private final RequestHandlerMultiplexer requestHandlerMultiplexer;
+    private final StreamRequestHandler streamRequestHandler;
     private final CommitEventProcessor commitEventProcessor;
     private final AbortRequestHandler abortRequestHandler;
 
@@ -116,18 +121,16 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
         this.objectId = "ControllerEventProcessors";
         this.config = config;
         this.checkpointStore = checkpointStore;
-        this.streamMetadataStore = streamMetadataStore;
-        this.streamMetadataTasks = streamMetadataTasks;
-        this.hostControllerStore = hostControllerStore;
-        this.segmentHelper = segmentHelper;
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
         this.clientFactory = new ClientFactoryImpl(config.getScopeName(), controller, connectionFactory);
         this.system = system == null ? new EventProcessorSystemImpl("Controller", host, config.getScopeName(), clientFactory,
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
-        this.requestHandlerMultiplexer = new RequestHandlerMultiplexer(
-                new AutoScaleRequestHandler(streamMetadataTasks, streamMetadataStore, executor),
-                new ScaleOperationRequestHandler(streamMetadataTasks, streamMetadataStore, executor), executor);
+        this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                executor);
         this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
                 executor, segmentHelper, connectionFactory);
         this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
@@ -334,7 +337,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore, executor, segmentHelper, connectionFactory))
+                        .supplier(() -> this.commitEventProcessor)
                         .build();
 
         log.info("Creating commit event processors");
@@ -390,7 +393,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(requestReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(CONTROLLER_EVENT_SERIALIZER)
-                        .supplier(() -> new ConcurrentEventProcessor<>(requestHandlerMultiplexer, executor))
+                        .supplier(() -> new ConcurrentEventProcessor<>(streamRequestHandler, executor))
                         .build();
 
         log.info("Creating request event processors");

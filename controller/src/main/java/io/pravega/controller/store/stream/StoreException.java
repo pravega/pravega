@@ -161,7 +161,7 @@ public class StoreException extends RuntimeException {
     /**
      * Exception type when the attempted operation is currently not allowed.
      */
-    public static class OperationNotAllowedException extends StoreException implements RetryableException {
+    public static class OperationNotAllowedException extends StoreException {
         private OperationNotAllowedException(String errorMessage, Throwable cause) {
             super(errorMessage, cause);
         }

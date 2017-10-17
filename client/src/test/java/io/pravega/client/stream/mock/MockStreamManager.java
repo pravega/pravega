@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -139,12 +139,12 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException();
+        throw new NotImplementedException("getReaderGroup");
     }
 
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
-        throw new NotImplementedException();
+        return FutureHelpers.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
     }
 
     @Override

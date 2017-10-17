@@ -322,7 +322,7 @@ public class EventStreamWriterTest {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).transactionTimeoutScaleGracePeriod(0).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
@@ -338,7 +338,7 @@ public class EventStreamWriterTest {
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
                 config, new InlineExecutor());
-        Transaction<String> txn = writer.beginTxn(0, 0, 0);
+        Transaction<String> txn = writer.beginTxn();
         txn.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
         assertTrue(bad.getUnackedEventsOnSeal().isEmpty());
@@ -356,7 +356,7 @@ public class EventStreamWriterTest {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().build();
+        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).transactionTimeoutScaleGracePeriod(0).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
@@ -372,7 +372,7 @@ public class EventStreamWriterTest {
         @Cleanup
         EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
                 config, new InlineExecutor());
-        Transaction<String> txn = writer.beginTxn(0, 0, 0);
+        Transaction<String> txn = writer.beginTxn();
         outputStream.invokeSealedCallBack();
         try {
             txn.writeEvent("Foo");

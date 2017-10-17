@@ -228,7 +228,8 @@ public final class ServiceStarter {
 
             // For debugging purposes, it may be useful to know the non-default values for configurations being used.
             // This will unfortunately include all System Properties as well, but knowing those can be useful too sometimes.
-            config.forEach((key, value) -> log.debug("Config:{}={}.", key, value));
+            log.info("Segment store configuration:");
+            config.forEach((key, value) -> log.info("{} = {}", key, value));
             serviceStarter.set(new ServiceStarter(config, Options.builder()
                     .bookKeeper(true).rocksDb(true).zkSegmentManager(true).build()));
         } catch (Throwable e) {

@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
-import org.apache.commons.lang.NotImplementedException;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -136,28 +135,28 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CancellableRequest<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
                                                    ScheduledExecutorService executor) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> checkScaleStatus(Stream stream, int epoch) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -186,7 +185,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -220,7 +219,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -278,7 +277,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -320,7 +319,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -344,7 +343,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -370,7 +369,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -389,7 +388,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -404,7 +403,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -430,5 +429,8 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(true);
     }
 
+    @Override
+    public void close() {
+    }
 }
 

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.test.common.AssertExtensions;
 import java.io.DataInputStream;
@@ -42,6 +41,7 @@ public class SegmentStateTests {
             SegmentState deserialized = SegmentState.deserialize(new DataInputStream(serialization.getReader()));
             Assert.assertEquals("Unexpected segment id", original.getSegmentId(), deserialized.getSegmentId());
             Assert.assertEquals("Unexpected segment name.", original.getSegmentName(), deserialized.getSegmentName());
+            Assert.assertEquals("Unexpected start offset.", original.getStartOffset(), deserialized.getStartOffset());
             AssertExtensions.assertMapEquals("Unexpected attributes.", original.getAttributes(), deserialized.getAttributes());
         }
     }
@@ -52,7 +52,12 @@ public class SegmentStateTests {
             attributes.put(UUID.randomUUID(), (long) i);
         }
 
-        return new SegmentState(attributeCount,
-                new StreamSegmentInformation(Integer.toString(attributeCount), 0, false, false, attributes, new ImmutableDate()));
+        return new SegmentState(attributeCount, StreamSegmentInformation
+                .builder()
+                .name(Integer.toString(attributeCount))
+                .startOffset(attributeCount)
+                .length(attributeCount + 1)
+                .attributes(attributes)
+                .build());
     }
 }

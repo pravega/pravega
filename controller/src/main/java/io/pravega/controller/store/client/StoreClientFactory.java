@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -34,7 +34,7 @@ public class StoreClientFactory {
             case InMemory:
                 return new InMemoryStoreClient();
             default:
-                throw new NotImplementedException();
+                throw new NotImplementedException(storeClientConfig.getStoreType().toString());
         }
     }
 

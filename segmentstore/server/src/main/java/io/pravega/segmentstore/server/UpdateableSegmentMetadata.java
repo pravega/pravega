@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.ImmutableDate;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,12 +26,21 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void setStorageLength(long value);
 
     /**
-     * Sets the current DurableLog Length for this StreamSegment.
+     * Sets the first offset available for reading for this StreamSegment. This essentially marks the Segment as truncated
+     * at this offset.
      *
-     * @param value The new DurableLog length.
+     * @param value The new first available offset.
      * @throws IllegalArgumentException If the value is invalid.
      */
-    void setDurableLogLength(long value);
+    void setStartOffset(long value);
+
+    /**
+     * Sets the current Length for this StreamSegment.
+     *
+     * @param value The new length.
+     * @throws IllegalArgumentException If the value is invalid.
+     */
+    void setLength(long value);
 
     /**
      * Marks this StreamSegment as sealed for modifications.

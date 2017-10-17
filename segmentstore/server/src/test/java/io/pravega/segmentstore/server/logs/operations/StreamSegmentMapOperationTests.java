@@ -9,14 +9,13 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.common.util.ImmutableDate;
+import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
-
 import lombok.val;
 import org.junit.Assert;
 
@@ -26,13 +25,16 @@ import org.junit.Assert;
 public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        return new StreamSegmentMapOperation(new StreamSegmentInformation(
-                super.getStreamSegmentName(random.nextLong()),
-                random.nextLong(),
-                random.nextBoolean(),
-                random.nextBoolean(),
-                createAttributes(10),
-                new ImmutableDate()));
+        long length = MathHelpers.abs(random.nextLong());
+        return new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
+                .name(super.getStreamSegmentName(random.nextLong()))
+                .startOffset(length / 2)
+                .length(length)
+                .sealed(random.nextBoolean())
+                .deleted(random.nextBoolean())
+                .attributes(createAttributes(10))
+                .build());
     }
 
     @Override

@@ -49,16 +49,28 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
+
+    configurations.all {
+        resolutionStrategy {
+            //failOnVersionConflict()
+            force "org.slf4j:slf4j-api:" + slf4jApiVersion
+            force "org.apache.commons:commons-lang3:" + commonsLang3Version
+            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
+            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.guava:guava:" + guavaVersion
+            force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
+            force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+        }
+    }
+
 }
 
 project('common') {
     dependencies {
         testCompile project(':test:testcommon')
-        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
@@ -82,6 +94,9 @@ project ('shared') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
+        compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
+        testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile project(':test:testcommon')
     }
     javadoc {
@@ -146,7 +161,7 @@ project('test:testcommon') {
     dependencies {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -359,8 +374,7 @@ project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
-        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3ControllerContractVersion
-        compile group: 'commons-lang', name: 'commons-lang', version: commonsLangVersion
+        compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
@@ -397,7 +411,7 @@ project('controller') {
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
@@ -408,6 +422,7 @@ project('controller') {
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion

@@ -12,19 +12,21 @@ package io.pravega.client.stream;
 import java.io.Serializable;
 
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
+import lombok.Data;
 import lombok.Getter;
 
+@Data
 @Builder
-@EqualsAndHashCode
 public class ReaderGroupConfig implements Serializable {
-   @Getter
+
    private final Sequence startingPosition;
-   @Getter
    private final long groupRefreshTimeMillis;
+   @Getter
+   private final long automaticCheckpointIntervalMillis;   
 
    public static final class ReaderGroupConfigBuilder {
-       long groupRefreshTimeMillis = 3000;
+       private long groupRefreshTimeMillis = 3000;
+       private long automaticCheckpointIntervalMillis = 120000;
 
        /**
          * Returns a config builder that started at  a given time.

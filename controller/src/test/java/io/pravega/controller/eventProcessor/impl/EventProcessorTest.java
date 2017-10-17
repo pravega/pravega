@@ -37,11 +37,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -74,6 +77,11 @@ public class EventProcessorTest {
         @Override
         public String getKey() {
             return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return CompletableFuture.completedFuture(null);
         }
     }
 

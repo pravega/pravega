@@ -29,6 +29,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ConfigHelpers;
 import io.pravega.segmentstore.server.OperationLog;
@@ -215,6 +216,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             long expectedLength = lengths.get(segmentName);
 
+            Assert.assertEquals("Unexpected StartOffset for non-truncated segment " + segmentName, 0, sp.getStartOffset());
             Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
             Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
             Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
@@ -236,6 +238,61 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 4. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, context);
+
+        // 5. Writer moving data to Storage.
+        waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkStorage(segmentContents, lengths, context);
+
+        context.container.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Same as testRegularOperations, but truncates the segments as progress is made.
+     */
+    @Test
+    public void testRegularOperationsWithTruncate() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext();
+        context.container.startAsync().awaitRunning();
+
+        // 1. Create the StreamSegments.
+        ArrayList<String> segmentNames = createSegments(context);
+
+        // 2. Add some appends & truncate as we go.
+        ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, Long> truncationOffsets = new HashMap<>();
+        HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+
+        for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+            for (String segmentName : segmentNames) {
+                byte[] appendData = getAppendData(segmentName, i);
+                opFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                recordAppend(segmentName, appendData, segmentContents);
+
+                long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.length / 2 + 1;
+                truncationOffsets.put(segmentName, truncateOffset);
+                opFutures.add(FutureHelpers.toVoid(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT)));
+            }
+        }
+
+        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 3. getSegmentInfo
+        for (String segmentName : segmentNames) {
+            SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            long expectedStartOffset = truncationOffsets.getOrDefault(segmentName, 0L);
+            long expectedLength = lengths.get(segmentName);
+
+            Assert.assertEquals("Unexpected StartOffset for segment " + segmentName, expectedStartOffset, sp.getStartOffset());
+            Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
+            Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
+            Assert.assertFalse("Unexpected value for isSealed for segment " + segmentName, sp.isDeleted());
+        }
+
+        // 4. Reads (regular reads, not tail reads).
+        checkReadIndex(segmentContents, lengths, truncationOffsets, context);
 
         // 5. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -964,10 +1021,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         String txn1 = localContainer.createTransaction(segment3, UUID.randomUUID(), null, TIMEOUT).join();
 
         // Activate one segment.
-        localContainer.getStreamSegmentInfo(segment2, false, TIMEOUT).join();
+        activateSegment(segment2, localContainer).join();
 
         // Activate the transaction; this should fill up the metadata (itself + parent).
-        localContainer.getStreamSegmentInfo(txn1, false, TIMEOUT).join();
+        activateSegment(txn1, localContainer).join();
 
         // Verify the transaction's parent has been activated.
         Assert.assertNotNull("Transaction's parent has not been activated.",
@@ -977,12 +1034,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Verify we cannot activate any other segment.
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> localContainer.getStreamSegmentInfo(segment1, false, TIMEOUT),
+                () -> activateSegment(segment1, localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         AssertExtensions.assertThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
-                () -> localContainer.getStreamSegmentInfo(segment0, false, TIMEOUT),
+                () -> activateSegment(segment0, localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         // Test the ability to forcefully evict items from the metadata when there is pressure and we need to register something new.
@@ -1152,17 +1209,24 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
     }
 
-    private static void checkReadIndex(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> lengths, TestContext context) throws Exception {
-        for (String segmentName : segmentContents.keySet()) {
-            long expectedLength = lengths.get(segmentName);
-            long segmentLength = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+    private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
+                                       TestContext context) throws Exception {
+        checkReadIndex(segmentContents, lengths, Collections.emptyMap(), context);
+    }
 
-            Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedLength, segmentLength);
+    private static void checkReadIndex(Map<String, ByteArrayOutputStream> segmentContents, Map<String, Long> lengths,
+                                       Map<String, Long> truncationOffsets, TestContext context) throws Exception {
+        for (String segmentName : segmentContents.keySet()) {
+            long segmentLength = lengths.get(segmentName);
+            long startOffset = truncationOffsets.getOrDefault(segmentName, 0L);
+            val si = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            Assert.assertEquals("Unexpected Metadata StartOffset for segment " + segmentName, startOffset, si.getStartOffset());
+            Assert.assertEquals("Unexpected Metadata Length for segment " + segmentName, segmentLength, si.getLength());
             byte[] expectedData = segmentContents.get(segmentName).toByteArray();
 
-            long expectedCurrentOffset = 0;
+            long expectedCurrentOffset = startOffset;
             @Cleanup
-            ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, (int) segmentLength, TIMEOUT).join();
+            ReadResult readResult = context.container.read(segmentName, expectedCurrentOffset, (int) (segmentLength - startOffset), TIMEOUT).join();
             Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
 
             // A more thorough read check is done in testSegmentRegularOperations; here we just check if the data was merged correctly.
@@ -1340,9 +1404,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @SneakyThrows
     private void activateAllSegments(Collection<String> segmentNames, TestContext context) {
         val futures = segmentNames.stream()
-                                  .map(s -> context.container.getStreamSegmentInfo(s, false, TIMEOUT))
+                                  .map(s -> activateSegment(s, context.container))
                                   .collect(Collectors.toList());
         FutureHelpers.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
+        return container.read(segmentName, 0, 1, TIMEOUT).thenAccept(ReadResult::close);
     }
 
     @SneakyThrows

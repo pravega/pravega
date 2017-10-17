@@ -24,19 +24,20 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
-import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -49,9 +50,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -299,19 +300,16 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         this.metrics.getInfo();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        Function<Long, CompletableFuture<SegmentProperties>> metadataRetriever =
-                streamSegmentId -> CompletableFuture.completedFuture(this.metadata.getStreamSegmentMetadata(streamSegmentId).getSnapshot());
 
         if (waitForPendingOps) {
             // We have been instructed to wait for all pending operations to complete. Use an op barrier and wait for it
             // before proceeding.
+            TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.durableLog
                     .operationProcessingBarrier(timer.getRemaining())
-                    .thenComposeAsync(v -> this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever), this.executor);
+                    .thenComposeAsync(v -> this.segmentMapper.getStreamSegmentInfo(streamSegmentName, timer.getRemaining()), this.executor);
         } else {
-            return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(), metadataRetriever);
+            return this.segmentMapper.getStreamSegmentInfo(streamSegmentName, timeout);
         }
     }
 
@@ -367,6 +365,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         notifyMetadataRemoved(deletedSegments);
         return FutureHelpers.allOf(deletionFutures);
+    }
+
+    @Override
+    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+        ensureRunning();
+
+        logRequest("truncateStreamSegment", streamSegmentName);
+        this.metrics.truncate();
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        AtomicLong segmentId = new AtomicLong();
+        return this.segmentMapper
+                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                        streamSegmentId -> {
+                            segmentId.set(streamSegmentId);
+                            StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(streamSegmentId, offset);
+                            return this.durableLog.add(op, timer.getRemaining());
+                        })
+                .thenApply(v -> {
+                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(segmentId.get());
+                    return sm == null || sm.isDeleted() ? 0 : sm.getLength() - sm.getStartOffset();
+                });
     }
 
     @Override

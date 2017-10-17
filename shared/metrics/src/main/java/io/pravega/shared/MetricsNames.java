@@ -49,6 +49,7 @@ public final class MetricsNames {
     public static final String CONTAINER_CREATE_TXN_COUNT = "container_create_txn_count";
     public static final String CONTAINER_MERGE_TXN_COUNT = "container_merge_txn_count";
     public static final String CONTAINER_SEAL_COUNT = "container_seal_count";
+    public static final String CONTAINER_TRUNCATE_COUNT = "container_truncate_count";
     public static final String PROCESS_OPERATIONS_LATENCY = "process_operations_latency";
     public static final String PROCESS_OPERATIONS_BATCH_SIZE = "process_operations_batch_size";
     public static final String OPERATION_QUEUE_SIZE = "operation_queue_size";

@@ -11,6 +11,8 @@ package io.pravega.shared.controller.event;
 
 import lombok.Data;
 
+import java.util.concurrent.CompletableFuture;
+
 @Data
 public class AutoScaleEvent implements ControllerEvent {
     public static final byte UP = (byte) 0;
@@ -28,5 +30,10 @@ public class AutoScaleEvent implements ControllerEvent {
     @Override
     public String getKey() {
         return String.format("%s/%s", scope, stream);
+    }
+
+    @Override
+    public CompletableFuture<Void> process(RequestProcessor processor) {
+        return processor.processAutoScaleRequest(this);
     }
 }

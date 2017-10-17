@@ -30,7 +30,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -243,7 +243,7 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
         synchronized (lock) {
             Preconditions.checkState(this.isRunning(), this.state().name());
             if (count <= 0) {
-                throw new NotImplementedException();
+                throw new NotImplementedException("Decrease processor count");
             } else {
 
                 // create new event processors

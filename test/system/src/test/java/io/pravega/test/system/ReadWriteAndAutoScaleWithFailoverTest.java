@@ -16,7 +16,6 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.system.framework.Environment;
@@ -25,21 +24,20 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -155,7 +153,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //run the failover test while scaling
         performFailoverTest();
 
-        waitForScaling();
+        waitForScaling(scope);
 
         //bring the instances back to 3 before performing failover
         controllerInstance.scaleService(3, true);
@@ -170,26 +168,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         validateResults(readerGroupManager, readerGroupName);
 
         cleanUp(scope, AUTO_SCALE_STREAM); //cleanup if validation is successful.
-    }
-
-    private void waitForScaling() throws InterruptedException, ExecutionException {
-        for (int waitCounter = 0; waitCounter < 2; waitCounter++) {
-            StreamSegments streamSegments = controller.getCurrentSegments(scope, AUTO_SCALE_STREAM).get();
-            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
-            if (testState.currentNumOfSegments.get() == 2) {
-                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
-                //Scaling operation did not happen, wait
-                Exceptions.handleInterrupted(() -> Thread.sleep(60000));
-                throw new AbstractFailoverTests.ScaleOperationNotDoneException();
-            }
-            if (testState.currentNumOfSegments.get() > 2) {
-                //scale operation successful.
-                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
-                break;
-            }
-        }
-        if (testState.currentNumOfSegments.get() == 2) {
-            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
-        }
+        log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
     }
 }

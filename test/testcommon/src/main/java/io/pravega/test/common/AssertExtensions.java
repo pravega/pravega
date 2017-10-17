@@ -38,6 +38,12 @@ public class AssertExtensions {
         try {
             run.run();
             Assert.fail("No exception thrown where: " + type.getName() + " was expected");
+        } catch (CompletionException | ExecutionException e) {
+            if (!type.isAssignableFrom(e.getCause().getClass())) {
+                throw new RuntimeException(
+                        "Exception of the wrong type. Was expecting " + type + " but got: " + e.getCause().getClass().getName(),
+                        e);
+            }
         } catch (Exception e) {
             if (!type.isAssignableFrom(e.getClass())) {
                 throw new RuntimeException(
@@ -60,11 +66,11 @@ public class AssertExtensions {
             Assert.fail(message + " No exception has been thrown.");
         } catch (CompletionException | ExecutionException ex) {
             if (!tester.test(ex.getCause())) {
-                Assert.fail(message + " Exception thrown was of unexpected type: " + ex.getCause());
+                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex.getCause(), ex);
             }
         } catch (Exception ex) {
             if (!tester.test(ex)) {
-                Assert.fail(message + " Exception thrown was of unexpected type: " + ex);
+                throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex, ex);
             }
         }
     }
@@ -348,6 +354,7 @@ public class AssertExtensions {
         return ex;
     }
 
+    @FunctionalInterface
     public interface RunnableWithException {
         void run() throws Exception;
     }

@@ -250,7 +250,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
-                    EventWriterConfig.builder().build());
+                    EventWriterConfig.builder().transactionTimeoutTime(3600000).transactionTimeoutScaleGracePeriod(29000).build());
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
@@ -276,8 +276,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
         Transaction<Long> txn = null;
         try {
-            //Default max scale grace period is 30000
-            txn = writer.beginTxn(5000, 3600000, 29000);
+            txn = writer.beginTxn();
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());
