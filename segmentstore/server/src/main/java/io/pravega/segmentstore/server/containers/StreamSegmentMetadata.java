@@ -41,6 +41,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
+    private long startOffset;
+    @GuardedBy("this")
     private long length;
     @GuardedBy("this")
     private boolean sealed;
@@ -96,6 +98,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.sealedInStorage = false;
         this.deleted = false;
         this.merged = false;
+        this.startOffset = 0;
         this.storageLength = -1;
         this.length = -1;
         this.attributes = new HashMap<>();
@@ -163,6 +166,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized long getStartOffset() {
+        return this.startOffset;
+    }
+
+    @Override
     public synchronized long getLength() {
         return this.length;
     }
@@ -175,8 +183,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public String toString() {
         return String.format(
-                "Id = %d, Length = %d, StorageLength = %d, Sealed(M/S) = %s/%s, Deleted = %s, Name = %s",
+                "Id = %d, Start = %d, Length = %d, StorageLength = %d, Sealed(M/S) = %s/%s, Deleted = %s, Name = %s",
                 getId(),
+                getStartOffset(),
                 getLength(),
                 getStorageLength(),
                 isSealed(),
@@ -199,6 +208,21 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized void setStartOffset(long value) {
+        if (this.startOffset == value) {
+            // Nothing to do.
+            return;
+        }
+
+        Preconditions.checkState(!isTransaction(), "Cannot set Start Offset for a Transaction.");
+        Exceptions.checkArgument(value >= 0, "value", "StartOffset must be a non-negative number.");
+        Exceptions.checkArgument(value >= this.startOffset, "value", "New StartOffset cannot be smaller than the previous one.");
+        Exceptions.checkArgument(value <= this.length, "value", "New StartOffset cannot be larger than Length.");
+        log.debug("{}: StartOffset changed from {} to {}.", this.traceObjectId, this.startOffset, value);
+        this.startOffset = value;
+    }
+
+    @Override
     public synchronized void setLength(long value) {
         Exceptions.checkArgument(value >= 0, "value", "Length must be a non-negative number.");
         Exceptions.checkArgument(value >= this.length, "value", "New Length cannot be smaller than the previous one.");
@@ -209,20 +233,20 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markSealed() {
-        log.trace("{}: Sealed = true.", this.traceObjectId);
+        log.debug("{}: Sealed = true.", this.traceObjectId);
         this.sealed = true;
     }
 
     @Override
     public synchronized void markSealedInStorage() {
         Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
-        log.trace("{}: SealedInStorage = true.", this.traceObjectId);
+        log.debug("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
     }
 
     @Override
     public synchronized void markDeleted() {
-        log.trace("{}: Deleted = true.", this.traceObjectId);
+        log.debug("{}: Deleted = true.", this.traceObjectId);
         this.deleted = true;
     }
 
@@ -230,7 +254,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     public synchronized void markMerged() {
         Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
 
-        log.trace("{}: Merged = true.", this.traceObjectId);
+        log.debug("{}: Merged = true.", this.traceObjectId);
         this.merged = true;
     }
 
@@ -261,6 +285,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
         setLength(base.getLength());
+
+        // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
+        setStartOffset(base.getStartOffset());
         setLastModified(base.getLastModified());
         updateAttributes(base.getAttributes());
 

@@ -26,11 +26,13 @@ import lombok.Getter;
 class SegmentState {
     //region Members
 
-    private static final byte SERIALIZATION_VERSION = 0;
+    private static final byte SERIALIZATION_VERSION = 1;
     @Getter
     private final String segmentName;
     @Getter
     private final long segmentId;
+    @Getter
+    private final long startOffset;
     @Getter
     private final Map<UUID, Long> attributes;
 
@@ -45,12 +47,13 @@ class SegmentState {
      * @param segmentProperties The SegmentProperties to create from.
      */
     SegmentState(long segmentId, SegmentProperties segmentProperties) {
-        this(segmentId, segmentProperties.getName(), segmentProperties.getAttributes());
+        this(segmentId, segmentProperties.getName(), segmentProperties.getStartOffset(), segmentProperties.getAttributes());
     }
 
-    private SegmentState(long segmentId, String segmentName, Map<UUID, Long> attributes) {
+    private SegmentState(long segmentId, String segmentName, long startOffset, Map<UUID, Long> attributes) {
         this.segmentId = segmentId;
         this.segmentName = segmentName;
+        this.startOffset = startOffset;
         this.attributes = attributes;
     }
 
@@ -68,6 +71,7 @@ class SegmentState {
         target.writeByte(SERIALIZATION_VERSION);
         target.writeLong(this.segmentId);
         target.writeUTF(this.segmentName);
+        target.writeLong(this.startOffset);
         AttributeSerializer.serialize(this.attributes, target);
     }
 
@@ -81,12 +85,20 @@ class SegmentState {
      */
     public static SegmentState deserialize(DataInputStream source) throws IOException, DataCorruptionException {
         try {
+            // TODO: implement a more elegant versioned deserializer (https://github.com/pravega/pravega/issues/1956)
             byte version = source.readByte();
             if (version == SERIALIZATION_VERSION) {
+                // Up-to-date.
+                long segmentId = source.readLong();
+                String segmentName = source.readUTF();
+                long startOffset = source.readLong();
+                Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
+                return new SegmentState(segmentId, segmentName, startOffset, attributes);
+            } else if (version == 0) {
                 long segmentId = source.readLong();
                 String segmentName = source.readUTF();
                 Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
-                return new SegmentState(segmentId, segmentName, attributes);
+                return new SegmentState(segmentId, segmentName, 0L, attributes);
             } else {
                 throw new DataCorruptionException(String.format("Unsupported State File version: %d.", version));
             }

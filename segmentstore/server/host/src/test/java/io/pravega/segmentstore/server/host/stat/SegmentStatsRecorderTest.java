@@ -67,6 +67,11 @@ public class SegmentStatsRecorderTest {
             }
 
             @Override
+            public long getStartOffset() {
+                return 0;
+            }
+
+            @Override
             public long getLength() {
                 return 0;
             }
