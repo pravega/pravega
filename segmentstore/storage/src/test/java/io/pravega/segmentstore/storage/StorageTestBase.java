@@ -18,6 +18,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -114,7 +115,10 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             long offset = 0;
             for (int j = 0; j < appendCount; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
-                ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
+
+                // We intentionally add some garbage at the end of the dataStream to verify that write() takes into account
+                // the value of the "length" argument.
+                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(new byte[100]));
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 offset += writeData.length;
             }
@@ -345,7 +349,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
 
     private HashMap<String, ByteArrayOutputStream> populate(Storage s, String context) throws Exception {
         HashMap<String, ByteArrayOutputStream> appendData = new HashMap<>();
-
+        byte[] extraData = new byte[1024];
         for (int segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             String segmentName = getSegmentName(segmentId, context);
 
@@ -357,7 +361,9 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             long offset = 0;
             for (int j = 0; j < APPENDS_PER_SEGMENT; j++) {
                 byte[] writeData = String.format("Segment_%s_Append_%d", segmentName, j).getBytes();
-                ByteArrayInputStream dataStream = new ByteArrayInputStream(writeData);
+
+                // Append some garbage at the end to make sure we only write as much as instructed, and not the whole InputStream.
+                val dataStream = new SequenceInputStream(new ByteArrayInputStream(writeData), new ByteArrayInputStream(extraData));
                 s.write(writeHandle, offset, dataStream, writeData.length, TIMEOUT).join();
                 writeStream.write(writeData);
                 offset += writeData.length;
