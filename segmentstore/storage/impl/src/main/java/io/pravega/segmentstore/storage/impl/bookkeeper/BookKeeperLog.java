@@ -93,7 +93,6 @@ class BookKeeperLog implements DurableDataLog {
     @GuardedBy("lock")
     private LogMetadata logMetadata;
     private final WriteQueue writes;
-    private final ConcurrencyManager concurrencyManager;
     private final SequentialAsyncProcessor writeProcessor;
     private final SequentialAsyncProcessor rolloverProcessor;
     private final BookKeeperMetrics.BookKeeperLog metrics;
@@ -123,7 +122,6 @@ class BookKeeperLog implements DurableDataLog {
         this.logNodePath = HierarchyUtils.getPath(this.containerId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", this.containerId);
         this.writes = new WriteQueue();
-        this.concurrencyManager = new ConcurrencyManager(this.config.getMinWriteParallelism(), this.config.getMaxWriteParallelism());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this::handleWriteProcessorFailures, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this::handleRolloverFailure, this.executorService);
         this.metrics = new BookKeeperMetrics.BookKeeperLog(this.containerId);
@@ -269,7 +267,7 @@ class BookKeeperLog implements DurableDataLog {
 
     @Override
     public QueueStats getQueueStatistics() {
-        return this.writes.getStatistics(this.concurrencyManager.getCurrentParallelism());
+        return this.writes.getStatistics();
     }
 
     //endregion
@@ -332,21 +330,20 @@ class BookKeeperLog implements DurableDataLog {
 
         // Calculate how much estimated space there is in the current ledger.
         final long maxTotalSize = this.config.getBkLedgerMaxSize() - getWriteLedger().ledger.getLength();
-        final int parallelism = this.concurrencyManager.getOrUpdateParallelism();
 
         // Get the writes to execute from the queue.
-        List<Write> toExecute = this.writes.getWritesToExecute(parallelism, maxTotalSize);
+        List<Write> toExecute = this.writes.getWritesToExecute(maxTotalSize);
 
         // Check to see if any writes executed on closed ledgers, in which case they either need to be failed (if deemed
         // appropriate, or retried).
         if (handleClosedLedgers(toExecute)) {
             // If any changes were made to the Writes in the list, re-do the search to get a more accurate list of Writes
             // to execute (since some may have changed Ledgers, more writes may not be eligible for execution).
-            toExecute = this.writes.getWritesToExecute(parallelism, maxTotalSize);
+            toExecute = this.writes.getWritesToExecute(maxTotalSize);
         }
 
         // Execute the writes.
-        log.debug("{}: Executing {} writes with parallelism {}.", this.traceObjectId, toExecute.size(), parallelism);
+        log.debug("{}: Executing {} writes.", this.traceObjectId, toExecute.size());
         for (int i = 0; i < toExecute.size(); i++) {
             Write w = toExecute.get(i);
             try {
@@ -502,7 +499,6 @@ class BookKeeperLog implements DurableDataLog {
      */
     private void completeWrite(Write write) {
         Timer t = write.complete();
-        this.concurrencyManager.writeCompleted(write.data.getLength(), t == null ? 0 : t.getElapsedMillis());
         if (t != null) {
             this.metrics.bookKeeperWriteCompleted(write.data.getLength(), t.getElapsed());
         }
@@ -800,7 +796,7 @@ class BookKeeperLog implements DurableDataLog {
 
     private void reportMetrics() {
         this.metrics.ledgerCount(getLogMetadata().getLedgers().size());
-        this.metrics.queueStats(this.writes.getStatistics(this.concurrencyManager.getCurrentParallelism()));
+        this.metrics.queueStats(this.writes.getStatistics());
     }
 
     private LogMetadata getLogMetadata() {

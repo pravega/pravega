@@ -30,8 +30,6 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
     public static final Property<String> ZK_METADATA_PATH = Property.named("zkMetadataPath", "/segmentstore/containers");
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
-    public static final Property<Integer> MIN_WRITE_PARALLELISM = Property.named("minWriteParallelism", 1);
-    public static final Property<Integer> MAX_WRITE_PARALLELISM = Property.named("maxWriteParallelism", 100);
     public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
     public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
@@ -80,18 +78,6 @@ public class BookKeeperConfig {
      */
     @Getter
     private final int zkHierarchyDepth;
-
-    /**
-     * The lower bound of the degree of parallelism for BookKeeper writes.
-     */
-    @Getter
-    private final int minWriteParallelism;
-
-    /**
-     * The upper bound of the degree of parallelism for BookKeeper writes.
-     */
-    @Getter
-    private final int maxWriteParallelism;
 
     /**
      * The maximum number of times to attempt a write.
@@ -156,13 +142,6 @@ public class BookKeeperConfig {
         if (this.zkHierarchyDepth < 0) {
             throw new InvalidPropertyValueException(String.format("Property %s (%d) must be a non-negative integer.",
                     ZK_HIERARCHY_DEPTH, this.zkHierarchyDepth));
-        }
-
-        this.minWriteParallelism = properties.getInt(MIN_WRITE_PARALLELISM);
-        this.maxWriteParallelism = properties.getInt(MAX_WRITE_PARALLELISM);
-        if (this.minWriteParallelism > this.maxWriteParallelism) {
-            throw new InvalidPropertyValueException(String.format("Property %s (%d) must be smaller than or equal to Property %s (%d).",
-                    MIN_WRITE_PARALLELISM, this.minWriteParallelism, MAX_WRITE_PARALLELISM, this.maxWriteParallelism));
         }
 
         this.maxWriteAttempts = properties.getInt(MAX_WRITE_ATTEMPTS);

@@ -16,12 +16,7 @@ import lombok.Data;
  */
 @Data
 public class QueueStats {
-    public static final QueueStats DEFAULT = new QueueStats(0, 0, 0, 0);
-    /**
-     * Gets the estimated current degree of parallelism for the Queue.
-     */
-    private final int estimatedParallelism;
-
+    public static final QueueStats DEFAULT = new QueueStats(0, 0, 0);
     /**
      * The number of items in the queue.
      */
@@ -41,7 +36,6 @@ public class QueueStats {
 
     @Override
     public String toString() {
-        return String.format("Size = %d, Fill = %.2f, ProcTime = %d, Parallel = %d",
-                this.size, this.averageItemFillRatio, this.expectedProcessingTimeMillis, this.estimatedParallelism);
+        return String.format("Size = %d, Fill = %.2f, ProcTime = %dms", this.size, this.averageItemFillRatio, this.expectedProcessingTimeMillis);
     }
 }

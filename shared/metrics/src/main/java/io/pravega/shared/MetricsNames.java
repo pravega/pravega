@@ -35,7 +35,6 @@ public final class MetricsNames {
     public static final String BK_WRITE_BYTES = "bookkeeper_write_bytes";
     public static final String BK_WRITE_QUEUE_SIZE = "bookkeeper_write_queue_size";
     public static final String BK_WRITE_QUEUE_FILL_RATE = "bookkeeper_write_queue_fill";
-    public static final String BK_WRITE_PARALLELISM = "bookkeeper_write_parallelism";
     public static final String BK_LEDGER_COUNT = "bookkeeper_ledger_count";
 
     //Container-specific metrics

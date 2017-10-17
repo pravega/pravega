@@ -75,7 +75,7 @@ class WriteQueue {
      *
      * @return The snapshot, including Queue Size, Item Fill Rate and elapsed time of the oldest item.
      */
-    synchronized QueueStats getStatistics(int parallelism) {
+    synchronized QueueStats getStatistics() {
         int size = this.writes.size();
         double fillRatio = calculateFillRatio(this.totalLength, size);
         int processingTime = this.lastDurationMillis;
@@ -86,7 +86,7 @@ class WriteQueue {
             processingTime = (int) ((this.timeSupplier.get() - this.writes.peekFirst().getQueueAddedTimestamp()) / AbstractTimer.NANOS_TO_MILLIS);
         }
 
-        return new QueueStats(parallelism, size, fillRatio, processingTime);
+        return new QueueStats(size, fillRatio, processingTime);
     }
 
     /**
@@ -119,18 +119,16 @@ class WriteQueue {
      * and are in the same order they are in the queue. They are not necessarily the first items in the queue (if, for
      * example, the head of the queue has a bunch of completed Writes).
      * This method will return writes as long as:
-     * * Neither of the MaxSize or MaxCount limits are reached
+     * * The MaxSize limit is not reached
      * * The writes to return have the same Ledger Id assigned as the first write in the queue.
      *
-     * @param parallelism            The maximum degree of parallelism (how many in-progress writes can there be at once).
      * @param maximumAccumulatedSize The maximum total accumulated size of the items to return. Once this value is exceeded,
      *                               no further writes are returned.
      * @return The result.
      */
-    synchronized List<Write> getWritesToExecute(int parallelism, long maximumAccumulatedSize) {
+    synchronized List<Write> getWritesToExecute(long maximumAccumulatedSize) {
         Exceptions.checkNotClosed(this.closed, this);
         long accumulatedSize = 0;
-        int activeWriteCount = 0;
 
         // Collect all remaining writes, as long as they are not currently in-progress and have the same ledger id
         // as the first item in the ledger.
@@ -139,7 +137,7 @@ class WriteQueue {
 
         List<Write> result = new ArrayList<>();
         for (Write write : this.writes) {
-            if (accumulatedSize >= maximumAccumulatedSize || activeWriteCount >= parallelism) {
+            if (accumulatedSize >= maximumAccumulatedSize) {
                 // Either reached the throttling limit or ledger max size limit.
                 // If we try to send too many writes to this ledger, the writes are likely to be rejected with
                 // LedgerClosedException and simply be retried again.
@@ -149,7 +147,6 @@ class WriteQueue {
             // Account for this write's size, even if it's complete or in progress.
             accumulatedSize += write.data.getLength();
             if (write.isInProgress()) {
-                activeWriteCount++;
                 if (!canSkip) {
                     // We stumbled across an in-progress write after a not-in-progress write. We can't retry now.
                     // This is likely due to a bunch of writes failing (i.e. due to a LedgerClosedEx), but we overlapped
@@ -162,7 +159,6 @@ class WriteQueue {
             } else if (!write.isDone()) {
                 canSkip = false;
                 result.add(write);
-                activeWriteCount++;
             }
         }
 
@@ -203,7 +199,7 @@ class WriteQueue {
      * @param totalLength Total length of the writes.
      * @param size Total number of writes.
      */
-    static double calculateFillRatio(long totalLength, int size) {
+    private static double calculateFillRatio(long totalLength, int size) {
         if (size > 0) {
             return Math.min(1, (double) totalLength / size / BookKeeperConfig.MAX_APPEND_LENGTH);
         } else {
