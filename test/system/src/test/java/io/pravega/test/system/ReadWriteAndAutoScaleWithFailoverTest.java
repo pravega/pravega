@@ -24,6 +24,11 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.After;
@@ -32,11 +37,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Random;
-import java.util.stream.Collectors;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
