@@ -408,11 +408,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                         Assert.assertFalse("Unexpected result from ReadResult.hasNext when encountering truncated entry.",
                                 readResult.hasNext());
 
-                        // Verify attempting to read at the current offset will throw an appropriate exception.
-                        AssertExtensions.assertThrows(
-                                "SegmentStore.read() did not throw for attempting to read at truncated offset.",
-                                () -> store.read(segmentName, readEntry.getStreamSegmentOffset(), 1, TIMEOUT),
-                                ex -> ex instanceof IllegalArgumentException);
+                        // Verify attempting to read at the current offset will return the appropriate entry (and not throw).
+                        @Cleanup
+                        ReadResult truncatedResult = store.read(segmentName, readEntry.getStreamSegmentOffset(), 1, TIMEOUT).join();
+                        val first = truncatedResult.next();
+                        Assert.assertEquals("Read request for a truncated offset did not start with a Truncated ReadResultEntryType.",
+                                ReadResultEntryType.Truncated, first.getType());
 
                         // Skip over until the first non-truncated offset.
                         expectedCurrentOffset = Math.max(expectedCurrentOffset, startOffset);

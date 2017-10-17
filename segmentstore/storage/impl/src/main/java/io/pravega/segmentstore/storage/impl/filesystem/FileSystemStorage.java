@@ -295,10 +295,13 @@ public class FileSystemStorage implements SyncStorage {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
             long totalBytesWritten = 0;
-            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
-                 ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+                // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
+                // the underlying InputStream, which is not desirable if it is to be reused.
+                ReadableByteChannel sourceChannel = Channels.newChannel(data);
                 while (length != 0) {
                     long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                    assert bytesWritten > 0 : "Unable to make any progress transferring data.";
                     offset += bytesWritten;
                     totalBytesWritten += bytesWritten;
                     length -= bytesWritten;

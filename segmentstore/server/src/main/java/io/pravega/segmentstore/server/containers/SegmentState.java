@@ -91,6 +91,7 @@ class SegmentState {
                 // Up-to-date.
                 long segmentId = source.readLong();
                 String segmentName = source.readUTF();
+                long startOffset = source.readLong();
                 Map<UUID, Long> attributes = AttributeSerializer.deserialize(source);
                 return new SegmentState(segmentId, segmentName, startOffset, attributes);
             } else if (version == 0) {

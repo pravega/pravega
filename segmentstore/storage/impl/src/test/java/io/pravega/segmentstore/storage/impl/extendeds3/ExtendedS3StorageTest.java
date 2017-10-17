@@ -145,9 +145,9 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
             s3Proxy.start();
             client = new S3JerseyClientWrapper(s3Config, s3Proxy);
             client.createBucket(bucketName);
-            List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map((object) -> {
-                return new ObjectKey(object.getKey());
-            }).collect(Collectors.toList());
+            List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream()
+                    .map(object -> new ObjectKey(object.getKey()))
+                    .collect(Collectors.toList());
 
             if (!keys.isEmpty()) {
                 client.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(keys));
