@@ -59,6 +59,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
+    private static final int MAX_DELAY_MILLIS = 50;
 
     private final UpdateableContainerMetadata metadata;
     @GuardedBy("stateLock")
@@ -210,8 +211,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
 
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
-        delayMillis = Math.min(delayMillis, 50);
+        int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
+        delayMillis = Math.min(delayMillis, MAX_DELAY_MILLIS);
         this.metrics.processingDelay(delayMillis);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
