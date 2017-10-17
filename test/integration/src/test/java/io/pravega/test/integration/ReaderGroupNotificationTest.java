@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import io.pravega.client.ClientFactory;
@@ -76,6 +77,11 @@ public class ReaderGroupNotificationTest {
     private AtomicInteger numberOfSegments = new AtomicInteger(0);
     private ReusableLatch listenerLatch = new ReusableLatch();
 
+    @BeforeClass
+    public static void beforeClass() {
+        System.setProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(5));
+    }
+
     @Before
     public void setUp() throws Exception {
         executor = Executors.newSingleThreadScheduledExecutor();
@@ -111,7 +117,7 @@ public class ReaderGroupNotificationTest {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
                                                         .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
@@ -128,10 +134,11 @@ public class ReaderGroupNotificationTest {
         // scale
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
-        map.put(0.0, 0.25);
-        map.put(0.25, 0.5);
+        map.put(0.0, 0.5);
+        map.put(0.5, 1.0);
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
         assertTrue(result);
+        writer.writeEvent("0", "data2").get();
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
@@ -154,6 +161,11 @@ public class ReaderGroupNotificationTest {
         readerGroup.getScaleEventNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
+        EventRead<String> event2 = reader1.readNextEvent(10000);
+        assertNotNull(event1);
+        assertEquals("data1", event1.getEvent());
+        assertNotNull(event2);
+        assertEquals("data2", event2.getEvent());
 
         listenerLatch.await();
         assertNotNull(event1);
@@ -161,23 +173,5 @@ public class ReaderGroupNotificationTest {
         assertTrue("Listener invoked", listenerInvoked.get());
         assertEquals(2, numberOfSegments.get());
         assertEquals(1, numberOfReaders.get());
-
-        //reset values
-        listenerInvoked.set(false);
-        numberOfSegments.set(0);
-        numberOfReaders.set(0);
-        listenerLatch.reset();
-        readerGroup.getScaleEventNotifier(executor).unregisterAllListeners();
-
-        @Cleanup
-        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "reader", new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        reader1.readNextEvent(1000);
-
-        readerGroup.getScaleEventNotifier(executor).registerListener(l1);
-        listenerLatch.await();
-        assertTrue("Listener invoked", listenerInvoked.get());
-        assertEquals(3, numberOfSegments.get());
-        assertEquals(2, numberOfReaders.get());
     }
 }

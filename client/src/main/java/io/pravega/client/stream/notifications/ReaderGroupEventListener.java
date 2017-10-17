@@ -19,9 +19,17 @@ import io.pravega.client.stream.notifications.events.ScaleEvent;
 public interface ReaderGroupEventListener {
 
     /**
-     * Get a scale event notifier for a given readergroup. A scale event notifier is triggered when there are more
-     * number of segments when compared to the number of readers or vice versa. Listeners can be registered which will
-     * notify in case of a scale event.
+     * Get a scale event notifier for a given reader group.
+     * <br>
+     * A scale event notifier is triggered when the total number of segments managed by the ReaderGroup changes. During
+     * a scale operation segments can be split into multiple or merge into some other segment causing the total
+     * number of segments to change. The total number of segments can also change when configuration of the
+     * reader group is changed, for example modify the configuration of a reader group to add/remove a stream.
+     * <P>
+     * Note:
+     * <br>
+     * * In case of a seal stream operation the segments are sealed and the segment has no successors. In this case
+     * the notifier is not triggered.
      *
      * @param executor executor on which the listeners run.
      * @return Observable of type ScaleEvent.

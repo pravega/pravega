@@ -35,6 +35,8 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
     private ScheduledFuture<?> future;
     @GuardedBy("$lock")
     private StateSynchronizer<ReaderGroupState> synchronizer;
+    @GuardedBy("$lock")
+    private int numberOfSegments = 0;
 
     public ScaleEventNotifier(final NotificationSystem notifySystem,
                               final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
@@ -81,10 +83,15 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
     private void checkAndTriggerScaleNotification() {
         this.synchronizer.fetchUpdates();
         ReaderGroupState state = this.synchronizer.getState();
-        ScaleEvent event = ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
-                         .numOfReaders(state.getOnlineReaders().size())
-                         .build();
-        if (event.getNumOfReaders() > 0) { //Notify only if there are online readers in the reader group.
+        int newNumberOfSegments = state.getNumberOfSegments();
+
+        if (this.numberOfSegments == 0) {
+            this.numberOfSegments = newNumberOfSegments;
+        } else if (this.numberOfSegments != newNumberOfSegments) { // scale event has happened.
+            this.numberOfSegments = newNumberOfSegments;
+            ScaleEvent event = ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
+                                         .numOfReaders(state.getOnlineReaders().size())
+                                         .build();
             notifySystem.notify(event);
         }
     }

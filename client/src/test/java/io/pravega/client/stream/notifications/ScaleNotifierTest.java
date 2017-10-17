@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -50,6 +52,11 @@ public class ScaleNotifierTest {
     @Mock
     private ReaderGroupState state;
 
+    @BeforeClass
+    public static void beforeClass() {
+        System.setProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(1));
+    }
+
     @Test
     public void scaleNotifierTest() throws Exception {
         AtomicBoolean listenerInvoked = new AtomicBoolean();
@@ -57,7 +64,7 @@ public class ScaleNotifierTest {
         Supplier<ScaleEvent> s = () -> ScaleEvent.builder().numOfReaders(1).numOfSegments(2).build();
 
         when(state.getOnlineReaders()).thenReturn(new HashSet<String>(Arrays.asList("reader1")));
-        when(state.getNumberOfSegments()).thenReturn(2);
+        when(state.getNumberOfSegments()).thenReturn(1).thenReturn(2);
         when(sync.getState()).thenReturn(state);
 
         Listener<ScaleEvent> listener1 = event -> {
@@ -81,5 +88,10 @@ public class ScaleNotifierTest {
 
         notifier.unregisterAllListeners();
         verify(system, times(1)).removeListeners(ScaleEvent.class.getSimpleName());
+    }
+
+    @After
+    public void cleanup() {
+        executor.shutdownNow();
     }
 }
