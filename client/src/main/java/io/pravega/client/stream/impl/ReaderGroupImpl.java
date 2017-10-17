@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -33,7 +34,7 @@ import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
-import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -53,6 +54,7 @@ import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.FutureHelpers.allOfWithResults;
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -211,8 +213,9 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public Observable<ScaleEvent> getScaleEventNotifier(ScheduledExecutorService executor) {
-        return this.notifierFactory.getScaleNotifier(this::createSynchronizer, executor);
+    public Observable<SegmentEvent> getSegmentEventNotifier(ScheduledExecutorService executor) {
+        checkNotNull(executor, "executor");
+        return this.notifierFactory.getSegmentNotifier(this::createSynchronizer, executor);
     }
 
 }

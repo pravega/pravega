@@ -33,15 +33,15 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.events.ScaleEvent;
-import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
+import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.InlineExecutor;
 import lombok.extern.slf4j.Slf4j;
 
 @RunWith(MockitoJUnitRunner.class)
 @Slf4j
-public class ScaleNotifierTest {
+public class SegmentNotifierTest {
 
     @Spy
     private NotificationSystem system = new NotificationSystem();
@@ -54,28 +54,28 @@ public class ScaleNotifierTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(1));
+        System.setProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(1));
     }
 
     @Test
-    public void scaleNotifierTest() throws Exception {
+    public void segmentNotifierTest() throws Exception {
         AtomicBoolean listenerInvoked = new AtomicBoolean();
         ReusableLatch latch = new ReusableLatch();
-        Supplier<ScaleEvent> s = () -> ScaleEvent.builder().numOfReaders(1).numOfSegments(2).build();
+        Supplier<SegmentEvent> s = () -> SegmentEvent.builder().numOfReaders(1).numOfSegments(2).build();
 
         when(state.getOnlineReaders()).thenReturn(new HashSet<String>(Arrays.asList("reader1")));
         when(state.getNumberOfSegments()).thenReturn(1).thenReturn(2);
         when(sync.getState()).thenReturn(state);
 
-        Listener<ScaleEvent> listener1 = event -> {
+        Listener<SegmentEvent> listener1 = event -> {
             log.info("listener 1 invoked");
             listenerInvoked.set(true);
             latch.release();
         };
-        Listener<ScaleEvent> listener2 = event -> {
+        Listener<SegmentEvent> listener2 = event -> {
         };
 
-        ScaleEventNotifier notifier = new ScaleEventNotifier(system, () -> sync, executor);
+        SegmentEventNotifier notifier = new SegmentEventNotifier(system, () -> sync, executor);
         notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
         latch.await();
@@ -87,7 +87,7 @@ public class ScaleNotifierTest {
         notifier.registerListener(listener1); //duplicate listener
 
         notifier.unregisterAllListeners();
-        verify(system, times(1)).removeListeners(ScaleEvent.class.getSimpleName());
+        verify(system, times(1)).removeListeners(SegmentEvent.class.getSimpleName());
     }
 
     @After

@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.notifications.notifier;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -19,16 +21,16 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
+public class SegmentEventNotifier extends AbstractEventNotifier<SegmentEvent> {
 
     private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
-            System.getProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(120)));
+            System.getProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(120)));
     private final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
     @GuardedBy("$lock")
@@ -38,28 +40,28 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
     @GuardedBy("$lock")
     private int numberOfSegments = 0;
 
-    public ScaleEventNotifier(final NotificationSystem notifySystem,
-                              final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
-                              final ScheduledExecutorService executor) {
+    public SegmentEventNotifier(final NotificationSystem notifySystem,
+                                final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
+                                final ScheduledExecutorService executor) {
         super(notifySystem, executor);
         this.synchronizerSupplier = synchronizerSupplier;
     }
 
     @Override
     @Synchronized
-    public void registerListener(final Listener<ScaleEvent> listener) {
+    public void registerListener(final Listener<SegmentEvent> listener) {
         notifySystem.addListeners(getType(), listener, this.executor);
-        //periodically fetch the scale
+        //periodically fetch the segment count.
         if (!pollingStarted.getAndSet(true)) { //schedule the  only once
             synchronizer = synchronizerSupplier.get();
-            future = executor.scheduleAtFixedRate(this::checkAndTriggerScaleNotification, 0,
+            future = executor.scheduleAtFixedRate(this::checkAndTriggerSegmentNotification, 0,
                     UPDATE_INTERVAL_SECONDS, TimeUnit.SECONDS);
         }
     }
 
     @Override
     @Synchronized
-    public void unregisterListener(final Listener<ScaleEvent> listener) {
+    public void unregisterListener(final Listener<SegmentEvent> listener) {
         notifySystem.removeListener(getType(), listener);
         if (!notifySystem.isListenerPresent(getType())) {
             cancelScheduledTask();
@@ -77,28 +79,29 @@ public class ScaleEventNotifier extends AbstractEventNotifier<ScaleEvent> {
 
     @Override
     public String getType() {
-        return ScaleEvent.class.getSimpleName();
+        return SegmentEvent.class.getSimpleName();
     }
 
-    private void checkAndTriggerScaleNotification() {
+    private void checkAndTriggerSegmentNotification() {
         this.synchronizer.fetchUpdates();
         ReaderGroupState state = this.synchronizer.getState();
         int newNumberOfSegments = state.getNumberOfSegments();
+        checkState(newNumberOfSegments > 0, "Number of segments cannot be zero");
 
-        if (this.numberOfSegments == 0) {
+        if (this.numberOfSegments == 0) { //initialize the number of segments.
             this.numberOfSegments = newNumberOfSegments;
-        } else if (this.numberOfSegments != newNumberOfSegments) { // scale event has happened.
+        } else if (this.numberOfSegments != newNumberOfSegments) { // SegmentEvent has happened.
             this.numberOfSegments = newNumberOfSegments;
-            ScaleEvent event = ScaleEvent.builder().numOfSegments(state.getNumberOfSegments())
-                                         .numOfReaders(state.getOnlineReaders().size())
-                                         .build();
+            SegmentEvent event = SegmentEvent.builder().numOfSegments(state.getNumberOfSegments())
+                                             .numOfReaders(state.getOnlineReaders().size())
+                                             .build();
             notifySystem.notify(event);
         }
     }
 
     @GuardedBy("$lock")
     private void cancelScheduledTask() {
-        log.debug("Cancel the scheduled task to check for scaling event");
+        log.debug("Cancel the scheduled task to check for SegmentEvent");
         if (future != null) {
             future.cancel(true);
         }

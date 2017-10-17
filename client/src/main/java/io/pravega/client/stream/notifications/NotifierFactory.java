@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.notifier.ScaleEventNotifier;
+import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
 import lombok.Synchronized;
 
 /**
@@ -25,20 +25,20 @@ import lombok.Synchronized;
 public class NotifierFactory {
 
     private final NotificationSystem system;
-    private ScaleEventNotifier scaleEventNotifier;
+    private SegmentEventNotifier segmentEventNotifier;
 
     public NotifierFactory(final NotificationSystem notificationSystem) {
         this.system = notificationSystem;
     }
 
     @Synchronized
-    public ScaleEventNotifier getScaleNotifier(
+    public SegmentEventNotifier getSegmentNotifier(
             final Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier,
             final ScheduledExecutorService executor) {
-        if (scaleEventNotifier == null) {
-            scaleEventNotifier = new ScaleEventNotifier(this.system, stateSyncronizerSupplier, executor);
+        if (segmentEventNotifier == null) {
+            segmentEventNotifier = new SegmentEventNotifier(this.system, stateSyncronizerSupplier, executor);
         }
-        return scaleEventNotifier;
+        return segmentEventNotifier;
     }
 
     // multiple such notifiers can be added.

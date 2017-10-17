@@ -11,7 +11,7 @@ package io.pravega.client.stream.notifications;
 
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
 
 /**
  * ReaderGroup event listener interface. This has the list of events supported by ReaderGroup.
@@ -19,10 +19,10 @@ import io.pravega.client.stream.notifications.events.ScaleEvent;
 public interface ReaderGroupEventListener {
 
     /**
-     * Get a scale event notifier for a given reader group.
+     * Get a segment event notifier for a given reader group.
      * <br>
-     * A scale event notifier is triggered when the total number of segments managed by the ReaderGroup changes. During
-     * a scale operation segments can be split into multiple or merge into some other segment causing the total
+     * A segment event notifier is triggered when the total number of segments managed by the ReaderGroup changes.
+     * During a scale operation segments can be split into multiple or merge into some other segment causing the total
      * number of segments to change. The total number of segments can also change when configuration of the
      * reader group is changed, for example modify the configuration of a reader group to add/remove a stream.
      * <P>
@@ -32,8 +32,8 @@ public interface ReaderGroupEventListener {
      * the notifier is not triggered.
      *
      * @param executor executor on which the listeners run.
-     * @return Observable of type ScaleEvent.
+     * @return Observable of type SegmentEvent.
      *
      */
-    Observable<ScaleEvent> getScaleEventNotifier(final ScheduledExecutorService executor);
+    Observable<SegmentEvent> getSegmentEventNotifier(final ScheduledExecutorService executor);
 }

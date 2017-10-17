@@ -14,12 +14,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * Class to represent a scale event. This contains the current number of segments and the current number of readers.
+ * Class to represent a segment event. This contains the current number of segments and the current number of readers.
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Builder
-public class ScaleEvent extends Event {
+public class SegmentEvent extends Event {
     private int numOfSegments;
     private int numOfReaders;
 }

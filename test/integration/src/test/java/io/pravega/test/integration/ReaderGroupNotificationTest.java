@@ -47,7 +47,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.notifications.Listener;
-import io.pravega.client.stream.notifications.events.ScaleEvent;
+import io.pravega.client.stream.notifications.events.SegmentEvent;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -79,7 +79,7 @@ public class ReaderGroupNotificationTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.scaleEvent.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(5));
     }
 
     @Before
@@ -113,7 +113,7 @@ public class ReaderGroupNotificationTest {
     }
 
     @Test(timeout = 30000)
-    public void testScaleNotifications() throws Exception {
+    public void testSegmentNotifications() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
                                                         .streamName("test")
@@ -150,15 +150,15 @@ public class ReaderGroupNotificationTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        //Add scale event listener
-        Listener<ScaleEvent> l1 = event -> {
+        //Add segment event listener
+        Listener<SegmentEvent> l1 = event -> {
             listenerInvoked.set(true);
             numberOfReaders.set(event.getNumOfReaders());
             numberOfSegments.set(event.getNumOfSegments());
             listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
-        readerGroup.getScaleEventNotifier(executor).registerListener(l1);
+        readerGroup.getSegmentEventNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
         EventRead<String> event2 = reader1.readNextEvent(10000);
