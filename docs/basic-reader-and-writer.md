@@ -366,4 +366,42 @@ altered and the set of Streams being read has therefore been changed.
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
 
- 
+## ReaderGroup Notifications
+
+ReaderGroup api supports different types of notifications. The supported
+notifications are
+
+1. SegmentEvent Notification
+
+A segment event is triggered when the total number of segments managed by the
+ReaderGroup changes. During a scale operation segments can be split into
+multiple or merged into some other segment causing the total number of segments
+to change. The total number of segments can also change when configuration
+of the reader group is changed, for example modify the configuration of a reader
+group to add/remove a stream.
+
+The method for subscribing to SegmentEvent notifications is shown below
+```
+@Cleanup
+ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
+        connectionFactory);
+ReaderGroup readerGroup = groupManager.createReaderGroup(GROUP_NAME, ReaderGroupConfig
+        .builder().build(), Collections.singleton(STREAM));
+
+readerGroup.getSegmentEventNotifier(executor).registerListener(segmentEvent -> {
+       int numOfReaders = segmentEvent.getNumOfReaders();
+       int segments = segmentEvent.getNumOfSegments();
+       if (numOfReaders < segments) {
+          //Scale up number of readers based on application capacity
+       } else {
+         //More readers available time to shut down some
+       }
+});
+
+```
+The application can register a listener to be notified of SegmentEvents using the registerListener api.
+The registerListener api takes `io.pravega.client.stream.notifications.Listener` as a parameter.
+Here the application can add custom logic to increase the number of readers in case the number of segments
+managed by the Readergroup is more than the available number of readers. It can reduce the number of readers
+if the number of segments managed by the Readergroup is less than the online readers.
+
