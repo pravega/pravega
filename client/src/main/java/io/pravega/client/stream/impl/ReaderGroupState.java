@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -203,6 +204,11 @@ public class ReaderGroupState implements Revisioned {
     @Synchronized
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
+    }
+    
+    @Synchronized
+    boolean hasOngoingCheckpoint() {
+        return checkpointState.hasOngoingCheckpoint();
     }
     
     @Override
@@ -445,6 +451,10 @@ public class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
         private final String checkpointId;
+        
+        CreateCheckpoint() {
+            this(UUID.randomUUID().toString());
+        }
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)

@@ -20,9 +20,12 @@ public class ReaderGroupConfig implements Serializable {
 
    private final Sequence startingPosition;
    private final long groupRefreshTimeMillis;
+   @Getter
+   private final long automaticCheckpointIntervalMillis;   
 
    public static final class ReaderGroupConfigBuilder {
-       long groupRefreshTimeMillis = 3000;
+       private long groupRefreshTimeMillis = 3000;
+       private long automaticCheckpointIntervalMillis = 120000;
 
        /**
          * Returns a config builder that started at  a given time.

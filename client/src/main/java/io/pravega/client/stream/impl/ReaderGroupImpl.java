@@ -148,7 +148,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @SneakyThrows(CheckpointFailedException.class)
     private Checkpoint completeCheckpoint(String checkpointName, StateSynchronizer<ReaderGroupState> synchronizer) {
-        Map<Segment, Long> map = synchronizer.getState().getPositionsForCompletedCheckpoint(checkpointName);
+        ReaderGroupState state = synchronizer.getState();
+        Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
         synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
         if (map == null) {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
