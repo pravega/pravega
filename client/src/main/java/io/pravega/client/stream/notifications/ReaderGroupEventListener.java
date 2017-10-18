@@ -11,6 +11,7 @@ package io.pravega.client.stream.notifications;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.client.stream.notifications.events.EndOfDataEvent;
 import io.pravega.client.stream.notifications.events.SegmentEvent;
 
 /**
@@ -36,4 +37,22 @@ public interface ReaderGroupEventListener {
      *
      */
     Observable<SegmentEvent> getSegmentEventNotifier(final ScheduledExecutorService executor);
+
+    /**
+     * Get an end of data notifier for a given reader group.
+     * <br>
+     * An end of data notifier is triggered when the readers have read all the data of the stream(s) managed by the
+     * reader group. This is useful to process the stream data with a batch job where the application wants to read data
+     * of sealed stream(s).
+     * <P>
+     * Note:
+     * <br>
+     * * In case of a reader group managing streams, where not all streams are sealed, then EndOfDataEvent notifier
+     * is never triggered since readers continue reading the unsealed stream once it has completed reading the sealed
+     * stream.
+     *
+     * @param executor executor on which the listeners run.
+     * @return Observable of type EndOfDataEvent.
+     */
+    Observable<EndOfDataEvent> getEndOfDataEventNotifier(final ScheduledExecutorService executor);
 }

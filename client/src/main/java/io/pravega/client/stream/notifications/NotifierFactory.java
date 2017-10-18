@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
+import io.pravega.client.stream.notifications.notifier.EndOfDataEventNotifier;
 import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
 import lombok.Synchronized;
 
@@ -26,6 +27,7 @@ public class NotifierFactory {
 
     private final NotificationSystem system;
     private SegmentEventNotifier segmentEventNotifier;
+    private EndOfDataEventNotifier endOfDataEventNotifier;
 
     public NotifierFactory(final NotificationSystem notificationSystem) {
         this.system = notificationSystem;
@@ -39,6 +41,16 @@ public class NotifierFactory {
             segmentEventNotifier = new SegmentEventNotifier(this.system, stateSyncronizerSupplier, executor);
         }
         return segmentEventNotifier;
+    }
+
+    @Synchronized
+    public EndOfDataEventNotifier getEndOfDataNotifier(
+            final Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier,
+            final ScheduledExecutorService executor) {
+        if (endOfDataEventNotifier == null) {
+            endOfDataEventNotifier = new EndOfDataEventNotifier(this.system, stateSyncronizerSupplier, executor);
+        }
+        return endOfDataEventNotifier;
     }
 
     // multiple such notifiers can be added.

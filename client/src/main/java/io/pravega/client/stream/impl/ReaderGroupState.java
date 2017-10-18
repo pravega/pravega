@@ -210,7 +210,12 @@ public class ReaderGroupState implements Revisioned {
     boolean hasOngoingCheckpoint() {
         return checkpointState.hasOngoingCheckpoint();
     }
-    
+
+    @Synchronized
+    public boolean isEndOfData() {
+        return futureSegments.isEmpty() && assignedSegments.values().stream().allMatch(Map::isEmpty);
+    }
+
     @Override
     @Synchronized
     public String toString() {
