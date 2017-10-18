@@ -124,8 +124,10 @@ public class EndToEndWithScaleTest {
         assertTrue(result);
         writer.writeEvent("0", "txntest2").get();
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().build(), Collections.singleton("test"));
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                connectionFactory);
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(-1).
+                build(), Collections.singleton("test"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());

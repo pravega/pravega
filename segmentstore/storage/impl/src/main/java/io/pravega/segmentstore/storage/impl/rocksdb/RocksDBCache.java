@@ -187,7 +187,7 @@ class RocksDBCache implements Cache {
     public void remove(Key key) {
         ensureInitializedAndNotClosed();
         try {
-            this.database.get().remove(this.writeOptions, key.serialize());
+            this.database.get().delete(this.writeOptions, key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }

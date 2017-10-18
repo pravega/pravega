@@ -82,19 +82,32 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCopyFrom() {
-        StreamSegmentMetadata baseMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
-        baseMetadata.updateAttributes(generateAttributes(new Random(0)));
+        // Transaction (has ParentId, and IsMerged==true).
+        val txnMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        txnMetadata.markSealed();
+        txnMetadata.setLength(3235342);
+        txnMetadata.markMerged();
+        testCopyFrom(txnMetadata);
+
+        // Non-Transaction (no ParentId, but has StartOffset).
+        val normalMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+        normalMetadata.markSealed();
+        normalMetadata.setLength(3235342);
+        normalMetadata.setStartOffset(1200);
+        testCopyFrom(normalMetadata);
+    }
+
+    private void testCopyFrom(StreamSegmentMetadata baseMetadata) {
         baseMetadata.setStorageLength(1233);
-        baseMetadata.setLength(3235342);
+        baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
-        baseMetadata.markSealed();
-        baseMetadata.markMerged();
         baseMetadata.markInactive();
         baseMetadata.setLastUsed(1545895);
 
         // Normal metadata copy.
-        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, PARENT_SEGMENT_ID, CONTAINER_ID);
+        StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(baseMetadata.getName(), baseMetadata.getId(),
+                baseMetadata.getParentId(), baseMetadata.getContainerId());
         newMetadata.copyFrom(baseMetadata);
         Assert.assertTrue("copyFrom copied the Active flag too.", newMetadata.isActive());
         SegmentMetadataComparer.assertEquals("Metadata copy:", baseMetadata, newMetadata);

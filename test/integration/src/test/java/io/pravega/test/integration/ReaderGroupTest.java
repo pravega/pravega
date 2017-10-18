@@ -90,7 +90,10 @@ public class ReaderGroupTest {
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .startingPosition(Sequence.MIN_VALUE)
+                                                         .automaticCheckpointIntervalMillis(-1)
+                                                         .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
 
         writeEvents(100, clientFactory);
@@ -134,7 +137,10 @@ public class ReaderGroupTest {
         @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
 
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .startingPosition(Sequence.MIN_VALUE)
+                                                         .automaticCheckpointIntervalMillis(-1)
+                                                         .build();
         streamManager.createReaderGroup(READER_GROUP, groupConfig, Collections.singleton(STREAM_NAME));
 
         writeEvents(100, clientFactory);

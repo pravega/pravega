@@ -38,7 +38,15 @@ public interface SegmentProperties {
     ImmutableDate getLastModified();
 
     /**
-     * Gets a value indicating the full, readable length of the StreamSegment.
+     * Gets a value indicating the first offset in the Segment available for reading. For non-truncated Segments, this
+     * will return 0 (whole segment is available for reading), while for truncated Segments, it will return the last
+     * truncation offset.
+     */
+    long getStartOffset();
+
+    /**
+     * Gets a value indicating the full, readable length of the StreamSegment. This includes the range of bytes that are
+     * inaccessible due to them being before the StartOffset.
      */
     long getLength();
 

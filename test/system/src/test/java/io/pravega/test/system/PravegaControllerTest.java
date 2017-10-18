@@ -34,7 +34,6 @@ public class PravegaControllerTest {
      *
      * @throws MarathonException if error in setup
      */
-
     @Environment
     public static void setup() throws MarathonException {
         Service zk = Utils.isDockerLocalExecEnabled()

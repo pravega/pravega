@@ -9,12 +9,11 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
-import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.AttributeSerializer;
-import io.pravega.segmentstore.server.logs.SerializationException;
 import com.google.common.base.Preconditions;
-
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.server.AttributeSerializer;
+import io.pravega.segmentstore.server.ContainerMetadata;
+import io.pravega.segmentstore.server.logs.SerializationException;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -30,6 +29,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     private static final byte CURRENT_VERSION = 0;
     private long streamSegmentId;
     private String streamSegmentName;
+    private long startOffset;
     private long length;
     private boolean sealed;
     private Map<UUID, Long> attributes;
@@ -47,6 +47,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         super();
         this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         this.streamSegmentName = streamSegmentProperties.getName();
+        this.startOffset = streamSegmentProperties.getStartOffset();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
         this.attributes = streamSegmentProperties.getAttributes();
@@ -75,6 +76,11 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         Preconditions.checkState(this.streamSegmentId == ContainerMetadata.NO_STREAM_SEGMENT_ID, "StreamSegmentId has already been assigned for this operation.");
         Preconditions.checkArgument(value != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Invalid StreamSegmentId");
         this.streamSegmentId = value;
+    }
+
+    @Override
+    public long getStartOffset() {
+        return this.startOffset;
     }
 
     @Override
@@ -107,6 +113,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         target.writeByte(CURRENT_VERSION);
         target.writeLong(this.streamSegmentId);
         target.writeUTF(this.streamSegmentName);
+        target.writeLong(this.startOffset);
         target.writeLong(this.length);
         target.writeBoolean(this.sealed);
         AttributeSerializer.serialize(this.attributes, target);
@@ -117,6 +124,7 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
         readVersion(source, CURRENT_VERSION);
         this.streamSegmentId = source.readLong();
         this.streamSegmentName = source.readUTF();
+        this.startOffset = source.readLong();
         this.length = source.readLong();
         this.sealed = source.readBoolean();
         this.attributes = AttributeSerializer.deserialize(source);
@@ -125,10 +133,11 @@ public class StreamSegmentMapOperation extends MetadataOperation implements Stre
     @Override
     public String toString() {
         return String.format(
-                "%s, Id = %s, Name = %s, Length = %d, Sealed = %s",
+                "%s, Id = %s, Name = %s, Start = %d, Length = %d, Sealed = %s",
                 super.toString(),
                 toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
                 getStreamSegmentName(),
+                getStartOffset(),
                 getLength(),
                 isSealed());
     }

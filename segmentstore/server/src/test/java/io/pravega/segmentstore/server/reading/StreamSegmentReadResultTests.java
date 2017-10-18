@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.test.common.AssertExtensions;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -47,7 +48,7 @@ public class StreamSegmentReadResultTests {
             // Setup an item to be returned.
             final long expectedStartOffset = START_OFFSET + i;
             final int expectedReadLength = MAX_RESULT_LENGTH - i;
-            nextEntry.set(new TestReadResultEntry(expectedStartOffset, expectedReadLength, false));
+            nextEntry.set(TestReadResultEntry.cache(expectedStartOffset, expectedReadLength));
 
             // Get the result and verify we get exactly what we supplied.
             Assert.assertTrue("hasNext() returned false even though we haven't consumed the entire result.", r.hasNext());
@@ -78,6 +79,19 @@ public class StreamSegmentReadResultTests {
      */
     @Test
     public void testNextEndOfStreamSegment() {
+        testNextTerminal(TestReadResultEntry::endOfSegment);
+    }
+
+    /**
+     * Tests the next() method which ends when the one of the returned items indicates a truncated Stream Segment,
+     * even if the result is not fully consumed.
+     */
+    @Test
+    public void testNextTruncated() {
+        testNextTerminal(TestReadResultEntry::truncated);
+    }
+
+    private void testNextTerminal(BiFunction<Long, Integer, TestReadResultEntry> terminalEntryCreator) {
         AtomicReference<TestReadResultEntry> nextEntry = new AtomicReference<>();
         StreamSegmentReadResult.NextEntrySupplier nes = (offset, length) -> nextEntry.get();
 
@@ -88,22 +102,23 @@ public class StreamSegmentReadResultTests {
             // Setup an item to be returned.
             final long expectedStartOffset = START_OFFSET + i;
             final int expectedReadLength = MAX_RESULT_LENGTH - i;
-            nextEntry.set(new TestReadResultEntry(expectedStartOffset, expectedReadLength, false));
+            nextEntry.set(TestReadResultEntry.cache(expectedStartOffset, expectedReadLength));
             r.next();
             nextEntry.get().complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
         }
 
         // Verify we have not reached the end.
-        AssertExtensions.assertLessThan("Unexpected state of the StreamSegmentReadResult when consuming half of the result.", r.getMaxResultLength(), r.getConsumedLength());
+        AssertExtensions.assertLessThan("Unexpected state of the StreamSegmentReadResult when consuming half of the result.",
+                r.getMaxResultLength(), r.getConsumedLength());
         Assert.assertTrue("hasNext() did not return true when more items are to be consumed.", r.hasNext());
 
         // Next time we call next(), return an End-of-StreamSegment entry.
-        nextEntry.set(new TestReadResultEntry(START_OFFSET + MAX_RESULT_LENGTH / 2, MAX_RESULT_LENGTH / 2, true));
+        nextEntry.set(terminalEntryCreator.apply((long) START_OFFSET + MAX_RESULT_LENGTH / 2, MAX_RESULT_LENGTH / 2));
         ReadResultEntry resultEntry = r.next();
-        Assert.assertEquals("Unexpected result from nextEntry() when returning the last item in a StreamSegment.", nextEntry.get(), resultEntry);
-        Assert.assertFalse("hasNext() did not return false when reaching the end of a sealed StreamSegment.", r.hasNext());
+        Assert.assertEquals("Unexpected result from nextEntry() when returning the terminal item from the result.", nextEntry.get(), resultEntry);
+        Assert.assertFalse("hasNext() did not return false when reaching a terminal state.", r.hasNext());
         resultEntry = r.next();
-        Assert.assertNull("next() did return null when it encountered the end of a sealed StreamSegment.", resultEntry);
+        Assert.assertNull("next() did return null when it encountered a terminal state.", resultEntry);
     }
 
     /**
@@ -116,7 +131,7 @@ public class StreamSegmentReadResultTests {
 
         // We issue a read with length = MAX_RESULT_LENGTH, but we only get to read one item from it.
         StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
-        nextEntry.set(new TestReadResultEntry(START_OFFSET, MAX_RESULT_LENGTH, false));
+        nextEntry.set(TestReadResultEntry.cache(START_OFFSET, MAX_RESULT_LENGTH));
         ReadResultEntry resultEntry = r.next();
 
         // Close the result and verify we cannot read from it anymore and that the pending future is now canceled.
@@ -140,11 +155,11 @@ public class StreamSegmentReadResultTests {
         // We issue a read, get one item, do not consume it, and then read a second time.
         @Cleanup
         StreamSegmentReadResult r = new StreamSegmentReadResult(START_OFFSET, MAX_RESULT_LENGTH, nes, "");
-        nextEntry.set(new TestReadResultEntry(START_OFFSET, MAX_RESULT_LENGTH, false));
+        nextEntry.set(TestReadResultEntry.cache(START_OFFSET, MAX_RESULT_LENGTH));
         TestReadResultEntry firstEntry = (TestReadResultEntry) r.next();
 
         // Immediately request a second item, without properly consuming the first item.
-        nextEntry.set(new TestReadResultEntry(START_OFFSET + READ_ITEM_LENGTH, MAX_RESULT_LENGTH, false));
+        nextEntry.set(TestReadResultEntry.cache(START_OFFSET + READ_ITEM_LENGTH, MAX_RESULT_LENGTH));
 
         AssertExtensions.assertThrows(
                 "Second read was allowed even though the first read did not complete.",
@@ -153,24 +168,27 @@ public class StreamSegmentReadResultTests {
 
         firstEntry.complete(new ReadResultEntryContents(null, READ_ITEM_LENGTH));
         ReadResultEntry secondEntry = r.next();
+        ReadResultEntryBase x;
         Assert.assertEquals("Unexpected result from nextEntry.", nextEntry.get(), secondEntry);
     }
 
     //region TestReadResultEntry
 
     private static class TestReadResultEntry extends ReadResultEntryBase {
-        TestReadResultEntry(long streamSegmentOffset, int requestedReadLength, boolean endOfSegment) {
-            super(endOfSegment ? ReadResultEntryType.EndOfStreamSegment : ReadResultEntryType.Cache, streamSegmentOffset, requestedReadLength);
+        private TestReadResultEntry(long streamSegmentOffset, int requestedReadLength, ReadResultEntryType type) {
+            super(type, streamSegmentOffset, requestedReadLength);
         }
 
-        @Override
-        public void complete(ReadResultEntryContents entryContents) {
-            super.complete(entryContents);
+        static TestReadResultEntry cache(long streamSegmentOffset, int requestedReadLength) {
+            return new TestReadResultEntry(streamSegmentOffset, requestedReadLength, ReadResultEntryType.Cache);
         }
 
-        @Override
-        public void fail(Throwable ex) {
-            super.fail(ex);
+        static TestReadResultEntry endOfSegment(long streamSegmentOffset, int requestedReadLength) {
+            return new TestReadResultEntry(streamSegmentOffset, requestedReadLength, ReadResultEntryType.EndOfStreamSegment);
+        }
+
+        static TestReadResultEntry truncated(long streamSegmentOffset, int requestedReadLength) {
+            return new TestReadResultEntry(streamSegmentOffset, requestedReadLength, ReadResultEntryType.Truncated);
         }
     }
 
