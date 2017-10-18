@@ -144,7 +144,7 @@ public class ReaderGroupNotificationTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         ReaderGroup readerGroup = groupManager.createReaderGroup("reader", ReaderGroupConfig
-                .builder().automaticCheckpointIntervalMillis(-1).build(), Collections
+                .builder().disableAutomaticCheckpoints().build(), Collections
                 .singleton("test"));
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
