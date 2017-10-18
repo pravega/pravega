@@ -509,6 +509,7 @@ project('test:system') {
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
         compile group: 'org.glassfish.jersey.core', name: 'jersey-client', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.bundles.repackaged', name: 'jersey-guava', version: jerseyGuavaVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
     }
     //disable the default test task.
