@@ -22,11 +22,12 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
- * Request handler for performing scale operations received from requeststream.
+ * Request handler for performing truncation operations received from requeststream.
  */
 @Slf4j
 public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {

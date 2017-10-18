@@ -15,6 +15,7 @@ import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
@@ -29,7 +30,9 @@ import java.io.IOException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
@@ -466,8 +469,6 @@ public abstract class StreamMetadataStoreTest {
 
         assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
         assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
-
-        // endregion
     }
 
     @Test
@@ -580,10 +581,38 @@ public abstract class StreamMetadataStoreTest {
 
     @Test
     public void truncationTest() throws Exception {
-        // TODO shivesh
-        // start truncation
-        // verify that it is truncating
-        //
+        final String scope = "ScopeTruncate";
+        final String stream = "ScopeTruncate";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<Integer, Long> truncation = new HashMap<>();
+        assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation, null, executor)));
+
+        StreamProperty<StreamTruncationRecord> truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
+        assertTrue(truncationProperty.isUpdating());
+
+        Map<Integer, Long> truncation2 = new HashMap<>();
+
+        assertFalse(FutureHelpers.await(store.startTruncation(scope, stream, truncation2, null, executor)));
+        assertTrue(FutureHelpers.await(store.completeTruncation(scope, stream, null, executor)));
+
+        truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
+        assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
+
+        //TODO:
+        assertEquals(null, truncationProperty.getProperty().getCutSegmentEpochMap());
+
+        Map<Integer, Long> truncation3 = new HashMap<>();
+
+        assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation3, null, executor)));
+        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
     }
 }
 

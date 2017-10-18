@@ -769,7 +769,7 @@ public class TableHelper {
         List<Integer> toFind = new ArrayList<>(streamCut.keySet());
         Optional<HistoryRecord> epochRecord = highEpochRecord;
 
-        while (epochRecord.isPresent() && !toFind.isEmpty()) {
+        while (epochRecord.isPresent() && toFind != null && !toFind.isEmpty()) {
             List<Integer> epochSegments = epochRecord.get().getSegments();
             Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
             toFind = group.get(false);
@@ -801,6 +801,7 @@ public class TableHelper {
                         epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getNumber() == epochSegment.getNumber() ||
                         (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
             }).collect(Collectors.toSet()));
+            historyRecordOpt = HistoryRecord.fetchNext(historyRecord, historyTable, true);
         }
         return toDelete;
     }

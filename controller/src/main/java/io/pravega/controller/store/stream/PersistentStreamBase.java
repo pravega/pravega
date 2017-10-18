@@ -170,6 +170,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord truncationRecord,
                                                                               Map<Integer, Long> streamCut) {
+        log.debug("computing truncation for stream {}/{}", scope, name);
         return getHistoryTableFromStore()
                 .thenCompose(history -> getSegmentTableFromStore()
                         .thenCompose(segment -> getIndexTable()

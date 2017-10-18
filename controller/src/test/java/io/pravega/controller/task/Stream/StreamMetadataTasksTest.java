@@ -41,6 +41,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamProperty;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -49,6 +50,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse.ScaleSt
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -66,7 +68,9 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -250,6 +254,113 @@ public class StreamMetadataTasksTest {
 
         configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
         assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
+    }
+
+    @Test(timeout = 30000)
+    public void truncateStreamTest() throws Exception {
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+
+        streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+
+
+        assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1),
+                newRanges, 30, null).get();
+        assertTrue(scaleOpResult.getStatus().equals(ScaleStreamStatus.STARTED));
+
+        ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
+        assertTrue(FutureHelpers.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
+
+        // start truncation
+        StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test",
+                true, null, executor).join();
+        assertFalse(truncProp.isUpdating());
+        // 1. happy day test
+        // update.. should succeed
+        Map<Integer, Long> streamCut = new HashMap<>();
+        streamCut.put(0, 1L);
+        streamCut.put(1, 11L);
+        CompletableFuture<UpdateStreamStatus.Status> truncateFuture = streamMetadataTasks.truncateStream(SCOPE, "test",
+                streamCut, null);
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
+
+        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut));
+        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut));
+
+        // 2. change state to scaling
+        streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
+        // call update should fail without posting the event
+        Map<Integer, Long> streamCut2 = new HashMap<>();
+        streamCut2.put(0, 1L);
+        streamCut2.put(2, 1L);
+        streamCut2.put(3, 1L);
+
+        streamMetadataTasks.truncateStream(SCOPE, "test", streamCut2, null);
+
+        AtomicBoolean loop = new AtomicBoolean(false);
+        FutureHelpers.loop(() -> !loop.get(),
+                () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
+                        .thenApply(StreamProperty::isUpdating)
+                        .thenAccept(loop::set), executor).join();
+
+        // event posted, first step performed. now pick the event for processing
+        TruncateStreamTask truncateStreamTask = new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+        TruncateStreamEvent taken = (TruncateStreamEvent) requestEventWriter.eventQueue.take();
+        AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
+                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+
+        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+
+        // now with state = active, process the same event. it should succeed now.
+        assertTrue(FutureHelpers.await(truncateStreamTask.execute(taken)));
+
+        // 3. multiple back to back updates.
+
+        Map<Integer, Long> streamCut3 = new HashMap<>();
+        streamCut3.put(0, 12L);
+        streamCut3.put(2, 12L);
+        streamCut3.put(3, 12L);
+        CompletableFuture<UpdateStreamStatus.Status> truncateOp1 = streamMetadataTasks.truncateStream(SCOPE, "test",
+                streamCut3, null);
+
+        // ensure that previous updatestream has posted the event and set status to updating,
+        // only then call second updateStream
+        AtomicBoolean loop2 = new AtomicBoolean(false);
+        FutureHelpers.loop(() -> !loop2.get(),
+                () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
+                        .thenApply(StreamProperty::isUpdating)
+                        .thenAccept(loop2::set), executor).join();
+
+        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut3) && truncProp.isUpdating());
+
+        // post the second update request. This should fail here itself as previous one has started.
+        Map<Integer, Long> streamCut4 = new HashMap<>();
+        streamCut4.put(0, 14L);
+        streamCut4.put(2, 14L);
+        streamCut4.put(3, 14L);
+        CompletableFuture<UpdateStreamStatus.Status> truncateOpFuture2 = streamMetadataTasks.truncateStream(SCOPE, "test",
+                streamCut4, null);
+        assertEquals(UpdateStreamStatus.Status.FAILURE, truncateOpFuture2.join());
+
+        // process event
+        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        // verify that first request for update also completes with success.
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateOp1.join());
+
+        truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
+        assertTrue(truncProp.getProperty().getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
     }
 
     @Test(timeout = 30000)
