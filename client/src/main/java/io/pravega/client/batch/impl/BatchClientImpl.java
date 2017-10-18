@@ -2,14 +2,15 @@ package io.pravega.client.batch.impl;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.apache.commons.lang3.NotImplementedException;
+
+import com.google.common.collect.Iterators;
 
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentInfo;
@@ -32,19 +33,18 @@ import lombok.Cleanup;
 public class BatchClientImpl implements BatchClient {
 
     private final Controller controller;
-    private final ConnectionFactory connectionFactory;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
 
     public BatchClientImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
 
     @Override
     public StreamInfo getStreamInfo(Stream stream) {
+        // TODO: Implement this method.
         // Name from stream
         // Length refector from ReaderGroupImpl perhaps move to controller.
         // Creation time needs an added api? or perhaps modify the getsegmentAtTime api
@@ -54,38 +54,27 @@ public class BatchClientImpl implements BatchClient {
 
     @Override
     public Iterator<SegmentInfo> listSegments(Stream stream) {
-        return listSegments(stream, new Date(0L), new Date(Long.MAX_VALUE));
+        return listSegments(stream, new Date(0L));
     }
 
     @Override
-    public Iterator<SegmentInfo> listSegments(Stream stream, Date from, Date until) {
+    public Iterator<SegmentInfo> listSegments(Stream stream, Date from) {
         // modify iteration above but starting with a timestamp and ending with a break
         Map<Segment, Long> segments = getAndHandleExceptions(controller.getSegmentsAtTime(new StreamImpl(stream.getScope(),
                                                                                                          stream.getStreamName()),
                                                                                           from.getTime()),
                                                              RuntimeException::new);
-
-        List<SegmentInfo> result = new ArrayList<>();
-        for (Segment s : segments.keySet()) {
-            result.add(segmentToInfo(s));
-        }
-        Set<Segment> successors = getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
-                                                         RuntimeException::new);
-        for (Segment s : successors) {
-            SegmentInfo info = segmentToInfo(s);
-            if (info.getCreationTime() < until.getTime()) {                
-                result.add(info);
-            }
-        }
-        return result.iterator();
+        SortedSet<Segment> result = new TreeSet<>();
+        result.addAll(segments.keySet());
+        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
+                                             RuntimeException::new));
+        return Iterators.transform(result.iterator(), s -> segmentToInfo(s));
     }
 
     private SegmentInfo segmentToInfo(Segment s) {
-        // Epoc comes from controller... could be infered while iterating.
-        // length comes from wireCommands.StreamSegmentInfo
-        // Creation time could be added to segment info.
-        // isSealed comes from segmentInfo as does endTime. (last modified)
-        throw new NotImplementedException("segmentToInfo");
+        @Cleanup
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
+        return client.getSegmentInfo();
     }
 
     @Override
