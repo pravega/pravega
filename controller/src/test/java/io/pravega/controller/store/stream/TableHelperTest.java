@@ -1,18 +1,20 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.Lists;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.SegmentRecord;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -20,7 +22,9 @@ import java.text.ParseException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -835,9 +839,135 @@ public class TableHelperTest {
 
     @Test
     public void truncationTest() {
-        // TODO: shivesh
-        // 1. compute truncation
-        // 2. getactivesegments with previous truncation.
+        final List<Integer> startSegments = Lists.newArrayList(0, 1);
+
+        // epoch 0
+        long timestamp = System.currentTimeMillis();
+        byte[] segmentTable = createSegmentTable(2, timestamp);
+
+        byte[] historyTable = TableHelper.createHistoryTable(timestamp, startSegments);
+        byte[] indexTable = TableHelper.createIndexTable(timestamp, 0);
+
+        List<Integer> activeSegments = TableHelper.getActiveSegments(historyTable);
+        assertEquals(activeSegments, startSegments);
+
+        // epoch 1
+        List<Integer> newSegments1 = Lists.newArrayList(0, 2, 3);
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.5, 0.75));
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.75, 1.0));
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 1);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments1);
+        HistoryRecord partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 1);
+        indexTable = TableHelper.updateIndexTable(indexTable, timestamp + 1, partial.getOffset());
+
+        // epoch 2
+        List<Integer> newSegments2 = Lists.newArrayList(0, 2, 4, 5);
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.75, (0.75 + 1.0) / 2));
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>((0.75 + 1.0) / 2, 1.0));
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 2);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments2);
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 2);
+        indexTable = TableHelper.updateIndexTable(indexTable, timestamp + 2, partial.getOffset());
+
+        // epoch 3
+        List<Integer> newSegments3 = Lists.newArrayList(0, 4, 5, 6, 7);
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.5, (0.75 + 0.5) / 2));
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>((0.75 + 0.5) / 2, 0.75));
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 3);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments3);
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 3);
+        indexTable = TableHelper.updateIndexTable(indexTable, timestamp + 3, partial.getOffset());
+
+        // epoch 4
+        List<Integer> newSegments4 = Lists.newArrayList(4, 5, 6, 7, 8, 9);
+        newRanges = new ArrayList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>(0.0, (0.0 + 0.5) / 2));
+        newRanges.add(new AbstractMap.SimpleEntry<Double, Double>((0.0 + 0.5) / 2, 0.5));
+
+        segmentTable = updateSegmentTable(segmentTable, newRanges, timestamp + 4);
+        historyTable = TableHelper.addPartialRecordToHistoryTable(historyTable, newSegments4);
+        partial = HistoryRecord.readLatestRecord(historyTable, false).get();
+        historyTable = TableHelper.completePartialRecordInHistoryTable(historyTable, partial, timestamp + 4);
+        indexTable = TableHelper.updateIndexTable(indexTable, timestamp + 4, partial.getOffset());
+
+        // happy day
+        Map<Integer, Long> streamCut1 = new HashMap<>();
+        streamCut1.put(0, 1L);
+        streamCut1.put(1, 1L);
+        StreamTruncationRecord truncationRecord = TableHelper.computeTruncationRecord(indexTable, historyTable,
+                segmentTable, streamCut1, StreamTruncationRecord.EMPTY);
+
+        assertTrue(truncationRecord.getToDelete().isEmpty());
+        assertTrue(truncationRecord.getStreamCut().equals(streamCut1));
+        assertTrue(truncationRecord.getCutSegmentEpochMap().get(0) == 0 &&
+                truncationRecord.getCutSegmentEpochMap().get(1) == 0);
+        truncationRecord = truncationRecord.mergeDeleted();
+
+        Map<Integer, Long> streamCut2 = new HashMap<>();
+        streamCut2.put(0, 1L);
+        streamCut2.put(2, 1L);
+        streamCut2.put(4, 1L);
+        streamCut2.put(5, 1L);
+        truncationRecord = TableHelper.computeTruncationRecord(indexTable, historyTable, segmentTable, streamCut2, truncationRecord);
+        assertTrue(truncationRecord.getToDelete().size() == 2
+                && truncationRecord.getToDelete().contains(1)
+                && truncationRecord.getToDelete().contains(3));
+        assertTrue(truncationRecord.getStreamCut().equals(streamCut2));
+        assertTrue(truncationRecord.getCutSegmentEpochMap().get(0) == 2 &&
+                truncationRecord.getCutSegmentEpochMap().get(2) == 2 &&
+                truncationRecord.getCutSegmentEpochMap().get(4) == 2 &&
+                truncationRecord.getCutSegmentEpochMap().get(5) == 2);
+        truncationRecord = truncationRecord.mergeDeleted();
+
+        Map<Integer, Long> streamCut3 = new HashMap<>();
+        streamCut3.put(2, 10L);
+        streamCut3.put(4, 10L);
+        streamCut3.put(5, 10L);
+        streamCut3.put(8, 10L);
+        streamCut3.put(9, 10L);
+        truncationRecord = TableHelper.computeTruncationRecord(indexTable, historyTable, segmentTable, streamCut3, truncationRecord);
+        assertTrue(truncationRecord.getToDelete().size() == 1
+                && truncationRecord.getToDelete().contains(0));
+        assertTrue(truncationRecord.getStreamCut().equals(streamCut3));
+        assertTrue(truncationRecord.getCutSegmentEpochMap().get(2) == 2 &&
+                truncationRecord.getCutSegmentEpochMap().get(4) == 4 &&
+                truncationRecord.getCutSegmentEpochMap().get(5) == 4 &&
+                truncationRecord.getCutSegmentEpochMap().get(8) == 4 &&
+                truncationRecord.getCutSegmentEpochMap().get(9) == 4);
+        truncationRecord = truncationRecord.mergeDeleted();
+
+        // behind previous
+        Map<Integer, Long> streamCut4 = new HashMap<>();
+        streamCut4.put(2, 1L);
+        streamCut4.put(4, 1L);
+        streamCut4.put(5, 1L);
+        streamCut4.put(8, 1L);
+        streamCut4.put(9, 1L);
+        byte[] finalIndexTable = indexTable;
+        byte[] finalHistoryTable = historyTable;
+        byte[] finalSegmentTable = segmentTable;
+        StreamTruncationRecord finalTruncationRecord = truncationRecord;
+        AssertExtensions.assertThrows("",
+                () -> TableHelper.computeTruncationRecord(finalIndexTable, finalHistoryTable, finalSegmentTable, streamCut4, finalTruncationRecord),
+                e -> e instanceof IllegalArgumentException);
+
+        Map<Integer, Long> streamCut5 = new HashMap<>();
+        streamCut3.put(2, 10L);
+        streamCut3.put(4, 10L);
+        streamCut3.put(5, 10L);
+        streamCut3.put(0, 10L);
+        AssertExtensions.assertThrows("",
+                () -> TableHelper.computeTruncationRecord(finalIndexTable, finalHistoryTable, finalSegmentTable, streamCut5, finalTruncationRecord),
+                e -> e instanceof IllegalArgumentException);
     }
 
     private byte[] createSegmentTable(int numSegments, long eventTime) {

@@ -265,7 +265,6 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
-
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);

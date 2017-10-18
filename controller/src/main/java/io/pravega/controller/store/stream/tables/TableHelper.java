@@ -162,14 +162,14 @@ public class TableHelper {
         Preconditions.checkArgument(!streamCut.isEmpty());
 
         Map<Integer, Integer> epochCutMap = computeEpochCutMap(historyTable, indexTable, segmentTable, streamCut);
-        Map<Segment, Integer> transformed = transform(segmentTable, epochCutMap);
+        Map<Segment, Integer> cutMapSegments = transform(segmentTable, epochCutMap);
 
-        Map<Segment, Integer> previousEpochCutMap = transform(segmentTable, previousTruncationRecord.getCutSegmentEpochMap());
+        Map<Segment, Integer> previousCutMapSegment = transform(segmentTable, previousTruncationRecord.getCutSegmentEpochMap());
 
-        Exceptions.checkArgument(greaterThan(transformed, previousEpochCutMap),
+        Exceptions.checkArgument(greaterThan(cutMapSegments, previousCutMapSegment, streamCut, previousTruncationRecord.getStreamCut()),
                 "streamCut", "stream cut has to be strictly ahead of previous stream cut");
 
-        Set<Integer> toDelete = computeToDelete(transformed, historyTable, segmentTable, previousTruncationRecord.getDeletedSegments());
+        Set<Integer> toDelete = computeToDelete(cutMapSegments, historyTable, segmentTable, previousTruncationRecord.getDeletedSegments());
         return new StreamTruncationRecord(streamCut, epochCutMap, previousTruncationRecord.getDeletedSegments(), toDelete);
     }
 
@@ -769,12 +769,13 @@ public class TableHelper {
         List<Integer> toFind = new ArrayList<>(streamCut.keySet());
         Optional<HistoryRecord> epochRecord = highEpochRecord;
 
-        while (epochRecord.isPresent() && toFind != null && !toFind.isEmpty()) {
+        while (epochRecord.isPresent() && !toFind.isEmpty()) {
             List<Integer> epochSegments = epochRecord.get().getSegments();
             Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
-            toFind = group.get(false);
+            toFind = Optional.ofNullable(group.get(false)).orElse(new ArrayList<>());
             int epoch = epochRecord.get().getEpoch();
-            group.get(true).forEach(x -> epochStreamCutMap.put(x, epoch));
+            List<Integer> found = Optional.ofNullable(group.get(true)).orElse(new ArrayList<>());
+            found.forEach(x -> epochStreamCutMap.put(x, epoch));
             epochRecord = HistoryRecord.fetchPrevious(epochRecord.get(), historyTable);
         }
 
@@ -806,11 +807,13 @@ public class TableHelper {
         return toDelete;
     }
 
-    private static boolean greaterThan(Map<Segment, Integer> map1, Map<Segment, Integer> map2) {
+    private static boolean greaterThan(Map<Segment, Integer> map1, Map<Segment, Integer> map2, Map<Integer, Long> cut1, Map<Integer, Long> cut2) {
         // find overlapping segments in map2 for all segments in map1
         // compare epochs. map1 should have epochs gt or eq its overlapping segments in map2
         return map1.entrySet().stream().allMatch(e1 ->
-                map2.entrySet().stream().noneMatch(e2 -> e2.getKey().overlaps(e1.getKey()) && e2.getValue() > e1.getValue()));
+                map2.entrySet().stream().noneMatch(e2 ->
+                        (e2.getKey().getNumber() == e1.getKey().getNumber() && cut1.get(e1.getKey().getNumber()) < cut2.get(e2.getKey().getNumber()))
+                        || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));
     }
 
     /**

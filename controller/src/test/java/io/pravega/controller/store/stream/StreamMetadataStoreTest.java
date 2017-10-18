@@ -593,12 +593,16 @@ public abstract class StreamMetadataStoreTest {
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
         Map<Integer, Long> truncation = new HashMap<>();
+        truncation.put(0, 0L);
+        truncation.put(1, 0L);
         assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation, null, executor)));
 
         StreamProperty<StreamTruncationRecord> truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
         assertTrue(truncationProperty.isUpdating());
 
         Map<Integer, Long> truncation2 = new HashMap<>();
+        truncation2.put(0, 0L);
+        truncation2.put(1, 0L);
 
         assertFalse(FutureHelpers.await(store.startTruncation(scope, stream, truncation2, null, executor)));
         assertTrue(FutureHelpers.await(store.completeTruncation(scope, stream, null, executor)));
@@ -606,10 +610,11 @@ public abstract class StreamMetadataStoreTest {
         truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
         assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
 
-        //TODO:
-        assertEquals(null, truncationProperty.getProperty().getCutSegmentEpochMap());
+        assertTrue(truncationProperty.getProperty().getCutSegmentEpochMap().size() == 2);
 
         Map<Integer, Long> truncation3 = new HashMap<>();
+        truncation3.put(0, 0L);
+        truncation3.put(1, 0L);
 
         assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation3, null, executor)));
         assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
