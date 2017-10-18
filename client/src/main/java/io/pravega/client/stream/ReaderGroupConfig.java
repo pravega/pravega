@@ -10,6 +10,7 @@
 package io.pravega.client.stream;
 
 import java.io.Serializable;
+import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.Builder;
 import lombok.Data;
@@ -41,7 +42,9 @@ public class ReaderGroupConfig implements Serializable {
 
        /**
         * Disables automatic checkpointing. Checkpoints need to be
-        * generated manually, {@see ReaderGroup#checkpoint}.
+        * generated manually, see this method:
+        *
+        * {@link ReaderGroup#initiateCheckpoint(String, ScheduledExecutorService)}.
         *
         * @return Reader group config builder.
         */
