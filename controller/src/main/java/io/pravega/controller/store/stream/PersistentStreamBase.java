@@ -198,7 +198,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<StreamTruncationRecord> getTruncationRecord() {
-        return getTruncationProperty(false).thenApply(StreamProperty::getProperty);
+        return getTruncationProperty(false)
+                .thenApply(prop -> prop == null ? StreamTruncationRecord.EMPTY : prop.getProperty());
     }
 
     @Override
@@ -420,9 +421,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments(final long timestamp) {
-        final CompletableFuture<StreamTruncationRecord> truncationFuture = getTruncationRecord();
-
-        return truncationFuture
+        return getTruncationRecord()
                 .thenCompose(truncationRecord ->
                         getHistoryTable().thenCompose(historyTable ->
                                 getIndexTable().thenCompose(indexTable ->

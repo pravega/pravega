@@ -401,27 +401,11 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     @Override
     CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
-        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
-
         if (ignoreCached) {
             cache.invalidateCache(truncationPath);
         }
 
-        cache.getCachedData(truncationPath)
-                .whenComplete((res, ex) -> {
-                    if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
-                        if (cause instanceof StoreException.DataNotFoundException) {
-                            result.complete(null);
-                        } else {
-                            result.completeExceptionally(cause);
-                        }
-                    } else {
-                        result.complete(res);
-                    }
-                });
-
-        return result;
+        return cache.getCachedData(truncationPath);
     }
 
     @Override
