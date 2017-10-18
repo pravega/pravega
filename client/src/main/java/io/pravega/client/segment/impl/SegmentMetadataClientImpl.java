@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.InvalidStreamException;
@@ -37,6 +38,7 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
@@ -179,7 +181,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         });
     }
     
-    private CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo() {
+    private CompletableFuture<WireCommands.StreamSegmentInfo> getStreamSegmentInfo() {
         CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         long requestId = requestIdGenerator.get();
         synchronized (lock) {
@@ -235,36 +237,30 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                             .throwingOn(InvalidStreamException.class)
-                             .run(() -> {
-                                 return FutureHelpers.getThrowingException(getSegmentInfo())
-                                                     .getSegmentLength();
-                             });
+        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                                   .throwingOn(InvalidStreamException.class)
+                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+        return FutureHelpers.getThrowingException(future).getSegmentLength();
     }
 
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                             .throwingOn(InvalidStreamException.class)
-                             .run(() -> {
-                                 return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue()))
-                                                     .getValue();
-                             });
+        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                                   .throwingOn(InvalidStreamException.class)
+                                   .runAsync(() -> getPropertyAsync(attribute.getValue()),
+                                             connectionFactory.getInternalExecutor());
+        return FutureHelpers.getThrowingException(future).getValue();
     }
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
-        return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                             .throwingOn(InvalidStreamException.class)
-                             .run(() -> {
-                                 return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(),
-                                                                                                 expectedValue,
-                                                                                                 newValue))
-                                                     .isSuccess();
-                             });
+        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                                   .throwingOn(InvalidStreamException.class)
+                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue),
+                                             connectionFactory.getInternalExecutor());
+        return FutureHelpers.getThrowingException(future).isSuccess();
     }
 
     @Override
@@ -273,6 +269,15 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         if (closed.compareAndSet(false, true)) {
             closeConnection(new ConnectionClosedException());
         }
+    }
+
+    @Override
+    public SegmentInfo getSegmentInfo() {
+        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                                   .throwingOn(InvalidStreamException.class)
+                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+        StreamSegmentInfo info = future.join();
+        return new SegmentInfo(segmentId, info.getSegmentLength(), info.isSealed(), info.getLastModified());
     }
 
 }
