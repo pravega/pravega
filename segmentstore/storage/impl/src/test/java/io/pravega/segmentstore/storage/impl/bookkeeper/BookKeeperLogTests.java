@@ -119,13 +119,12 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 5)
-                .with(BookKeeperConfig.MAX_CONCURRENT_WRITES, 10)
                 .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 100)) // Very frequent rollovers.
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
-                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, 1)
-                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, 1)
-                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, 1)
+                .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_WRITE_QUORUM_SIZE, BOOKIE_COUNT)
+                .with(BookKeeperConfig.BK_ACK_QUORUM_SIZE, BOOKIE_COUNT)
                 .with(BookKeeperConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
                 .build());
 
