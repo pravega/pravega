@@ -610,7 +610,7 @@ public abstract class StreamMetadataStoreTest {
         truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
         assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
 
-        assertTrue(truncationProperty.getProperty().getCutSegmentEpochMap().size() == 2);
+        assertTrue(truncationProperty.getProperty().getCutEpochMap().size() == 2);
 
         Map<Integer, Long> truncation3 = new HashMap<>();
         truncation3.put(0, 0L);

@@ -136,7 +136,7 @@ public class TableHelper {
                     // take remaining segments from this epoch.
                     segments = new ArrayList<>();
                     // all segments from stream cut that have epoch >= this epoch
-                    List<Integer> fromStreamCut = truncationRecord.getCutSegmentEpochMap().entrySet().stream()
+                    List<Integer> fromStreamCut = truncationRecord.getCutEpochMap().entrySet().stream()
                             .filter(x -> x.getValue() >= record.getEpoch())
                             .map(Map.Entry::getKey)
                             .collect(Collectors.toList());
@@ -164,7 +164,7 @@ public class TableHelper {
         Map<Integer, Integer> epochCutMap = computeEpochCutMap(historyTable, indexTable, segmentTable, streamCut);
         Map<Segment, Integer> cutMapSegments = transform(segmentTable, epochCutMap);
 
-        Map<Segment, Integer> previousCutMapSegment = transform(segmentTable, previousTruncationRecord.getCutSegmentEpochMap());
+        Map<Segment, Integer> previousCutMapSegment = transform(segmentTable, previousTruncationRecord.getCutEpochMap());
 
         Exceptions.checkArgument(greaterThan(cutMapSegments, previousCutMapSegment, streamCut, previousTruncationRecord.getStreamCut()),
                 "streamCut", "stream cut has to be strictly ahead of previous stream cut");

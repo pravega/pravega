@@ -16,6 +16,11 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+/**
+ * StreamProperty is an abstraction wrapper over stream properties that can be updated via a workflow.
+ * Namely `configuration` and `truncationRecord`.
+ * StreamProperty is a wrapper over actual property with an `updating` flag that indicates when a property is bring updated.
+ */
 @Data
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class StreamProperty<T> implements Serializable {

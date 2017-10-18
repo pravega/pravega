@@ -908,8 +908,8 @@ public class TableHelperTest {
 
         assertTrue(truncationRecord.getToDelete().isEmpty());
         assertTrue(truncationRecord.getStreamCut().equals(streamCut1));
-        assertTrue(truncationRecord.getCutSegmentEpochMap().get(0) == 0 &&
-                truncationRecord.getCutSegmentEpochMap().get(1) == 0);
+        assertTrue(truncationRecord.getCutEpochMap().get(0) == 0 &&
+                truncationRecord.getCutEpochMap().get(1) == 0);
         truncationRecord = truncationRecord.mergeDeleted();
 
         Map<Integer, Long> streamCut2 = new HashMap<>();
@@ -922,10 +922,10 @@ public class TableHelperTest {
                 && truncationRecord.getToDelete().contains(1)
                 && truncationRecord.getToDelete().contains(3));
         assertTrue(truncationRecord.getStreamCut().equals(streamCut2));
-        assertTrue(truncationRecord.getCutSegmentEpochMap().get(0) == 2 &&
-                truncationRecord.getCutSegmentEpochMap().get(2) == 2 &&
-                truncationRecord.getCutSegmentEpochMap().get(4) == 2 &&
-                truncationRecord.getCutSegmentEpochMap().get(5) == 2);
+        assertTrue(truncationRecord.getCutEpochMap().get(0) == 2 &&
+                truncationRecord.getCutEpochMap().get(2) == 2 &&
+                truncationRecord.getCutEpochMap().get(4) == 2 &&
+                truncationRecord.getCutEpochMap().get(5) == 2);
         truncationRecord = truncationRecord.mergeDeleted();
 
         Map<Integer, Long> streamCut3 = new HashMap<>();
@@ -938,11 +938,11 @@ public class TableHelperTest {
         assertTrue(truncationRecord.getToDelete().size() == 1
                 && truncationRecord.getToDelete().contains(0));
         assertTrue(truncationRecord.getStreamCut().equals(streamCut3));
-        assertTrue(truncationRecord.getCutSegmentEpochMap().get(2) == 2 &&
-                truncationRecord.getCutSegmentEpochMap().get(4) == 4 &&
-                truncationRecord.getCutSegmentEpochMap().get(5) == 4 &&
-                truncationRecord.getCutSegmentEpochMap().get(8) == 4 &&
-                truncationRecord.getCutSegmentEpochMap().get(9) == 4);
+        assertTrue(truncationRecord.getCutEpochMap().get(2) == 2 &&
+                truncationRecord.getCutEpochMap().get(4) == 4 &&
+                truncationRecord.getCutEpochMap().get(5) == 4 &&
+                truncationRecord.getCutEpochMap().get(8) == 4 &&
+                truncationRecord.getCutEpochMap().get(9) == 4);
         truncationRecord = truncationRecord.mergeDeleted();
 
         // behind previous
