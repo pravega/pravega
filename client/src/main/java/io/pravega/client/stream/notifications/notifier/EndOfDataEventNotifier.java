@@ -85,7 +85,6 @@ public class EndOfDataEventNotifier extends AbstractEventNotifier<EndOfDataEvent
         }
     }
 
-    @GuardedBy("$lock")
     private void cancelScheduledTask() {
         log.debug("Cancel the scheduled task to check for SegmentEvent");
         if (future != null) {
