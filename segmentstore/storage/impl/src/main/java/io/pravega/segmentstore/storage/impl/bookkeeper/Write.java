@@ -78,7 +78,12 @@ class Write {
      * @param writeLedger The WriteLedger to associate.
      */
     void setWriteLedger(WriteLedger writeLedger) {
-        this.writeLedger.set(writeLedger);
+        WriteLedger oldLedger = this.writeLedger.getAndSet(writeLedger);
+        if (oldLedger != null && oldLedger.isRolledOver()) {
+            // A rollover is not a failure, so if we nd up in here the previous attempt must have failed, so roll back its
+            // attempt count.
+            this.attemptCount.updateAndGet(v -> Math.max(0, v - 1));
+        }
         this.entryId.set(Long.MIN_VALUE);
     }
 
