@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.marathon.AuthEnabledMarathonClient;
-
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -135,7 +134,7 @@ public abstract class MarathonBasedService implements Service {
     }
 
     Volume createVolume(final String containerPath, final String hostPath, final String mode) {
-        LocalVolume v = new LocalVolume();
+        Volume v = new Volume();
         v.setContainerPath(containerPath);
         v.setHostPath(hostPath);
         v.setMode(mode);
