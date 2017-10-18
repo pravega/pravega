@@ -40,7 +40,6 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -113,8 +112,8 @@ public class PravegaTest {
         if (!conService.isRunning()) {
             conService.start(true);
         }
-        List<URI> conUris = new ArrayList<>();
-        conUris = conService.getServiceDetails();
+
+        List<URI> conUris = conService.getServiceDetails();
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host

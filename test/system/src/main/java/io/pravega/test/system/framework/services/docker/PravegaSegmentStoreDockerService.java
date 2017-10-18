@@ -112,6 +112,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
+                        .hostname(serviceName)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
                         .env(stringList).args("segmentstore").build())

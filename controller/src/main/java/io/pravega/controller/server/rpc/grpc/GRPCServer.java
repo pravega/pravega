@@ -49,6 +49,7 @@ public class GRPCServer extends AbstractIdleService {
     protected void startUp() throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
+            log.info("Satrting gRPC server on ip: {}", this.config.getPublishedRPCHost());
             log.info("Starting gRPC server listening on port: {}", this.config.getPort());
             this.server.start();
         } finally {

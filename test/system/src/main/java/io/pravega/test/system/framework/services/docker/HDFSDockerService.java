@@ -77,6 +77,7 @@ public class HDFSDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder().image("dsrw/hdfs:2.7.3-1")
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
+                        .hostname(serviceName)
                         .args("hdfs").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()

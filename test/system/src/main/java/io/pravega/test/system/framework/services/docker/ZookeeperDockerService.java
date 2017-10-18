@@ -80,6 +80,7 @@ public class ZookeeperDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
+                        .hostname(serviceName)
                         .healthcheck(ContainerConfig.Healthcheck.create(null,
                                 1000000000L, 1000000000L, 3)).build())
                 .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())

@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
+import com.spotify.docker.client.messages.Container;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
@@ -95,12 +96,13 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
-            List<Service> serviceList = dockerClient.listServices(criteria);
-
-            for (int i = 0; i < serviceList.size(); i++) {
-                String[] ar = serviceList.get(i).endpoint().virtualIps().get(0).addr().split("/");
-                int port = serviceList.get(i).endpoint().ports().get(0).publishedPort();
-                URI uri = URI.create("tcp://" + ar[0]+ ":" + port);
+            List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName));
+            log.info("container list size {}", containerList.size());
+            Service.Criteria criteria1 = Service.Criteria.builder().serviceName(this.serviceName).build();
+            List<Service> serviceList = dockerClient.listServices(criteria1);
+            for (int i = 0; i < containerList.size(); i++) {
+                String ip = containerList.get(i).networkSettings().networks().get("docker-network").ipAddress();
+                URI uri = URI.create("tcp://" + ip + ":" + dockerClient.inspectService(serviceList.get(0).id()).endpoint().ports().get(0).publishedPort());
                 uriList.add(uri);
             }
         }  catch (InterruptedException | DockerException e) {
