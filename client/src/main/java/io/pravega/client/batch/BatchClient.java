@@ -56,14 +56,13 @@ public interface BatchClient {
     Iterator<SegmentInfo> listSegments(Stream stream);
 
     /**
-     * List all the segments from the provided stream that contain any entries between the times listed.
+     * List all the segments from the provided stream that contain any entries after the date listed.
      * 
      * @param stream The stream whos segments to list.
-     * @param from The lower bound of the date range
-     * @param until The upper bound for the date range
-     * @return All segments that contain some data within the range on the requested stream.
+     * @param from The time after which segments should be returned
+     * @return All segments that contain some data on the requested stream after the specified time.
      */
-    Iterator<SegmentInfo> listSegments(Stream stream, Date from, Date until);
+    Iterator<SegmentInfo> listSegments(Stream stream, Date from);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the
