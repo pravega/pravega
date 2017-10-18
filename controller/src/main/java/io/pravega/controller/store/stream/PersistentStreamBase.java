@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -145,6 +144,68 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return deleteStream();
     }
 
+    @Override
+    public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
+        return FutureHelpers.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
+                new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
+                .collect(Collectors.toList()))
+                .thenAccept(list -> {
+                    // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
+                    List<SimpleEntry<Double, Double>> reduced = TableHelper.reduce(list);
+                    Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
+                                    reduced.get(0).getValue().equals(1.0), "streamCut",
+                            " Invalid input, Stream Cut does not cover full key range.");
+                }).thenCompose(valid -> getTruncationData(true)
+                        .thenCompose(truncationData -> {
+                            Preconditions.checkNotNull(truncationData);
+                            StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
+                            Exceptions.checkArgument(!previous.isUpdating(), "TruncationRecord", "Truncation record conflict");
+
+                            return computeTruncationRecord(previous.getProperty(), streamCut)
+                                    .thenApply(StreamProperty::update)
+                                    .thenCompose(prop -> setTruncationData(
+                                            new Data<>(SerializationUtils.serialize(prop), truncationData.getVersion())));
+                        }));
+    }
+
+    private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord truncationRecord,
+                                                                              Map<Integer, Long> streamCut) {
+        return getHistoryTableFromStore()
+                .thenCompose(history -> getSegmentTableFromStore()
+                        .thenCompose(segment -> getIndexTable()
+                                .thenApply(index -> TableHelper.computeTruncationRecord(index.getData(), history.getData(),
+                                        segment.getData(), streamCut, truncationRecord))));
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation() {
+        return getTruncationData(true)
+                .thenCompose(truncationData -> {
+                    Preconditions.checkNotNull(truncationData);
+                    StreamProperty<StreamTruncationRecord> current = SerializationUtils.deserialize(truncationData.getData());
+                    if (current.isUpdating()) {
+                        StreamTruncationRecord truncationRecord = current.getProperty();
+                        StreamProperty<StreamTruncationRecord> completedProp = StreamProperty.complete(truncationRecord.mergeDeleted());
+
+                        return setTruncationData(new Data<>(SerializationUtils.serialize(completedProp), truncationData.getVersion()));
+                    } else {
+                        // idempotent
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<StreamTruncationRecord> getTruncationRecord() {
+        return getTruncationProperty(false).thenApply(StreamProperty::getProperty);
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached) {
+        return getTruncationData(ignoreCached)
+                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
+    }
+
     /**
      * Update configuration at configurationPath.
      *
@@ -174,9 +235,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .thenCompose(configData -> {
                     StreamProperty<StreamConfiguration> current = SerializationUtils.deserialize(configData.getData());
                     Preconditions.checkNotNull(current);
-                    Preconditions.checkArgument(current.isUpdating());
-                    StreamProperty<StreamConfiguration> newProperty = StreamProperty.complete(current.getProperty());
-                    return setConfigurationData(new Data<>(SerializationUtils.serialize(newProperty), configData.getVersion()));
+                    if (current.isUpdating()) {
+                        StreamProperty<StreamConfiguration> newProperty = StreamProperty.complete(current.getProperty());
+                        log.debug("Completing update configuration for stream {}/{}", scope, name);
+                        return setConfigurationData(new Data<>(SerializationUtils.serialize(newProperty), configData.getVersion()));
+                    } else {
+                        // idempotent
+                        return CompletableFuture.completedFuture(null);
+                    }
                 });
     }
 
@@ -193,64 +259,6 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached) {
         return getConfigurationData(ignoreCached)
-                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
-    }
-
-    @Override
-    public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
-        return FutureHelpers.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
-                new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
-                .collect(Collectors.toList()))
-                .thenAccept(list -> {
-                    // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
-                    List<SimpleEntry<Double, Double>> reduced = TableHelper.reduce(list);
-                    Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
-                            reduced.get(0).getValue().equals(1.0), "streamCut",
-                            " Invalid input, Stream Cut does not cover full key range.");
-                }).thenCompose(valid -> getTruncationData(true)
-                        .thenCompose(truncationData -> {
-                            Preconditions.checkNotNull(truncationData);
-                            StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
-                            Exceptions.checkArgument(!previous.isUpdating(), "TruncationRecord", "Truncation record conflict");
-
-                            return computeTruncationRecord(previous.getProperty(), streamCut)
-                                    .thenApply(StreamProperty::update)
-                                    .thenCompose(prop -> setTruncationData(
-                                            new Data<>(SerializationUtils.serialize(prop), truncationData.getVersion())));
-                        }));
-    }
-
-    private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord truncationRecord,
-                                                                              Map<Integer, Long> streamCut) {
-        return getHistoryTableFromStore()
-                .thenCompose(history -> getSegmentTableFromStore()
-                        .thenCompose(segment -> getIndexTable()
-                                .thenApply(index -> TableHelper.computeTruncationRecord(index.getData(), history.getData(),
-                                        segment.getData(), streamCut, truncationRecord))));
-    }
-
-    @Override
-    public CompletableFuture<Void> completeTruncation(int truncationEpochLow, int truncationEpochHigh, Set<Integer> deleted) {
-        return getTruncationData(true)
-                .thenCompose(truncationData -> {
-                    Preconditions.checkNotNull(truncationData);
-                    StreamProperty<StreamTruncationRecord> current = SerializationUtils.deserialize(truncationData.getData());
-                    Exceptions.checkArgument(current.isUpdating(), "current truncation record", "truncation not updating");
-
-                    StreamProperty<StreamTruncationRecord> completedProp = StreamProperty.complete(current.getProperty());
-
-                    return setTruncationData(new Data<>(SerializationUtils.serialize(completedProp), truncationData.getVersion()));
-                });
-    }
-
-    @Override
-    public CompletableFuture<StreamTruncationRecord> getTruncationRecord() {
-        return getTruncationProperty(false).thenApply(StreamProperty::getProperty);
-    }
-
-    @Override
-    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached) {
-        return getTruncationData(ignoreCached)
                 .thenApply(data -> SerializationUtils.deserialize(data.getData()));
     }
 
@@ -411,18 +419,19 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments(final long timestamp) {
-        final CompletableFuture<Data<T>> indexFuture = verifyLegalState().thenCompose(v -> getIndexTable());
-
-        final CompletableFuture<Data<T>> historyFuture = getHistoryTable();
         final CompletableFuture<StreamTruncationRecord> truncationFuture = getTruncationRecord();
 
         return truncationFuture
-                .thenCompose(truncationRecord -> indexFuture.thenCombine(historyFuture,
-                        (indexTable, historyTable) -> TableHelper.getActiveSegments(timestamp,
-                                indexTable.getData(),
-                                historyTable.getData(),
-                                truncationRecord
-                                )));
+                .thenCompose(truncationRecord ->
+                        getHistoryTable().thenCompose(historyTable ->
+                                getIndexTable().thenCompose(indexTable ->
+                                        getSegmentTable().thenApply(segmentTable ->
+                                                TableHelper.getActiveSegments(timestamp,
+                                                        indexTable.getData(),
+                                                        historyTable.getData(),
+                                                        segmentTable.getData(),
+                                                        truncationRecord
+                                                )))));
     }
 
     @Override

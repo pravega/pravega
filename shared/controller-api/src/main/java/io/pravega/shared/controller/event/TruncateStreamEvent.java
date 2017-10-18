@@ -11,7 +11,6 @@ package io.pravega.shared.controller.event;
 
 import lombok.Data;
 
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @Data

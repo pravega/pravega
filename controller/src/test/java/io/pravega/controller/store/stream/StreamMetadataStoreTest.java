@@ -447,7 +447,7 @@ public abstract class StreamMetadataStoreTest {
 
         final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
-        StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true,null, executor).join();
+        StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
         assertFalse(configProperty.isUpdating());
         // run update configuration multiple times
         assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
@@ -576,6 +576,14 @@ public abstract class StreamMetadataStoreTest {
         deleteResponse = store.tryDeleteEpochIfScaling(scope, stream, 1, null, executor).get(); // should not delete epoch
         // now that new segments are created, we should be able to delete old epoch.
         assertEquals(true, deleteResponse.isDeleted());
+    }
+
+    @Test
+    public void truncationTest() throws Exception {
+        // TODO shivesh
+        // start truncation
+        // verify that it is truncating
+        //
     }
 }
 

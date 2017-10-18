@@ -74,7 +74,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -231,7 +230,7 @@ public class StreamMetadataTasksTest {
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop2::set), executor).join();
 
-        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
+        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
         assertTrue(configProp.getProperty().equals(streamConfiguration1) && configProp.isUpdating());
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
@@ -249,7 +248,7 @@ public class StreamMetadataTasksTest {
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
 
-        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true,null, executor).join();
+        configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
         assertTrue(configProp.getProperty().equals(streamConfiguration1) && !configProp.isUpdating());
     }
 

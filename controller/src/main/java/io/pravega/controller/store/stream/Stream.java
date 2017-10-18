@@ -20,7 +20,6 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -103,12 +102,9 @@ interface Stream {
     /**
      * Completes an ongoing stream truncation.
      *
-     * @param truncationEpochLow  highest epoch when all segments in stream cut were unsealed or not created.
-     * @param truncationEpochHigh lowest epoch when all segments in stream cut were created.
-     * @param deleted             segments deleted as part of this truncation.
      * @return future of operation.
      */
-    CompletableFuture<Void> completeTruncation(final int truncationEpochLow, final int truncationEpochHigh, final Set<Integer> deleted);
+    CompletableFuture<Void> completeTruncation();
 
     /**
      * Fetches the current stream cut.

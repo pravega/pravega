@@ -10,17 +10,20 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.StreamProperty;
+import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -62,10 +65,27 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
                                                     OperationContext context) {
-        // 1. highepoch = find epoch for highest segment number in truncation record
-        // 2. low epoch = fall back one record at a time to find the record that overlaps with this truncation record.
-        // 3. so this becomes our high and low
-        return null;
+        return FutureHelpers.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
+                .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut()))
+                .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete()))
+                .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, context, executor))
+                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+    }
+
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete) {
+        log.debug("{}/{} deleting segments", scope, stream);
+        return FutureHelpers.allOf(segmentsToDelete.stream()
+                .parallel()
+                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut) {
+        log.debug("{}/{} truncating segments", scope, stream);
+        return FutureHelpers.allOf(streamCut.entrySet().stream()
+                .parallel()
+                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut))
+                .collect(Collectors.toList()));
     }
 
     @Override

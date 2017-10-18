@@ -186,10 +186,11 @@ public interface StreamMetadataStore {
     /**
      * Fetches the current stream configuration.
      *
-     * @param scope    stream scope
-     * @param name     stream name.
-     * @param context  operation context
-     * @param executor callers executor
+     * @param scope        stream scope
+     * @param name         stream name.
+     * @param ignoreCached ignore cached value.
+     * @param context      operation context
+     * @param executor     callers executor
      * @return current stream configuration.
      */
     CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(final String scope, final String name,
@@ -218,18 +219,12 @@ public interface StreamMetadataStore {
      *
      * @param scope               stream scope
      * @param name                stream name.
-     * @param truncationEpochLow  highest epoch when all segments in stream cut were unsealed or not created.
-     * @param truncationEpochHigh lowest epoch when all segments in stream cut were created.
-     * @param deletedSegments     segments deleted as part of this truncation.
      * @param context             operation context
      * @param executor            callers executor
      * @return boolean indicating whether the stream was updated
      */
     CompletableFuture<Void> completeTruncation(final String scope,
                                                final String name,
-                                               final int truncationEpochLow,
-                                               final int truncationEpochHigh,
-                                               final Set<Integer> deletedSegments,
                                                final OperationContext context,
                                                final Executor executor);
 

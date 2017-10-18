@@ -225,7 +225,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-
     /**
      * List the streams in scope.
      *
@@ -240,6 +239,37 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             .map(s -> getStream(scopeName, s, null).getConfiguration())
                             .collect(Collectors.toList()));
         });
+    }
+
+
+    @Override
+    public CompletableFuture<Void> startTruncation(final String scope,
+                                                   final String name,
+                                                   final Map<Integer, Long> streamCut,
+                                                   final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).startTruncation(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name,
+                                                      final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeTruncation(), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope,
+                                                                         final String name,
+                                                                         final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope,
+                                                                                           final String name,
+                                                                                           final boolean ignoreCached,
+                                                                                           final OperationContext context,
+                                                                                           final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationProperty(ignoreCached), executor);
     }
 
     @Override
@@ -271,38 +301,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                                            final OperationContext context,
                                                                                            final Executor executor) {
         return withCompletion(getStream(scope, name, context).getConfigurationProperty(ignoreCached), executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> startTruncation(final String scope,
-                                                   final String name,
-                                                   final Map<Integer, Long> streamCut,
-                                                   final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).startTruncation(streamCut), executor);
-    }
-
-    @Override
-    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final int truncationEpochLow,
-                                                      final int truncationEpochHigh, final Set<Integer> deletedSegments,
-                                                      final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).completeTruncation(truncationEpochLow, truncationEpochHigh,
-                deletedSegments), executor);
-    }
-
-    @Override
-    public CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope,
-                                                                         final String name,
-                                                                         final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
-    }
-
-    @Override
-    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(final String scope,
-                                                                                           final String name,
-                                                                                           final boolean ignoreCached,
-                                                                                           final OperationContext context,
-                                                                                           final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getTruncationProperty(ignoreCached), executor);
     }
 
     @Override

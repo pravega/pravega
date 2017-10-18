@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream.tables;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -22,9 +23,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -102,11 +105,12 @@ public class TableHelper {
      * @param timestamp        timestamp
      * @param indexTable       index table
      * @param historyTable     history table
+     * @param segmentTable     segment table
      * @param truncationRecord truncation record
      * @return list of active segments.
      */
     public static List<Integer> getActiveSegments(final long timestamp, final byte[] indexTable, final byte[] historyTable,
-                                                  final StreamTruncationRecord truncationRecord) {
+                                                  final byte[] segmentTable, final StreamTruncationRecord truncationRecord) {
         Optional<HistoryRecord> recordOpt = HistoryRecord.readRecord(historyTable, 0, true);
         if (recordOpt.isPresent() && timestamp > recordOpt.get().getScaleTime()) {
             final Optional<IndexRecord> indexOpt = IndexRecord.search(timestamp, indexTable).getValue();
@@ -120,21 +124,25 @@ public class TableHelper {
             if (truncationRecord == null) {
                 segments = record.getSegments();
             } else {
+                // case 1: if record.epoch is before truncation, simply pick the truncation stream cut
                 if (record.getEpoch() < truncationRecord.getTruncationEpochLow()) {
                     segments = Lists.newArrayList(truncationRecord.getStreamCut().keySet());
                 } else if (record.getEpoch() > truncationRecord.getTruncationEpochHigh()) {
+                    // case 2: if record.epoch is after truncation, simply use the record epoch
                     segments = record.getSegments();
                 } else {
+                    // case 3: overlap between requested epoch and stream cut.
+                    // take segments from stream cut that are from or aftergit re this epoch.
+                    // take remaining segments from this epoch.
                     segments = new ArrayList<>();
                     // all segments from stream cut that have epoch >= this epoch
-                    List<Integer> fromStreamCut = truncationRecord.getTruncationEpochMap().entrySet().stream()
-                            .filter(x -> x.getKey() >= record.getEpoch())
-                            .map(Map.Entry::getValue).flatMap(List::stream)
+                    List<Integer> fromStreamCut = truncationRecord.getCutSegmentEpochMap().entrySet().stream()
+                            .filter(x -> x.getValue() >= record.getEpoch())
+                            .map(Map.Entry::getKey)
                             .collect(Collectors.toList());
 
                     segments.addAll(fromStreamCut);
-                    // remaining segments that dont overlap with those taken from streamCut.
-                    // TODO: shivesh: get segment table
+                    // put remaining segments as those that dont overlap with ones taken from streamCut.
                     segments.addAll(record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
                             getSegment(x, segmentTable).overlaps(getSegment(y, segmentTable))))
                             .collect(Collectors.toList()));
@@ -153,34 +161,16 @@ public class TableHelper {
         Preconditions.checkNotNull(segmentTable);
         Preconditions.checkArgument(!streamCut.isEmpty());
 
-        // TODO: shivesh
-        // verify that streamcut and previous truncation are disjoint and stream cut is strictly greater than previous
+        Map<Integer, Integer> epochCutMap = computeEpochCutMap(historyTable, indexTable, segmentTable, streamCut);
+        Map<Segment, Integer> transformed = transform(segmentTable, epochCutMap);
 
+        Map<Segment, Integer> previousEpochCutMap = transform(segmentTable, previousTruncationRecord.getCutSegmentEpochMap());
 
+        Exceptions.checkArgument(greaterThan(transformed, previousEpochCutMap),
+                "streamCut", "stream cut has to be strictly ahead of previous stream cut");
 
-        // 1. find epoch for highest segment number in the stream cut
-        int mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
-        SegmentRecord mostRecentSegment = SegmentRecord.readRecord(segmentTable, mostRecent).get();
-
-        final HistoryRecord highEpochRecord = segmentCreationHistoryRecord(mostRecent, mostRecentSegment.getStartTime(),
-                indexTable, historyTable).get();
-
-        Map<Integer, List<Integer>> epochStreamCutMap = new HashMap<>();
-        // 2. If there are segments in stream cut not present in the epoch then stream cut is composed of multiple epochs.
-
-        List<Integer> toFind = new ArrayList<>(streamCut.keySet());
-        HistoryRecord epochRecord = highEpochRecord;
-
-        while (!toFind.isEmpty()) {
-            List<Integer> epochSegments = epochRecord.getSegments();
-            Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
-            toFind = group.get(false);
-            epochStreamCutMap.put(epochRecord.getEpoch(), group.get(true));
-            epochRecord = HistoryRecord.fetchPrevious(epochRecord, historyTable).get();
-        }
-
-        // TODO: shivesh: compute deleted segments
-        return new StreamTruncationRecord(streamCut, epochStreamCutMap, null);
+        Set<Integer> toDelete = computeToDelete(transformed, historyTable, segmentTable, previousTruncationRecord.getDeletedSegments());
+        return new StreamTruncationRecord(streamCut, epochCutMap, previousTruncationRecord.getDeletedSegments(), toDelete);
     }
 
     public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
@@ -758,6 +748,68 @@ public class TableHelper {
                 .collect(Collectors.toList());
 
         return newRangesPredicate && reduce(oldRanges).equals(reduce(newRanges));
+    }
+
+    private static Map<Segment, Integer> transform(byte[] segmentTable, Map<Integer, Integer> epochStreamCutMap) {
+        return epochStreamCutMap.entrySet().stream()
+                .collect(Collectors.toMap(entry -> getSegment(entry.getKey(), segmentTable),
+                        Map.Entry::getValue));
+    }
+
+    private static Map<Integer, Integer> computeEpochCutMap(byte[] historyTable, byte[] indexTable,
+                                                                  byte[] segmentTable, Map<Integer, Long> streamCut) {
+        Map<Integer, Integer> epochStreamCutMap = new HashMap<>();
+
+        int mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
+        Segment mostRecentSegment = getSegment(mostRecent, segmentTable);
+
+        final Optional<HistoryRecord> highEpochRecord = segmentCreationHistoryRecord(mostRecent, mostRecentSegment.getStart(),
+                indexTable, historyTable);
+
+        List<Integer> toFind = new ArrayList<>(streamCut.keySet());
+        Optional<HistoryRecord> epochRecord = highEpochRecord;
+
+        while (epochRecord.isPresent() && !toFind.isEmpty()) {
+            List<Integer> epochSegments = epochRecord.get().getSegments();
+            Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
+            toFind = group.get(false);
+            int epoch = epochRecord.get().getEpoch();
+            group.get(true).forEach(x -> epochStreamCutMap.put(x, epoch));
+            epochRecord = HistoryRecord.fetchPrevious(epochRecord.get(), historyTable);
+        }
+
+        return epochStreamCutMap;
+    }
+
+    private static Set<Integer> computeToDelete(Map<Segment, Integer> epochCutMap, byte[] historyTable,
+                                                byte[] segmentTable, Set<Integer> deletedSegments) {
+        Set<Integer> toDelete = new HashSet<>();
+        int highestEpoch = epochCutMap.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
+
+        Optional<HistoryRecord> historyRecordOpt = HistoryRecord.readRecord(historyTable, 0, true);
+
+        // start with epoch 0 and go all the way upto epochCutMap.highEpoch
+        while (historyRecordOpt.isPresent() && historyRecordOpt.get().getEpoch() <= highestEpoch) {
+            HistoryRecord historyRecord = historyRecordOpt.get();
+            int epoch = historyRecord.getEpoch();
+
+            toDelete.addAll(historyRecord.getSegments().stream().filter(epochSegmentNumber -> {
+                Segment epochSegment = getSegment(epochSegmentNumber, segmentTable);
+                // ignore already deleted segments from todelete
+                // toDelete.add(epoch.segment overlaps cut.segment && epoch < cut.segment.epoch)
+                return !deletedSegments.contains(epochSegmentNumber) &&
+                        epochCutMap.entrySet().stream().noneMatch(cutSegment -> cutSegment.getKey().getNumber() == epochSegment.getNumber() ||
+                        (cutSegment.getKey().overlaps(epochSegment) && cutSegment.getValue() <= epoch));
+            }).collect(Collectors.toSet()));
+        }
+        return toDelete;
+    }
+
+    private static boolean greaterThan(Map<Segment, Integer> map1, Map<Segment, Integer> map2) {
+        // find overlapping segments in map2 for all segments in map1
+        // compare epochs. map1 should have epochs gt or eq its overlapping segments in map2
+        return map1.entrySet().stream().allMatch(e1 ->
+                map2.entrySet().stream().noneMatch(e2 -> e2.getKey().overlaps(e1.getKey()) && e2.getValue() > e1.getValue()));
     }
 
     /**

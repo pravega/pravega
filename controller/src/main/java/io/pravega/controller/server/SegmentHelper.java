@@ -93,6 +93,16 @@ public class SegmentHelper {
         return result;
     }
 
+    public CompletableFuture<Boolean> truncateSegment(final String scope,
+                                                    final String stream,
+                                                    final int segmentNumber,
+                                                    final long offset,
+                                                    final HostControllerStore hostControllerStore,
+                                                    final ConnectionFactory clientCF) {
+        // TODO: Issue #1965
+        return CompletableFuture.completedFuture(null);
+    }
+
     public CompletableFuture<Boolean> deleteSegment(final String scope,
                                                     final String stream,
                                                     final int segmentNumber,
@@ -132,7 +142,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), 
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
                 Segment.getScopedName(scope, stream, segmentNumber));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;

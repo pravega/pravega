@@ -67,7 +67,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         return FutureHelpers.toVoid(streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor)
                 .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getProperty()))
                 .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, context, executor))
-                        .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
     private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream, StreamConfiguration newConfig) {

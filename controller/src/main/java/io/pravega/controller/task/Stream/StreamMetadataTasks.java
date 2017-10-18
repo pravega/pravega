@@ -583,9 +583,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
+    public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
         return FutureHelpers.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
                 stream, segmentNumber, hostControllerStore, this.connectionFactory), executor));
+    }
+
+    public CompletableFuture<Void> notifyTruncateSegment(String scope, String stream, Map.Entry<Integer, Long> segmentCut) {
+        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope,
+                stream, segmentCut.getKey(), segmentCut.getValue(), hostControllerStore, this.connectionFactory), executor));
     }
 
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {

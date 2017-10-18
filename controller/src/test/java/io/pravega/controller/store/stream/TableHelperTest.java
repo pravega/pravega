@@ -77,22 +77,22 @@ public class TableHelperTest {
         activeSegments = TableHelper.getActiveSegments(historyTable);
         assertEquals(activeSegments, newSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(timestamp, new byte[0], historyTable, null, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(0, new byte[0], historyTable, null, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(timestamp - 1, new byte[0], historyTable, null, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 1, new byte[0], historyTable, null, null);
         assertEquals(startSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 2, new byte[0], historyTable, null, null);
         assertEquals(newSegments, activeSegments);
 
-        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable, null);
+        activeSegments = TableHelper.getActiveSegments(timestamp + 3, new byte[0], historyTable, null, null);
         assertEquals(newSegments, activeSegments);
     }
 
@@ -831,6 +831,13 @@ public class TableHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
         assertFalse(TableHelper.isScaleInputValid(Lists.newArrayList(1), newRanges, segmentTable));
+    }
+
+    @Test
+    public void truncationTest() {
+        // TODO: shivesh
+        // 1. compute truncation
+        // 2. getactivesegments with previous truncation.
     }
 
     private byte[] createSegmentTable(int numSegments, long eventTime) {
