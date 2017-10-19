@@ -17,9 +17,9 @@ import io.pravega.client.batch.SegmentInfo;
 public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
-     * Returns info for the  
+     * Returns info for the current segment.
      * 
-     * @return
+     * @return Metadata about the segment.
      */
     abstract SegmentInfo getSegmentInfo();
     

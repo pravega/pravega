@@ -19,7 +19,7 @@ public class SegmentInfo {
 
     private final Segment segment;
     private final long length;
-//    private final long creationTime;
+    // private final long creationTime;
     private final boolean isSealed;
     private final long lastModifiedTime;
 

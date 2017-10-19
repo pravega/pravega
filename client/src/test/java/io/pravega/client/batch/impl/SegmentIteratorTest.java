@@ -35,7 +35,7 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> {}, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
@@ -59,7 +59,7 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> {}, config);
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
@@ -69,11 +69,11 @@ public class SegmentIteratorTest {
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
         assertEquals(0, iter.getOffset());
         assertEquals("1", iter.next());
-        assertEquals(length/3, iter.getOffset());
+        assertEquals(length / 3, iter.getOffset());
         assertEquals("2", iter.next());
-        assertEquals(length/3*2, iter.getOffset());
+        assertEquals(length / 3 * 2, iter.getOffset());
         assertTrue(iter.hasNext());
-        assertEquals(length/3*2, iter.getOffset());
+        assertEquals(length / 3 * 2, iter.getOffset());
         assertEquals("3", iter.next());
         assertEquals(length, iter.getOffset());
         assertThrows(NoSuchElementException.class, () -> iter.next());
