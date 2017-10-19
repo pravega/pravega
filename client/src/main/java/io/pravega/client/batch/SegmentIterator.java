@@ -16,7 +16,7 @@ import java.util.Iterator;
  * Please note this is an experimental API.
  * 
  * Allows for reading data from a segment. Returns an item from {@link #next()} for each event in
- * the segment at the time of its creation. Once all the events that were in the stream at the time
+ * the segment at the time of its creation. Once all the events that were in the segment at the time
  * of the creation of the SegmentIterator have been returned {@link #hasNext()} will return false.
  *
  * While buffering is used to avoid it, it is possible for {@link #next()} to block on fetching the
@@ -45,6 +45,7 @@ public interface SegmentIterator<T> extends Iterator<T>, AutoCloseable {
      * 
      * @see java.lang.AutoCloseable#close()
      */
+    @Override
     void close();
 
 }
