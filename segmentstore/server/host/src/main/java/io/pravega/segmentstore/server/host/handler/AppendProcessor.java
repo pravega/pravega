@@ -132,7 +132,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void hello(Hello hello) {
         log.info("Received hello from connection: {}", connection);
-        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
     }
 
     /**

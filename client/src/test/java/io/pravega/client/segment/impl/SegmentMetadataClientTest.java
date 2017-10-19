@@ -50,7 +50,7 @@ public class SegmentMetadataClientTest {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 processor.streamSegmentInfo(new StreamSegmentInfo(1, segment.getScopedName(), true, false, false, 0,
-                                                                  123));
+                                                                  123, 121));
                 return null;
             }
         }).when(connection).send(new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName()));
@@ -128,7 +128,7 @@ public class SegmentMetadataClientTest {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 processor.streamSegmentInfo(new StreamSegmentInfo(2, segment.getScopedName(), true, false, false, 0,
-                                                                  123));
+                                                                  123, 121));
                 return null;
             }
         }).when(connection).send(getSegmentInfo2);
@@ -168,7 +168,7 @@ public class SegmentMetadataClientTest {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 processor.get().streamSegmentInfo(new StreamSegmentInfo(3, segment.getScopedName(), true, false, false, 0,
-                                                                  123));
+                                                                  123, 121));
                 return null;
             }
         }).when(connection2).send(getSegmentInfo2);

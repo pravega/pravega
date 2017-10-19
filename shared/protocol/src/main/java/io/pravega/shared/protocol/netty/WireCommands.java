@@ -43,7 +43,7 @@ import lombok.experimental.Accessors;
  */
 public final class WireCommands {
     public static final int WIRE_VERSION = 1;
-    public static final int OLDEST_COMPATABLE_VERSION = 1;
+    public static final int OLDEST_COMPATIBLE_VERSION = 1;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
     public static final int MAX_WIRECOMMAND_SIZE = 0x007FFFFF; // 8MB
@@ -145,6 +145,33 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentIsSealed(requestId, segment);
+        }
+    }
+
+    @Data
+    public static final class SegmentIsTruncated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_IS_TRUNCATED;
+        final long requestId;
+        final String segment;
+        final long startOffset;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentIsTruncated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeLong(startOffset);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            long startOffset = in.readLong();
+            return new SegmentIsTruncated(requestId, segment, startOffset);
         }
     }
 
@@ -766,6 +793,7 @@ public final class WireCommands {
         final boolean isDeleted;
         final long lastModified;
         final long segmentLength;
+        final long startOffset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -781,6 +809,7 @@ public final class WireCommands {
             out.writeBoolean(isDeleted);
             out.writeLong(lastModified);
             out.writeLong(segmentLength);
+            out.writeLong(startOffset);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -791,7 +820,9 @@ public final class WireCommands {
             boolean isDeleted = in.readBoolean();
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
-            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength);
+            long startOffset = in.readLong();
+            // TODO: proper versioning.
+            return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength, startOffset);
         }
     }
 
@@ -1196,6 +1227,57 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             return new SegmentSealed(requestId, segment);
+        }
+    }
+
+    @Data
+    public static final class TruncateSegment implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
+        final long requestId;
+        final String segment;
+        final long truncationOffset;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.truncateSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeLong(truncationOffset);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            long truncationOffset = in.readLong();
+            return new TruncateSegment(requestId, segment, truncationOffset);
+        }
+    }
+
+    @Data
+    public static final class SegmentTruncated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_TRUNCATED;
+        final long requestId;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.segmentTruncated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            return new SegmentTruncated(requestId, segment);
         }
     }
 
