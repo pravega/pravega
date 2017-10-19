@@ -9,9 +9,11 @@
  */
 package io.pravega.client.batch;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.stream.Stream;
 import lombok.Data;
 
+@Beta
 @Data
 public class StreamInfo {
 

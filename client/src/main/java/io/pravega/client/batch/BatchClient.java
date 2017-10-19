@@ -9,6 +9,7 @@
  */
 package io.pravega.client.batch;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReaderGroup;
@@ -18,6 +19,8 @@ import java.util.Date;
 import java.util.Iterator;
 
 /**
+ * Please note this is an experimental API.
+ * 
  * Used to get metadata about and read from an existing streams.
  * <p>
  * All events written to a stream will be visible atomically and their existence reflected in {@link SegmentInfo#getLength()} and 
@@ -36,6 +39,7 @@ import java.util.Iterator;
  * that the way a stream is divided between multiple readers in a group that wish to split the
  * messages between them is by giving different segments to different readers.
  */
+@Beta
 public interface BatchClient {
 
     /**

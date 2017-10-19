@@ -9,8 +9,27 @@
  */
 package io.pravega.client.batch;
 
+import com.google.common.annotations.Beta;
 import java.util.Iterator;
 
+/**
+ * Please note this is an experimental API.
+ * 
+ * Allows for reading data from a segment. Returns an item from {@link #next()} for each event in
+ * the segment at the time of its creation. Once all the events that were in the stream at the time
+ * of the creation of the SegmentIterator have been returned {@link #hasNext()} will return false.
+ *
+ * While buffering is used to avoid it, it is possible for {@link #next()} to block on fetching the
+ * data.
+ * 
+ * At any time {@link #getOffset()} can be called to get the byte offset in the segment the iterator
+ * is currently pointing to. This can be used to call
+ * {@link BatchClient#readSegment(io.pravega.client.segment.impl.Segment, io.pravega.client.stream.Serializer, long, long)}
+ * to create another SegmentIterator at this offset.
+ * 
+ * @param <T> The type of the events written to this segment.
+ */
+@Beta
 public interface SegmentIterator<T> extends Iterator<T>, AutoCloseable {
 
     /**

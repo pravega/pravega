@@ -9,9 +9,11 @@
  */
 package io.pravega.client.batch;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.segment.impl.Segment;
 import lombok.Data;
 
+@Beta
 @Data
 public class SegmentInfo {
 

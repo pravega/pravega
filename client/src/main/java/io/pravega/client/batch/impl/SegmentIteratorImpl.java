@@ -1,5 +1,6 @@
 package io.pravega.client.batch.impl;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -10,6 +11,7 @@ import java.util.NoSuchElementException;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
+@Beta
 public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
 
     private final Serializer<T> deserializer;

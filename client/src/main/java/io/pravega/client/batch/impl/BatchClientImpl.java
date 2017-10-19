@@ -1,5 +1,6 @@
 package io.pravega.client.batch.impl;
 
+import com.google.common.annotations.Beta;
 import com.google.common.collect.Iterators;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentInfo;
@@ -27,6 +28,7 @@ import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
+@Beta
 public class BatchClientImpl implements BatchClient {
 
     private final Controller controller;
