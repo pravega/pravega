@@ -180,6 +180,21 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testTruncateSegment() throws IOException {
+        testCommand(new WireCommands.TruncateSegment(l, testString1, l + 1));
+    }
+
+    @Test
+    public void testSegmentTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentTruncated(l, testString1));
+    }
+
+    @Test
+    public void testSegmentIsTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1));
+    }
+
+    @Test
     public void testDeleteSegment() throws IOException {
         testCommand(new WireCommands.DeleteSegment(l, testString1));
     }

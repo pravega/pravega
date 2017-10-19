@@ -86,7 +86,7 @@ public enum WireCommandType {
     NO_SUCH_SEGMENT(53, WireCommands.NoSuchSegment::readFrom),
     NO_SUCH_TRANSACTION(54, WireCommands.NoSuchTransaction::readFrom),
     INVALID_EVENT_NUMBER(55, WireCommands.InvalidEventNumber::readFrom),
-    SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsSealed::readFrom),
+    SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsTruncated::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
