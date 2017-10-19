@@ -9,24 +9,24 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.CorruptedFrameException;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-
-import com.google.common.base.Preconditions;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.CorruptedFrameException;
 import lombok.Data;
 import lombok.experimental.Accessors;
+
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
@@ -65,7 +65,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        WireCommand readFrom(DataInput in, int length) throws IOException;
+        <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException;
     }
 
     @Data
@@ -812,7 +812,7 @@ public final class WireCommands {
             out.writeLong(startOffset);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
             long requestId = in.readLong();
             String segmentName = in.readUTF();
             boolean exists = in.readBoolean();
@@ -820,8 +820,11 @@ public final class WireCommands {
             boolean isDeleted = in.readBoolean();
             long lastModified = in.readLong();
             long segmentLength = in.readLong();
-            long startOffset = in.readLong();
-            // TODO: proper versioning.
+            long startOffset = 0;
+            if (in.available() >= Long.BYTES) {
+                // Versioning workaround until PDP-21 is implemented (https://github.com/pravega/pravega/issues/1948).
+                startOffset = in.readLong();
+            }
             return new StreamSegmentInfo(requestId, segmentName, exists, isSealed, isDeleted, lastModified, segmentLength, startOffset);
         }
     }

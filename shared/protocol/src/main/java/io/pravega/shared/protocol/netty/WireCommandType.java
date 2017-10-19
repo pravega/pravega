@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * The various types of commands that can be sent over the wire.
@@ -102,7 +103,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(DataInput in, int length) throws IOException {
+    public <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }
