@@ -151,7 +151,7 @@ public class ReaderGroupNotificationTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
         ReaderGroup readerGroup = groupManager.createReaderGroup("reader", ReaderGroupConfig
-                .builder().automaticCheckpointIntervalMillis(-1).build(), Collections.singleton(streamName));
+                .builder().disableAutomaticCheckpoints().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
@@ -213,7 +213,7 @@ public class ReaderGroupNotificationTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
         ReaderGroup readerGroup = groupManager.createReaderGroup("reader", ReaderGroupConfig
-                .builder().automaticCheckpointIntervalMillis(-1).build(), Collections.singleton(streamName));
+                .builder().disableAutomaticCheckpoints().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());

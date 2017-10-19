@@ -126,7 +126,7 @@ public class EndToEndWithScaleTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(-1).
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().
                 build(), Collections.singleton("test"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
