@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
@@ -28,6 +29,7 @@ import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import java.io.ByteArrayInputStream;
@@ -171,6 +173,42 @@ public class PravegaRequestProcessorTest {
         verifyNoMoreInteractions(store);
     }
 
+
+    @Test(timeout = 20000)
+    public void testReadSegmentTruncated() {
+        // Set up PravegaRequestProcessor instance to execute read segment request against
+        String streamSegmentName = "testReadSegment";
+        int readLength = 1000;
+
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        TestReadResultEntry entry1 = new TestReadResultEntry(ReadResultEntryType.Truncated, 0, readLength);
+
+        List<ReadResultEntry> results = new ArrayList<>();
+        results.add(entry1);
+        CompletableFuture<ReadResult> readResult = new CompletableFuture<>();
+        readResult.complete(new TestReadResult(0, readLength, results));
+        when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
+
+        StreamSegmentInformation info = StreamSegmentInformation.builder()
+                .name(streamSegmentName)
+                .length(1234)
+                .startOffset(123)
+                .build();
+        when(store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(info));
+
+        // Execute and Verify readSegment calling stack in connection and store is executed as design.
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength));
+        verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
+        verify(store).getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT);
+        verify(connection).send(new WireCommands.SegmentIsTruncated(0, streamSegmentName, info.getStartOffset()));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
     @Test(timeout = 20000)
     public void testCreateSegment() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
@@ -307,7 +345,7 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 20000)
-    public void testCreateSealDelete() throws Exception {
+    public void testCreateSealTruncateDelete() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
         String streamSegmentName = "testCreateSealDelete";
         @Cleanup
@@ -318,18 +356,31 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
-        // Execute create/seal/delete Segment command.
+        // Create a segment and append 2 bytes.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
         assertTrue(append(streamSegmentName, 1, store));
+        assertTrue(append(streamSegmentName, 2, store));
+
         processor.sealSegment(new WireCommands.SealSegment(2, streamSegmentName));
         assertFalse(append(streamSegmentName, 2, store));
-        processor.deleteSegment(new WireCommands.DeleteSegment(3, streamSegmentName));
-        assertFalse(append(streamSegmentName, 3, store));
+
+        // Truncate half.
+        final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+                .join().getLength() / 2;
+        AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
+        processor.truncateSegment(new WireCommands.TruncateSegment(3, streamSegmentName, truncateOffset));
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+                .join().getStartOffset());
+
+        // Delete.
+        processor.deleteSegment(new WireCommands.DeleteSegment(4, streamSegmentName));
+        assertFalse(append(streamSegmentName, 4, store));
 
         // Verify connection response with same order.
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         order.verify(connection).send(new WireCommands.SegmentSealed(2, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(3, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentTruncated(3, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(4, streamSegmentName));
     }
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {

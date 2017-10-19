@@ -91,6 +91,7 @@ import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
+import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
@@ -180,7 +181,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
 
-        boolean truncated = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
+        boolean truncated = nonCachedEntry != null && nonCachedEntry.getType() == Truncated;
         boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
