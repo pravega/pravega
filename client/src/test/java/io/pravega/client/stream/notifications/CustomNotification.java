@@ -9,13 +9,12 @@
  */
 package io.pravega.client.stream.notifications;
 
-import io.pravega.client.stream.notifications.events.Event;
 import lombok.Builder;
 
 /**
- * Represents a customEvent.
+ * Represents a customNotification.
  */
 @Builder
-public class CustomEvent extends Event {
+class CustomNotification extends Notification {
     //no attributes.
 }

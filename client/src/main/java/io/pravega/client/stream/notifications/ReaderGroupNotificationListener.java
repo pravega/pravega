@@ -11,18 +11,15 @@ package io.pravega.client.stream.notifications;
 
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.client.stream.notifications.events.EndOfDataEvent;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
-
 /**
- * ReaderGroup event listener interface. This has the list of events supported by ReaderGroup.
+ * ReaderGroup notification listener interface. This has the list of notifications supported by ReaderGroup.
  */
-public interface ReaderGroupEventListener {
+public interface ReaderGroupNotificationListener {
 
     /**
-     * Get a segment event notifier for a given reader group.
+     * Get a segment notifier for a given reader group.
      * <br>
-     * A segment event notifier is triggered when the total number of segments managed by the ReaderGroup changes.
+     * A segment notifier is triggered when the total number of segments managed by the ReaderGroup changes.
      * During a scale operation segments can be split into multiple or merge into some other segment causing the total
      * number of segments to change. The total number of segments can also change when configuration of the
      * reader group is changed, for example modify the configuration of a reader group to add/remove a stream.
@@ -33,10 +30,10 @@ public interface ReaderGroupEventListener {
      * the notifier is not triggered.
      *
      * @param executor executor on which the listeners run.
-     * @return Observable of type SegmentEvent.
+     * @return Observable of type SegmentNotification.
      *
      */
-    Observable<SegmentEvent> getSegmentEventNotifier(final ScheduledExecutorService executor);
+    Observable<SegmentNotification> getSegmentNotifier(final ScheduledExecutorService executor);
 
     /**
      * Get an end of data notifier for a given reader group.
@@ -47,12 +44,12 @@ public interface ReaderGroupEventListener {
      * <P>
      * Note:
      * <br>
-     * * In case of a reader group managing streams, where not all streams are sealed, then EndOfDataEvent notifier
+     * * In case of a reader group managing streams, where not all streams are sealed, then EndOfDataNotification notifier
      * is never triggered since readers continue reading the unsealed stream once it has completed reading the sealed
      * stream.
      *
      * @param executor executor on which the listeners run.
-     * @return Observable of type EndOfDataEvent.
+     * @return Observable of type EndOfDataNotification.
      */
-    Observable<EndOfDataEvent> getEndOfDataEventNotifier(final ScheduledExecutorService executor);
+    Observable<EndOfDataNotification> getEndOfDataNotifier(final ScheduledExecutorService executor);
 }

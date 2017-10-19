@@ -18,14 +18,14 @@ import java.util.function.Supplier;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.Listener;
+import io.pravega.client.stream.notifications.Notification;
 import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.events.Event;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public abstract class AbstractPollingEventNotifier<T extends Event> extends AbstractEventNotifier<T> {
+public abstract class AbstractPollingNotifier<T extends Notification> extends AbstractNotifier<T> {
 
     @GuardedBy("$lock")
     StateSynchronizer<ReaderGroupState> synchronizer;
@@ -34,8 +34,8 @@ public abstract class AbstractPollingEventNotifier<T extends Event> extends Abst
     private final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
 
-    AbstractPollingEventNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor,
-                                 final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
+    AbstractPollingNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor,
+                            final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
         super(notifySystem, executor);
         this.synchronizerSupplier = synchronizerSupplier;
     }

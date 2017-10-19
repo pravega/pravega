@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications.events;
+package io.pravega.client.stream.notifications;
 
 /**
- * Class to represent a end of data event. This event is generated when all the streams(sealed) managed by the reader
- * group are completely read by the readers.
+ * Class to represent a end of data notification. This notification is generated when all the streams(sealed) managed by
+ * the reader group are completely read by the readers.
  */
-public class EndOfDataEvent extends Event {
+public class EndOfDataNotification extends Notification {
 }

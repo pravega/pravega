@@ -18,27 +18,27 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
+import io.pravega.client.stream.notifications.SegmentNotification;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SegmentEventNotifier extends AbstractPollingEventNotifier<SegmentEvent> {
+public class SegmentNotifier extends AbstractPollingNotifier<SegmentNotification> {
     private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
-            System.getProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(120)));
+            System.getProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(120)));
     @GuardedBy("$lock")
     private int numberOfSegments = 0;
 
-    public SegmentEventNotifier(final NotificationSystem notifySystem,
-                                final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
-                                final ScheduledExecutorService executor) {
+    public SegmentNotifier(final NotificationSystem notifySystem,
+                           final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
+                           final ScheduledExecutorService executor) {
         super(notifySystem, executor, synchronizerSupplier);
     }
 
     @Override
     @Synchronized
-    public void registerListener(final Listener<SegmentEvent> listener) {
+    public void registerListener(final Listener<SegmentNotification> listener) {
         notifySystem.addListeners(getType(), listener, this.executor);
         //periodically fetch the segment count.
         startPolling(this::checkAndTriggerSegmentNotification, UPDATE_INTERVAL_SECONDS);
@@ -46,7 +46,7 @@ public class SegmentEventNotifier extends AbstractPollingEventNotifier<SegmentEv
 
     @Override
     public String getType() {
-        return SegmentEvent.class.getSimpleName();
+        return SegmentNotification.class.getSimpleName();
     }
 
     private void checkAndTriggerSegmentNotification() {
@@ -57,12 +57,12 @@ public class SegmentEventNotifier extends AbstractPollingEventNotifier<SegmentEv
 
         if (this.numberOfSegments == 0) { //initialize the number of segments.
             this.numberOfSegments = newNumberOfSegments;
-        } else if (this.numberOfSegments != newNumberOfSegments) { // SegmentEvent has happened.
+        } else if (this.numberOfSegments != newNumberOfSegments) { // SegmentNotification has happened.
             this.numberOfSegments = newNumberOfSegments;
-            SegmentEvent event = SegmentEvent.builder().numOfSegments(state.getNumberOfSegments())
-                                             .numOfReaders(state.getOnlineReaders().size())
-                                             .build();
-            notifySystem.notify(event);
+            SegmentNotification notification = SegmentNotification.builder().numOfSegments(state.getNumberOfSegments())
+                                                           .numOfReaders(state.getOnlineReaders().size())
+                                                           .build();
+            notifySystem.notify(notification);
         }
     }
 }

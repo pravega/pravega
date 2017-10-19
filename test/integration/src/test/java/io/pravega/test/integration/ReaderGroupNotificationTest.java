@@ -47,9 +47,9 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.Listener;
-import io.pravega.client.stream.notifications.events.EndOfDataEvent;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
+import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -82,8 +82,8 @@ public class ReaderGroupNotificationTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(5));
-        System.setProperty("pravega.client.endOfDataEvent.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.endOfDataNotification.poll.interval.seconds", String.valueOf(5));
     }
 
     @Before
@@ -157,14 +157,14 @@ public class ReaderGroupNotificationTest {
                 ReaderConfig.builder().build());
 
         //Add segment event listener
-        Listener<SegmentEvent> l1 = event -> {
+        Listener<SegmentNotification> l1 = notification -> {
             listenerInvoked.set(true);
-            numberOfReaders.set(event.getNumOfReaders());
-            numberOfSegments.set(event.getNumOfSegments());
+            numberOfReaders.set(notification.getNumOfReaders());
+            numberOfSegments.set(notification.getNumOfSegments());
             listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
-        readerGroup.getSegmentEventNotifier(executor).registerListener(l1);
+        readerGroup.getSegmentNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(15000);
         EventRead<String> event2 = reader1.readNextEvent(15000);
@@ -219,12 +219,12 @@ public class ReaderGroupNotificationTest {
                 ReaderConfig.builder().build());
 
         //Add segment event listener
-        Listener<EndOfDataEvent> l1 = event -> {
+        Listener<EndOfDataNotification> l1 = notification -> {
             listenerInvoked.set(true);
             listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
-        readerGroup.getEndOfDataEventNotifier(executor).registerListener(l1);
+        readerGroup.getEndOfDataNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
         EventRead<String> event2 = reader1.readNextEvent(10000);

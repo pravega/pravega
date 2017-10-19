@@ -14,8 +14,8 @@ import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.notifier.EndOfDataEventNotifier;
-import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
+import io.pravega.client.stream.notifications.notifier.EndOfDataNotifier;
+import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
 import lombok.Synchronized;
 
 /**
@@ -26,31 +26,31 @@ import lombok.Synchronized;
 public class NotifierFactory {
 
     private final NotificationSystem system;
-    private SegmentEventNotifier segmentEventNotifier;
-    private EndOfDataEventNotifier endOfDataEventNotifier;
+    private SegmentNotifier segmentNotifier;
+    private EndOfDataNotifier endOfDataNotifier;
 
     public NotifierFactory(final NotificationSystem notificationSystem) {
         this.system = notificationSystem;
     }
 
     @Synchronized
-    public SegmentEventNotifier getSegmentNotifier(
+    public SegmentNotifier getSegmentNotifier(
             final Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier,
             final ScheduledExecutorService executor) {
-        if (segmentEventNotifier == null) {
-            segmentEventNotifier = new SegmentEventNotifier(this.system, stateSyncronizerSupplier, executor);
+        if (segmentNotifier == null) {
+            segmentNotifier = new SegmentNotifier(this.system, stateSyncronizerSupplier, executor);
         }
-        return segmentEventNotifier;
+        return segmentNotifier;
     }
 
     @Synchronized
-    public EndOfDataEventNotifier getEndOfDataNotifier(
+    public EndOfDataNotifier getEndOfDataNotifier(
             final Supplier<StateSynchronizer<ReaderGroupState>> stateSyncronizerSupplier,
             final ScheduledExecutorService executor) {
-        if (endOfDataEventNotifier == null) {
-            endOfDataEventNotifier = new EndOfDataEventNotifier(this.system, stateSyncronizerSupplier, executor);
+        if (endOfDataNotifier == null) {
+            endOfDataNotifier = new EndOfDataNotifier(this.system, stateSyncronizerSupplier, executor);
         }
-        return endOfDataEventNotifier;
+        return endOfDataNotifier;
     }
 
     // multiple such notifiers can be added.

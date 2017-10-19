@@ -30,8 +30,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.events.EndOfDataEvent;
-import io.pravega.client.stream.notifications.notifier.EndOfDataEventNotifier;
+import io.pravega.client.stream.notifications.notifier.EndOfDataNotifier;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.test.common.InlineExecutor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +50,7 @@ public class EndOfDataNotifierTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.endOfDataEvent.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.endOfDataNotification.poll.interval.seconds", String.valueOf(5));
     }
 
     @Test
@@ -62,15 +61,15 @@ public class EndOfDataNotifierTest {
         when(state.isEndOfData()).thenReturn(false).thenReturn(true);
         when(sync.getState()).thenReturn(state);
 
-        Listener<EndOfDataEvent> listener1 = event -> {
+        Listener<EndOfDataNotification> listener1 = notification -> {
             log.info("listener 1 invoked");
             listenerInvoked.set(true);
             latch.release();
         };
-        Listener<EndOfDataEvent> listener2 = event -> {
+        Listener<EndOfDataNotification> listener2 = notification -> {
         };
 
-        EndOfDataEventNotifier notifier = new EndOfDataEventNotifier(system, () -> sync, executor);
+        EndOfDataNotifier notifier = new EndOfDataNotifier(system, () -> sync, executor);
         notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
         latch.await();
@@ -81,7 +80,7 @@ public class EndOfDataNotifierTest {
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 
         notifier.unregisterAllListeners();
-        verify(system, times(1)).removeListeners(EndOfDataEvent.class.getSimpleName());
+        verify(system, times(1)).removeListeners(EndOfDataNotification.class.getSimpleName());
     }
 
     @After
