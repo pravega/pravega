@@ -741,10 +741,6 @@ class BookKeeperLog implements DurableDataLog {
         try {
             // Create new ledger.
             LedgerHandle newLedger = Ledgers.create(this.bookKeeper, this.config);
-
-            // Creating the Ledger is a pure metadata operation. Make sure the Bookies that were assigned as part of the
-            // ensemble are actually healthy, otherwise we won't be able to use this Ledger and end up rolling over forever.
-            Ledgers.pingBookies(newLedger);
             log.debug("{}: Rollover: created new ledger {}.", this.traceObjectId, newLedger.getId());
 
             // Update the metadata.

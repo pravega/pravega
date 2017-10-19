@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ByteArraySegment;
@@ -18,6 +19,7 @@ import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogTestBase;
 import io.pravega.segmentstore.storage.LogAddress;
+import io.pravega.segmentstore.storage.WriteFailureException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.ArrayList;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -44,6 +47,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.slf4j.LoggerFactory;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -56,8 +60,8 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
-    private static final int MAX_WRITE_ATTEMPTS = 2;
-    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 100); // Very frequent rollovers.
+    private static final int MAX_WRITE_ATTEMPTS = 10;
+    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
@@ -73,6 +77,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      */
     @BeforeClass
     public static void setUpBookKeeper() throws Exception {
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        context.reset();
+
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
@@ -188,8 +195,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 AssertExtensions.assertThrows(
                         "First write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof ObjectClosedException
-                                || ex instanceof CancellationException);
+                        ex -> ex instanceof RetriesExhaustedException
+                                && (ex.getCause() instanceof DataLogNotAvailableException
+                                || isLedgerClosedException(ex.getCause())));
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
@@ -400,6 +408,10 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     @SneakyThrows
     private static void resumeZooKeeper() {
         BK_SERVICE.get().resumeZooKeeper();
+    }
+
+    private static boolean isLedgerClosedException(Throwable ex) {
+        return ex instanceof WriteFailureException && ex.getCause() instanceof BKException.BKLedgerClosedException;
     }
 
     //endregion

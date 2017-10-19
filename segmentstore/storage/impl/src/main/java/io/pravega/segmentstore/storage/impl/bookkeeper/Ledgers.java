@@ -13,8 +13,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
@@ -113,25 +111,6 @@ final class Ledgers {
             if (h != null) {
                 close(h);
             }
-        }
-    }
-
-    /**
-     * "Pings" the bookies in the ensemble for the given LedgerHandle by force-reading the LastAddConfirmed value. This
-     * can be used to verify the fact that the Ledger Ensemble is indeed healthy after a new Ledger is created.
-     *
-     * @param handle The LedgerHandle to check.
-     * @throws DurableDataLogException If an exception occurred. The causing exception is wrapped inside it.
-     * @throws TimeoutException        If the operation timed out.
-     */
-    @SneakyThrows(TimeoutException.class)
-    static void pingBookies(LedgerHandle handle) throws DurableDataLogException {
-        try {
-            Exceptions.handleInterrupted(handle::readExplicitLastConfirmed);
-        } catch (BKException.BKTimeoutException bkEx) {
-            throw new TimeoutException(bkEx.getMessage());
-        } catch (BKException bkEx) {
-            throw new DurableDataLogException(String.format("Unable to ping ledger %d.", handle.getId()), bkEx);
         }
     }
 
