@@ -138,7 +138,7 @@ public class StreamCutsTest {
         assertEquals("fpj was here again", secondEvent.getEvent());
 
         Map<Stream, StreamCut> cuts = readerGroup.getStreamCuts();
-        validateCuts(readerGroup, cuts, Collections.singletonList("test/test/0"));
+        validateCuts(readerGroup, cuts, Collections.singleton("test/test/0"));
 
         // Scale the stream to verify that we get more segments in the cut.
         Stream stream = new StreamImpl("test", "test");
@@ -156,7 +156,7 @@ public class StreamCutsTest {
         HashSet<String> segmentNames = new HashSet<>();
         segmentNames.add("test/test/1");
         segmentNames.add("test/test/2");
-        validateCuts(readerGroup, cuts, Collections.unmodifiableList(segmentNames));
+        validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
 
         // Scale down to verify that the number drops back.
         map = new HashMap<>();
@@ -173,7 +173,7 @@ public class StreamCutsTest {
         reader.readNextEvent(15000);
 
         cuts = readerGroup.getStreamCuts();
-        validateCuts(readerGroup, cuts, Collections.singletonList("test/test/3"));
+        validateCuts(readerGroup, cuts, Collections.singleton("test/test/3"));
 
         // Scale up to 4 segments again.
         map = new HashMap<>();
@@ -189,12 +189,12 @@ public class StreamCutsTest {
         reader.readNextEvent(15000);
 
         cuts = readerGroup.getStreamCuts();
-        segmentNames = new ArrayList<>();
+        segmentNames = new HashSet<>();
         segmentNames.add("test/test/4");
         segmentNames.add("test/test/5");
         segmentNames.add("test/test/6");
         segmentNames.add("test/test/7");
-        validateCuts(readerGroup, cuts, Collections.unmodifiableList(segmentNames));
+        validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
     }
 
     private void validateCuts(ReaderGroup group, Map<Stream, StreamCut> cuts, Set<String> segmentNames) {
