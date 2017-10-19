@@ -188,6 +188,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public long unreadBytes() {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
         Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
         SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         
