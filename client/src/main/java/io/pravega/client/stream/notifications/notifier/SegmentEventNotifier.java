@@ -12,9 +12,6 @@ package io.pravega.client.stream.notifications.notifier;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
@@ -27,24 +24,16 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SegmentEventNotifier extends AbstractEventNotifier<SegmentEvent> {
-
+public class SegmentEventNotifier extends AbstractPollingEventNotifier<SegmentEvent> {
     private static final int UPDATE_INTERVAL_SECONDS = Integer.parseInt(
             System.getProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(120)));
-    private final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier;
-    private final AtomicBoolean pollingStarted = new AtomicBoolean();
-    @GuardedBy("$lock")
-    private ScheduledFuture<?> future;
-    @GuardedBy("$lock")
-    private StateSynchronizer<ReaderGroupState> synchronizer;
     @GuardedBy("$lock")
     private int numberOfSegments = 0;
 
     public SegmentEventNotifier(final NotificationSystem notifySystem,
                                 final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
                                 final ScheduledExecutorService executor) {
-        super(notifySystem, executor);
-        this.synchronizerSupplier = synchronizerSupplier;
+        super(notifySystem, executor, synchronizerSupplier);
     }
 
     @Override
@@ -52,29 +41,7 @@ public class SegmentEventNotifier extends AbstractEventNotifier<SegmentEvent> {
     public void registerListener(final Listener<SegmentEvent> listener) {
         notifySystem.addListeners(getType(), listener, this.executor);
         //periodically fetch the segment count.
-        if (!pollingStarted.getAndSet(true)) { //schedule the  only once
-            synchronizer = synchronizerSupplier.get();
-            future = executor.scheduleAtFixedRate(this::checkAndTriggerSegmentNotification, 0,
-                    UPDATE_INTERVAL_SECONDS, TimeUnit.SECONDS);
-        }
-    }
-
-    @Override
-    @Synchronized
-    public void unregisterListener(final Listener<SegmentEvent> listener) {
-        notifySystem.removeListener(getType(), listener);
-        if (!notifySystem.isListenerPresent(getType())) {
-            cancelScheduledTask();
-            synchronizer.close();
-        }
-    }
-
-    @Override
-    @Synchronized
-    public void unregisterAllListeners() {
-        this.notifySystem.removeListeners(getType());
-        cancelScheduledTask();
-        synchronizer.close();
+        startPolling(this::checkAndTriggerSegmentNotification, UPDATE_INTERVAL_SECONDS);
     }
 
     @Override
@@ -97,14 +64,5 @@ public class SegmentEventNotifier extends AbstractEventNotifier<SegmentEvent> {
                                              .build();
             notifySystem.notify(event);
         }
-    }
-
-    @GuardedBy("$lock")
-    private void cancelScheduledTask() {
-        log.debug("Cancel the scheduled task to check for SegmentEvent");
-        if (future != null) {
-            future.cancel(true);
-        }
-        pollingStarted.set(false);
     }
 }
