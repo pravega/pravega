@@ -159,6 +159,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
      *
      * @return A future either returning a result or an exception.
      */
+    @Override
     public CompletableFuture<Void> checkScopeExists() {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
