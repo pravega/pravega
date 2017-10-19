@@ -15,8 +15,6 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -32,7 +30,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -42,7 +39,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.generic.GenericData;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -51,10 +47,9 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -158,7 +153,7 @@ public class StreamCutsTest {
 
         reader.readNextEvent(15000);
         cuts = readerGroup.getStreamCuts();
-        ArrayList<String> segmentNames = new ArrayList<>();
+        HashSet<String> segmentNames = new HashSet<>();
         segmentNames.add("test/test/1");
         segmentNames.add("test/test/2");
         validateCuts(readerGroup, cuts, Collections.unmodifiableList(segmentNames));
@@ -202,7 +197,7 @@ public class StreamCutsTest {
         validateCuts(readerGroup, cuts, Collections.unmodifiableList(segmentNames));
     }
 
-    private void validateCuts(ReaderGroup group, Map<Stream, StreamCut> cuts, List<String> segmentNames) {
+    private void validateCuts(ReaderGroup group, Map<Stream, StreamCut> cuts, Set<String> segmentNames) {
         Set<String> streamNames = group.getStreamNames();
         cuts.forEach((s, c) -> {
                 assertTrue(streamNames.contains(s.getStreamName()));
