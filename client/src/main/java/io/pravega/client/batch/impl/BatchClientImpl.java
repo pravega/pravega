@@ -1,17 +1,6 @@
 package io.pravega.client.batch.impl;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
-
-import java.util.Date;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
-
-import org.apache.commons.lang3.NotImplementedException;
-
 import com.google.common.collect.Iterators;
-
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.batch.SegmentIterator;
@@ -28,7 +17,15 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamImpl;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import lombok.Cleanup;
+import org.apache.commons.lang3.NotImplementedException;
+
+import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
 public class BatchClientImpl implements BatchClient {
 

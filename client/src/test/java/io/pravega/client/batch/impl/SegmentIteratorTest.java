@@ -9,16 +9,6 @@
  */
 package io.pravega.client.batch.impl;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.util.NoSuchElementException;
-import java.util.concurrent.CompletableFuture;
-
-import org.junit.Test;
-
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -26,7 +16,16 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import java.util.NoSuchElementException;
+import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
+import org.junit.Test;
+
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class SegmentIteratorTest {
 
     private final JavaSerializer<String> stringSerializer = new JavaSerializer<>();

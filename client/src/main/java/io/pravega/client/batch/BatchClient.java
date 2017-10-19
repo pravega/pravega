@@ -9,14 +9,13 @@
  */
 package io.pravega.client.batch;
 
-import java.util.Date;
-import java.util.Iterator;
-
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import java.util.Date;
+import java.util.Iterator;
 
 /**
  * Used to get metadata about and read from an existing streams.

@@ -1,13 +1,12 @@
 package io.pravega.client.batch.impl;
 
-import java.util.NoSuchElementException;
-
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.stream.Serializer;
+import java.util.NoSuchElementException;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
