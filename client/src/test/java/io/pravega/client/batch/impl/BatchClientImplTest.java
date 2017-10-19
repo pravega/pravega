@@ -18,8 +18,11 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
+import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
+import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.Iterator;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -32,7 +35,7 @@ import static org.junit.Assert.assertTrue;
 
 public class BatchClientImplTest {
 
-    @Test
+    @Test(timeout = 5000)
     public void testSegmentIterator() throws ConnectionFailedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = Mockito.mock(ClientConnection.class);
@@ -46,6 +49,17 @@ public class BatchClientImplTest {
                 return null;
             }
         }).when(connection).send(Mockito.any(CreateSegment.class));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                GetStreamSegmentInfo request = (GetStreamSegmentInfo) invocation.getArgument(0);
+                connectionFactory.getProcessor(location)
+                                 .streamSegmentInfo(new StreamSegmentInfo(request.getRequestId(),
+                                                                          request.getSegmentName(), true, false, false,
+                                                                          0, 0));
+                return null;
+            }
+        }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                                                            connectionFactory);

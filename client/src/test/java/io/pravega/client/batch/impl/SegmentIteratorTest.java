@@ -30,7 +30,7 @@ public class SegmentIteratorTest {
 
     private final JavaSerializer<String> stringSerializer = new JavaSerializer<>();
     
-    @Test
+    @Test(timeout = 5000)
     public void testHasNext() {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
@@ -54,7 +54,7 @@ public class SegmentIteratorTest {
         assertFalse(iter.hasNext());
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testOffset() {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
