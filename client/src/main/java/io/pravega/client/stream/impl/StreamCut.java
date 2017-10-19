@@ -35,8 +35,8 @@ public class StreamCut implements Serializable {
 
     @VisibleForTesting
     public boolean validate(Set<String> segmentNames) {
-        for(Segment s: positions.keySet()) {
-            if(segmentNames.contains(s.getScopedName())) {
+        for (Segment s: positions.keySet()) {
+            if (segmentNames.contains(s.getScopedName())) {
                 return false;
             }
         }
