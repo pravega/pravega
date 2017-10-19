@@ -408,4 +408,12 @@ then application might consider increasing the number of online readers. If the
 number of segments instead decreases according to a segment event, then the
 application might want to change the set of online readers accordingly.
 
+# Experimental batch reader
+
+For applications that want to perform batch reads of historical stream data, the BatchClient provides a way to do this.
+It allows for listing all of the segments in a stream, and reading their data. 
+
+When the data is read this way, rather than joining a reader group which automatically partitions the data, the underlying structure of the stream is exposed and it is up to the application to decide how to process it. So events read in this way need not be read in order.
+
+Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce. 
 
