@@ -154,6 +154,14 @@ public class TableHelper {
         }).orElse(Collections.emptyList());
     }
 
+    public static void validateStreamCut(List<AbstractMap.SimpleEntry<Double, Double>> list) {
+        // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
+        List<AbstractMap.SimpleEntry<Double, Double>> reduced = reduce(list);
+        Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
+                        reduced.get(0).getValue().equals(1.0), "streamCut",
+                " Invalid input, Stream Cut does not cover full key range.");
+    }
+
     public static StreamTruncationRecord computeTruncationRecord(final byte[] indexTable, final byte[] historyTable,
                                                                  final byte[] segmentTable, final Map<Integer, Long> streamCut,
                                                                  final StreamTruncationRecord previousTruncationRecord) {
@@ -826,7 +834,7 @@ public class TableHelper {
      * @param input list of key ranges.
      * @return reduced list of key ranges.
      */
-    public static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
+    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
         List<AbstractMap.SimpleEntry<Double, Double>> ranges = new ArrayList<>(input);
         ranges.sort(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
         List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();

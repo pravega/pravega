@@ -68,7 +68,8 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
 
     /**
-     * Api to update stream.
+     * Api to Truncate stream. This api takes a stream cut point which corresponds to a cut in the stream segments which is
+     * consistent and covers the entire key range space.
      *
      * @param scope      Scope
      * @param streamName Stream

@@ -73,7 +73,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete) {
-        log.debug("{}/{} deleting segments", scope, stream);
+        log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return FutureHelpers.allOf(segmentsToDelete.stream()
                 .parallel()
                 .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
