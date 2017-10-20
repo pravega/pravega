@@ -131,7 +131,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener {
      * A stream cut corresponds to a position in the stream, and it can be used by
      * the application as reference to such a position.
      *
-     * @return
+     * @return Map of streams that this group is reading from to the corresponding cuts.
      */
     Map<Stream, StreamCut> getStreamCuts();
 }
