@@ -42,7 +42,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 2;
+    public static final int WIRE_VERSION = 3;
     public static final int OLDEST_COMPATIBLE_VERSION = 1;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -555,7 +555,11 @@ public final class WireCommands {
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
-            long previousEventNumber = in.readLong();
+            long previousEventNumber = -1;
+            if (length >= 32) {
+                previousEventNumber = in.readLong();
+            }
+
             return new DataAppended(writerId, offset, previousEventNumber);
         }
     }
