@@ -78,7 +78,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", "controller") +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", serviceName) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
@@ -87,7 +87,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
         Map<String, String> labels = new HashMap<>();
-        labels.put("com.docker.swarm.task.name", "controller");
+        labels.put("com.docker.swarm.task.name", serviceName);
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
@@ -106,8 +106,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                 .ports(Arrays.asList(PortConfig.builder()
-                        .publishedPort(CONTROLLER_PORT).build(),
-                        PortConfig.builder().publishedPort(REST_PORT).build())).
+                        .publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
+                        PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
                 build())
                 .build();
         return spec;

@@ -16,6 +16,11 @@ echo "IP for local docker execution is $MASTER_IP"
 MASTER_1=${3:-null}
 echo "Master IP of jarvis cluster is $MASTER_1"
 
+DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
+echo "Docker API version is $DOCKER_VERSION"
+if [ $DOCKER_VERSION < 1.3.0 ]; then
+exit
+fi
 if [ $CLUSTER_NAME = null ]; then
   docker swarm init --advertise-addr 127.0.0.1
   docker network create --driver overlay docker-network
