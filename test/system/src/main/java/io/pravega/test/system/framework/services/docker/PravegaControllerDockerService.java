@@ -41,9 +41,9 @@ public class PravegaControllerDockerService extends DockerBasedService {
 
     static final int CONTROLLER_PORT = 9090;
     private static final int REST_PORT = 9091;
-    private int instances = 1;
-    private double cpu = 0.1;
-    private double mem = 700.0;
+    private final int instances = 1;
+    private final double cpu = 0.1;
+    private final double mem = 700.0;
     private URI zkUri;
 
     public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
@@ -56,7 +56,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         try {
             dockerClient.removeService(getID());
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to remove service {}", e);
+            log.error("Unable to remove service {}", e);
         }
     }
 
@@ -112,8 +112,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                 .ports(Arrays.asList(PortConfig.builder()
-                        .publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
-                        PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
+                        .publishedPort(CONTROLLER_PORT).build(),
+                        PortConfig.builder().publishedPort(REST_PORT).build())).
                 build())
                 .build();
         return spec;

@@ -22,13 +22,12 @@ import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -36,9 +35,10 @@ import static org.junit.Assert.assertThat;
 @Slf4j
 public class HDFSDockerService extends DockerBasedService {
 
-    private int instances = 1;
-    private double cpu = 0.1;
-    private double mem = 2048.0;
+    private final int instances = 1;
+    private final double cpu = 0.5;
+    private final double mem = 2048.0;
+    private final String hdfsimage = "dsrw/hdfs:2.7.3-1";
 
     public HDFSDockerService(final String serviceName) {
         super(serviceName);
@@ -47,9 +47,9 @@ public class HDFSDockerService extends DockerBasedService {
     @Override
     public void stop() {
         try {
-            dockerClient.removeService(getID());
-        } catch (DockerException | InterruptedException e) {
-            log.error("unable to remove service {}", e);
+            Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
+        } catch (DockerException e) {
+            log.error("Unable to remove service {}", e);
         }
     }
 
@@ -60,23 +60,25 @@ public class HDFSDockerService extends DockerBasedService {
     @Override
     public void start(final boolean wait) {
         try {
-            ServiceCreateResponse serviceCreateResponse = dockerClient.createService(setServiceSpec());
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException | TimeoutException | ExecutionException e) {
+        } catch (Exception e) {
             log.error("unable to create service {}", e);
         }
     }
 
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
+        String env1 = "SSH_PORT=2222";
+        String env2 = "HDFS_HOST="+serviceName;
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .containerSpec(ContainerSpec.builder().image("dsrw/hdfs:2.7.3-1")
+                .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
-                        .mounts(Arrays.asList(mount))
+                        .mounts(mount)
                         .hostname(serviceName)
                         .args("hdfs").build())
                 .resources(ResourceRequirements.builder()

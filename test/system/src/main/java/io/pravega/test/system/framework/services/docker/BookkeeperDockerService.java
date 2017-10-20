@@ -39,9 +39,9 @@ import static org.junit.Assert.assertThat;
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
-    private long instances = 3;
-    private double cpu = 0.1;
-    private double mem = 1024.0;
+    private final long instances = 3;
+    private final double cpu = 0.1;
+    private final double mem = 1024.0;
     private URI zkUri;
 
     public BookkeeperDockerService(String serviceName, final URI zkUri) {

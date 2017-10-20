@@ -19,7 +19,9 @@ import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
+import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -29,22 +31,22 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import com.spotify.docker.client.messages.Network;
 
 @Slf4j
-public abstract class DockerBasedService  implements io.pravega.test.system.framework.services.Service {
+public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final int CONTROLLER_PORT = 9090;
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
-    DockerClient dockerClient;
-    String serviceName;
+    final DockerClient dockerClient;
+    final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
-    DockerBasedService(String serviceName) {
-        dockerClient = DefaultDockerClient.builder().uri("http://"+ System.getProperty("masterIP")+ ":2375").build();
+    DockerBasedService(final String serviceName) {
+        this.dockerClient = DefaultDockerClient.builder().uri("http://" + System.getProperty("masterIP") + ":" + DOCKER_CLIENT_PORT).build();
         this.serviceName = serviceName;
-        }
+    }
 
 
     @Override
@@ -52,9 +54,9 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
         String serviceId = null;
         try {
-            List<Service> serviceList = dockerClient.listServices(criteria);
+            List<Service> serviceList =  Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
             serviceId = serviceList.get(0).id();
-        }  catch (DockerException | InterruptedException  e) {
+        } catch (DockerException e) {
             log.error("Unable to get service id {}", e);
         }
         return serviceId;
@@ -66,15 +68,15 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         try {
             //list the service with filter 'serviceName'
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = dockerClient.listServices(criteria);
-            int containerCount = dockerClient.listContainers(DockerClient.ListContainersParam.filter("name", serviceName)).size();
-            if (!serviceList.isEmpty()) {
-                long replicas = dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas();
-                if (((long) containerCount) == replicas) {
-                    return true;
+            List<Service> serviceList =  Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
+                int containerCount = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.filter("name", serviceName)).size());
+                if (!serviceList.isEmpty()) {
+                    long replicas = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
+                    if (((long) containerCount) == replicas) {
+                        return true;
+                    }
                 }
-            }
-        } catch (DockerException | InterruptedException e) {
+        } catch (DockerException e) {
             log.error("Unable to list docker services {}", e);
         }
         return value;
@@ -96,16 +98,14 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
-            List<Container> containerList = dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName));
-            log.info("container list size {}", containerList.size());
-            Service.Criteria criteria1 = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = dockerClient.listServices(criteria1);
+            List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
+            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
             for (int i = 0; i < containerList.size(); i++) {
                 String ip = containerList.get(i).networkSettings().networks().get("docker-network").ipAddress();
-                URI uri = URI.create("tcp://" + ip + ":" + dockerClient.inspectService(serviceList.get(0).id()).endpoint().ports().get(0).publishedPort());
+                URI uri = URI.create("tcp://" + ip + ":" + Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().ports().get(0).publishedPort()));
                 uriList.add(uri);
             }
-        }  catch (InterruptedException | DockerException e) {
+        } catch (DockerException e) {
             log.error("Unable to list service details {}", e);
         }
         return uriList;
@@ -116,36 +116,34 @@ public abstract class DockerBasedService  implements io.pravega.test.system.fram
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            TaskSpec taskSpec = dockerClient.listServices(criteria).get(0).spec().taskTemplate();
-            String serviceId = dockerClient.listServices(criteria).get(0).id();
-            dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).
-                    taskTemplate(taskSpec).name(serviceName).build());
-            String updateState = dockerClient.inspectService(serviceId).updateStatus().state();
-            log.info("update state {}", updateState);
+            TaskSpec taskSpec = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
+            String serviceId = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).id());
+            Exceptions.handleInterrupted(() ->  dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).
+                    taskTemplate(taskSpec).name(serviceName).build()));
+            String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
+            log.info("Update state {}", updateState);
             if (wait) {
-                waitUntilServiceRunning().get();
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get());
             }
-        } catch (ExecutionException | DockerException | InterruptedException e) {
-            log.error("unable to scale service {}", e);
+        } catch (ExecutionException | DockerException e ) {
+            log.error("Unable to scale service {}", e);
         }
     }
 
     @Override
     public void stop() {
         try {
-            List<com.spotify.docker.client.messages.Network> networkList =  dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName("network-name"));
-            for (int i = 0; i < networkList.size(); i++) {
-                dockerClient.removeNetwork(networkList.get(i).id());
-            }
-            dockerClient.leaveSwarm(true);
-        } catch (DockerException | InterruptedException e) {
-            log.error("unable to leave swarm");
+            List<Network> networkList = Exceptions.handleInterrupted(() -> dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName("docker-network")));
+            Exceptions.handleInterrupted(() -> dockerClient.removeNetwork(networkList.get(0).id()));
+            Exceptions.handleInterrupted(() -> dockerClient.leaveSwarm(true));
+        } catch (DockerException e) {
+            log.error("Unable to leave swarm");
         }
         dockerClient.close();
     }
 
     long setNanoCpus(final double cpu) {
-        return (long)  (cpu * Math.pow(10.0, 9.0));
+        return (long) (cpu * Math.pow(10.0, 9.0));
     }
 
     long setMemInBytes(final double mem) {

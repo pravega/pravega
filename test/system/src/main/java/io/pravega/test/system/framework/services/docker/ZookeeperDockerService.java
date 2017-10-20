@@ -36,9 +36,9 @@ import static org.junit.Assert.assertThat;
 public class ZookeeperDockerService extends DockerBasedService {
 
     private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
-    private long instances = 1;
-    private double cpu = 1.0 * Math.pow(10.0, 9.0);
-    private long mem = 1024 * 1024 * 1024L;
+    private final long instances = 1;
+    private final double cpu = 1.0 * Math.pow(10.0, 9.0);
+    private final long mem = 1024 * 1024 * 1024L;
 
     public ZookeeperDockerService(String serviceName) {
         super(serviceName);
@@ -88,7 +88,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
-        ServiceSpec spec =  ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
+        ServiceSpec spec = ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
                 .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
                 .taskTemplate(taskSpec)

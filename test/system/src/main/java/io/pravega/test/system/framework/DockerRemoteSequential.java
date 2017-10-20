@@ -22,7 +22,6 @@ import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Assert;
-
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -40,8 +39,9 @@ import static org.junit.Assert.assertFalse;
 @Slf4j
 public class DockerRemoteSequential implements TestExecutor {
 
-    public final static DockerClient CLIENT = DefaultDockerClient.builder().uri("http://"+ getConfig("masterIP", "Invalid Master IP")+ ":2375").build();
+    public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
+    public final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
     public String id;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
@@ -55,7 +55,17 @@ public class DockerRemoteSequential implements TestExecutor {
 
         return CompletableFuture.runAsync(() -> {
             startTest(containerName, className, methodName);
-        }).thenCompose(v2 -> waitForJobCompletion(containerName));
+        }).thenCompose(v2 -> waitForJobCompletion()).<Void>thenApply(v1 -> {
+            try {
+                if (client.inspectContainer(id).state().exitCode() != 0) {
+                    throw new AssertionError("Test failed"
+                            + className + "#" + methodName);
+                }
+            } catch (DockerException | InterruptedException e) {
+                log.error("Unable to get container exit status", e);
+            }
+            return null;
+        });
     }
 
 
@@ -64,19 +74,18 @@ public class DockerRemoteSequential implements TestExecutor {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
-    private CompletableFuture<Void> waitForJobCompletion(final String containerName) {
-        return FutureHelpers.loop(() -> isTestRunning(containerName),
+    private CompletableFuture<Void> waitForJobCompletion() {
+        return FutureHelpers.loop(() -> isTestRunning(),
                 () -> FutureHelpers.delayedFuture(Duration.ofSeconds(3), executorService),
                 executorService);
     }
 
-    private boolean isTestRunning(String containerName) {
+    private boolean isTestRunning() {
         boolean value = false;
         try {
-            ContainerInfo info = CLIENT.inspectContainer(id);
-                if (info.name().equals(containerName)) {
-                    value = true;
-                }
+            if (client.inspectContainer(this.id).state().running()) {
+                value = true;
+            }
         } catch (DockerException | InterruptedException e) {
             log.error("unable to list docker services ", e);
         }
@@ -86,26 +95,26 @@ public class DockerRemoteSequential implements TestExecutor {
     private String startTest(String containerName, String className, String methodName) {
 
         try {
-            CLIENT.pull(IMAGE);
+            client.pull(IMAGE);
 
-            ContainerCreation containerCreation = CLIENT.createContainer(setContainerConfig(methodName, className), containerName);
+            ContainerCreation containerCreation = client.createContainer(setContainerConfig(methodName, className), containerName);
             assertFalse(containerCreation.id().toString().equals(null));
 
-              id = containerCreation.id();
+            id = containerCreation.id();
 
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
-                CLIENT.copyToContainer(dockerDirectory, id, "/data");
+                client.copyToContainer(dockerDirectory, id, "/data");
             } catch (IOException | DockerException | InterruptedException e) {
                 log.error("Exception while copying test jar to the container ", e);
                 Assert.fail("Unable to copy test jar to the container.Test failure");
             }
 
             // Inspect container
-            final ContainerInfo info = CLIENT.inspectContainer(id);
+            final ContainerInfo info = client.inspectContainer(id);
 
             // Start container
-            CLIENT.startContainer(id);
+            client.startContainer(id);
 
         } catch (DockerException | InterruptedException e) {
             log.error("exception in starting container ", e);
@@ -121,15 +130,15 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testClassName", className);
 
         HostConfig hostConfig = HostConfig.builder()
-                .portBindings(ImmutableMap.of( "2375/tcp", Arrays.asList( PortBinding.of( LoginClient.MESOS_MASTER, "2375" ) ) ) ).networkMode("host").build();
+                .portBindings(ImmutableMap.of(DOCKER_CLIENT_PORT + "/tcp", Arrays.asList(PortBinding.of(LoginClient.MESOS_MASTER, DOCKER_CLIENT_PORT)))).networkMode("host").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DmasterIP="+ LoginClient.MESOS_MASTER + " -DexecType="+getConfig("execType", "LOCAL")+ " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
-                        className + "#" + methodName + " > "+  className + "#" + methodName + "server.log 2>&1" + "; exit $?")
+                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType", "LOCAL") + " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                        className + "#" + methodName + " > " + className + "#" + methodName + "server.log 2>&1")
                 .labels(labels)
                 .build();
 
@@ -138,9 +147,9 @@ public class DockerRemoteSequential implements TestExecutor {
 
     private void stopContainer() {
         try {
-            CLIENT.stopContainer(id, 0);
+            client.stopContainer(id, 0);
         } catch (DockerException | InterruptedException e) {
             log.error("Exception while stopping the container ", e);
         }
-      }
+    }
 }

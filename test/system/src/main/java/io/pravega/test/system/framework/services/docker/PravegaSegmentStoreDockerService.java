@@ -26,7 +26,6 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -42,10 +41,10 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private static final int SEGMENTSTORE_PORT = 12345;
     private static final String SEGMENTSTORE_EXTRA_ENV = System.getProperty("segmentStoreExtraEnv");
     private static final String ENV_SEPARATOR = ";;";
-    private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
-    private long instances = 1;
-    private double cpu = 0.1;
-    private double mem = 1000.0;
+    private static final String KEY_VALUE_SEPARATOR = "::";
+    private final long instances = 1;
+    private final double cpu = 0.1;
+    private final double mem = 1000.0;
     private URI zkUri;
     private URI conUri;
 
@@ -100,13 +99,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         String env3 = "ZK_URL=" + zk;
         String env4 = "BK_ZK_URL=" + zk;
         String env5 = "CONTROLLER_URL=" + conUri.toString();
-        List<String> stringList = new ArrayList<>();
-        stringList.add(env1);
-        stringList.add(env2);
-        getCustomEnvVars(stringList, SEGMENTSTORE_EXTRA_ENV);
-        stringList.add(env3);
-        stringList.add(env4);
-        stringList.add(env5);
+        getCustomEnvVars(Arrays.asList(env1, env2), SEGMENTSTORE_EXTRA_ENV);
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
@@ -115,7 +108,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .hostname(serviceName)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
-                        .env(stringList).args("segmentstore").build())
+                        .env(env1, env2, env3, env4, env5).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
@@ -141,7 +134,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
             });
         } else {
             // Set HDFS as the default for Tier2.
-            stringList.add("HDFS_URL=" + "hdfs:8020");
+            stringList.add("HDFS_URL=" + "hdfs://hdfs:8020/");
             stringList.add("TIER2_STORAGE=HDFS");
         }
     }
