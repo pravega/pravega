@@ -26,6 +26,7 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import io.pravega.common.Exceptions;
 import java.net.URI;
+import java.util.ArrayList;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Arrays;
 import java.util.List;
@@ -94,10 +95,16 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         //set env
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx900m";
+        List<String> envList = new ArrayList<>();
+        envList.add(env1);
+        envList.add(env2);
+        getCustomEnvVars(envList, SEGMENTSTORE_EXTRA_ENV);
         String env3 = "ZK_URL=" + zk;
         String env4 = "BK_ZK_URL=" + zk;
         String env5 = "CONTROLLER_URL=" + conUri.toString();
-        getCustomEnvVars(Arrays.asList(env1, env2), SEGMENTSTORE_EXTRA_ENV);
+        envList.add(env3);
+        envList.add(env4);
+        envList.add(env5);
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
@@ -106,7 +113,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                         .hostname(serviceName)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
-                        .env(env1, env2, env3, env4, env5).args("segmentstore").build())
+                        .env(envList).args("segmentstore").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())

@@ -68,7 +68,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
     }
 
     private CompletableFuture<Void> execute(TestExecutorType type, Method method) throws Exception {
-        return TestExecutorFactory.getTestExecutor(type).startTestExecution(method);
+        return new TestExecutorFactory().getTestExecutor(type).startTestExecution(method);
     }
 
     private void invokeTest(RunNotifier notifier, TestExecutorType type, FrameworkMethod method) {

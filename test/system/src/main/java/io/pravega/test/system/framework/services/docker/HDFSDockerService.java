@@ -76,6 +76,7 @@ public class HDFSDockerService extends DockerBasedService {
         String env2 = "HDFS_HOST="+serviceName;
         final TaskSpec taskSpec = TaskSpec
                 .builder()
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(mount)
@@ -103,7 +104,7 @@ public class HDFSDockerService extends DockerBasedService {
         portConfigs.add(port7);
 
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;

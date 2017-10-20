@@ -14,10 +14,10 @@ import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
     @Getter(lazy = true)
-    private static final TestExecutor MARATHON_SEQUENTIAL_EXECUTOR = new RemoteSequential();
+    private final TestExecutor marathonSequntialExecutor = new RemoteSequential();
 
     @Getter(lazy = true)
-    private static final TestExecutor DOCKER_EXECUTOR = new DockerRemoteSequential();
+    private final TestExecutor dockerExecutor = new DockerRemoteSequential();
 
     public enum TestExecutorType {
         LOCAL,
@@ -26,12 +26,12 @@ public class TestExecutorFactory {
         REMOTE_DISTRIBUTED //TODO: Yet to be implemented.
     }
 
-    public static TestExecutor getTestExecutor(TestExecutorType type) {
+    public TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
             case DOCKER:
-                return getDOCKER_EXECUTOR();
+                return getDockerExecutor();
             case REMOTE_SEQUENTIAL:
-                return getMARATHON_SEQUENTIAL_EXECUTOR();
+                return getMarathonSequntialExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:
