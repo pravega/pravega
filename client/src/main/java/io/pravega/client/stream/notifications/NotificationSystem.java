@@ -14,7 +14,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
-import io.pravega.client.stream.notifications.events.Event;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
@@ -24,52 +23,52 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class NotificationSystem {
     @GuardedBy("$lock")
-    private final Multimap<String, ListenerWithExecutor<Event>> map = ArrayListMultimap.create();
+    private final Multimap<String, ListenerWithExecutor<Notification>> map = ArrayListMultimap.create();
 
     @SuppressWarnings("unchecked")
     @Synchronized
-    public <T extends Event> void addListeners(final String type,
-                                               final Listener<T> listener,
-                                               final ScheduledExecutorService executor) {
+    public <T extends Notification> void addListeners(final String type,
+                                                      final Listener<T> listener,
+                                                      final ScheduledExecutorService executor) {
         if (!isListenerPresent(listener)) {
             map.put(type, new ListenerWithExecutor(listener, executor));
         }
     }
 
     /**
-     * This method will ensure the event is notified to the listeners of the same type.
+     * This method will ensure the notification is intimated to the listeners of the same type.
      *
-     * @param event Event to be notified.
-     * @param <T>   Type of Event.
+     * @param notification Notification to be notified.
+     * @param <T>   Type of notification.
      */
     @Synchronized
-    public <T extends Event> void notify(final T event) {
-        String type = event.getClass().getSimpleName();
+    public <T extends Notification> void notify(final T notification) {
+        String type = notification.getClass().getSimpleName();
         map.get(type).forEach(l -> {
-            log.info("Executing listener of type: {} for event: {}", type, event);
-            ExecutorServiceHelpers.execute(() -> l.getListener().onEvent(event),
-                    throwable -> log.error("Exception while executing listener for event: {}", event),
-                    () -> log.info("Completed execution of notify for event :{}", event),
+            log.info("Executing listener of type: {} for notification: {}", type, notification);
+            ExecutorServiceHelpers.execute(() -> l.getListener().onNotification(notification),
+                    throwable -> log.error("Exception while executing listener for notification: {}", notification),
+                    () -> log.info("Completed execution of notify for notification :{}", notification),
                     l.getExecutor());
         });
     }
 
     /**
-     * Remove Listener of a given event type.
+     * Remove Listener of a given notification type.
      *
-     * @param <T>      Type of event.
-     * @param type     Type of event listener.
+     * @param <T>      Type of notification.
+     * @param type     Type of notification listener.
      * @param listener Listener to be removed.
      */
     @Synchronized
-    public <T extends Event> void removeListener(final String type, final Listener<T> listener) {
+    public <T extends Notification> void removeListener(final String type, final Listener<T> listener) {
         map.get(type).removeIf(e -> e.getListener().equals(listener));
     }
 
     /**
-     * Remove all listeners of an event type.
+     * Remove all listeners of a notification type.
      *
-     * @param type Type of event listener.
+     * @param type Type of notification listener.
      */
     @Synchronized
     public void removeListeners(final String type) {
@@ -77,9 +76,9 @@ public class NotificationSystem {
     }
 
     /**
-     * Check if a Listener is present for a given event type.
+     * Check if a Listener is present for a given notification type.
      *
-     * @param type Type of event listener.
+     * @param type Type of notification listener.
      * @return true if Listener is present.
      */
     @Synchronized
@@ -87,7 +86,7 @@ public class NotificationSystem {
         return !map.get(type).isEmpty();
     }
 
-    private <T extends Event> boolean isListenerPresent(final Listener<T> listener) {
+    private <T extends Notification> boolean isListenerPresent(final Listener<T> listener) {
         return map.values().stream().anyMatch(le -> le.getListener().equals(listener));
     }
 

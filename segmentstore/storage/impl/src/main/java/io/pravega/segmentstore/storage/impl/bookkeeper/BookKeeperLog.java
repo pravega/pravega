@@ -754,7 +754,12 @@ class BookKeeperLog implements DurableDataLog {
             LedgerHandle oldLedger;
             synchronized (this.lock) {
                 oldLedger = this.writeLedger.ledger;
-                this.writeLedger.setRolledOver(true);
+                if (!oldLedger.isClosed()) {
+                    // Only mark the old ledger as Rolled Over if it is still open. Otherwise it means it was closed
+                    // because of some failure and should not be marked as such.
+                    this.writeLedger.setRolledOver(true);
+                }
+
                 this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
                 this.logMetadata = metadata;
             }

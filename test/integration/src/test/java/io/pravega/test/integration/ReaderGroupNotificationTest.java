@@ -11,6 +11,7 @@ package io.pravega.test.integration;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
@@ -46,8 +47,9 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.Listener;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
+import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -63,6 +65,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ReaderGroupNotificationTest {
 
+    private static final String SCOPE = "test";
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
@@ -79,7 +82,8 @@ public class ReaderGroupNotificationTest {
 
     @BeforeClass
     public static void beforeClass() {
-        System.setProperty("pravega.client.segmentEvent.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(5));
+        System.setProperty("pravega.client.endOfDataNotification.poll.interval.seconds", String.valueOf(5));
     }
 
     @Before
@@ -101,6 +105,8 @@ public class ReaderGroupNotificationTest {
                 servicePort,
                 containerCount);
         controllerWrapper.awaitRunning();
+        listenerLatch.reset();
+        listenerInvoked.set(false);
     }
 
     @After
@@ -114,25 +120,26 @@ public class ReaderGroupNotificationTest {
 
     @Test(timeout = 40000)
     public void testSegmentNotifications() throws Exception {
+        final String streamName = "stream1";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
+                                                        .scope(SCOPE)
+                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         writer.writeEvent("0", "data1").get();
 
         // scale
-        Stream stream = new StreamImpl("test", "test");
+        Stream stream = new StreamImpl(SCOPE, streamName);
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
@@ -141,24 +148,23 @@ public class ReaderGroupNotificationTest {
         writer.writeEvent("0", "data2").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
         ReaderGroup readerGroup = groupManager.createReaderGroup("reader", ReaderGroupConfig
-                .builder().automaticCheckpointIntervalMillis(-1).build(), Collections
-                .singleton("test"));
+                .builder().disableAutomaticCheckpoints().build(), Collections.singleton(streamName));
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
         //Add segment event listener
-        Listener<SegmentEvent> l1 = event -> {
+        Listener<SegmentNotification> l1 = notification -> {
             listenerInvoked.set(true);
-            numberOfReaders.set(event.getNumOfReaders());
-            numberOfSegments.set(event.getNumOfSegments());
+            numberOfReaders.set(notification.getNumOfReaders());
+            numberOfSegments.set(notification.getNumOfSegments());
             listenerLatch.release();
         };
         ScheduledExecutorService executor = new InlineExecutor();
-        readerGroup.getSegmentEventNotifier(executor).registerListener(l1);
+        readerGroup.getSegmentNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(15000);
         EventRead<String> event2 = reader1.readNextEvent(15000);
@@ -172,4 +178,65 @@ public class ReaderGroupNotificationTest {
         assertEquals(2, numberOfSegments.get());
         assertEquals(1, numberOfReaders.get());
     }
+
+    @Test(timeout = 40000)
+    public void testEndOfStreamNotifications() throws Exception {
+        final String streamName = "stream2";
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scope(SCOPE)
+                                                        .streamName(streamName)
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controller.createStream(config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        writer.writeEvent("0", "data1").get();
+
+        // scale
+        Stream stream = new StreamImpl(SCOPE, streamName);
+        Map<Double, Double> map = new HashMap<>();
+        map.put(0.0, 0.5);
+        map.put(0.5, 1.0);
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+        assertTrue(result);
+        writer.writeEvent("0", "data2").get();
+        assertTrue(controller.sealStream(SCOPE, streamName).get()); // seal stream
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
+                connectionFactory);
+        ReaderGroup readerGroup = groupManager.createReaderGroup("reader", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().build(), Collections.singleton(streamName));
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+                ReaderConfig.builder().build());
+
+        //Add segment event listener
+        Listener<EndOfDataNotification> l1 = notification -> {
+            listenerInvoked.set(true);
+            listenerLatch.release();
+        };
+        ScheduledExecutorService executor = new InlineExecutor();
+        readerGroup.getEndOfDataNotifier(executor).registerListener(l1);
+
+        EventRead<String> event1 = reader1.readNextEvent(10000);
+        EventRead<String> event2 = reader1.readNextEvent(10000);
+        EventRead<String> event3 = reader1.readNextEvent(10000);
+        assertNotNull(event1);
+        assertEquals("data1", event1.getEvent());
+        assertNotNull(event2);
+        assertEquals("data2", event2.getEvent());
+        assertNull(event3.getEvent());
+
+        listenerLatch.await();
+        assertTrue("Listener invoked", listenerInvoked.get());
+    }
+
 }

@@ -11,16 +11,16 @@ package io.pravega.client.stream.notifications;
 
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.client.stream.notifications.notifier.AbstractEventNotifier;
+import io.pravega.client.stream.notifications.notifier.AbstractNotifier;
 
-public class CustomEventNotifier extends AbstractEventNotifier<CustomEvent> {
+public class CustomNotifier extends AbstractNotifier<CustomNotification> {
 
-    public CustomEventNotifier(final NotificationSystem system, final ScheduledExecutorService executor) {
+    public CustomNotifier(final NotificationSystem system, final ScheduledExecutorService executor) {
         super(system, executor);
     }
 
     @Override
     public String getType() {
-        return CustomEvent.class.getSimpleName();
+        return CustomNotification.class.getSimpleName();
     }
 }
