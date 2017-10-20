@@ -210,7 +210,18 @@ public class ReaderGroupState implements Revisioned {
     boolean hasOngoingCheckpoint() {
         return checkpointState.hasOngoingCheckpoint();
     }
-    
+
+    /**
+     * This functions returns true if the readers part of reader group for sealed streams have completely read the data.
+     *
+     * @return true if end of data. false if there are segments to be read from.
+     */
+    @Synchronized
+    public boolean isEndOfData() {
+        return futureSegments.isEmpty() && unassignedSegments.isEmpty() &&
+                assignedSegments.values().stream().allMatch(Map::isEmpty);
+    }
+
     @Override
     @Synchronized
     public String toString() {

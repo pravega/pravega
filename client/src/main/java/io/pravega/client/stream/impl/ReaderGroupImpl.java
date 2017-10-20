@@ -31,10 +31,11 @@ import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
+import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
+import io.pravega.client.stream.notifications.SegmentNotification;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
@@ -71,7 +72,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final NotificationSystem notificationSystem = new NotificationSystem();
-    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem);
+    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem, this::createSynchronizer);
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -214,9 +215,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public Observable<SegmentEvent> getSegmentEventNotifier(ScheduledExecutorService executor) {
+    public Observable<SegmentNotification> getSegmentNotifier(ScheduledExecutorService executor) {
         checkNotNull(executor, "executor");
-        return this.notifierFactory.getSegmentNotifier(this::createSynchronizer, executor);
+        return this.notifierFactory.getSegmentNotifier(executor);
     }
 
+    @Override
+    public Observable<EndOfDataNotification> getEndOfDataNotifier(ScheduledExecutorService executor) {
+        checkNotNull(executor, "executor");
+        return this.notifierFactory.getEndOfDataNotifier(executor);
+    }
 }

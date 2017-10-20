@@ -7,19 +7,20 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications.events;
+package io.pravega.client.stream.notifications;
 
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * Class to represent a segment event. This contains the current number of segments and the current number of readers.
+ * Class to represent a segment notification. This contains the current number of segments and the current number of
+ * readers.
  */
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Builder
-public class SegmentEvent extends Event {
+public class SegmentNotification extends Notification {
     private int numOfSegments;
     private int numOfReaders;
 }
