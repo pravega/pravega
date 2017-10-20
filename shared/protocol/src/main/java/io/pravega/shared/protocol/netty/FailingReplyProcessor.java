@@ -58,7 +58,8 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-        throw new IllegalStateException("Segment is sealed: " + segmentIsTruncated.segment);
+        throw new IllegalStateException("Segment is truncated: " + segmentIsTruncated.segment
+                + " at offset " + segmentIsTruncated.startOffset);
     }
 
     @Override
