@@ -22,19 +22,16 @@ import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.Exceptions;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
 import lombok.extern.slf4j.Slf4j;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
@@ -54,9 +51,9 @@ public class PravegaControllerDockerService extends DockerBasedService {
     @Override
     public void stop() {
         try {
-            dockerClient.removeService(getID());
-        } catch (DockerException | InterruptedException e) {
-            log.error("Unable to remove service {}", e);
+            Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
+        } catch (DockerException e) {
+            log.error("Unable to remove service", e);
         }
     }
 
@@ -67,13 +64,13 @@ public class PravegaControllerDockerService extends DockerBasedService {
     @Override
     public void start(final boolean wait) {
         try {
-            ServiceCreateResponse serviceCreateResponse = dockerClient.createService(setServiceSpec());
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
-            log.error("unable to create service {}", e);
+        } catch (Exception e) {
+            log.error("Unable to create service", e);
         }
     }
 
@@ -89,27 +86,24 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
-        List<String> stringList = new ArrayList<>();
-        stringList.add(env1);
-        stringList.add(env2);
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", "controller");
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
                         .labels(labels)
-                        .env(stringList).args("controller").build())
+                        .env(Arrays.asList(env1, env2)).args("controller").build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                 .ports(Arrays.asList(PortConfig.builder()
                         .publishedPort(CONTROLLER_PORT).build(),

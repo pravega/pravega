@@ -23,14 +23,13 @@ import com.spotify.docker.client.messages.swarm.RestartPolicy;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.Exceptions;
 import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -52,9 +51,9 @@ public class BookkeeperDockerService extends DockerBasedService {
     @Override
     public void stop() {
         try {
-            dockerClient.removeService(getID());
-        } catch (DockerException | InterruptedException e) {
-            log.error("unable to remove service {}", e);
+            Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
+        } catch (DockerException e) {
+            log.error("Unable to remove service", e);
         }
     }
 
@@ -65,27 +64,24 @@ public class BookkeeperDockerService extends DockerBasedService {
     @Override
     public void start(final boolean wait) {
         try {
-            ServiceCreateResponse serviceCreateResponse = dockerClient.createService(setServiceSpec());
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException | TimeoutException | ExecutionException e) {
-            log.error("unable to create service {}", e);
+        } catch (Exception e) {
+            log.error("Unable to create service", e);
         }
     }
 
     private ServiceSpec setServiceSpec() {
-        /*Mount mount1 = Mount.builder().type("volume").source("journal-volume").target("/bk/journal")
-                .build();*/
-        Mount mount2 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
+
+        Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
                 .build();
-        /*Mount mount3 = Mount.builder().type("volume").source("ledgers-volume").target("/bk/ledger")
-                .build();*/
-        Mount mount4 = Mount.builder().type("volume").source("logs-volume")
+        Mount mount2 = Mount.builder().type("volume").source("logs-volume")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
-
+        //TODO: add journal and ledger mounted volumes
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;
@@ -102,16 +98,16 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .hostname(serviceName)
                         .image(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
-                        .mounts(Arrays.asList(mount2, mount4))
+                        .mounts(Arrays.asList(mount1, mount2))
                         .env(stringList).build())
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName)
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(BK_PORT).build()).build())
                 .taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .build();

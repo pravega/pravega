@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system.framework.services.docker;
 
@@ -49,7 +49,7 @@ public class HDFSDockerService extends DockerBasedService {
         try {
             Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
         } catch (DockerException e) {
-            log.error("Unable to remove service {}", e);
+            log.error("Unable to remove service", e);
         }
     }
 
@@ -66,7 +66,7 @@ public class HDFSDockerService extends DockerBasedService {
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
         } catch (Exception e) {
-            log.error("unable to create service {}", e);
+            log.error("Unable to create service", e);
         }
     }
 
@@ -93,15 +93,17 @@ public class HDFSDockerService extends DockerBasedService {
         PortConfig port4 = PortConfig.builder().publishedPort(50020).protocol("TCP").name("hdfs-datanode-ipc").build();
         PortConfig port5 = PortConfig.builder().publishedPort(50075).protocol("TCP").name("hdfs-datanode-http").build();
         PortConfig port6 = PortConfig.builder().publishedPort(50070).protocol("TCP").name("hdfs-web").build();
+        PortConfig port7 = PortConfig.builder().publishedPort(2222).protocol("TCP").name("hdfs-ssh").build();
         portConfigs.add(port1);
         portConfigs.add(port2);
         portConfigs.add(port3);
         portConfigs.add(port4);
         portConfigs.add(port5);
         portConfigs.add(port6);
+        portConfigs.add(port7);
 
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
                 .endpointSpec(EndpointSpec.builder().ports(portConfigs)
                         .build()).build();
         return spec;

@@ -22,11 +22,10 @@ import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
@@ -48,12 +47,12 @@ public class ZookeeperDockerService extends DockerBasedService {
     public void stop() {
         try {
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = dockerClient.listServices(criteria);
+            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
             for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
-                dockerClient.removeService(serviceId);
+                Exceptions.handleInterrupted(() -> dockerClient.removeService(serviceId));
             }
-        } catch (DockerException | InterruptedException e) {
+        } catch (DockerException e) {
             log.error("Unable to remove service", e);
         }
     }
@@ -65,12 +64,12 @@ public class ZookeeperDockerService extends DockerBasedService {
     @Override
     public void start(final boolean wait) {
         try {
-            ServiceCreateResponse serviceCreateResponse = dockerClient.createService(setServiceSpec());
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
             assertThat(serviceCreateResponse.id(), is(notNullValue()));
-        } catch (InterruptedException | DockerException | ExecutionException | TimeoutException e) {
+        } catch (Exception e) {
             log.error("Unable to create service", e);
         }
     }
@@ -83,14 +82,15 @@ public class ZookeeperDockerService extends DockerBasedService {
                         .hostname(serviceName)
                         .healthcheck(ContainerConfig.Healthcheck.create(null,
                                 1000000000L, 1000000000L, 3)).build())
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
                         .build())
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
-                .networks(NetworkAttachmentConfig.builder().target("docker-network").aliases(serviceName).build())
-                .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
+                .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
+                .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT)
+                        .publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
                 .taskTemplate(taskSpec)
                 .mode(ServiceMode.withReplicas(instances)).build();
         return spec;
