@@ -23,8 +23,9 @@ RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-$BOOKKEEPER_VERSION/bo
 &&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
 &&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bk_all
 
+# zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
 RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  tar xvzf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
+&&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
 &&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zk
 
 ENV bookiePort 3181
