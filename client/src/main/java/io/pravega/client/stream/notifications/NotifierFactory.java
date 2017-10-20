@@ -35,8 +35,8 @@ public class NotifierFactory {
     @GuardedBy("$lock")
     private EndOfDataNotifier endOfDataNotifier;
 
-    public NotifierFactory(final NotificationSystem notificationSystem, final
-                           Supplier<StateSynchronizer<ReaderGroupState>> stateSynchronizerSupplier) {
+    public NotifierFactory(final NotificationSystem notificationSystem,
+                           final Supplier<StateSynchronizer<ReaderGroupState>> stateSynchronizerSupplier) {
         this.system = notificationSystem;
         this.stateSynchronizerSupplier = stateSynchronizerSupplier;
     }

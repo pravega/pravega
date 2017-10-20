@@ -64,7 +64,7 @@ public abstract class AbstractPollingNotifier<T extends Notification> extends Ab
     }
 
     void startPolling(final Runnable pollingTask, int pollingIntervalSeconds) {
-        if (!pollingStarted.getAndSet(true)) { //schedule the  only once
+        if (!pollingStarted.getAndSet(true)) { //schedule task only once
             pollingTaskFuture = executor.scheduleAtFixedRate(pollingTask, 0, pollingIntervalSeconds, TimeUnit.SECONDS);
         }
     }
