@@ -44,7 +44,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean segNotificationReceived = new AtomicBoolean(false);
 
         //Application can subscribe to segment notifications in the following way.
-        Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, () -> sync, executor);
+        Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, sync, executor);
         notifier.registerListener(segmentNotification -> {
             int numReader = segmentNotification.getNumOfReaders();
             int segments = segmentNotification.getNumOfSegments();
@@ -102,7 +102,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean segListenerInvoked = new AtomicBoolean();
         final AtomicBoolean customListenerInvoked = new AtomicBoolean();
 
-        Observable<SegmentNotification> segmentNotifier = new SegmentNotifier(notificationSystem, () -> sync, executor);
+        Observable<SegmentNotification> segmentNotifier = new SegmentNotifier(notificationSystem, sync, executor);
         Listener<SegmentNotification> segmentListener = e -> segListenerInvoked.set(true);
         segmentNotifier.registerListener(segmentListener);
 
@@ -136,7 +136,7 @@ public class NotificationFrameworkTest {
         final AtomicBoolean segmentNotificationReceived = new AtomicBoolean(false);
 
         //Application can subscribe to segment notifications in the following way.
-        final Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, () -> sync, executor);
+        final Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, sync, executor);
         notifier.registerListener(segmentNotification -> {
             int numReader = segmentNotification.getNumOfReaders();
             int segments = segmentNotification.getNumOfSegments();

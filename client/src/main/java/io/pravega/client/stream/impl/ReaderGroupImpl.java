@@ -72,7 +72,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final NotificationSystem notificationSystem = new NotificationSystem();
-    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem);
+    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem, this::createSynchronizer);
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -217,12 +217,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     @Override
     public Observable<SegmentNotification> getSegmentNotifier(ScheduledExecutorService executor) {
         checkNotNull(executor, "executor");
-        return this.notifierFactory.getSegmentNotifier(this::createSynchronizer, executor);
+        return this.notifierFactory.getSegmentNotifier(executor);
     }
 
     @Override
     public Observable<EndOfDataNotification> getEndOfDataNotifier(ScheduledExecutorService executor) {
         checkNotNull(executor, "executor");
-        return this.notifierFactory.getEndOfDataNotifier(this::createSynchronizer, executor);
+        return this.notifierFactory.getEndOfDataNotifier(executor);
     }
 }

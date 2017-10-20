@@ -10,7 +10,6 @@
 package io.pravega.client.stream.notifications.notifier;
 
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -26,9 +25,9 @@ public class EndOfDataNotifier extends AbstractPollingNotifier<EndOfDataNotifica
             System.getProperty("pravega.client.endOfDataNotification.poll.interval.seconds", String.valueOf(120)));
 
     public EndOfDataNotifier(final NotificationSystem notifySystem,
-                             final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
+                             final StateSynchronizer<ReaderGroupState> synchronizer,
                              final ScheduledExecutorService executor) {
-        super(notifySystem, executor, synchronizerSupplier);
+        super(notifySystem, executor, synchronizer);
     }
 
     @Override

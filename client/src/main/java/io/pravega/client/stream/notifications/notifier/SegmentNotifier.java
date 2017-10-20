@@ -12,7 +12,6 @@ package io.pravega.client.stream.notifications.notifier;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -31,9 +30,9 @@ public class SegmentNotifier extends AbstractPollingNotifier<SegmentNotification
     private int numberOfSegments = 0;
 
     public SegmentNotifier(final NotificationSystem notifySystem,
-                           final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier,
+                           final StateSynchronizer<ReaderGroupState> synchronizer,
                            final ScheduledExecutorService executor) {
-        super(notifySystem, executor, synchronizerSupplier);
+        super(notifySystem, executor, synchronizer);
     }
 
     @Override

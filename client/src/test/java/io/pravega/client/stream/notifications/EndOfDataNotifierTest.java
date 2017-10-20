@@ -69,7 +69,7 @@ public class EndOfDataNotifierTest {
         Listener<EndOfDataNotification> listener2 = notification -> {
         };
 
-        EndOfDataNotifier notifier = new EndOfDataNotifier(system, () -> sync, executor);
+        EndOfDataNotifier notifier = new EndOfDataNotifier(system, sync, executor);
         notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
         latch.await();

@@ -13,7 +13,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -27,17 +26,15 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class AbstractPollingNotifier<T extends Notification> extends AbstractNotifier<T> {
 
-    @GuardedBy("$lock")
-    StateSynchronizer<ReaderGroupState> synchronizer;
+    final StateSynchronizer<ReaderGroupState> synchronizer;
     @GuardedBy("$lock")
     private ScheduledFuture<?> pollingTaskFuture;
-    private final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier;
     private final AtomicBoolean pollingStarted = new AtomicBoolean();
 
     AbstractPollingNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor,
-                            final Supplier<StateSynchronizer<ReaderGroupState>> synchronizerSupplier) {
+                            final StateSynchronizer<ReaderGroupState> synchronizer) {
         super(notifySystem, executor);
-        this.synchronizerSupplier = synchronizerSupplier;
+        this.synchronizer = synchronizer;
     }
 
     @Override
@@ -68,7 +65,6 @@ public abstract class AbstractPollingNotifier<T extends Notification> extends Ab
 
     void startPolling(final Runnable pollingTask, int pollingIntervalSeconds) {
         if (!pollingStarted.getAndSet(true)) { //schedule the  only once
-            synchronizer = synchronizerSupplier.get();
             pollingTaskFuture = executor.scheduleAtFixedRate(pollingTask, 0, pollingIntervalSeconds, TimeUnit.SECONDS);
         }
     }
