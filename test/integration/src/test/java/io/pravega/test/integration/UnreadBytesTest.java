@@ -13,10 +13,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.net.URI;
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
+import io.pravega.client.stream.Checkpoint;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.test.common.InlineExecutor;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -50,9 +55,10 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ReaderGroupUnreadBytesTest {
+public class UnreadBytesTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
+    private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private final String serviceHost = "localhost";
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
@@ -93,35 +99,34 @@ public class ReaderGroupUnreadBytesTest {
     }
 
     @Test(timeout = 40000)
-    public void testSegmentNotifications() throws Exception {
+    public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
+                .scope("unreadbytes")
+                .streamName("unreadbytes")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
         Controller controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope("test").get();
+        controllerWrapper.getControllerService().createScope("unreadbytes").get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(false);
+        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", controllerUri);
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
-        writer.writeEvent("0", "fpj was here").get();
-        writer.writeEvent("0", "fpj was here").get();
 
         @Cleanup
-        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
-                connectionFactory);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", controllerUri);
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().build(), Collections
-                .singleton("test"));
+                .singleton("unreadbytes"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
+        long unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
 
+        writer.writeEvent("0", "fpj was here").get();
+        writer.writeEvent("0", "fpj was here").get();
 
         EventRead<String> firstEvent = reader.readNextEvent(15000);
         EventRead<String> secondEvent = reader.readNextEvent(15000);
@@ -130,11 +135,18 @@ public class ReaderGroupUnreadBytesTest {
         assertNotNull(secondEvent);
         assertEquals("fpj was here", secondEvent.getEvent());
 
-        long unreadBytes = readerGroup.getMetrics().unreadBytes();
-        assertTrue(unreadBytes == 0);
-        writer.writeEvent("0", "fpj was here").get();
-
+        // TODO: This is not actually working. We have read everything, but the
+        // assertion is failing essentially because the number of read bytes is
+        // internally computed is zero.
         unreadBytes = readerGroup.getMetrics().unreadBytes();
-        assertTrue(unreadBytes > 0);
+        assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
+
+        // TODO: This is also not working because of the way we are computing
+        // bytes read. It sounds like the count does not change unless there
+        // changes to the set of assigned and unassigned segments in the state
+        // of the synchronizer.
+        writer.writeEvent("0", "fpj was here").get();
+        unreadBytes = readerGroup.getMetrics().unreadBytes();
+        assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 27);
     }
 }
