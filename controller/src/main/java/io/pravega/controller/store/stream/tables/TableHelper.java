@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream.tables;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.Segment;
@@ -149,7 +151,7 @@ public class TableHelper {
                 }
             }
             return segments;
-        }).orElse(new ArrayList<>());
+        }).orElse(Collections.emptyList());
     }
 
     public static StreamTruncationRecord computeTruncationRecord(final byte[] indexTable, final byte[] historyTable,
@@ -170,7 +172,8 @@ public class TableHelper {
                 "streamCut", "stream cut has to be strictly ahead of previous stream cut");
 
         Set<Integer> toDelete = computeToDelete(cutMapSegments, historyTable, segmentTable, previousTruncationRecord.getDeletedSegments());
-        return new StreamTruncationRecord(streamCut, epochCutMap, previousTruncationRecord.getDeletedSegments(), toDelete);
+        return new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), ImmutableMap.copyOf(epochCutMap),
+                previousTruncationRecord.getDeletedSegments(), ImmutableSet.copyOf(toDelete));
     }
 
     public static List<Pair<Long, List<Integer>>> getScaleMetadata(byte[] historyTable) {
@@ -772,9 +775,9 @@ public class TableHelper {
         while (epochRecord.isPresent() && !toFind.isEmpty()) {
             List<Integer> epochSegments = epochRecord.get().getSegments();
             Map<Boolean, List<Integer>> group = toFind.stream().collect(Collectors.groupingBy(epochSegments::contains));
-            toFind = Optional.ofNullable(group.get(false)).orElse(new ArrayList<>());
+            toFind = Optional.ofNullable(group.get(false)).orElse(Collections.emptyList());
             int epoch = epochRecord.get().getEpoch();
-            List<Integer> found = Optional.ofNullable(group.get(true)).orElse(new ArrayList<>());
+            List<Integer> found = Optional.ofNullable(group.get(true)).orElse(Collections.emptyList());
             found.forEach(x -> epochStreamCutMap.put(x, epoch));
             epochRecord = HistoryRecord.fetchPrevious(epochRecord.get(), historyTable);
         }

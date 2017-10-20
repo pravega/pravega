@@ -207,7 +207,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn("Exception thrown in trying to update stream configuration {}", ex.getMessage());
+                    log.warn("Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex);
                 });
     }

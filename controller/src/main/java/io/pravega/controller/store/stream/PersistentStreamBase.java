@@ -149,13 +149,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return FutureHelpers.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
                 new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
                 .collect(Collectors.toList()))
-                .thenAccept(list -> {
-                    // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
-                    List<SimpleEntry<Double, Double>> reduced = TableHelper.reduce(list);
-                    Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
-                                    reduced.get(0).getValue().equals(1.0), "streamCut",
-                            " Invalid input, Stream Cut does not cover full key range.");
-                }).thenCompose(valid -> getTruncationData(true)
+                .thenAccept(this::validateStreamCut)
+                .thenCompose(valid -> getTruncationData(true)
                         .thenCompose(truncationData -> {
                             Preconditions.checkNotNull(truncationData);
                             StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
@@ -166,6 +161,14 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                     .thenCompose(prop -> setTruncationData(
                                             new Data<>(SerializationUtils.serialize(prop), truncationData.getVersion())));
                         }));
+    }
+
+    private void validateStreamCut(List<SimpleEntry<Double, Double>> list) {
+        // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
+        List<SimpleEntry<Double, Double>> reduced = TableHelper.reduce(list);
+        Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
+                        reduced.get(0).getValue().equals(1.0), "streamCut",
+                " Invalid input, Stream Cut does not cover full key range.");
     }
 
     private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord truncationRecord,
