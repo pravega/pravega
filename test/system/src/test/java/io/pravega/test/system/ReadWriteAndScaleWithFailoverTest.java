@@ -100,7 +100,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conURIs.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == 9090 :  uri.getPort() == 9092).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));

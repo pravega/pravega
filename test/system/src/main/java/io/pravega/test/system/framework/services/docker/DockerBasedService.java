@@ -121,7 +121,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).
                     taskTemplate(taskSpec).name(serviceName).build()));
             String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
-            log.info("Update state {}", updateState);
+            log.info("Update state {}", updateState.toString());
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get());
             }

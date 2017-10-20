@@ -58,6 +58,7 @@ public class PravegaSegmentStoreTest {
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
         Service con = Utils.isDockerLocalExecEnabled()
                 ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))

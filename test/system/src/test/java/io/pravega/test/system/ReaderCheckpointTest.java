@@ -9,6 +9,11 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -30,10 +35,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -112,6 +113,15 @@ public class ReaderCheckpointTest {
             bkService.start(true);
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
+
+        //start HDFS
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+        }
 
         //3. start controller
         Service conService = Utils.isDockerLocalExecEnabled()

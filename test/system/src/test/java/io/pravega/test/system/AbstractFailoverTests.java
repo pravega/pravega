@@ -601,6 +601,7 @@ abstract class AbstractFailoverTests {
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
     }
 

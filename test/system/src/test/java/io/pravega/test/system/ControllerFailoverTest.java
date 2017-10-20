@@ -87,6 +87,7 @@ public class ControllerFailoverTest {
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         //3. start controller

@@ -103,6 +103,7 @@ public class PravegaTest {
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         //3. start controller
@@ -126,7 +127,6 @@ public class PravegaTest {
 
         List<URI> segUris = segService.getServiceDetails();
         log.debug("pravega host service details: {}", segUris);
-        URI segUri = segUris.get(0);
     }
 
     @BeforeClass

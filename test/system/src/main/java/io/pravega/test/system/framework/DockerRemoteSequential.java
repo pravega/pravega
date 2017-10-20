@@ -18,6 +18,7 @@ import com.spotify.docker.client.messages.ContainerCreation;
 import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -55,13 +56,14 @@ public class DockerRemoteSequential implements TestExecutor {
 
         return CompletableFuture.runAsync(() -> {
             startTest(containerName, className, methodName);
-        }).thenCompose(v2 -> waitForJobCompletion()).<Void>thenApply(v1 -> {
+        }).thenCompose(v2 -> waitForJobCompletion())
+                .<Void>thenApply(v1 -> {
             try {
-                if (client.inspectContainer(id).state().exitCode() != 0) {
+                if (Exceptions.handleInterrupted(() -> client.inspectContainer(id).state().exitCode() != 0)) {
                     throw new AssertionError("Test failed"
                             + className + "#" + methodName);
                 }
-            } catch (DockerException | InterruptedException e) {
+            } catch (DockerException e) {
                 log.error("Unable to get container exit status", e);
             }
             return null;
@@ -87,7 +89,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 value = true;
             }
         } catch (DockerException | InterruptedException e) {
-            log.error("unable to list docker services ", e);
+            log.error("Unable to list docker services", e);
         }
         return value;
     }
@@ -117,7 +119,7 @@ public class DockerRemoteSequential implements TestExecutor {
             client.startContainer(id);
 
         } catch (DockerException | InterruptedException e) {
-            log.error("exception in starting container ", e);
+            log.error("Exception in starting container ", e);
             Assert.fail("Unable to start the container to invoke the test.Test failure");
         }
         return id;
@@ -125,7 +127,7 @@ public class DockerRemoteSequential implements TestExecutor {
 
     private ContainerConfig setContainerConfig(String methodName, String className) {
 
-        Map<String, String> labels = new HashMap<>(1);
+        Map<String, String> labels = new HashMap<>(2);
         labels.put("testMethodName", methodName);
         labels.put("testClassName", className);
 
@@ -143,13 +145,5 @@ public class DockerRemoteSequential implements TestExecutor {
                 .build();
 
         return containerConfig;
-    }
-
-    private void stopContainer() {
-        try {
-            client.stopContainer(id, 0);
-        } catch (DockerException | InterruptedException e) {
-            log.error("Exception while stopping the container ", e);
-        }
     }
 }
