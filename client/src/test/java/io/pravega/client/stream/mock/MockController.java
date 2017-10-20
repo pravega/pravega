@@ -139,6 +139,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> cut) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
         throw new UnsupportedOperationException();
     }

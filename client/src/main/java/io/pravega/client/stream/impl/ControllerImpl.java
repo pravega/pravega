@@ -301,6 +301,44 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
+
+        final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
+            client.truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn("Failed to truncate stream: {}/{}", scope, stream);
+                    throw new ControllerFailureException("Failed to truncate stream: " + scope + "/" + stream);
+                case SCOPE_NOT_FOUND:
+                    log.warn("Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case STREAM_NOT_FOUND:
+                    log.warn("Stream does not exist: {}/{}", scope, stream);
+                    throw new IllegalArgumentException("Stream does not exist: " + stream);
+                case SUCCESS:
+                    log.info("Successfully updated stream: {}/{}", scope, stream);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status updating stream " + scope + "/" + stream
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("updateStream failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "updateStream", traceId);
+        });
+    }
+
+    @Override
     public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
