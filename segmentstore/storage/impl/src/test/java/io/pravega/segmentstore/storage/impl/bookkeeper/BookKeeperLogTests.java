@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
-import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ByteArraySegment;
@@ -47,7 +46,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
-import org.slf4j.LoggerFactory;
 
 /**
  * Unit tests for BookKeeperLog. These require that a compiled BookKeeper distribution exists on the local
@@ -77,9 +75,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
      */
     @BeforeClass
     public static void setUpBookKeeper() throws Exception {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        context.reset();
-
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
