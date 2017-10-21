@@ -43,4 +43,8 @@ public abstract class EventPointerInternal implements EventPointer {
      * @return the event length.
      */
     abstract int getEventLength();
+    
+    public static EventPointer fromString(String eventPointer) {
+        return EventPointerImpl.fromString(eventPointer);
+    }
 }

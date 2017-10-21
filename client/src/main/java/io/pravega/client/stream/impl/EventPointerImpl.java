@@ -9,10 +9,10 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventPointer;
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
-
 
 /**
  * Implementation of the EventPointer interface. We use
@@ -20,9 +20,7 @@ import lombok.ToString;
  * class to make pointer instances opaque.
  */
 @EqualsAndHashCode(callSuper = false)
-@ToString
 public class EventPointerImpl extends EventPointerInternal {
-    private static final long serialVersionUID = 1L;
     private final Segment segment;
     private final long eventStartOffset;
     private final int eventLength;
@@ -51,5 +49,19 @@ public class EventPointerImpl extends EventPointerInternal {
     @Override
     public EventPointerInternal asImpl() {
         return this;
+    }
+    
+    public static EventPointer fromString(String eventPointer) {
+        int i = eventPointer.lastIndexOf(":");
+        Preconditions.checkArgument(i > 0, "Invalid event pointer: %s", eventPointer);
+        String[] offset = eventPointer.substring(i + 1).split("-");
+        Preconditions.checkArgument(offset.length == 2, "Invalid event pointer: %s", eventPointer);
+        return new EventPointerImpl(Segment.fromScopedName(eventPointer.substring(0, i)), Long.parseLong(offset[0]),
+                                    Integer.parseInt(offset[1]));
+    }
+    
+    @Override
+    public String toString() {
+        return segment.getScopedName() + ":" + eventStartOffset + "-" + eventLength;
     }
 }

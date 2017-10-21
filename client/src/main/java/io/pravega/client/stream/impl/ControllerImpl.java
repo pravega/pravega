@@ -11,7 +11,6 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
@@ -56,9 +55,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -76,6 +72,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
 
@@ -557,7 +555,7 @@ public class ControllerImpl implements Controller {
     }
     
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCutInternal from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
@@ -587,7 +585,7 @@ public class ControllerImpl implements Controller {
         return CompletableFuture.completedFuture(unread);
     }
     
-    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
+    private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCutInternal from) {
         int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
         if (highestCut >= lowestCurrent) {

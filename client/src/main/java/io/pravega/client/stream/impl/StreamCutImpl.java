@@ -11,20 +11,14 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
-import java.io.Serializable;
 import java.util.Map;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
 
-/**
- * A set of segment/offset pairs for a single stream that represent a consistent position in the
- * stream. (IE: Segment 1 and 2 will not both appear in the set if 2 succeeds 1, and if 0 appears
- * and is responsible for keyspace 0-0.5 then other segments covering the range 0.5-1.0 will also be
- * included.)
- */
+
 @Data
-public class StreamCut implements Serializable {
+public class StreamCutImpl extends StreamCutInternal {
 
     private final Stream stream;
     @Getter(value = AccessLevel.PACKAGE)
