@@ -170,7 +170,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         try {
             if (Files.exists(path)) {
                 if (Files.isDirectory(path)) {
-                    Files.list(path).forEach((file) -> {
+                    Files.list(path).forEach(file -> {
                         addFileAsObjectToList(file, list, bucketName);
                     });
                 } else {

@@ -75,7 +75,7 @@ public interface SegmentMetadata extends SegmentProperties {
      * it was created (changes to the base object will not be reflected in the result).
      */
     default SegmentProperties getSnapshot() {
-        return new StreamSegmentInformation(this, new HashMap<>(getAttributes()));
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
     }
 
     /**

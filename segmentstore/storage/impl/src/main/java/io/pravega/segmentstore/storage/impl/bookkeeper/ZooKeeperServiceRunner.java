@@ -49,6 +49,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     }
 
     public void initialize() throws IOException {
+        System.setProperty("zookeeper.4lw.commands.whitelist", "*"); // As of ZooKeeper 3.5 this is needed to not break start()
         if (this.tmpDir.compareAndSet(null, IOUtils.createTempDir("zookeeper", "inproc"))) {
             this.tmpDir.get().deleteOnExit();
         }
@@ -73,8 +74,9 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000);
         this.serverFactory.get().startup(s);
 
-        boolean b = waitForServerUp(this.zkPort);
-        log.info("ZooKeeper server {}.", b ? "up" : "not up");
+        if (!waitForServerUp(this.zkPort)) {
+            throw new IllegalStateException("ZooKeeper server failed to start");
+        }
     }
 
     public void stop() {

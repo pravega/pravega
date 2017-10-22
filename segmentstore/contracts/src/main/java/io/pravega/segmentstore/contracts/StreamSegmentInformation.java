@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
 import java.util.Collections;
@@ -25,6 +26,8 @@ public class StreamSegmentInformation implements SegmentProperties {
 
     @Getter
     private final String name;
+    @Getter
+    private final long startOffset;
     @Getter
     private final long length;
     @Getter
@@ -44,6 +47,7 @@ public class StreamSegmentInformation implements SegmentProperties {
      * Creates a new instance of the StreamSegmentInformation class.
      *
      * @param name         The name of the StreamSegment.
+     * @param startOffset  The first available offset in this StreamSegment.
      * @param length       The length of the StreamSegment.
      * @param sealed       Whether the StreamSegment is sealed (for modifications).
      * @param deleted      Whether the StreamSegment is deleted (does not exist).
@@ -51,8 +55,12 @@ public class StreamSegmentInformation implements SegmentProperties {
      * @param lastModified The last time the StreamSegment was modified.
      */
     @Builder
-    private StreamSegmentInformation(String name, long length, boolean sealed, boolean deleted, Map<UUID, Long> attributes, ImmutableDate lastModified) {
+    private StreamSegmentInformation(String name, long startOffset, long length, boolean sealed, boolean deleted,
+                                    Map<UUID, Long> attributes, ImmutableDate lastModified) {
+        Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
+        Preconditions.checkArgument(length >= startOffset, "length must be a non-negative number and greater than startOffset.");
         this.name = Exceptions.checkNotNullOrEmpty(name, "name");
+        this.startOffset = startOffset;
         this.length = length;
         this.sealed = sealed;
         this.deleted = deleted;
@@ -61,25 +69,28 @@ public class StreamSegmentInformation implements SegmentProperties {
     }
 
     /**
-     * Creates a new instance of the StreamSegmentInformation class from a base SegmentProperties with replacement attributes.
+     * Creates a new StreamSegmentInformationBuilder with information already populated from the given SegmentpProperties.
      *
-     * @param baseProperties The SegmentProperties to copy. Attributes will be ignored.
-     * @param attributes     The attributes of this StreamSegment.
+     * @param base The SegmentProperties to use as a base.
+     * @return The Builder.
      */
-    public StreamSegmentInformation(SegmentProperties baseProperties, Map<UUID, Long> attributes) {
-        this.name = baseProperties.getName();
-        this.length = baseProperties.getLength();
-        this.sealed = baseProperties.isSealed();
-        this.deleted = baseProperties.isDeleted();
-        this.lastModified = baseProperties.getLastModified();
-        this.attributes = getAttributes(attributes);
+    public static StreamSegmentInformationBuilder from(SegmentProperties base) {
+        return StreamSegmentInformation.builder()
+                                       .name(base.getName())
+                                       .startOffset(base.getStartOffset())
+                                       .length(base.getLength())
+                                       .sealed(base.isSealed())
+                                       .deleted(base.isDeleted())
+                                       .lastModified(base.getLastModified())
+                                       .attributes(base.getAttributes());
     }
 
     //endregion
 
     @Override
     public String toString() {
-        return String.format("Name = %s, Length = %d, Sealed = %s, Deleted = %s, LastModified = %s", getName(), getLength(), isSealed(), isDeleted(), getLastModified());
+        return String.format("Name = %s, StartOffset = %d, Length = %d, Sealed = %s, Deleted = %s", getName(),
+                getStartOffset(), getLength(), isSealed(), isDeleted());
     }
 
     private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {

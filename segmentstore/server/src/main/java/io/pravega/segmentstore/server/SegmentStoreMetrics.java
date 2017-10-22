@@ -270,6 +270,7 @@ public final class SegmentStoreMetrics {
         private final String createTxnCount;
         private final String mergeTxnCount;
         private final String sealCount;
+        private final String truncateCount;
 
         public Container(int containerId) {
             this.appendCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_APPEND_COUNT, containerId);
@@ -282,6 +283,7 @@ public final class SegmentStoreMetrics {
             this.createTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_CREATE_TXN_COUNT, containerId);
             this.mergeTxnCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_MERGE_TXN_COUNT, containerId);
             this.sealCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_SEAL_COUNT, containerId);
+            this.truncateCount = MetricsNames.nameFromContainer(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerId);
         }
 
         public void createSegment() {
@@ -322,6 +324,10 @@ public final class SegmentStoreMetrics {
 
         public void seal() {
             DYNAMIC_LOGGER.recordMeterEvents(this.sealCount, 1);
+        }
+
+        public void truncate() {
+            DYNAMIC_LOGGER.recordMeterEvents(this.truncateCount, 1);
         }
     }
 

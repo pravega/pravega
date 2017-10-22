@@ -9,30 +9,45 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * Defines various types of Read Result Entries, based on where their data is located.
  */
+@RequiredArgsConstructor
 public enum ReadResultEntryType {
     /**
      * The ReadResultEntry points to a location in the Cache, and data is readily available.
      */
-    Cache,
+    Cache(false),
 
     /**
      * The ReadResultEntry points to a location in Storage, and data will need to be retrieved from there in order
      * to make use of it.
      */
-    Storage,
+    Storage(false),
 
     /**
      * The ReadResultEntry points to a location beyond the end offset of the StreamSegment. It will not be able to return
      * anything until such data is appended to the StreamSegment.
      */
-    Future,
+    Future(false),
 
     /**
      * The ReadResultEntry indicates that the End of the StreamSegment has been reached. No data can be consumed
      * from it and no further reading can be done on this StreamSegment from its position.
      */
-    EndOfStreamSegment
+    EndOfStreamSegment(true),
+
+    /**
+     * The ReadResultEntry points to a location in the StreamSegment that has been truncated out and is no longer available.
+     */
+    Truncated(true);
+
+    /**
+     * If true, this indicates that the ReadResult cannot progress from this point anymore and should be closed.
+     */
+    @Getter
+    private final boolean terminal;
 }

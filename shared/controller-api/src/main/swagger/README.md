@@ -19,7 +19,7 @@ All REST API modifications should be done by updating the swagger/Controller.yam
 This can be done manually or by using the online editor at http://editor.swagger.io.
 
 ## Download Swagger codegen
-Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.1/swagger-codegen-cli-2.2.1.jar
+Download swagger-codegen-cli from maven - http://repo1.maven.org/maven2/io/swagger/swagger-codegen-cli/2.2.3/swagger-codegen-cli-2.2.3.jar
 
 ## Generate the API stubs using Swagger Codegen 
 ```

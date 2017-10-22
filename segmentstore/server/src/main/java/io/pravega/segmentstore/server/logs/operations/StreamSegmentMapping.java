@@ -34,6 +34,11 @@ public interface StreamSegmentMapping {
     String getStreamSegmentName();
 
     /**
+     * Gets a value indicating the first offset within the StreamSegment available for reading.
+     */
+    long getStartOffset();
+
+    /**
      * Gets a value indicating the Length of the StreamSegment at the time of the mapping.
      */
     long getLength();
