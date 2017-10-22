@@ -181,6 +181,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("updateAttributes");
         }
+
+        @Override
+        public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+            throw new UnsupportedOperationException("truncateStreamSegment");
+        }
     }
 
     //endregion

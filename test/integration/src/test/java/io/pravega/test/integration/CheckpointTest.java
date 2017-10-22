@@ -80,7 +80,8 @@ public class CheckpointTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
+                                                                    .disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
                                                                          .scope(scope)

@@ -27,7 +27,7 @@ final class BookKeeperMetrics {
     /**
      * BookKeeperLog-specific (i.e. per Container) Metrics.
      */
-    final static class BookKeeperLog  implements AutoCloseable {
+    final static class BookKeeperLog implements AutoCloseable {
         private final OpStatsLogger writeQueueSize;
         private final OpStatsLogger writeQueueFillRate;
         private final String ledgerCount;
@@ -59,7 +59,7 @@ final class BookKeeperMetrics {
 
         void queueStats(QueueStats qs) {
             this.writeQueueSize.reportSuccessValue(qs.getSize());
-            this.writeQueueFillRate.reportSuccessValue((int) (qs.getAverageItemFillRate() * 100));
+            this.writeQueueFillRate.reportSuccessValue((int) (qs.getAverageItemFillRatio() * 100));
         }
 
         void writeCompleted(Duration elapsed) {

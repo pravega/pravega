@@ -137,6 +137,14 @@ public class StreamSegmentService implements StreamSegmentStore {
                 "deleteStreamSegment", streamSegmentName);
     }
 
+    @Override
+    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+        return invoke(
+                streamSegmentName,
+                container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),
+                "truncateStreamSegment", streamSegmentName);
+    }
+
     //endregion
 
     //region Helpers

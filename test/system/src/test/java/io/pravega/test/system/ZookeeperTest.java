@@ -13,6 +13,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
@@ -20,7 +21,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import java.net.URI;
+
 import static org.apache.curator.framework.imps.CuratorFrameworkState.STARTED;
 import static org.junit.Assert.assertEquals;
 

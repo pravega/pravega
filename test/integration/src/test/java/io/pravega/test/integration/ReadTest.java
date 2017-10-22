@@ -232,7 +232,8 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().startingPosition(Sequence.MIN_VALUE)
+                                                                   .disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig, Collections.singleton(streamName));

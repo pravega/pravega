@@ -49,6 +49,21 @@ allprojects {
 
     version = pravegaVersion
     group = "io.pravega"
+
+    configurations.all {
+        resolutionStrategy {
+            //failOnVersionConflict()
+            force "org.slf4j:slf4j-api:" + slf4jApiVersion
+            force "org.apache.commons:commons-lang3:" + commonsLang3Version
+            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
+            force "io.grpc:grpc-context:" + grpcVersion
+            force "com.google.guava:guava:" + guavaVersion
+            force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
+            force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+        }
+    }
+
 }
 
 project('common') {
@@ -396,7 +411,7 @@ project('controller') {
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        compile group: 'javax.servlet', name: 'servlet-api', version: javaxServletApiVersion
+        compile group: 'javax.servlet', name: 'javax.servlet-api', version: javaxServletApiVersion
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
@@ -407,6 +422,7 @@ project('controller') {
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
+        compile group: 'org.glassfish.jersey.inject', name: 'jersey-hk2', version: jerseyVersion
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
