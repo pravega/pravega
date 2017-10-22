@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import java.text.spi.CollatorProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,15 +28,19 @@ public class StorageLedger {
 
     private final StorageLedgerManager manager;
 
-    ConcurrentHashMap<Integer, LedgerData> dataMap;
-    @Getter
-    boolean sealed;
-    @Getter
-    int length;
-    @Getter
-    ImmutableDate lastModified;
     @Getter
     private final String name;
+
+    private ConcurrentHashMap<Integer, LedgerData> dataMap;
+
+    @Getter
+    private boolean sealed;
+
+    @Getter
+    private int length;
+
+    @Getter
+    private ImmutableDate lastModified;
 
     public StorageLedger(StorageLedgerManager storageLedgerManager, String streamSegmentName) {
         manager = storageLedgerManager;
@@ -71,11 +74,12 @@ public class StorageLedger {
     }
 
     public synchronized CompletableFuture<Void> deleteAllLedgers() {
-        return CompletableFuture.allOf(this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLh())).toArray(CompletableFuture[]::new));
+        return CompletableFuture.allOf(
+                this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLh())).toArray(CompletableFuture[]::new));
     }
 
     public LedgerData getLastLedgerData() {
-        return this.dataMap.entrySet().stream().max((entry1, entry2) -> ( entry1.getKey() - entry2.getKey())).get().getValue();
+        return this.dataMap.entrySet().stream().max((entry1, entry2) ->  entry1.getKey() - entry2.getKey()).get().getValue();
     }
 
     public void setSealed() {

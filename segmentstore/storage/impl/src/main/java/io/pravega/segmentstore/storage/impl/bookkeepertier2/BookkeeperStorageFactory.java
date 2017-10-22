@@ -11,12 +11,11 @@ package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 
-public class BookkeeperStorageFactory implements StorageFactory{
+public class BookkeeperStorageFactory implements StorageFactory {
     private final BookkeeperStorageConfig config;
     private final ExecutorService executor;
     private final CuratorFramework zkClient;

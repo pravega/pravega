@@ -30,11 +30,11 @@ public class BookkeeperStorageTest extends StorageTestBase {
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
-    private static final AtomicReference<CuratorFramework> zkClient = new AtomicReference<>();
-    private static final AtomicReference<BookkeeperStorageConfig> config = new AtomicReference<>();
+    private static final AtomicReference<CuratorFramework> ZK_CLIENT = new AtomicReference<>();
+    private static final AtomicReference<BookkeeperStorageConfig> CONFIG = new AtomicReference<>();
 
     @BeforeClass
-    public static void Setup() throws Exception {
+    public static void setUp() throws Exception {
         // Pick a random port to reduce chances of collisions during concurrent test executions.
         BK_PORT.set(TestUtils.getAvailableListenPort());
         val bookiePorts = new ArrayList<Integer>();
@@ -52,16 +52,16 @@ public class BookkeeperStorageTest extends StorageTestBase {
         BK_SERVICE.set(runner);
 
         String namespace = "pravega/segmentstore/unittest_" + Long.toHexString(System.nanoTime());
-        zkClient.set(CuratorFrameworkFactory
+        ZK_CLIENT.set(CuratorFrameworkFactory
                 .builder()
                 .connectString("localhost:" + BK_PORT.get())
                 .namespace(namespace)
                 .retryPolicy(new ExponentialBackoffRetry(1000, 5))
                 .build());
-        zkClient.get().start();
+        ZK_CLIENT.get().start();
 
         // Setup config to use the port and namespace.
-        config.set(BookkeeperStorageConfig
+        CONFIG.set(BookkeeperStorageConfig
                 .builder()
                 .with(BookkeeperStorageConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
                 .with(BookkeeperStorageConfig.ZK_METADATA_PATH, namespace)
@@ -88,7 +88,7 @@ public class BookkeeperStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new BookkeeperStorage(config.get(), zkClient.get(), executorService());
+        return new BookkeeperStorage(CONFIG.get(), ZK_CLIENT.get(), executorService());
     }
 
     @Override

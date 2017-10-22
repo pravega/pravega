@@ -111,6 +111,7 @@ public class BookkeeperStorageConfig {
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
     }
+
     /**
      * Gets a value representing the Password to use for the creation and access of each BK Ledger.
      */

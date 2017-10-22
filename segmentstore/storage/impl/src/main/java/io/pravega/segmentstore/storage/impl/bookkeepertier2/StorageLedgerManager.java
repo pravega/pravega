@@ -66,7 +66,7 @@ public class StorageLedgerManager {
     }
 
     /**
-     * Creates a StorageLedger at location streamSegmentName
+     * Creates a StorageLedger at location streamSegmentName.
      *
      * @param streamSegmentName Full name of the stream segment
      * @param timeout           timeout value for the operation
@@ -185,7 +185,7 @@ public class StorageLedgerManager {
     }
 
     /**
-     * Initializes the bookkeeper and curator objects
+     * Initializes the bookkeeper and curator objects.
      */
     public void initialize() {
 
@@ -339,7 +339,7 @@ public class StorageLedgerManager {
     private CompletableFuture<StorageLedger> getOrRetrieveStorageLedger(String streamSegmentName) {
         CompletableFuture<StorageLedger> retVal = new CompletableFuture<>();
 
-        synchronized (ledgers) {
+        synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
                 StorageLedger ledger = ledgers.get(streamSegmentName);
                 retVal.complete(ledger);
@@ -388,10 +388,10 @@ public class StorageLedgerManager {
     public CompletableFuture<Void> write(String segmentName, long offset, InputStream data, int length) {
         return getOrRetrieveStorageLedger(segmentName)
                 .thenCompose((StorageLedger ledger) -> {
-                    if (ledger.length != offset) {
-                        throw new CompletionException(new BadOffsetException(segmentName, ledger.length, offset));
+                    if (ledger.getLength() != offset) {
+                        throw new CompletionException(new BadOffsetException(segmentName, ledger.getLength(), offset));
                     }
-                    if (ledger.sealed) {
+                    if (ledger.isSealed()) {
                         throw new CompletionException(new StreamSegmentSealedException(segmentName));
                     }
                     return getORCreateLHForOffset(ledger, offset);
@@ -422,7 +422,7 @@ public class StorageLedgerManager {
         }
 
         lh.asyncAddEntry(bytes, (errorCode, ledgerHandle, l, future) -> {
-            if( errorCode == 0) {
+            if ( errorCode == 0) {
                 retVal.complete(null);
             } else {
                 retVal.completeExceptionally(BKException.create(errorCode));
@@ -478,7 +478,7 @@ public class StorageLedgerManager {
                    )
             .thenCombine(this.getOrRetrieveStorageLedger(sourceSegment),
                 (target, source) -> {
-                if (!source.sealed) {
+                if (!source.isSealed()) {
                     throw new IllegalStateException("source must be sealed");
                 }
                 return target.addLedgerDataFrom(source);

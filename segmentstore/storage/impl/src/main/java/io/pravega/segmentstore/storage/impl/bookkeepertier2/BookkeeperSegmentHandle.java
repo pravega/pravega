@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemSegmentHandle;
 
 public class BookkeeperSegmentHandle implements SegmentHandle {
     private final String segmentName;
