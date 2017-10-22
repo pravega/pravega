@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.client.AsyncCallback;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
@@ -165,7 +163,7 @@ public class StorageLedgerManager {
         CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
 
         bookkeeper.asyncCreateLedger(config.getBkEnsembleSize(),
-                config.getBkWriteQuorumSize(), config.getBkAckQuorumSize(), LEDGER_DIGEST_TYPE, config.getBKPassword(),
+                config.getBkWriteQuorumSize(), LEDGER_DIGEST_TYPE, config.getBKPassword(),
                 (errorCode, ledgerHandle, future) -> {
                     if (errorCode == 0) {
                         LedgerData lh = new LedgerData(ledgerHandle, offset);
