@@ -21,6 +21,8 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.bookkeepertier2.BookkeeperStorageConfig;
+import io.pravega.segmentstore.storage.impl.bookkeepertier2.BookkeeperStorageFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
@@ -175,6 +177,10 @@ public final class ServiceStarter {
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
                         return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+
+                    case BOOKKEEPER:
+                        BookkeeperStorageConfig bookkeeperStorageConfig = setup.getConfig(BookkeeperStorageConfig::builder);
+                        return new BookkeeperStorageFactory(bookkeeperStorageConfig, this.zkClient, setup.getExecutor());
 
                     case INMEMORY:
                         return new InMemoryStorageFactory(setup.getExecutor());

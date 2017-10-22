@@ -46,6 +46,7 @@ public class ServiceConfig {
         EXTENDEDS3,
         FILESYSTEM,
         HDFS,
+        BOOKKEEPER,
         INMEMORY
     }
 
