@@ -281,7 +281,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                 long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.length / 2 + 1;
                 truncationOffsets.put(segmentName, truncateOffset);
-                opFutures.add(FutureHelpers.toVoid(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT)));
+                opFutures.add(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT));
             }
         }
 
