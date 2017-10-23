@@ -53,14 +53,17 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentPolicyUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
 import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
@@ -88,6 +91,7 @@ import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
+import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
@@ -169,19 +173,30 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Handles a readResult.
      * If there are cached entries that can be returned without blocking only these are returned.
      * Otherwise the call will request the data and setup a callback to return the data when it is available.
+     * If no data is available but it was detected that the Segment had been truncated beyond the current offset,
+     * an appropriate message is sent back over the connection.
      */
     private void handleReadResult(ReadSegment request, ReadResult result) {
         String segment = request.getSegment();
         ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
         ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
 
+        boolean truncated = nonCachedEntry != null && nonCachedEntry.getType() == Truncated;
         boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
         boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
 
         if (!cachedEntries.isEmpty() || endOfSegment) {
+            // We managed to collect some data. Send it.
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
+        } else if (truncated) {
+            // We didn't collect any data, instead we determined that the current read offset was truncated.
+            // Determine the current Start Offset and send that back.
+            segmentStore.getStreamSegmentInfo(segment, false, TIMEOUT)
+                    .thenAccept(info ->
+                            connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset())))
+                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
         } else {
             Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
             nonCachedEntry.requestContent(TIMEOUT);
@@ -290,12 +305,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (properties != null) {
                         StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),
                                 properties.getName(), true, properties.isSealed(), properties.isDeleted(),
-                                properties.getLastModified().getTime(), properties.getLength());
+                                properties.getLastModified().getTime(), properties.getLength(), properties.getStartOffset());
                         log.trace("Read stream segment info: {}", result);
                         connection.send(result);
                     } else {
                         log.trace("getStreamSegmentInfo could not find segment {}", segmentName);
-                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0));
+                        connection.send(new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(), segmentName, false, true, true, 0, 0, 0));
                     }
                 })
                 .exceptionally(e -> handleException(getStreamSegmentInfo.getRequestId(), segmentName, "Get segment info", e));
@@ -402,7 +417,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     public void commitTransaction(CommitTransaction commitTx) {
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(commitTx.getSegment(), commitTx.getTxid());
         long requestId = commitTx.getRequestId();
-        log.debug("Commiting transaction {} ", commitTx);
+        log.debug("Committing transaction {} ", commitTx);
 
         // Seal and Merge can execute concurrently, as long as they are invoked in the correct order (first Seal, then Merge).
         // If Seal fails for whatever reason (except already sealed), then Merge will also fail because the txn is not sealed,
@@ -458,6 +473,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         }
                     }
                 });
+    }
+
+    @Override
+    public void truncateSegment(TruncateSegment truncateSegment) {
+        String segment = truncateSegment.getSegment();
+        long offset = truncateSegment.getTruncationOffset();
+        log.debug("Truncating segment {} at offset {} ", segment, offset);
+        segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
+                .thenAccept(size -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, "Truncate segment", e));
     }
 
     @Override
