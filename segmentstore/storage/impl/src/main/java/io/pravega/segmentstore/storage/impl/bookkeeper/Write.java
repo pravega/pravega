@@ -173,6 +173,12 @@ class Write {
         }
 
         endAttempt();
+        WriteLedger ledger = this.writeLedger.get();
+        if (ledger != null && ledger.isRolledOver()) {
+            // Rollovers aren't really failures (they're caused by us). In that case, do not count this failure as an attempt.
+            this.attemptCount.updateAndGet(v -> Math.max(0, v - 1));
+        }
+
         if (complete) {
             this.result.completeExceptionally(this.failureCause.get());
         }
