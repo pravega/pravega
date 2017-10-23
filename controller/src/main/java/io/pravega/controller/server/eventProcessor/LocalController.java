@@ -129,6 +129,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
+        throw new NotImplementedException("truncation using StreamCut object not supported in local controller");
+    }
+
+    @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
         return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
             switch (x.getStatus()) {

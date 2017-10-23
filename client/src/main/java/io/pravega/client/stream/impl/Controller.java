@@ -77,6 +77,18 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      * indicate that the stream was truncated at the supplied cut.
      */
+    CompletableFuture<Boolean> truncateStream(final String scope, final String streamName, final StreamCut streamCut);
+
+    /**
+     * Api to Truncate stream. This api takes a stream cut point which corresponds to a cut in the stream segments which is
+     * consistent and covers the entire key range space.
+     *
+     * @param scope      Scope
+     * @param streamName Stream
+     * @param streamCut  Stream cut to updated
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     * indicate that the stream was truncated at the supplied cut.
+     */
     CompletableFuture<Boolean> truncateStream(final String scope, final String streamName, final Map<Integer, Long> streamCut);
 
     /**
