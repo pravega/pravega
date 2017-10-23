@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
@@ -72,6 +73,8 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean truncateStream(String scopeName, String streamName, StreamCut streamCut) {
+        Preconditions.checkNotNull(streamCut);
+
         log.info("Truncating scope/stream: {}/{} with stream cut: {}", scopeName, streamName, streamCut);
         return FutureHelpers.getAndHandleExceptions(controller.truncateStream(scopeName, streamName, streamCut),
                 RuntimeException::new);
