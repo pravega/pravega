@@ -25,9 +25,9 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -103,7 +103,7 @@ public class EndToEndTruncationTest {
                                                         .streamName("test")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
-        Controller controller = controllerWrapper.getController();
+        LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
         @Cleanup
@@ -126,11 +126,12 @@ public class EndToEndTruncationTest {
         assertTrue(result);
         writer.writeEvent("0", "truncationTest2").get();
 
-        Map<Integer, Long> streamcut = new HashMap<>();
-        streamcut.put(2, 0L);
-        streamcut.put(3, 0L);
-        streamcut.put(4, 0L);
-        controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamcut);
+        Map<Integer, Long> streamCutPositions = new HashMap<>();
+        streamCutPositions.put(2, 0L);
+        streamCutPositions.put(3, 0L);
+        streamCutPositions.put(4, 0L);
+
+        controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
