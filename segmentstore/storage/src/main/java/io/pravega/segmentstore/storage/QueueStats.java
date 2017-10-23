@@ -16,12 +16,7 @@ import lombok.Data;
  */
 @Data
 public class QueueStats {
-    public static final QueueStats DEFAULT = new QueueStats(0, 0, 0, 0);
-    /**
-     * Gets the maximum degree of the Queue Processing parallelism.
-     */
-    private final int maxParallelism;
-
+    public static final QueueStats DEFAULT = new QueueStats(0, 0, 0);
     /**
      * The number of items in the queue.
      */
@@ -32,7 +27,7 @@ public class QueueStats {
      * that item. For example, if the maximum capacity for an item is 1MB and each item is about 700KB, then this
      * would be approx 0.7.
      */
-    private final double averageItemFillRate;
+    private final double averageItemFillRatio;
 
     /**
      * The expected processing time for an item, in milliseconds.
@@ -41,6 +36,6 @@ public class QueueStats {
 
     @Override
     public String toString() {
-        return String.format("Size = %d, Fill = %.2f, ProcTimeMillis = %d", this.size, this.averageItemFillRate, this.expectedProcessingTimeMillis);
+        return String.format("Size = %d, Fill = %.2f, ProcTime = %dms", this.size, this.averageItemFillRatio, this.expectedProcessingTimeMillis);
     }
 }

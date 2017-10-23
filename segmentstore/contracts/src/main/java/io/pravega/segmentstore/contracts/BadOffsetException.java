@@ -29,6 +29,16 @@ public class BadOffsetException extends StreamSegmentException {
         super(streamSegmentName, getMessage(expectedOffset, givenOffset));
     }
 
+    /**
+     * Creates a new instance of the BadOffsetException class.
+     *
+     * @param streamSegmentName The name of the StreamSegment.
+     * @param message           The message of the exception.
+     */
+    public BadOffsetException(String streamSegmentName, String message) {
+        super(streamSegmentName, message);
+    }
+
     private static String getMessage(long expectedOffset, long givenOffset) {
         return String.format("Bad Offset. Expected %d, given %d.", expectedOffset, givenOffset);
     }

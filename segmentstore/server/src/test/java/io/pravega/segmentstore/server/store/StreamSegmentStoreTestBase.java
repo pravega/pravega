@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.containers.ContainerConfig;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -41,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -83,6 +83,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     .with(DurableLogConfig.CHECKPOINT_COMMIT_COUNT, 100)
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L))
             .include(ReadIndexConfig.builder()
+                                    .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 512) // Need this for truncation testing.
                                     .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024)
                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 64 * 1024 * 1024L)
                                     .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 30 * 1000))
@@ -117,6 +118,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         ArrayList<String> segmentNames;
         HashMap<String, ArrayList<String>> transactionsBySegment;
         HashMap<String, Long> lengths = new HashMap<>();
+        HashMap<String, Long> startOffsets = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
         try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
@@ -128,8 +130,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Add some appends.
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-            appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).join();
-            checkSegmentStatus(lengths, false, false, segmentStore);
+            appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
         }
 
         // Phase 2: Force a recovery and merge all transactions.
@@ -139,34 +141,37 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             checkReads(segmentContents, segmentStore);
 
             // Merge all transactions.
-            mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore);
-            checkSegmentStatus(lengths, false, false, segmentStore);
+            mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
         }
 
-        // Phase 3: Force a recovery and check final reads.
+        // Phase 3: Force a recovery, immediately check reads, then truncate and read at the same time.
         try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             checkReads(segmentContents, segmentStore);
 
             // Wait for all the data to move to Storage.
-            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage())
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
             checkStorage(segmentContents, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage());
         }
 
-        // Phase 4: Force a recovery, seal segments and then delete them..
+        // Phase 4: Force a recovery, seal segments and then delete them.
         try (val builder = createBuilder()) {
             val segmentStore = builder.createStreamSegmentService();
 
             // Seals.
-            sealSegments(segmentNames, segmentStore).join();
-            checkSegmentStatus(lengths, true, false, segmentStore);
+            sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            checkSegmentStatus(lengths, startOffsets, true, false, segmentStore);
 
-            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            waitForSegmentsInStorage(segmentNames, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage())
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Deletes.
             deleteSegments(segmentNames, segmentStore).join();
-            checkSegmentStatus(lengths, true, true, segmentStore);
+            checkSegmentStatus(lengths, startOffsets, true, true, segmentStore);
         }
     }
 
@@ -191,32 +196,26 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                                HashMap<String, Long> lengths, StreamSegmentStore store) {
         val segmentFutures = new ArrayList<CompletableFuture<Void>>();
         for (String segmentName : segmentNames) {
-            AtomicInteger count = new AtomicInteger();
-            segmentFutures.add(FutureHelpers.loop(
-                    () -> count.incrementAndGet() < APPENDS_PER_SEGMENT,
-                    () -> {
-                        byte[] appendData = getAppendData(segmentName, count.get());
-                        synchronized (lengths) {
-                            lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                            recordAppend(segmentName, appendData, segmentContents);
-                        }
+            for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
+                byte[] appendData = getAppendData(segmentName, i);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                recordAppend(segmentName, appendData, segmentContents);
 
-                        return store.append(segmentName, appendData, null, TIMEOUT);
-                    },
-                    executorService()));
+                segmentFutures.add(store.append(segmentName, appendData, null, TIMEOUT));
+            }
         }
 
         return FutureHelpers.allOf(segmentFutures);
     }
 
-    private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
-                                   HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
+    private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
+                                                      HashMap<String, ByteArrayOutputStream> segmentContents, StreamSegmentStore store) throws Exception {
         ArrayList<CompletableFuture<Void>> mergeFutures = new ArrayList<>();
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                store.sealStreamSegment(transactionName, TIMEOUT)
-                     .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                mergeFutures.add(store.sealStreamSegment(transactionName, TIMEOUT)
+                        .thenCompose(v -> store.mergeTransaction(transactionName, TIMEOUT)));
 
                 // Update parent length.
                 lengths.put(parentName, lengths.get(parentName) + lengths.get(transactionName));
@@ -228,7 +227,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        return FutureHelpers.allOf(mergeFutures);
     }
 
     private CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
@@ -310,7 +309,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return "Segment_" + i;
     }
 
-    private void checkSegmentStatus(HashMap<String, Long> segmentLengths, boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
+    private void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
+                                    boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
@@ -320,7 +320,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                         ex -> ex instanceof StreamSegmentNotExistsException);
             } else {
                 SegmentProperties sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                long expectedStartOffset = startOffsets.getOrDefault(segmentName, 0L);
                 long expectedLength = e.getValue();
+                Assert.assertEquals("Unexpected Start Offset for segment " + segmentName, expectedStartOffset, sp.getStartOffset());
                 Assert.assertEquals("Unexpected length for segment " + segmentName, expectedLength, sp.getLength());
                 Assert.assertEquals("Unexpected value for isSealed for segment " + segmentName, expectSealed, sp.isSealed());
                 Assert.assertFalse("Unexpected value for isDeleted for segment " + segmentName, sp.isDeleted());
@@ -340,25 +342,107 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ReadResult readResult = store.read(segmentName, expectedCurrentOffset, (int) segmentLength, TIMEOUT).join();
             Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
 
-            // A more thorough read check is done in testSegmentRegularOperations; here we just check if the data was merged correctly.
+            // A more thorough read check is done in StreamSegmentContainerTests; here we just check if the data was merged correctly.
             while (readResult.hasNext()) {
                 ReadResultEntry readEntry = readResult.next();
-                AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName, 0, readEntry.getRequestedReadLength());
-                Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName, expectedCurrentOffset, readEntry.getStreamSegmentOffset());
+                AssertExtensions.assertGreaterThan("getRequestedReadLength should be a positive integer for segment " + segmentName,
+                        0, readEntry.getRequestedReadLength());
+                Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName,
+                        expectedCurrentOffset, readEntry.getStreamSegmentOffset());
                 if (!readEntry.getContent().isDone()) {
                     readEntry.requestContent(TIMEOUT);
                 }
                 readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
+                Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName,
+                        ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
 
                 ReadResultEntryContents readEntryContents = readEntry.getContent().join();
                 byte[] actualData = new byte[readEntryContents.getLength()];
                 StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
-                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
+                AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset,
+                        expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
                 expectedCurrentOffset += readEntryContents.getLength();
             }
 
             Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
+        }
+    }
+
+    private void checkReadsWhileTruncating(HashMap<String, ByteArrayOutputStream> segmentContents, HashMap<String, Long> startOffsets,
+                                           StreamSegmentStore store) throws Exception {
+        for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
+            String segmentName = e.getKey();
+            byte[] expectedData = e.getValue().toByteArray();
+            long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+            long expectedCurrentOffset = 0;
+            boolean truncate = false;
+
+            while (expectedCurrentOffset < segmentLength) {
+                @Cleanup
+                ReadResult readResult = store.read(segmentName, expectedCurrentOffset, (int) (segmentLength - expectedCurrentOffset), TIMEOUT).join();
+                Assert.assertTrue("Empty read result for segment " + segmentName, readResult.hasNext());
+
+                // We only test the truncation-related pieces here; other read-related checks are done in checkReads.
+                while (readResult.hasNext()) {
+                    ReadResultEntry readEntry = readResult.next();
+                    Assert.assertEquals("Unexpected value from getStreamSegmentOffset for segment " + segmentName,
+                            expectedCurrentOffset, readEntry.getStreamSegmentOffset());
+                    if (!readEntry.getContent().isDone()) {
+                        readEntry.requestContent(TIMEOUT);
+                    }
+
+                    if (readEntry.getType() == ReadResultEntryType.Truncated) {
+                        long startOffset = startOffsets.getOrDefault(segmentName, 0L);
+                        // Verify that the Segment actually is truncated beyond this offset.
+                        AssertExtensions.assertLessThan("Found Truncated ReadResultEntry but current offset not truncated.",
+                                startOffset, readEntry.getStreamSegmentOffset());
+
+                        // Verify the ReadResultEntry cannot be used and throws an appropriate exception.
+                        AssertExtensions.assertThrows(
+                                "ReadEntry.getContent() did not throw for a Truncated entry.",
+                                readEntry::getContent,
+                                ex -> ex instanceof StreamSegmentTruncatedException);
+
+                        // Verify ReadResult is done.
+                        Assert.assertFalse("Unexpected result from ReadResult.hasNext when encountering truncated entry.",
+                                readResult.hasNext());
+
+                        // Verify attempting to read at the current offset will return the appropriate entry (and not throw).
+                        @Cleanup
+                        ReadResult truncatedResult = store.read(segmentName, readEntry.getStreamSegmentOffset(), 1, TIMEOUT).join();
+                        val first = truncatedResult.next();
+                        Assert.assertEquals("Read request for a truncated offset did not start with a Truncated ReadResultEntryType.",
+                                ReadResultEntryType.Truncated, first.getType());
+
+                        // Skip over until the first non-truncated offset.
+                        expectedCurrentOffset = Math.max(expectedCurrentOffset, startOffset);
+                        continue;
+                    }
+
+                    // Non-truncated entry; do the usual verifications.
+                    readEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    Assert.assertNotEquals("Unexpected value for isEndOfStreamSegment for non-sealed segment " + segmentName,
+                            ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
+
+                    ReadResultEntryContents readEntryContents = readEntry.getContent().join();
+                    byte[] actualData = new byte[readEntryContents.getLength()];
+                    StreamHelpers.readAll(readEntryContents.getData(), actualData, 0, actualData.length);
+                    AssertExtensions.assertArrayEquals("Unexpected data read from segment " + segmentName + " at offset " + expectedCurrentOffset,
+                            expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
+                    expectedCurrentOffset += readEntryContents.getLength();
+
+                    // Every other read, truncate just beyond the current read offset.
+                    if (truncate) {
+                        long truncateOffset = Math.min(segmentLength, expectedCurrentOffset + 1);
+                        startOffsets.put(segmentName, truncateOffset);
+                        store.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT).join();
+                    }
+
+                    truncate = !truncate;
+                }
+
+                Assert.assertTrue("ReadResult was not closed post-full-consumption for segment" + segmentName, readResult.isClosed());
+            }
         }
     }
 
@@ -388,14 +472,17 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
             // 2. Seal Status
             SegmentProperties storageProps = storage.getStreamSegmentInfo(segmentName, TIMEOUT).join();
-            Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName, sp.isSealed(), storageProps.isSealed());
+            Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName,
+                    sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
-            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length, storageProps.getLength());
+            Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length,
+                    storageProps.getLength());
             byte[] actualData = new byte[expectedData.length];
             val readHandle = storage.openRead(segmentName).join();
             int actualLength = storage.read(readHandle, 0, actualData, 0, actualData.length, TIMEOUT).join();
-            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName, expectedData.length, actualLength);
+            Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName,
+                    expectedData.length, actualLength);
             Assert.assertArrayEquals("Unexpected data written to storage for segment " + segmentName, expectedData, actualData);
         }
     }

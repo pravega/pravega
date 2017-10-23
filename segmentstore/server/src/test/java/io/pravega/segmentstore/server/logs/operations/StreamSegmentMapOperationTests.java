@@ -25,9 +25,12 @@ import org.junit.Assert;
 public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSegmentMapOperation> {
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
-        return new StreamSegmentMapOperation(StreamSegmentInformation.builder()
+        long length = MathHelpers.abs(random.nextLong());
+        return new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
                 .name(super.getStreamSegmentName(random.nextLong()))
-                .length(MathHelpers.abs(random.nextLong()))
+                .startOffset(length / 2)
+                .length(length)
                 .sealed(random.nextBoolean())
                 .deleted(random.nextBoolean())
                 .attributes(createAttributes(10))

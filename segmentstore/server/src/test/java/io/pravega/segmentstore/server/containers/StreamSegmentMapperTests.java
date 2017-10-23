@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -194,7 +195,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupStorageGetHandler(context, storageSegments, sn -> {
             throw new CompletionException(new StreamSegmentNotExistsException(sn));
         });
-        setAttributes(segmentName, segmentId, ATTRIBUTE_COUNT, context);
+        setSavedState(segmentName, segmentId, 0, ATTRIBUTE_COUNT, context);
         val segmentState = context.stateStore.get(segmentName, TIMEOUT).join();
         Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
 
@@ -256,7 +257,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             storageGetCount.incrementAndGet();
             return storageInfo;
         });
-        setAttributes(segmentName, segmentId, ATTRIBUTE_COUNT, context);
+        setSavedState(segmentName, segmentId, 0L, ATTRIBUTE_COUNT, context);
         val segmentState = context.stateStore.get(segmentName, TIMEOUT).join();
         Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
 
@@ -298,11 +299,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGetOrAssignStreamSegmentId() {
+        final long minSegmentLength = 1;
         final int segmentCount = 10;
         final int transactionsPerSegment = 5;
         final long noSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
         AtomicLong currentSegmentId = new AtomicLong(Integer.MAX_VALUE);
         Supplier<Long> nextSegmentId = () -> currentSegmentId.decrementAndGet() % 2 == 0 ? noSegmentId : currentSegmentId.get();
+        Function<String, Long> getSegmentLength = segmentName -> minSegmentLength + (long) MathHelpers.abs(segmentName.hashCode());
+        Function<String, Long> getSegmentStartOffset = segmentName -> getSegmentLength.apply(segmentName) / 2;
 
         @Cleanup
         TestContext context = new TestContext();
@@ -311,25 +315,27 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         for (int i = 0; i < segmentCount; i++) {
             String segmentName = getName(i);
             storageSegments.add(segmentName);
-            setAttributes(segmentName, nextSegmentId.get(), storageSegments.size() % ATTRIBUTE_COUNT, context);
+            setSavedState(segmentName, nextSegmentId.get(), getSegmentStartOffset.apply(segmentName), storageSegments.size() % ATTRIBUTE_COUNT, context);
 
             for (int j = 0; j < transactionsPerSegment; j++) {
                 // There is a small chance of a name conflict here, but we don't care. As long as we get at least one
                 // Transaction per segment, we should be fine.
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(segmentName, UUID.randomUUID());
                 storageSegments.add(transactionName);
-                setAttributes(transactionName, nextSegmentId.get(), storageSegments.size() % ATTRIBUTE_COUNT, context);
+                setSavedState(transactionName, nextSegmentId.get(), getSegmentStartOffset.apply(transactionName),
+                        storageSegments.size() % ATTRIBUTE_COUNT, context);
             }
         }
 
         // We setup all necessary handlers, except the one for create. We do not need to create new Segments here.
         setupOperationLog(context);
         Predicate<String> isSealed = segmentName -> segmentName.hashCode() % 2 == 0;
-        Function<String, Long> getInitialLength = segmentName -> (long) Math.abs(segmentName.hashCode());
-        setupStorageGetHandler(context, storageSegments, segmentName -> StreamSegmentInformation.builder().name(segmentName)
-                .length(getInitialLength.apply(segmentName))
-                .sealed(isSealed.test(segmentName))
-                .build());
+        setupStorageGetHandler(context, storageSegments, segmentName ->
+                StreamSegmentInformation.builder()
+                                        .name(segmentName)
+                                        .length(getSegmentLength.apply(segmentName))
+                                        .sealed(isSealed.test(segmentName))
+                                        .build());
 
         // First, map all the parents (stand-alone segments).
         for (String name : storageSegments) {
@@ -338,7 +344,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotEquals("No id was assigned for StreamSegment " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
                 SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(id);
                 Assert.assertNotNull("No metadata was created for StreamSegment " + name, sm);
-                long expectedLength = getInitialLength.apply(name);
+                long expectedLength = getSegmentLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
                 Assert.assertEquals("Metadata does not have the expected length for StreamSegment " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for StreamSegment " + name, expectedSeal, sm.isSealed());
@@ -346,6 +352,8 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
                 Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
                 SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in metadata for StreamSegment " + name, expectedAttributes, sm);
+                long expectedStartOffset = segmentState == null ? 0 : segmentState.getStartOffset();
+                Assert.assertEquals("Unexpected StartOffset in metadata for " + name, expectedStartOffset, sm.getStartOffset());
             }
         }
 
@@ -357,7 +365,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 Assert.assertNotEquals("No id was assigned for Transaction " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, id);
                 SegmentMetadata sm = context.metadata.getStreamSegmentMetadata(id);
                 Assert.assertNotNull("No metadata was created for Transaction " + name, sm);
-                long expectedLength = getInitialLength.apply(name);
+                long expectedLength = getSegmentLength.apply(name);
                 boolean expectedSeal = isSealed.test(name);
                 Assert.assertEquals("Metadata does not have the expected length for Transaction " + name, expectedLength, sm.getLength());
                 Assert.assertEquals("Metadata does not have the expected value for isSealed for Transaction " + name, expectedSeal, sm.isSealed());
@@ -365,6 +373,9 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 val segmentState = context.stateStore.get(name, TIMEOUT).join();
                 Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
                 SegmentMetadataComparer.assertSameAttributes("Unexpected attributes in metadata for Transaction " + name, expectedAttributes, sm);
+
+                // For transactions we do not expect to see any non-zero start offsets.
+                Assert.assertEquals("Unexpected StartOffset in metadata for " + name, 0, sm.getStartOffset());
 
                 // Check parenthood.
                 Assert.assertNotEquals("No parent defined in metadata for Transaction " + name, ContainerMetadata.NO_STREAM_SEGMENT_ID, sm.getParentId());
@@ -713,12 +724,19 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         return result;
     }
 
-    private void setAttributes(String segmentName, long segmentId, int count, TestContext context) {
-        if (count != 0) {
-            val attributes = createAttributes(count)
+    private void setSavedState(String segmentName, long segmentId, long startOffset, int attributeCount, TestContext context) {
+        // We intentionally do not save anything if no attributes - this helps us test the case when there is no state
+        // file to load from.
+        if (attributeCount != 0) {
+            val attributes = createAttributes(attributeCount)
                     .stream()
                     .collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-            val segmentInfo = StreamSegmentInformation.builder().name(segmentName).attributes(attributes).build();
+            val segmentInfo = StreamSegmentInformation.builder()
+                                                      .name(segmentName)
+                                                      .attributes(attributes)
+                                                      .startOffset(startOffset)
+                                                      .length(startOffset + 1) // Arbitrary; will be ignored anyway.
+                                                      .build();
             context.stateStore.put(segmentName, new SegmentState(segmentId, segmentInfo), TIMEOUT).join();
         }
     }
@@ -748,6 +766,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
                 segmentMetadata.setLength(mapOp.getLength());
+                segmentMetadata.setStartOffset(mapOp.getStartOffset());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }
@@ -762,6 +781,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 UpdateableSegmentMetadata segmentMetadata = context.metadata.mapStreamSegmentId(mapOp.getStreamSegmentName(), mapOp.getStreamSegmentId(), mapOp.getParentStreamSegmentId());
                 segmentMetadata.setStorageLength(0);
                 segmentMetadata.setLength(mapOp.getLength());
+                segmentMetadata.setStartOffset(mapOp.getStartOffset());
                 if (mapOp.isSealed()) {
                     segmentMetadata.markSealed();
                 }

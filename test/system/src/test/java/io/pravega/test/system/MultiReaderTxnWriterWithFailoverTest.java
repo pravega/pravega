@@ -11,6 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -56,6 +58,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
             .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
+    private StreamManager streamManager;
 
     @Environment
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
@@ -106,7 +109,8 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         testState.txnWrite.set(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        createScopeAndStream(scope, STREAM_NAME, config, controllerURIDirect);
+        streamManager = new StreamManagerImpl(controllerURIDirect);
+        createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -119,6 +123,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
@@ -137,13 +142,14 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
         //run the failover test
-        performFailoverTest();
+        performFailoverForTestsInvolvingTxns();
 
         stopWriters();
+        waitForTxnsToComplete();
         stopReaders();
-        validateResults(readerGroupManager, readerGroupName);
+        validateResults();
 
-        cleanUp(scope, STREAM_NAME); //cleanup if validation is successful.
+        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
         log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
     }

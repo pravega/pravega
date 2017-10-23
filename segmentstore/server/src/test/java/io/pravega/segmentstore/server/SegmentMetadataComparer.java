@@ -33,6 +33,7 @@ public final class SegmentMetadataComparer {
         Assert.assertEquals(idPrefix + " getParentId() mismatch.", expected.getParentId(), actual.getParentId());
         Assert.assertEquals(idPrefix + " isDeleted() mismatch.", expected.isDeleted(), actual.isDeleted());
         Assert.assertEquals(idPrefix + " getStorageLength() mismatch.", expected.getStorageLength(), actual.getStorageLength());
+        Assert.assertEquals(idPrefix + " getStartOffset() mismatch.", expected.getStartOffset(), actual.getStartOffset());
         Assert.assertEquals(idPrefix + " getLength() mismatch.", expected.getLength(), actual.getLength());
         Assert.assertEquals(idPrefix + " getName() mismatch.", expected.getName(), actual.getName());
         Assert.assertEquals(idPrefix + " isSealed() mismatch.", expected.isSealed(), actual.isSealed());

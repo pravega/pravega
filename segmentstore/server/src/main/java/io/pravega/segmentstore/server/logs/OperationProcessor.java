@@ -59,6 +59,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_READ_AT_ONCE = 1000;
+    private static final int MAX_DELAY_MILLIS = 50;
 
     private final UpdateableContainerMetadata metadata;
     @GuardedBy("stateLock")
@@ -206,16 +207,12 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         QueueStats stats = this.durableDataLog.getQueueStatistics();
 
         // The higher the average fill rate, the more efficient use we make of the available capacity. As such, for high
-        // fill rates we don't want to wait too long.
-        double fillRateAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRate(), 0, 1);
-
-        // If the queue is below (or very close to) the max degree of parallelism, do our best to fill it up. Otherwise
-        // the Fill Rate and the ExpectedProcessingTime will account for queue size as well.
-        double countRateAdj = stats.getSize() < stats.getMaxParallelism() ? 0.1 : 1;
+        // fill ratios we don't want to wait too long.
+        double fillRatioAdj = MathHelpers.minMax(1 - stats.getAverageItemFillRatio(), 0, 1);
 
         // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
-        int delayMillis = (int) (stats.getExpectedProcessingTimeMillis() * fillRateAdj * countRateAdj);
-        delayMillis = Math.min(delayMillis, 1000);
+        int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
+        delayMillis = Math.min(delayMillis, MAX_DELAY_MILLIS);
         this.metrics.processingDelay(delayMillis);
         return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
