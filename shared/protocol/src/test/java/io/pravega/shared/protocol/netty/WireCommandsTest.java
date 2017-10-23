@@ -94,7 +94,10 @@ public class WireCommandsTest {
     @Test
     public void testDataAppended() throws IOException {
         // Test that we are able to decode a message with a previous version
-        testCommandFromByteArray(new DataAppendedV2(uuid, l),new WireCommands.DataAppended(uuid, l, -1));
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
+        commandV2.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(uuid, l, -1));
 
         // Test that we are able to encode and decode the current response
         // to append data correctly.
