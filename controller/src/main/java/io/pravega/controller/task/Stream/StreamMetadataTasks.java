@@ -142,7 +142,7 @@ public class StreamMetadataTasks extends TaskBase {
         // 1. get configuration
         return streamMetadataStore.getConfigurationProperty(scope, stream, true, context, executor)
                 .thenCompose(configProperty -> {
-                    // 2. post event with configuration update + version
+                    // 2. post event to start update workflow
                     if (!configProperty.isUpdating()) {
                         return writeEvent(new UpdateStreamEvent(scope, stream))
                                 // 3. update new configuration in the store with updating flag = true
