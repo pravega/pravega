@@ -306,8 +306,7 @@ public class ControllerImpl implements Controller {
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
     }
 
-    @Override
-    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamCut, "streamCut");
         long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
