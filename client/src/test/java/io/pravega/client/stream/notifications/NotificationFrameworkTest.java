@@ -25,8 +25,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.events.SegmentEvent;
-import io.pravega.client.stream.notifications.notifier.SegmentEventNotifier;
+import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
 import io.pravega.test.common.InlineExecutor;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -42,50 +41,50 @@ public class NotificationFrameworkTest {
 
     @Test
     public void notificationFrameworkTest() {
-        final AtomicBoolean segEventReceived = new AtomicBoolean(false);
+        final AtomicBoolean segNotificationReceived = new AtomicBoolean(false);
 
-        //Application can subscribe to segment events in the following way.
-        Observable<SegmentEvent> notifier = new SegmentEventNotifier(notificationSystem, () -> sync, executor);
-        notifier.registerListener(segmentEvent -> {
-            int numReader = segmentEvent.getNumOfReaders();
-            int segments = segmentEvent.getNumOfSegments();
+        //Application can subscribe to segment notifications in the following way.
+        Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, sync, executor);
+        notifier.registerListener(segmentNotification -> {
+            int numReader = segmentNotification.getNumOfReaders();
+            int segments = segmentNotification.getNumOfSegments();
             if (numReader < segments) {
                 System.out.println("Scale up number of readers based on my capacity");
             } else {
                 System.out.println("More readers available time to shut down some");
             }
-            segEventReceived.set(true);
+            segNotificationReceived.set(true);
         });
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(3).numOfReaders(4).build());
-        assertTrue("Segment Event notification received", segEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(3).numOfReaders(4).build());
+        assertTrue("Segment Notification notification received", segNotificationReceived.get());
 
-        segEventReceived.set(false);
+        segNotificationReceived.set(false);
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        assertTrue("Segment Event notification received", segEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        assertTrue("Segment Notification notification received", segNotificationReceived.get());
 
-        segEventReceived.set(false);
+        segNotificationReceived.set(false);
 
         notifier.unregisterAllListeners();
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        Assert.assertFalse("Segment Event notification should not be received", segEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        Assert.assertFalse("Segment Notification notification should not be received", segNotificationReceived.get());
 
         final AtomicBoolean listener1Invoked = new AtomicBoolean();
         final AtomicBoolean listener2Invoked = new AtomicBoolean();
 
-        Listener<SegmentEvent> listener1 = event -> listener1Invoked.set(true);
-        Listener<SegmentEvent> listener2 = event -> listener2Invoked.set(true);
+        Listener<SegmentNotification> listener1 = e -> listener1Invoked.set(true);
+        Listener<SegmentNotification> listener2 = e -> listener2Invoked.set(true);
         notifier.registerListener(listener1);
         notifier.registerListener(listener2);
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        assertTrue("Segment Event notification not received on listener 1", listener1Invoked.get());
-        assertTrue("Segment Event notification not received on listener 2", listener2Invoked.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        assertTrue("Segment Notification notification not received on listener 1", listener1Invoked.get());
+        assertTrue("Segment Notification notification not received on listener 2", listener2Invoked.get());
 
         notifier.unregisterListener(listener1);
         notifier.unregisterListener(listener2);
@@ -93,91 +92,91 @@ public class NotificationFrameworkTest {
         listener1Invoked.set(false);
         listener2Invoked.set(false);
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        Assert.assertFalse("Segment Event notification received on listener 1", listener1Invoked.get());
-        Assert.assertFalse("Segment Event notification received on listener 2", listener2Invoked.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        Assert.assertFalse("Segment Notification notification received on listener 1", listener1Invoked.get());
+        Assert.assertFalse("Segment Notification notification received on listener 2", listener2Invoked.get());
     }
 
     @Test
-    public void multipleEventTest() {
-        final AtomicBoolean segEventListenerInvoked = new AtomicBoolean();
-        final AtomicBoolean customEventListenerInvoked = new AtomicBoolean();
+    public void multipleNotificationTest() {
+        final AtomicBoolean segListenerInvoked = new AtomicBoolean();
+        final AtomicBoolean customListenerInvoked = new AtomicBoolean();
 
-        Observable<SegmentEvent> segmentNotifier = new SegmentEventNotifier(notificationSystem, () -> sync, executor);
-        Listener<SegmentEvent> segmentEventListener = event -> segEventListenerInvoked.set(true);
-        segmentNotifier.registerListener(segmentEventListener);
+        Observable<SegmentNotification> segmentNotifier = new SegmentNotifier(notificationSystem, sync, executor);
+        Listener<SegmentNotification> segmentListener = e -> segListenerInvoked.set(true);
+        segmentNotifier.registerListener(segmentListener);
 
-        Observable<CustomEvent> customEventNotifier = new CustomEventNotifier(notificationSystem, executor);
-        Listener<CustomEvent> customEventListener = event -> customEventListenerInvoked.set(true);
-        customEventNotifier.registerListener(customEventListener);
-
-        //trigger notifications
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        assertTrue(segEventListenerInvoked.get());
-        assertFalse(customEventListenerInvoked.get());
-
-        segEventListenerInvoked.set(false);
+        Observable<CustomNotification> customNotifier = new CustomNotifier(notificationSystem, executor);
+        Listener<CustomNotification> customListener = e -> customListenerInvoked.set(true);
+        customNotifier.registerListener(customListener);
 
         //trigger notifications
-        notificationSystem.notify(CustomEvent.builder().build());
-        assertFalse(segEventListenerInvoked.get());
-        assertTrue(customEventListenerInvoked.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        assertTrue(segListenerInvoked.get());
+        assertFalse(customListenerInvoked.get());
 
-        customEventNotifier.unregisterAllListeners();
-        customEventListenerInvoked.set(false);
+        segListenerInvoked.set(false);
 
         //trigger notifications
-        notificationSystem.notify(CustomEvent.builder().build());
-        assertFalse(segEventListenerInvoked.get());
-        assertFalse(customEventListenerInvoked.get());
+        notificationSystem.notify(CustomNotification.builder().build());
+        assertFalse(segListenerInvoked.get());
+        assertTrue(customListenerInvoked.get());
+
+        customNotifier.unregisterAllListeners();
+        customListenerInvoked.set(false);
+
+        //trigger notifications
+        notificationSystem.notify(CustomNotification.builder().build());
+        assertFalse(segListenerInvoked.get());
+        assertFalse(customListenerInvoked.get());
     }
 
     @Test
     public void notifierFactoryTest() {
-        final AtomicBoolean segmentEventReceived = new AtomicBoolean(false);
+        final AtomicBoolean segmentNotificationReceived = new AtomicBoolean(false);
 
-        //Application can subscribe to segment events in the following way.
-        final Observable<SegmentEvent> notifier = new SegmentEventNotifier(notificationSystem, () -> sync, executor);
-        notifier.registerListener(segmentEvent -> {
-            int numReader = segmentEvent.getNumOfReaders();
-            int segments = segmentEvent.getNumOfSegments();
+        //Application can subscribe to segment notifications in the following way.
+        final Observable<SegmentNotification> notifier = new SegmentNotifier(notificationSystem, sync, executor);
+        notifier.registerListener(segmentNotification -> {
+            int numReader = segmentNotification.getNumOfReaders();
+            int segments = segmentNotification.getNumOfSegments();
             if (numReader < segments) {
                 System.out.println("Scale up number of readers based on my capacity");
             } else {
                 System.out.println("More readers available time to shut down some");
             }
-            segmentEventReceived.set(true);
+            segmentNotificationReceived.set(true);
         });
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(3).numOfReaders(4).build());
-        assertTrue("Segment Event notification received", segmentEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(3).numOfReaders(4).build());
+        assertTrue("Segment Notification notification received", segmentNotificationReceived.get());
 
-        segmentEventReceived.set(false);
+        segmentNotificationReceived.set(false);
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        assertTrue("Segment Event notification received", segmentEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        assertTrue("Segment Notification notification received", segmentNotificationReceived.get());
 
-        segmentEventReceived.set(false);
+        segmentNotificationReceived.set(false);
 
         notifier.unregisterAllListeners();
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        Assert.assertFalse("Segment Event notification should not be received", segmentEventReceived.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        Assert.assertFalse("Segment Notification notification should not be received", segmentNotificationReceived.get());
 
         final AtomicBoolean listener1Invoked = new AtomicBoolean();
         final AtomicBoolean listener2Invoked = new AtomicBoolean();
 
-        Listener<SegmentEvent> listener1 = event -> listener1Invoked.set(true);
-        Listener<SegmentEvent> listener2 = event -> listener2Invoked.set(true);
+        Listener<SegmentNotification> listener1 = e -> listener1Invoked.set(true);
+        Listener<SegmentNotification> listener2 = e -> listener2Invoked.set(true);
         notifier.registerListener(listener1);
         notifier.registerListener(listener2);
 
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        assertTrue("Segment Event notification not received on listener 1", listener1Invoked.get());
-        assertTrue("Segment Event notification not received on listener 2", listener2Invoked.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        assertTrue("Segment Notification notification not received on listener 1", listener1Invoked.get());
+        assertTrue("Segment Notification notification not received on listener 2", listener2Invoked.get());
 
         notifier.unregisterListener(listener1);
         notifier.unregisterListener(listener2);
@@ -185,9 +184,9 @@ public class NotificationFrameworkTest {
         listener1Invoked.set(false);
         listener2Invoked.set(false);
         //Trigger notification.
-        notificationSystem.notify(SegmentEvent.builder().numOfSegments(5).numOfReaders(4).build());
-        Assert.assertFalse("Segment Event notification received on listener 1", listener1Invoked.get());
-        Assert.assertFalse("Segment Event notification received on listener 2", listener2Invoked.get());
+        notificationSystem.notify(SegmentNotification.builder().numOfSegments(5).numOfReaders(4).build());
+        Assert.assertFalse("Segment Notification notification received on listener 1", listener1Invoked.get());
+        Assert.assertFalse("Segment Notification notification received on listener 2", listener2Invoked.get());
     }
 }
 
