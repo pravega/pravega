@@ -132,8 +132,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void hello(Hello hello) {
         log.info("Received hello from connection: {}", connection);
-        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
-        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATABLE_VERSION) {
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
             log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
             connection.close();
         }
