@@ -209,6 +209,39 @@ public class ControllerImplTest {
             }
 
             @Override
+            public void truncateStream(Controller.StreamCut request,
+                    StreamObserver<UpdateStreamStatus> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.SUCCESS)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.FAILURE)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream5")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                            .setStatus(UpdateStreamStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
             public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
                 if (request.getStream().equals("stream1")) {
                     responseObserver.onNext(UpdateStreamStatus.newBuilder()

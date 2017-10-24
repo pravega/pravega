@@ -29,7 +29,6 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
-import io.pravega.controller.store.stream.StreamConfigWithVersion;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.Resource;
@@ -46,17 +45,20 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -129,31 +131,29 @@ public class StreamMetadataTasks extends TaskBase {
      *
      * @param scope      scope.
      * @param stream     stream name.
-     * @param config     modified stream configuration.
+     * @param newConfig     modified stream configuration.
      * @param contextOpt optional context
      * @return update status.
      */
-    public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration config,
+    public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration newConfig,
                                                                      OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        AtomicReference<UpdateStreamEvent> eventRef = new AtomicReference<>(null);
         // 1. get configuration
-        return streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
-                // 2. post event with configuration update + version
-                .thenCompose(configWithVersion -> {
-                    System.err.println();
-                    return postUpdateEvent(scope, stream, config, configWithVersion)
-                            .thenAccept(eventRef::set);
-                })
-                // 3. set state to updating
-                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor))
-                // 4. respond to client that update is being processed
-                .thenCompose(result -> {
-                    if (result) {
-                        return checkUpdated(scope, stream, config, eventRef.get())
-                                .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
+        return streamMetadataStore.getConfigurationProperty(scope, stream, true, context, executor)
+                .thenCompose(configProperty -> {
+                    // 2. post event to start update workflow
+                    if (!configProperty.isUpdating()) {
+                        return writeEvent(new UpdateStreamEvent(scope, stream))
+                                // 3. update new configuration in the store with updating flag = true
+                                // if attempt to update fails, we bail out with no harm done
+                                .thenCompose(x -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
+                                        context, executor))
+                                // 4. wait for update to complete
+                                .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
+                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                     } else {
+                        log.warn("Another update in progress for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
@@ -163,37 +163,58 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletionStage<UpdateStreamEvent> postUpdateEvent(String scope, String stream, StreamConfiguration config,
-                                                               StreamConfigWithVersion configWithVersion) {
-        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, configWithVersion.getVersion(), ModelHelper.decode(config));
-        return writeEvent(event).thenApply(x -> event);
+    private CompletionStage<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+        AtomicBoolean isDone = new AtomicBoolean(false);
+        return FutureHelpers.loop(() -> !isDone.get(),
+                () -> FutureHelpers.delayedFuture(condition, 100, executor)
+                        .thenAccept(isDone::set), executor);
     }
 
-    private CompletionStage<Void> checkUpdated(String scope, String stream, StreamConfiguration config, UpdateStreamEvent event) {
-        AtomicBoolean isUpdated = new AtomicBoolean(false);
-        return FutureHelpers.loop(() -> !isUpdated.get(),
-                () -> FutureHelpers.delayedFuture(() -> isUpdated(scope, stream, event.getVersion(), config), 100, executor)
-                        .thenAccept(isUpdated::set), executor);
+    private CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
+        return streamMetadataStore.getConfigurationProperty(scope, stream, true, context, executor)
+                .thenApply(configProperty -> !configProperty.isUpdating() || !configProperty.getProperty().equals(newConfig));
     }
 
-    private CompletableFuture<Boolean> isUpdated(String scope, String stream, int prevVersion, StreamConfiguration update) {
-        final OperationContext context = streamMetadataStore.createContext(scope, stream);
+    /**
+     * Truncate a stream.
+     *
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param streamCut  stream cut.
+     * @param contextOpt optional context
+     * @return update status.
+     */
+    public CompletableFuture<UpdateStreamStatus.Status> truncateStream(final String scope, final String stream,
+                                                                       final Map<Integer, Long> streamCut,
+                                                                       final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.getState(scope, stream, true, context, executor)
-                .thenCompose(state -> streamMetadataStore.getConfigurationWithVersion(scope, stream, context, executor)
-                        .thenApply(configWithVersion -> {
-                            if (configWithVersion.getVersion() > prevVersion) {
-                                if (configWithVersion.getConfiguration().equals(update)) {
-                                    return !state.equals(State.UPDATING);
-                                } else {
-                                    throw new RuntimeException("Failed to update. Conflict.");
-                                }
-                            } else if (!state.equals(State.UPDATING)) {
-                                throw new RuntimeException("Failed to update. Conflict.");
-                            } else {
-                                return false;
-                            }
-                        }));
+        // 1. get stream cut
+        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
+                .thenCompose(property -> {
+                    if (!property.isUpdating()) {
+                        // 2. post event with new stream cut if no truncation is ongoing
+                        return writeEvent(new TruncateStreamEvent(scope, stream))
+                                // 3. start truncation by updating the metadata
+                                .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
+                                        context, executor))
+                                // 4. check for truncation to complete
+                                .thenCompose(truncation -> checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
+                    } else {
+                        log.warn("Another truncation in progress for {}/{}", scope, stream);
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                    }
+                })
+                .exceptionally(ex -> {
+                    log.warn("Exception thrown in trying to update stream configuration {}", ex);
+                    return handleUpdateStreamError(ex);
+                });
+    }
+
+    private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Integer, Long> streamCut, OperationContext context) {
+        return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
+                .thenApply(truncationProp -> !truncationProp.isUpdating() || !truncationProp.getProperty().getStreamCut().equals(streamCut));
     }
 
     /**
@@ -222,7 +243,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result) {
-                        return checkSealed(scope, stream, context)
+                        return checkDone(() -> isSealed(scope, stream, context))
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
@@ -232,13 +253,6 @@ public class StreamMetadataTasks extends TaskBase {
                     log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                     return handleUpdateStreamError(ex);
                 });
-    }
-
-    private CompletionStage<Void> checkSealed(String scope, String stream, OperationContext context) {
-        AtomicBoolean isSealed = new AtomicBoolean(false);
-        return FutureHelpers.loop(() -> !isSealed.get(),
-                () -> FutureHelpers.delayedFuture(() -> isSealed(scope, stream, context), 100, executor)
-                        .thenAccept(isSealed::set), executor);
     }
 
     private CompletableFuture<Boolean> isSealed(String scope, String stream, OperationContext context) {
@@ -269,11 +283,7 @@ public class StreamMetadataTasks extends TaskBase {
                 })
                 .thenCompose(result -> {
                     if (result) {
-                        // wait for completion
-                        AtomicBoolean isDeleted = new AtomicBoolean(false);
-                        return FutureHelpers.loop(() -> !isDeleted.get(),
-                                () -> FutureHelpers.delayedFuture(() -> isDeleted(scope, stream), 100, executor)
-                                        .thenAccept(isDeleted::set), executor)
+                        return checkDone(() -> isDeleted(scope, stream))
                                 .thenApply(x -> DeleteStreamStatus.Status.SUCCESS);
                     } else {
                         return CompletableFuture.completedFuture(DeleteStreamStatus.Status.STREAM_NOT_SEALED);
@@ -287,13 +297,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
         return streamMetadataStore.getState(scope, stream, true, null, executor)
-                .handle((state, ex) -> {
-                    if ((ex != null && ex instanceof StoreException.DataNotFoundException) || state == null) {
-                        return true;
-                    }
-
-                    return false;
-                });
+                .handle((state, ex) -> (ex != null && ex instanceof StoreException.DataNotFoundException) || state == null);
     }
 
     /**
@@ -579,9 +583,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
+    public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
         return FutureHelpers.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
                 stream, segmentNumber, hostControllerStore, this.connectionFactory), executor));
+    }
+
+    public CompletableFuture<Void> notifyTruncateSegment(String scope, String stream, Map.Entry<Integer, Long> segmentCut) {
+        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope,
+                stream, segmentCut.getKey(), segmentCut.getValue(), hostControllerStore, this.connectionFactory), executor));
     }
 
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {

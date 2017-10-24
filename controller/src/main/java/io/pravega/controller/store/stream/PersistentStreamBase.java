@@ -9,9 +9,11 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -22,6 +24,7 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.IndexRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -94,7 +97,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return checkScopeExists()
                 .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp))
                 .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
-                        .thenCompose((Void v) -> createConfigurationIfAbsent(createStreamResponse.getConfiguration()))
+                        .thenCompose((Void v) -> createConfigurationIfAbsent(StreamProperty.complete(createStreamResponse.getConfiguration())))
+                        .thenCompose((Void v) -> createTruncationDataIfAbsent(StreamProperty.complete(StreamTruncationRecord.EMPTY)))
                         .thenCompose((Void v) -> createStateIfAbsent(State.CREATING))
                         .thenCompose((Void v) -> createNewSegmentTable(createStreamResponse.getConfiguration(), createStreamResponse.getTimestamp()))
                         .thenCompose((Void v) -> getState(true))
@@ -140,19 +144,103 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return deleteStream();
     }
 
+    @Override
+    public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
+        return FutureHelpers.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
+                new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
+                .collect(Collectors.toList()))
+                .thenAccept(TableHelper::validateStreamCut)
+                .thenCompose(valid -> getTruncationData(true)
+                        .thenCompose(truncationData -> {
+                            Preconditions.checkNotNull(truncationData);
+                            StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
+                            Exceptions.checkArgument(!previous.isUpdating(), "TruncationRecord", "Truncation record conflict");
+
+                            return computeTruncationRecord(previous.getProperty(), streamCut)
+                                    .thenApply(StreamProperty::update)
+                                    .thenCompose(prop -> setTruncationData(
+                                            new Data<>(SerializationUtils.serialize(prop), truncationData.getVersion())));
+                        }));
+    }
+
+    private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord truncationRecord,
+                                                                              Map<Integer, Long> streamCut) {
+        log.debug("computing truncation for stream {}/{}", scope, name);
+        return getHistoryTableFromStore()
+                .thenCompose(history -> getSegmentTableFromStore()
+                        .thenCompose(segment -> getIndexTable()
+                                .thenApply(index -> TableHelper.computeTruncationRecord(index.getData(), history.getData(),
+                                        segment.getData(), streamCut, truncationRecord))));
+    }
+
+    @Override
+    public CompletableFuture<Void> completeTruncation() {
+        return getTruncationData(true)
+                .thenCompose(truncationData -> {
+                    Preconditions.checkNotNull(truncationData);
+                    StreamProperty<StreamTruncationRecord> current = SerializationUtils.deserialize(truncationData.getData());
+                    if (current.isUpdating()) {
+                        StreamTruncationRecord truncationRecord = current.getProperty();
+                        StreamProperty<StreamTruncationRecord> completedProp = StreamProperty.complete(truncationRecord.mergeDeleted());
+
+                        return setTruncationData(new Data<>(SerializationUtils.serialize(completedProp), truncationData.getVersion()));
+                    } else {
+                        // idempotent
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<StreamTruncationRecord> getTruncationRecord() {
+        return getTruncationProperty(false)
+                .thenApply(prop -> prop == null ? StreamTruncationRecord.EMPTY : prop.getProperty());
+    }
+
+    @Override
+    public CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached) {
+        return getTruncationData(ignoreCached)
+                .thenApply(data -> SerializationUtils.deserialize(data.getData()));
+    }
+
     /**
      * Update configuration at configurationPath.
      *
-     * @param configurationWithVersion new stream configuration.
-     * @return : future of boolean
+     * @param newConfiguration new stream configuration.
+     * @return future of operation.
      */
     @Override
-    public CompletableFuture<Boolean> updateConfiguration(final StreamConfigWithVersion configurationWithVersion) {
-        // replace the configurationPath with new configurationPath
-        return verifyState(() -> updateState(State.UPDATING)
-                .thenApply(x -> setConfigurationData(configurationWithVersion))
-                .thenApply(x -> true),
-                Lists.newArrayList(State.ACTIVE, State.UPDATING));
+    public CompletableFuture<Void> startUpdateConfiguration(final StreamConfiguration newConfiguration) {
+        return getConfigurationData(true)
+                .thenCompose(configData -> {
+                    StreamProperty<StreamConfiguration> previous = SerializationUtils.deserialize(configData.getData());
+                    Preconditions.checkNotNull(previous);
+                    Preconditions.checkArgument(!previous.isUpdating());
+                    StreamProperty<StreamConfiguration> update = StreamProperty.update(newConfiguration);
+                    return setConfigurationData(new Data<>(SerializationUtils.serialize(update), configData.getVersion()));
+                });
+    }
+
+    /**
+     * Update configuration at configurationPath.
+     *
+     * @return future of operation
+     */
+    @Override
+    public CompletableFuture<Void> completeUpdateConfiguration() {
+        return getConfigurationData(true)
+                .thenCompose(configData -> {
+                    StreamProperty<StreamConfiguration> current = SerializationUtils.deserialize(configData.getData());
+                    Preconditions.checkNotNull(current);
+                    if (current.isUpdating()) {
+                        StreamProperty<StreamConfiguration> newProperty = StreamProperty.complete(current.getProperty());
+                        log.debug("Completing update configuration for stream {}/{}", scope, name);
+                        return setConfigurationData(new Data<>(SerializationUtils.serialize(newProperty), configData.getVersion()));
+                    } else {
+                        // idempotent
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
     }
 
     /**
@@ -162,18 +250,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<StreamConfiguration> getConfiguration() {
-        return getConfigurationData().thenApply(data -> (StreamConfigWithVersion) SerializationUtils.deserialize(data.getData()))
-                .thenApply(StreamConfigWithVersion::getConfiguration);
+        return getConfigurationProperty(false).thenApply(StreamProperty::getProperty);
     }
 
-    /**
-     * Fetch configuration at configurationPath.
-     *
-     * @return Future of stream configuration
-     */
     @Override
-    public CompletableFuture<StreamConfigWithVersion> getConfigurationWithVersion() {
-        return getConfigurationData()
+    public CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached) {
+        return getConfigurationData(ignoreCached)
                 .thenApply(data -> SerializationUtils.deserialize(data.getData()));
     }
 
@@ -334,14 +416,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
      */
     @Override
     public CompletableFuture<List<Integer>> getActiveSegments(final long timestamp) {
-        final CompletableFuture<Data<T>> indexFuture = verifyLegalState().thenCompose(v -> getIndexTable());
-
-        final CompletableFuture<Data<T>> historyFuture = getHistoryTable();
-
-        return indexFuture.thenCombine(historyFuture,
-                (indexTable, historyTable) -> TableHelper.getActiveSegments(timestamp,
-                                                                            indexTable.getData(),
-                                                                            historyTable.getData()));
+        return getTruncationRecord()
+                .thenCompose(truncationRecord ->
+                        getHistoryTable().thenCompose(historyTable ->
+                                getIndexTable().thenCompose(indexTable ->
+                                        getSegmentTable().thenApply(segmentTable ->
+                                                TableHelper.getActiveSegments(timestamp,
+                                                        indexTable.getData(),
+                                                        historyTable.getData(),
+                                                        segmentTable.getData(),
+                                                        truncationRecord
+                                                )))));
     }
 
     @Override
@@ -982,11 +1067,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
-    abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration);
+    abstract CompletableFuture<Void> createConfigurationIfAbsent(final StreamProperty<StreamConfiguration> configuration);
 
-    abstract CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration);
+    abstract CompletableFuture<Void> setConfigurationData(final Data<T> configuration);
 
-    abstract CompletableFuture<Data<T>> getConfigurationData();
+    abstract CompletableFuture<Data<T>> getConfigurationData(boolean ignoreCached);
+
+    abstract CompletableFuture<Void> setTruncationData(final Data<T> truncationRecord);
+
+    abstract CompletableFuture<Void> createTruncationDataIfAbsent(final StreamProperty<StreamTruncationRecord> truncationRecord);
+
+    abstract CompletableFuture<Data<T>> getTruncationData(boolean ignoreCached);
 
     abstract CompletableFuture<Void> createStateIfAbsent(final State state);
 
