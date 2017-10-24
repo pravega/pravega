@@ -56,7 +56,7 @@ public class BatchClientImplTest {
                 connectionFactory.getProcessor(location)
                                  .streamSegmentInfo(new StreamSegmentInfo(request.getRequestId(),
                                                                           request.getSegmentName(), true, false, false,
-                                                                          0, 0));
+                                                                          0, 0, 0));
                 return null;
             }
         }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
