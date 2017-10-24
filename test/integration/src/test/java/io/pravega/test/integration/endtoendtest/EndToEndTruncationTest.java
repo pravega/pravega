@@ -131,7 +131,7 @@ public class EndToEndTruncationTest {
         streamCutPositions.put(3, 0L);
         streamCutPositions.put(4, 0L);
 
-        controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions);
+        controller.truncateStream(stream.getStreamName(), stream.getStreamName(), streamCutPositions).join();
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
@@ -142,6 +142,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
+
         EventRead<String> event = reader.readNextEvent(10000);
         assertNotNull(event);
         assertEquals("truncationTest2", event.getEvent());
