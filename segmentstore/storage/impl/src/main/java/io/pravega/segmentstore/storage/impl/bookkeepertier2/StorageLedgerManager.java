@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.bookkeeper.client.AsyncCallback;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
@@ -159,7 +160,14 @@ public class StorageLedgerManager {
                     }
                 }).thenApply(ledger -> {
                     if (needFencing.get()) {
-                        return fenceAllTheLedgers(streamSegmentName, ledger);
+                        return fenceAllTheLedgers(streamSegmentName, ledger)
+                                .thenCompose(storageLedger -> {
+                                    return createLedgerAt(streamSegmentName, storageLedger.getLength())
+                                            .thenApply(ledgerData -> {
+                                                storageLedger.addToList(storageLedger.getLength(), ledgerData);
+                                                return storageLedger;
+                                            });
+                                });
                     } else {
                         return ledger;
                     }
@@ -186,24 +194,42 @@ public class StorageLedgerManager {
                                                                                              int offset = Integer.valueOf(child);
                                                                                              return fenceLedgerAt(streamSegmentName, offset)
                                                                                                      .thenApply(ledgerData -> {
+                                                                                                         if (ledgerData.getLh().getLength() == 0) {
+                                                                                                             tryDeleteLedger(ledgerData.getLh().getId());
+                                                                                                             return null;
+                                                                                                         }
+                                                                                                         ledger.increaseLengthBy((int) ledgerData.getLh().getLength());
                                                                                                          ledger.addToList(offset, ledgerData);
                                                                                                          return ledgerData;
                                                                                                      });
                                                                                          })
                                                                                          .toArray(CompletableFuture[]::new);
-                                       return CompletableFuture.allOf(futures).thenApply(v -> ledger);
+                                       return CompletableFuture.allOf(futures).thenApply(v -> {
+                                           return ledger;
+                                       });
                                    }
                                });
+    }
+
+    private void tryDeleteLedger(long ledgerId) {
+        bookkeeper.asyncDeleteLedger(ledgerId, (rc, ctx) -> {
+            if (rc != 0 ) {
+                log.warn("Deletion of ledger {} failed with errorCode {}", ledgerId, rc);
+            }
+        }, null);
+
     }
 
     private CompletableFuture<LedgerData> fenceLedgerAt(String streamSegmentName, int firstOffset) {
         Stat stat = new Stat();
         return zkClient.getData()
                        .storingStatIn(stat)
-                       .forPath(streamSegmentName + "/" + firstOffset)
+                       .forPath(getZkPath(streamSegmentName) + "/" + firstOffset)
                        .toCompletableFuture()
                        .thenApply(data -> {
-                           LedgerData ledgerData = deserializeLedgerData(firstOffset, data, true, stat);
+                           LedgerData ledgerData = deserializeLedgerData(firstOffset, data, false, stat);
+                           ledgerData.setLength((int) ledgerData.getLh().getLength());
+                           ledgerData.setLastAddConfirmed(ledgerData.getLh().getLastAddConfirmed());
                            try {
                                ledgerData.getLh().close();
                            } catch (Exception e) {
@@ -449,6 +475,8 @@ public class StorageLedgerManager {
                                                                                                 .thenApply(bytes -> {
                                                                                                     LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child),
                                                                                                             bytes, true, stat);
+                                                                                                    ledgerData.setLastAddConfirmed(ledgerData.getLh().getLastAddConfirmed());
+                                                                                                    ledgerData.setLength((int) ledgerData.getLh().getLength());
                                                                                                     storageLedger.addToList(offset, ledgerData);
                                                                                                     return ledgerData;
                                                                                                 });
@@ -461,11 +489,12 @@ public class StorageLedgerManager {
     private LedgerData deserializeLedgerData(Integer startOffset, byte[] bytes, boolean readOnly, Stat stat) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         LedgerHandle lh = null;
+        long ledgerId = bb.getLong();
         try {
             if (readOnly) {
-                lh = bookkeeper.openLedgerNoRecovery(bb.getLong(), LEDGER_DIGEST_TYPE, config.getBKPassword());
+                lh = bookkeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
             } else {
-                lh = bookkeeper.openLedger(bb.getLong(), LEDGER_DIGEST_TYPE, config.getBKPassword());
+                lh = bookkeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
             }
         } catch (Exception e) {
             throw new CompletionException(e);

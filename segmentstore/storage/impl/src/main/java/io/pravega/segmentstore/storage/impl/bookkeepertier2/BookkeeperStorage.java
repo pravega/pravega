@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -98,6 +99,8 @@ public class BookkeeperStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
+
         return manager.exists(streamSegmentName, null).thenApply(exist -> {
             if (exist) {
                 return BookkeeperSegmentHandle.readHandle(streamSegmentName);
@@ -106,6 +109,9 @@ public class BookkeeperStorage implements Storage {
             }
         }).exceptionally((Throwable exception) -> {
             throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+        }).thenApply( handle -> {
+            LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
+            return handle;
         });
     }
 
@@ -116,37 +122,63 @@ public class BookkeeperStorage implements Storage {
                                            int bufferOffset,
                                            int length,
                                            Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName());
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
         }
         if (bufferOffset + length > buffer.length) {
             throw new ArrayIndexOutOfBoundsException();
         }
-        return manager.read(handle.getSegmentName(), offset, buffer, bufferOffset, length, timeout);
+        return manager.read(handle.getSegmentName(), offset, buffer, bufferOffset, length, timeout)
+                .thenApply(retVal -> {
+                    LoggerHelpers.traceLeave(log, "read", traceId, handle.getSegmentName());
+                    return retVal;
+                });
+
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return manager.getOrRetrieveStorageLedgerDetails(streamSegmentName, true);
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
+
+        return manager.getOrRetrieveStorageLedgerDetails(streamSegmentName, true)
+                      .thenApply(segmentProperties -> {
+                          LoggerHelpers.traceLeave(log, "getStreamSegmentInfo", traceId, streamSegmentName);
+                          return segmentProperties;
+                      });
     }
 
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
        return manager.exists(streamSegmentName, timeout)
-                     .thenApply(bool -> bool)
+                     .thenApply(bool -> {
+                         LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName);
+                         return bool;
+                     })
                      .exceptionally(t -> false);
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
+        long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         return manager.fence(streamSegmentName)
-                      .thenApply(u -> BookkeeperSegmentHandle.writeHandle(streamSegmentName));
+                      .thenApply(u -> {
+                          SegmentHandle retVal = BookkeeperSegmentHandle.writeHandle(streamSegmentName);
+                          LoggerHelpers.traceLeave(log, "openWrite", traceId, streamSegmentName);
+                          return retVal;
+                      });
     }
 
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         return manager.create(streamSegmentName, timeout)
-                .thenCompose(str -> this.getStreamSegmentInfo(streamSegmentName, timeout));
+                .thenCompose(str -> this.getStreamSegmentInfo(streamSegmentName, timeout))
+                .thenApply(segmentProperties -> {
+                    LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
+                    return segmentProperties;
+                });
     }
 
     @Override
