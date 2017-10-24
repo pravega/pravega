@@ -49,10 +49,9 @@ public class BatchClientImpl implements BatchClient {
         inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
     }
-
-    @Override
-    public StreamInfo getStreamInfo(Stream stream) {
-        // TODO: Implement this method.
+    
+    private StreamInfo getStreamInfo(Stream stream) {
+        // TODO: Implement this method and make it public
         // Name from stream
         // Length refector from ReaderGroupImpl perhaps move to controller.
         // Creation time needs an added api? or perhaps modify the getsegmentAtTime api
@@ -65,8 +64,7 @@ public class BatchClientImpl implements BatchClient {
         return listSegments(stream, new Date(0L));
     }
 
-    @Override
-    public Iterator<SegmentInfo> listSegments(Stream stream, Date from) {
+    private Iterator<SegmentInfo> listSegments(Stream stream, Date from) {
         // modify iteration above but starting with a timestamp and ending with a break
         Map<Segment, Long> segments = getAndHandleExceptions(controller.getSegmentsAtTime(new StreamImpl(stream.getScope(),
                                                                                                          stream.getStreamName()),

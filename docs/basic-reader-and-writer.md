@@ -417,3 +417,15 @@ When the data is read this way, rather than joining a reader group which automat
 
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce. 
 
+As an example to iterate over the segments in the stream:
+```
+Iterator<SegmentInfo> segments = client.listSegments(stream);
+SegmentInfo segmentInfo = segments.next();
+```
+Or to read the events from a segment:
+```
+SegmentIterator<T> events = client.readSegment(segmentInfo.getSegment(), deserializer);
+while (events.hasNext()) {
+    processEvent(events.next());
+}
+```

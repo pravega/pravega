@@ -11,11 +11,9 @@ package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.ReaderGroup;
+import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
-import java.util.Date;
 import java.util.Iterator;
 
 /**
@@ -23,32 +21,15 @@ import java.util.Iterator;
  * 
  * Used to get metadata about and read from an existing streams.
  * <p>
- * All events written to a stream will be visible atomically and their existence reflected in {@link SegmentInfo#getLength()} and 
- * to new SegmentIterators.
+ * All events written to a stream will be visible to SegmentIterators and reflected in
+ * {@link SegmentInfo#getLength()}.
  * <p>
- * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
- * between multiple readers for scaling. In order to process events in parallel on different hosts
- * and still have some ordering guarantees; events written to a stream have a routingKey see
- * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
- * ordered (i.e. They must go the the same reader or its replacement). However because
- * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
- * 
- * <p>
- * A note on scaling: Because a stream can grow in its event rate, streams are divided into
- * Segments. For the most part this is an implementation detail. However its worth understanding
- * that the way a stream is divided between multiple readers in a group that wish to split the
- * messages between them is by giving different segments to different readers.
+ * Events within a segment are strictly ordered, but as this API allows for reading from multiple
+ * segments in parallel without adhering to time ordering. This allows for events greater
+ * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  */
 @Beta
 public interface BatchClient {
-
-    /**
-     * Returns metadata about the requested stream.
-     * 
-     * @param stream The stream
-     * @return The metadata for the provided stream
-     */
-    StreamInfo getStreamInfo(Stream stream);
 
     /**
      * Provides a list of segments and their metadata for a given stream.
@@ -57,15 +38,6 @@ public interface BatchClient {
      * @return The segments in the requested stream.
      */
     Iterator<SegmentInfo> listSegments(Stream stream);
-
-    /**
-     * List all the segments from the provided stream that contain any entries after the date listed.
-     * 
-     * @param stream The stream whos segments to list.
-     * @param from The time after which segments should be returned
-     * @return All segments that contain some data on the requested stream after the specified time.
-     */
-    Iterator<SegmentInfo> listSegments(Stream stream, Date from);
 
     /**
      * Provides a SegmentIterator to read the events in the requested segment starting from the
