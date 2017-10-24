@@ -726,7 +726,7 @@ public class StorageLedgerManager {
     }
 
     public synchronized void dropCachedValue(String streamSegmentName) {
-        if (ledgers.contains(streamSegmentName)) {
+        if (ledgers.containsKey(streamSegmentName)) {
             ledgers.remove(streamSegmentName);
         }
     }
