@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.bookkeeper.client.AsyncCallback;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
@@ -158,19 +158,28 @@ public class StorageLedgerManager {
                                            return ledger;
                                 });
                     }
-                }).thenApply(ledger -> {
+                }).thenCompose(ledger -> {
                     if (needFencing.get()) {
-                        return fenceAllTheLedgers(streamSegmentName, ledger)
-                                .thenCompose(storageLedger -> {
-                                    return createLedgerAt(streamSegmentName, storageLedger.getLength())
-                                            .thenApply(ledgerData -> {
-                                                storageLedger.addToList(storageLedger.getLength(), ledgerData);
-                                                return storageLedger;
-                                            });
-                                });
+                        log.info("Fencing all the ledgers for {}", streamSegmentName);
+                        return fenceLedgersAndCreateOneAtEnd(streamSegmentName, ledger);
                     } else {
-                        return ledger;
+                        CompletableFuture<StorageLedger> future = new CompletableFuture<>();
+                        future.complete(ledger);
+                        return future;
                     }
+                });
+    }
+
+    private CompletableFuture<StorageLedger> fenceLedgersAndCreateOneAtEnd(String streamSegmentName, StorageLedger ledger) {
+        return fenceAllTheLedgers(streamSegmentName, ledger)
+                .thenCompose(storageLedger -> {
+                    log.info("Made all the ledgers readonly. Adding a new ledger at {} for {}",
+                            storageLedger.getLength(), streamSegmentName);
+                    return createLedgerAt(streamSegmentName, storageLedger.getLength())
+                            .thenApply(ledgerData -> {
+                                storageLedger.addToList(storageLedger.getLength(), ledgerData);
+                                return storageLedger;
+                            });
                 });
     }
 
@@ -198,7 +207,6 @@ public class StorageLedgerManager {
                                                                                                              tryDeleteLedger(ledgerData.getLh().getId());
                                                                                                              return null;
                                                                                                          }
-                                                                                                         ledger.increaseLengthBy((int) ledgerData.getLh().getLength());
                                                                                                          ledger.addToList(offset, ledgerData);
                                                                                                          return ledgerData;
                                                                                                      });
@@ -490,6 +498,8 @@ public class StorageLedgerManager {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         LedgerHandle lh = null;
         long ledgerId = bb.getLong();
+        log.info("Opening a ledger with ledger id {}", ledgerId);
+
         try {
             if (readOnly) {
                 lh = bookkeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
@@ -497,6 +507,7 @@ public class StorageLedgerManager {
                 lh = bookkeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword());
             }
         } catch (Exception e) {
+            log.warn("Exception {} while opening ledger id {}", e, ledgerId);
             throw new CompletionException(e);
         }
         LedgerData ld = new LedgerData(lh, startOffset, stat.getVersion(), containerEpoc);
@@ -507,6 +518,8 @@ public class StorageLedgerManager {
     }
 
     public CompletableFuture<Void> write(String segmentName, long offset, InputStream data, int length) {
+        log.info("Writing {} at offset {} for segment {}", length, offset, segmentName);
+
         return getOrRetrieveStorageLedger(segmentName, false)
                 .thenCompose((StorageLedger ledger) -> {
                     if (ledger.getLength() != offset) {
@@ -532,6 +545,7 @@ public class StorageLedgerManager {
     }
 
     private CompletableFuture<Void> writeDataAt(LedgerHandle lh, long offset, InputStream data, int length, String segmentName) {
+        log.info("Writing {} at offset {} for ledger {}", length, offset, lh.getId());
         byte[] bytes = new byte[length];
         CompletableFuture<Void> retVal = new CompletableFuture<>();
 
@@ -546,6 +560,7 @@ public class StorageLedgerManager {
             if (errorCode == 0) {
                 retVal.complete(null);
             } else {
+                log.warn("asyncAddEntry failed for ledger with ledger id {}, LAC {}, LAP {} ", lh.getId(), lh.getLastAddConfirmed(), lh.getLastAddPushed());
                 retVal.completeExceptionally(translateBKException(BKException.create(errorCode), segmentName));
             }
         }, retVal);
@@ -591,22 +606,31 @@ public class StorageLedgerManager {
 
     public CompletableFuture<Void> concat(String segmentName, String sourceSegment, long offset, Duration timeout) {
         return this.getZKOperationsForConcat(segmentName, sourceSegment, offset)
-                   .thenCompose(curatorOps -> {
-                       return zkClient.transaction().forOperations(curatorOps).toCompletableFuture()
-                                      .exceptionally(exc -> {
-                                          ledgers.remove(getZkPath(segmentName));
-                                          translateZKException(segmentName, exc);
-                                          return null;
-                                      })
-                                      .thenApply(results -> {
-                                              getOrRetrieveStorageLedger(segmentName, false)
-                                                      .thenApply(storageLedger -> {
-                                                            storageLedger.setUpdateVersion(storageLedger.getUpdateVersion() + 1);
-                                                            return null;
-                                                      });
-                                      return null;
-                                      });
-                   });
+                   .thenCompose(curatorOps -> zkClient.transaction()
+                                                      .forOperations(curatorOps).toCompletableFuture()
+                                                      .exceptionally(exc -> {
+                                                          ledgers.remove(segmentName);
+                                                          translateZKException(segmentName, exc);
+                                                          return null;
+                                                      })
+                                                      .thenCompose(results -> {
+                                                          return getOrRetrieveStorageLedger(segmentName, false)
+                                                                  .thenCompose(storageLedger -> {
+                                                                      storageLedger.setUpdateVersion(storageLedger.getUpdateVersion() + 1);
+                                                                      return fenceLedgersAndCreateOneAtEnd(segmentName, storageLedger);
+                                                                  })
+                                                                  .thenApply(storageLedger -> null);
+                                                      }))
+                   .thenCompose(v -> this.zkClient.delete()
+                                           .withOptions(new HashSet<>(
+                                                   Arrays.asList(DeleteOption.guaranteed,
+                                                           DeleteOption.deletingChildrenIfNeeded)))
+                                           .forPath(getZkPath(sourceSegment))
+                                           .toCompletableFuture()
+                                           .thenApply(ret -> {
+                                               ledgers.remove(sourceSegment);
+                                               return null;
+                                           }));
     }
 
     private CompletableFuture<List<CuratorOp>> getZKOperationsForConcat(String segmentName, String sourceSegment, long offset) {
@@ -624,11 +648,22 @@ public class StorageLedgerManager {
                                if (source.getContainerEpoc() != this.containerEpoc) {
                                    throw new CompletionException( new StorageNotPrimaryException(target.getName()));
                                }
+                               List<CuratorOp> operations = new ArrayList<>();
+                               LedgerData lastLedger = target.getLastLedgerData();
+                               if (lastLedger.getLh().getLength() == 0 ) {
+                                   operations.add(createLedgerDeleteOp(lastLedger, target));
+                               }
                                List<CuratorOp> retVal = target.addLedgerDataFrom(source);
+                               operations.addAll(retVal);
                                // Update the segment also to ensure fencing has not happened
-                               retVal.add(createLedgerUpdateOp(target));
-                               return retVal;
+                               operations.add(createLedgerUpdateOp(target));
+                               return operations;
                            });
+    }
+
+    private CuratorOp createLedgerDeleteOp(LedgerData lastLedger, StorageLedger target) {
+        return zkClient.transactionOp().delete()
+                .forPath(getZkPath(target.getName()) + "/" + lastLedger.getStartOffset());
     }
 
     private CuratorOp createLedgerUpdateOp(StorageLedger target) {

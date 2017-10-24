@@ -80,8 +80,14 @@ public class StorageLedger {
         return retVal;
     }
 
-    public void addToList(int offset, LedgerData ledgerData) {
-        this.dataMap.put(offset, ledgerData);
+    public synchronized void addToList(int offset, LedgerData ledgerData) {
+        //If we are replacing an existing ledger, adjust the length
+
+        LedgerData older = this.dataMap.put(offset, ledgerData);
+        if (older != null) {
+            this.length -= older.getLh().getLength();
+        }
+        this.length += ledgerData.getLh().getLength();
     }
 
     public synchronized void increaseLengthBy(int size) {

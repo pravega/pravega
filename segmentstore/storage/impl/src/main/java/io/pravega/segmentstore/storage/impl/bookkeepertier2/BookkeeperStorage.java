@@ -200,8 +200,7 @@ public class BookkeeperStorage implements Storage {
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment,
                                           Duration timeout) {
-        return manager.concat(targetHandle.getSegmentName(), sourceSegment, offset, timeout)
-                .thenCompose(v -> manager.delete(sourceSegment));
+        return manager.concat(targetHandle.getSegmentName(), sourceSegment, offset, timeout);
     }
 
     @Override
