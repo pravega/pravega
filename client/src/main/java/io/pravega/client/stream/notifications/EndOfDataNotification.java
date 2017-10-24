@@ -7,13 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream.notifications.events;
-
-import lombok.Data;
+package io.pravega.client.stream.notifications;
 
 /**
- * Represents base Event type for a notification.
+ * Class to represent a end of data notification. This notification is generated when all the streams(sealed) managed by
+ * the reader group are completely read by the readers.
  */
-@Data
-public class Event {
+public class EndOfDataNotification extends Notification {
 }

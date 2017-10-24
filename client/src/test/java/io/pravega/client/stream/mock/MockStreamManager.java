@@ -9,9 +9,11 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.NameUtils;
 import io.pravega.client.state.SynchronizerConfig;
@@ -92,6 +94,14 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                                                                               .streamName(streamName)
                                                                                               .scalingPolicy(config.getScalingPolicy())
                                                                                               .build()),
+                RuntimeException::new);
+    }
+
+    @Override
+    public boolean truncateStream(String scopeName, String streamName, StreamCut streamCut) {
+        Preconditions.checkNotNull(streamCut);
+
+        return FutureHelpers.getAndHandleExceptions(controller.truncateStream(scopeName, streamName, streamCut),
                 RuntimeException::new);
     }
 

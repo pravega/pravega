@@ -23,6 +23,7 @@ import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,12 +42,14 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     private final UpdateStreamTask updateStreamTask;
     private final SealStreamTask sealStreamTask;
     private final DeleteStreamTask deleteStreamTask;
+    private final TruncateStreamTask truncateStreamTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
                                 UpdateStreamTask updateStreamTask,
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
+                                TruncateStreamTask truncateStreamTask,
                                 ScheduledExecutorService executor) {
         super(executor);
         this.autoScaleTask = autoScaleTask;
@@ -54,6 +57,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
         this.updateStreamTask = updateStreamTask;
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
+        this.truncateStreamTask = truncateStreamTask;
     }
 
     @Override
@@ -94,6 +98,11 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     @Override
     public CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent) {
         return withCompletion(updateStreamTask, updateStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+    }
+
+    @Override
+    public CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent) {
+        return withCompletion(truncateStreamTask, truncateStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     @Override

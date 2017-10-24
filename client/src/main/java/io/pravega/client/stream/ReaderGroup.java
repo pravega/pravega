@@ -10,7 +10,7 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.ClientFactory;
-import io.pravega.client.stream.notifications.ReaderGroupEventListener;
+import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -25,7 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
  * calling {@link #readerOffline(String, Position)}
  */
-public interface ReaderGroup extends ReaderGroupEventListener {
+public interface ReaderGroup extends ReaderGroupNotificationListener {
 
     /**
      * Returns metrics for this reader group.

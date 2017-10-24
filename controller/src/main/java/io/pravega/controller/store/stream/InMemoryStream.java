@@ -17,6 +17,7 @@ import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang3.SerializationUtils;
 
@@ -40,7 +41,9 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
     @GuardedBy("lock")
-    private StreamConfigWithVersion configuration;
+    private Data<Integer> configuration;
+    @GuardedBy("lock")
+    private Data<Integer> truncationRecord;
     @GuardedBy("lock")
     private Data<Integer> state;
     @GuardedBy("lock")
@@ -93,17 +96,17 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
-        final StreamConfigWithVersion config;
+        final StreamProperty<StreamConfiguration> config;
         final Data<Integer> currentState;
         synchronized (lock) {
             time = creationTime.get();
-            config = this.configuration;
+            config = this.configuration == null ? null : SerializationUtils.deserialize(this.configuration.getData());
             currentState = this.state;
         }
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, config.getConfiguration(), currentState);
+                handleStreamMetadataExists(timestamp, result, time, config.getProperty(), currentState);
             } else {
                 result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
             }
@@ -141,20 +144,32 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfiguration config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(StreamProperty<StreamConfiguration> config) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
             if (configuration == null) {
-                configuration = new StreamConfigWithVersion(config, 0);
+                configuration = new Data<>(SerializationUtils.serialize(config), 0);
             }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> setConfigurationData(StreamConfigWithVersion configuration) {
-        Preconditions.checkNotNull(configuration);
+    CompletableFuture<Void> createTruncationDataIfAbsent(StreamProperty<StreamTruncationRecord> truncation) {
+        Preconditions.checkNotNull(truncation);
+
+        synchronized (lock) {
+            if (truncationRecord == null) {
+                truncationRecord = new Data<>(SerializationUtils.serialize(truncation), 0);
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> setConfigurationData(Data<Integer> newConfig) {
+        Preconditions.checkNotNull(newConfig);
 
         CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -162,7 +177,13 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             if (this.configuration == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             } else {
-                this.configuration = configuration;
+                if (Objects.equals(this.configuration.getVersion(), newConfig.getVersion())) {
+                    this.configuration = new Data<>(newConfig.getData(), this.configuration.getVersion() + 1);
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, getName()));
+                }
+
                 result.complete(null);
             }
         }
@@ -170,12 +191,42 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getConfigurationData() {
+    CompletableFuture<Data<Integer>> getConfigurationData(boolean ignoreCached) {
         synchronized (lock) {
             if (this.configuration == null) {
                 return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
-            return CompletableFuture.completedFuture(new Data<>(SerializationUtils.serialize(this.configuration), this.configuration.getVersion()));
+            return CompletableFuture.completedFuture(copy(this.configuration));
+        }
+    }
+
+    @Override
+    CompletableFuture<Void> setTruncationData(Data<Integer> truncationRecord) {
+        Preconditions.checkNotNull(truncationRecord);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.truncationRecord == null) {
+                this.truncationRecord = new Data<>(truncationRecord.getData(), 0);
+            } else {
+                if (Objects.equals(this.truncationRecord.getVersion(), truncationRecord.getVersion())) {
+                    this.truncationRecord = new Data<>(truncationRecord.getData(), this.truncationRecord.getVersion() + 1);
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, getName()));
+                }
+
+                result.complete(null);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
+        synchronized (lock) {
+            return CompletableFuture.completedFuture(copy(this.truncationRecord));
         }
     }
 

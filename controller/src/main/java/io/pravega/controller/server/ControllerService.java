@@ -113,6 +113,15 @@ public class ControllerService {
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
+    public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,
+                                                                final Map<Integer, Long> streamCut) {
+        Preconditions.checkNotNull(scope, "scope");
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        return streamMetadataTasks.truncateStream(scope, stream, streamCut, null)
+                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+    }
+
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
         return streamStore.getConfiguration(scopeName, streamName, null, executor);
     }
