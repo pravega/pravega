@@ -58,6 +58,8 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
+    private static final int MAX_WRITE_ATTEMPTS = 3;
+    private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
@@ -118,8 +120,8 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         this.config.set(BookKeeperConfig
                 .builder()
                 .with(BookKeeperConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
-                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, 5)
-                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 100)) // Very frequent rollovers.
+                .with(BookKeeperConfig.MAX_WRITE_ATTEMPTS, MAX_WRITE_ATTEMPTS)
+                .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, MAX_LEDGER_SIZE)
                 .with(BookKeeperConfig.ZK_METADATA_PATH, namespace)
                 .with(BookKeeperConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
                 .with(BookKeeperConfig.BK_ENSEMBLE_SIZE, BOOKIE_COUNT)
@@ -181,7 +183,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
                 // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
                 // WriteFailureException (general unable to write) should be thrown.
@@ -190,7 +192,9 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
                                 && (ex.getCause() instanceof DataLogNotAvailableException
-                                || isLedgerClosedException(ex.getCause())));
+                                || isLedgerClosedException(ex.getCause()))
+                                || ex instanceof ObjectClosedException
+                                || ex instanceof CancellationException);
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
@@ -200,7 +204,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                                 || ex instanceof CancellationException);
             } finally {
                 // Don't forget to resume the bookie.
-                resumeFirstBookie();
+                restartFirstBookie();
             }
         }
     }
@@ -259,21 +263,18 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
 
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
-                // Issue appends in parallel.
+                // Issue appends in parallel, without waiting for them.
                 int writeCount = getWriteCount();
                 for (int i = 0; i < writeCount; i++) {
                     byte[] data = getWriteData();
                     futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
                     dataList.add(data);
                 }
-
-                // Give a chance for some writes to fail at least once.
-                Thread.sleep(this.config.get().getBkWriteTimeoutMillis() / 10);
             } finally {
-                // Don't forget to resume the bookie.
-                resumeFirstBookie();
+                // Resume the bookie with the appends still in flight.
+                restartFirstBookie();
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
@@ -350,7 +351,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
             List<CompletableFuture<LogAddress>> appendFutures = new ArrayList<>();
             try {
                 // Suspend a bookie (this will trigger write errors).
-                suspendFirstBookie();
+                stopFirstBookie();
 
                 // Issue appends in parallel.
                 int writeCount = getWriteCount();
@@ -376,7 +377,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
                 }
             } finally {
                 // Don't forget to resume the bookie, but only AFTER we are done testing.
-                resumeFirstBookie();
+                restartFirstBookie();
             }
         }
     }
@@ -386,12 +387,13 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
         return THREAD_POOL_SIZE;
     }
 
-    private static void suspendFirstBookie() {
-        BK_SERVICE.get().suspendBookie(0);
+    private static void stopFirstBookie() {
+        BK_SERVICE.get().stopBookie(0);
     }
 
-    private static void resumeFirstBookie() {
-        BK_SERVICE.get().resumeBookie(0);
+    @SneakyThrows
+    private static void restartFirstBookie() {
+        BK_SERVICE.get().startBookie(0);
     }
 
     private static void suspendZooKeeper() {

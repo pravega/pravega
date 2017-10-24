@@ -11,21 +11,21 @@ package io.pravega.client.stream.notifications.notifier;
 
 import java.util.concurrent.ScheduledExecutorService;
 
-import io.pravega.client.stream.notifications.events.Event;
+import io.pravega.client.stream.notifications.Notification;
 import io.pravega.client.stream.notifications.Listener;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.Observable;
 
 /**
- * AbstractEventNotifier which is used by all types of Event Notifiers.
+ * AbstractNotifier which is used by all types of Notifiers.
  * @param <T>
  */
-public abstract class AbstractEventNotifier<T extends Event> implements Observable<T> {
+public abstract class AbstractNotifier<T extends Notification> implements Observable<T> {
 
     protected final NotificationSystem notifySystem;
     protected final ScheduledExecutorService executor;
 
-    protected AbstractEventNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor) {
+    protected AbstractNotifier(final NotificationSystem notifySystem, final ScheduledExecutorService executor) {
         this.notifySystem = notifySystem;
         this.executor = executor;
     }

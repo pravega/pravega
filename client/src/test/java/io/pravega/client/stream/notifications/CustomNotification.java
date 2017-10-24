@@ -9,11 +9,12 @@
  */
 package io.pravega.client.stream.notifications;
 
+import lombok.Builder;
+
 /**
- * Listener interface for receiving notifications.
- * @param <T> Notification type.
+ * Represents a customNotification.
  */
-@FunctionalInterface
-public interface Listener<T> {
-    void onNotification(T notification);
+@Builder
+class CustomNotification extends Notification {
+    //no attributes.
 }

@@ -35,7 +35,7 @@ public class WireCommandsTest {
 
     @Test
     public void testHello() throws IOException {
-        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+        testCommand(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
     }
 
     @Test
@@ -116,7 +116,7 @@ public class WireCommandsTest {
 
     @Test
     public void testStreamSegmentInfo() throws IOException {
-        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1));
+        testCommand(new WireCommands.StreamSegmentInfo(l - 1, testString1, true, false, false, l, l + 1, l - 1));
     }
 
     @Test
@@ -177,6 +177,21 @@ public class WireCommandsTest {
     @Test
     public void testSegmentSealed() throws IOException {
         testCommand(new WireCommands.SegmentSealed(l, testString1));
+    }
+
+    @Test
+    public void testTruncateSegment() throws IOException {
+        testCommand(new WireCommands.TruncateSegment(l, testString1, l + 1));
+    }
+
+    @Test
+    public void testSegmentTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentTruncated(l, testString1));
+    }
+
+    @Test
+    public void testSegmentIsTruncated() throws IOException {
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1));
     }
 
     @Test
