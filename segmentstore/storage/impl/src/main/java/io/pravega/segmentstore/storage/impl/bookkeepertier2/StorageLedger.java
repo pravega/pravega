@@ -68,9 +68,9 @@ public class StorageLedger {
         if (offset != length) {
             retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
         }
-        Optional<Map.Entry<Integer, LedgerData>> found = dataMap.entrySet().stream().filter(entry -> (entry.getKey() <= offset) && (offset <= (entry.getKey() + entry.getValue().getLength()))).findFirst();
-        if (found.isPresent()) {
-            retVal.complete(found.get().getValue());
+        LedgerData ledgerData = this.getLastLedgerData();
+        if (ledgerData != null && !ledgerData.getLh().isClosed()) {
+            retVal.complete(ledgerData);
         } else {
             return manager.createLedgerAt(this.name, (int) offset).thenApply(data -> {
                 this.dataMap.put((int) offset, data);

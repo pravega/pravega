@@ -202,13 +202,16 @@ public class StorageLedgerManager {
                                                                                          .map(child -> {
                                                                                              int offset = Integer.valueOf(child);
                                                                                              return fenceLedgerAt(streamSegmentName, offset)
-                                                                                                     .thenApply(ledgerData -> {
+                                                                                                     .thenCompose(ledgerData -> {
                                                                                                          if (ledgerData.getLh().getLength() == 0) {
                                                                                                              tryDeleteLedger(ledgerData.getLh().getId());
-                                                                                                             return null;
+                                                                                                             return zkClient.delete().forPath(getZkPath(streamSegmentName) + "/" + child).toCompletableFuture()
+                                                                                                                     .thenApply(v -> null);
                                                                                                          }
                                                                                                          ledger.addToList(offset, ledgerData);
-                                                                                                         return ledgerData;
+                                                                                                         CompletableFuture<LedgerData> retval = new CompletableFuture<LedgerData>();
+                                                                                                         retval.complete(ledgerData);
+                                                                                                         return retval;
                                                                                                      });
                                                                                          })
                                                                                          .toArray(CompletableFuture[]::new);
@@ -569,7 +572,9 @@ public class StorageLedgerManager {
     }
 
     private Throwable translateBKException(BKException e, String segmentName) {
-        if (e instanceof BKException.BKLedgerClosedException) {
+        if (e instanceof BKException.BKLedgerClosedException
+                || e instanceof BKException.BKIllegalOpException
+                || e instanceof BKException.BKLedgerFencedException) {
             return new StorageNotPrimaryException(segmentName);
         }
         return e;
@@ -581,14 +586,26 @@ public class StorageLedgerManager {
 
     public CompletableFuture<Void> seal(String segmentName) {
         return this.getOrRetrieveStorageLedger(segmentName, false)
-                   .thenCompose(ledger -> this.sealLedger(ledger.getLastLedgerData()).thenApply(v -> ledger))
-                   .thenApply(ledger -> {
+                   .thenCompose(ledger -> {
+                       if (ledger.getContainerEpoc() > this.containerEpoc) {
+                           throw new CompletionException(new StorageNotPrimaryException(segmentName));
+                       }
                        ledger.setSealed();
-                       return null;
-                   });
-        /**
-         * TODO:
-         * 1. Persist the fact that StorageLedger is sealed */
+                       return zkClient.setData()
+                               .withVersion(ledger.getUpdateVersion())
+                               .forPath(getZkPath(segmentName))
+                               .toCompletableFuture()
+                               .exceptionally(exc -> {
+                                   translateZKException(segmentName, exc);
+                                   return null;
+                               })
+                               .thenApply(stat -> {
+                                    ledger.setUpdateVersion(ledger.getUpdateVersion() + 1);
+                                   return ledger;
+                               });
+
+                   })
+                   .thenCompose(ledger -> this.sealLedger(ledger.getLastLedgerData()));
     }
 
     private CompletableFuture<Void> sealLedger(LedgerData lastLedgerData) {
@@ -673,16 +690,21 @@ public class StorageLedgerManager {
 
     public CompletableFuture<Void> delete(String segmentName) {
         return this.getOrRetrieveStorageLedger(segmentName, false)
-                   .thenCompose(ledger -> this.zkClient.delete()
-                                                       .withOptions(new HashSet<>(
-                                                               Arrays.asList(DeleteOption.guaranteed,
-                                                                       DeleteOption.deletingChildrenIfNeeded)))
-                                                       .forPath(getZkPath(segmentName))
-                                                       .toCompletableFuture()
-                                                       .thenApply(v -> {
-                                                           ledgers.remove(segmentName);
-                                                           return ledger;
-                                                       }))
+                   .thenCompose(ledger -> {
+                       if (ledger.getContainerEpoc() > this.containerEpoc) {
+                           throw new CompletionException(new StorageNotPrimaryException(segmentName));
+                       }
+                       return this.zkClient.delete()
+                                           .withOptions(new HashSet<>(
+                                                   Arrays.asList(DeleteOption.guaranteed,
+                                                           DeleteOption.deletingChildrenIfNeeded)))
+                                           .forPath(getZkPath(segmentName))
+                                           .toCompletableFuture()
+                                           .thenApply(v -> {
+                                               ledgers.remove(segmentName);
+                                               return ledger;
+                                           });
+                   })
                    .thenCompose(ledger -> ledger.deleteAllLedgers());
     }
 
@@ -701,5 +723,11 @@ public class StorageLedgerManager {
 
     public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) {
         return zkClient.transactionOp().create().forPath(getZkPath(segmentName) + "/" + newKey, value.serialize());
+    }
+
+    public synchronized void dropCachedValue(String streamSegmentName) {
+        if (ledgers.contains(streamSegmentName)) {
+            ledgers.remove(streamSegmentName);
+        }
     }
 }
