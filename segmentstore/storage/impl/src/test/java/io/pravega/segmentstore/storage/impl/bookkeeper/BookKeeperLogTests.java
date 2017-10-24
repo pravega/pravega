@@ -57,7 +57,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     private static final int CONTAINER_ID = 9999;
     private static final int WRITE_COUNT = 500;
     private static final int BOOKIE_COUNT = 1;
-    private static final int THREAD_POOL_SIZE = 20;
+    private static final int THREAD_POOL_SIZE = 3;
     private static final int MAX_WRITE_ATTEMPTS = 3;
     private static final int MAX_LEDGER_SIZE = WRITE_MAX_LENGTH * Math.max(10, WRITE_COUNT / 20);
 
@@ -252,55 +252,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests the ability to retry writes when ZooKeeper fails.
-     */
-    @Test
-    public void testAppendTransientZooKeeperFailure() throws Exception {
-        TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
-        int writeCount = getWriteCount();
-        int failEvery = writeCount / 5;
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-
-            val dataList = new ArrayList<byte[]>();
-            val futures = new ArrayList<CompletableFuture<LogAddress>>();
-
-            try {
-                // Issue appends in parallel.
-                for (int i = 0; i < writeCount; i++) {
-                    byte[] data = getWriteData();
-                    futures.add(log.append(new ByteArraySegment(data), TIMEOUT));
-                    dataList.add(data);
-                    if (i % failEvery == 0) {
-                        FutureHelpers.allOf(futures).join();
-                        suspendZooKeeper();
-                        resumeZooKeeper();
-                    }
-                }
-            } finally {
-                // Don't forget to cleanup after the test.
-                try {
-                    resumeZooKeeper();
-                } catch (IllegalStateException ex) {
-                    // Ignore.
-                }
-            }
-
-            // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
-            val addresses = FutureHelpers.allOfWithResults(futures).join();
-            for (int i = 0; i < dataList.size(); i++) {
-                writeData.put(addresses.get(i), dataList.get(i));
-            }
-        }
-
-        // Verify data.
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-            verifyReads(log, writeData);
-        }
-    }
-
-    /**
      * Tests the ability to retry writes when Bookies fail.
      */
     @Test
@@ -354,15 +305,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     @SneakyThrows
     private static void restartFirstBookie() {
         BK_SERVICE.get().startBookie(0);
-    }
-
-    private static void suspendZooKeeper() {
-        BK_SERVICE.get().suspendZooKeeper();
-    }
-
-    @SneakyThrows
-    private static void resumeZooKeeper() {
-        BK_SERVICE.get().resumeZooKeeper();
     }
 
     private static boolean isLedgerClosedException(Throwable ex) {
