@@ -542,9 +542,6 @@ public class StorageLedgerManager {
                             });
                     return retVal;
                 });
-        /**
-         * TODO:
-         * 3. and update the metadata/persist it*/
     }
 
     private CompletableFuture<Void> writeDataAt(LedgerHandle lh, long offset, InputStream data, int length, String segmentName) {
