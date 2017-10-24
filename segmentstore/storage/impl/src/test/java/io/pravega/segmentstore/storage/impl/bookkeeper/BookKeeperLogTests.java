@@ -210,46 +210,6 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
     }
 
     /**
-     * Tests the ability to auto-close upon a permanent write failure caused by ZooKeeper
-     *
-     * @throws Exception If one got thrown.
-     */
-    @Test
-    public void testAutoCloseOnZooKeeperFailure() throws Exception {
-        int writeCount = getWriteCount();
-        try (DurableDataLog log = createDurableDataLog()) {
-            log.initialize(TIMEOUT);
-
-            try {
-                // Suspend a bookie (this will trigger write errors).
-                suspendZooKeeper();
-
-                // It may be a while until the BK client realizes that ZK is closed. So we send out a number of appends
-                // and wait for one of them to fail.
-                val appends = new ArrayList<CompletableFuture<LogAddress>>();
-                for (int i = 0; i < writeCount; i++) {
-                    appends.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
-                }
-
-                AssertExtensions.assertThrows(
-                        "First write did not fail with the appropriate exception.",
-                        () -> FutureHelpers.allOf(appends),
-                        ex -> ex instanceof CancellationException);
-
-                // Subsequent writes should be rejected since the BookKeeperLog is now closed.
-                AssertExtensions.assertThrows(
-                        "Second write did not fail with the appropriate exception.",
-                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
-                        ex -> ex instanceof ObjectClosedException
-                                || ex instanceof CancellationException);
-            } finally {
-                // Don't forget to cleanup after the test.
-                resumeZooKeeper();
-            }
-        }
-    }
-
-    /**
      * Tests the ability to retry writes when Bookies fail.
      */
     @Test
