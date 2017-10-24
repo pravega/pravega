@@ -128,7 +128,40 @@ public class AppendTest {
                                                       new Append(segment, uuid, data.readableBytes(), data, null));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
     }
+
+    @Test(timeout = 10000)
+    public void testMultipleAppends() throws Exception {
+        String segment = "123";
+        ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
+        EmbeddedChannel channel = createChannel(store);
+
+        SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
+        assertEquals(segment, created.getSegment());
+
+        UUID uuid = UUID.randomUUID();
+        AppendSetup setup = (AppendSetup) sendRequest(channel, new SetupAppend(2, uuid, segment));
+
+        assertEquals(segment, setup.getSegment());
+        assertEquals(uuid, setup.getWriterId());
+
+        data.retain();
+        DataAppended ack = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 1, data, null));
+        assertEquals(uuid, ack.getWriterId());
+        assertEquals(1, ack.getEventNumber());
+        assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
+
+        DataAppended ack2 = (DataAppended) sendRequest(channel,
+                new Append(segment, uuid, 2, data, null));
+        assertEquals(uuid, ack2.getWriterId());
+        assertEquals(2, ack2.getEventNumber());
+        assertEquals(1, ack2.getPreviousEventNumber());
+    }
+
 
     static Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
         channel.writeInbound(request);
