@@ -11,12 +11,14 @@ package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import lombok.Data;
 import lombok.Getter;
 import org.apache.curator.framework.api.transaction.CuratorOp;
 
@@ -31,6 +33,15 @@ public class StorageLedger {
     @Getter
     private final String name;
 
+    @Getter
+    private final boolean readOnlyHandle;
+
+    @Getter
+    private int updateVersion;
+
+    @Getter
+    private long containerEpoc;
+
     private ConcurrentHashMap<Integer, LedgerData> dataMap;
 
     @Getter
@@ -42,10 +53,15 @@ public class StorageLedger {
     @Getter
     private ImmutableDate lastModified;
 
-    public StorageLedger(StorageLedgerManager storageLedgerManager, String streamSegmentName) {
+
+
+    public StorageLedger(StorageLedgerManager storageLedgerManager, String streamSegmentName, int updateVersion, long containerEpoc, boolean readOnly) {
         manager = storageLedgerManager;
         dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
+        this.readOnlyHandle = readOnly;
+        this.containerEpoc = containerEpoc;
+        this.updateVersion = updateVersion;
     }
 
     public CompletableFuture<LedgerData> getLedgerDataForWriteAt(long offset) {
@@ -109,5 +125,26 @@ public class StorageLedger {
             retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
         }
         return retVal;
+    }
+
+    public static StorageLedger deserialize(StorageLedgerManager manager, String segmentName, byte[] bytes, int version) {
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        return new StorageLedger(manager, segmentName, version, bb.getLong(), false);
+    }
+
+    public void setContainerEpoc(long containerEpoc) {
+        this.containerEpoc = containerEpoc;
+    }
+
+    public byte[] serialize() {
+        int size = Long.SIZE;
+        ByteBuffer bb = ByteBuffer.allocate(size);
+        bb.putLong(this.containerEpoc);
+
+        return bb.array();
+    }
+
+    public void setUpdateVersion(int version) {
+        this.updateVersion = version;
     }
 }

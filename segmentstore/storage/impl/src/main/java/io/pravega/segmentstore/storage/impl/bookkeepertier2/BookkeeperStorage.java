@@ -23,6 +23,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 
+/**
+ * Storage adapter for Apache bookkeeper based storage.
+ *
+ * Each segment is represented by a log built on top of bookkeeper ledgers. This implementation follows some of recommendations
+ * here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
+ * This log is called a StorageLedger. A storage ledger consists of a number of ledgers and metadata for the segment and the ledgers.
+ * The metadata is stored in ZK. It is accessed using the async curator framework.
+ *
+ * Fencing: The recommended implementation of fencing as described in the URL ensures that the latest caller owns the log.
+ * In case of Storage implementation the requirement is different. A Storage with higher epoc is supposed to own the log,
+ * irrespective of the time the fencing happens. Because of this a CAS operation in ZK for a storage ledger decides ownership.
+ *
+ * Here is the algorithm that describes ownership change through the openWrite() call:
+ *
+ * 1. Check the current epoc for the given StorageLedger.
+ * 2. If the current epoc is larger, set it to the new epoc, other wise throw StorageNotPrimary error.
+ * 3. Try and fence all the ledgers. The last ledger may be empty, in this case delete the ledger.
+ * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK.
+ *
+ * Concat: Apache bookkeeper does not have a native concat which appends two ledgers on the server side. To overcome this,
+ * concatenation is implemented as a pure metadata operation. Here is the algorithm used for concat() call:
+ *
+ * 1. Get the target and source ledgers.
+ * 2. Update the offset of the source ledgers to the offsets after the concatenation.
+ * 3. Update all the metadata about ledgers in one transaction using transaction() API for curator.
+ */
 @Slf4j
 public class BookkeeperStorage implements Storage {
     private static final int NUM_RETRIES = 3;
@@ -67,7 +93,7 @@ public class BookkeeperStorage implements Storage {
      */
     @Override
     public void initialize(long containerEpoch) {
-        manager.initialize();
+        manager.initialize(containerEpoch);
     }
 
     @Override
@@ -101,7 +127,7 @@ public class BookkeeperStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return manager.getOrRetrieveStorageLedgerDetails(streamSegmentName);
+        return manager.getOrRetrieveStorageLedgerDetails(streamSegmentName, true);
     }
 
     @Override

@@ -19,6 +19,10 @@ public class LedgerData {
     private final LedgerHandle lh;
     //Retrieved from ZK
     private final int startOffset;
+    //Version to ensure CAS in ZK
+    private final  int updateVersion;
+    //EPOC under which the ledger is created
+    private final long containerEpoc;
 
     // Temporary variables. These are not persisted to ZK.
     //These are interpreted from bookkeeper and may be updated inproc.
@@ -27,10 +31,11 @@ public class LedgerData {
     private long lastAddConfirmed = -1;
 
     public byte[] serialize() {
-        int size = Long.SIZE + Integer.SIZE;
+        int size = Long.SIZE + Long.SIZE;
 
         ByteBuffer bb = ByteBuffer.allocate(size);
         bb.putLong(this.lh.getId());
+        bb.putLong(this.containerEpoc);
         return bb.array();
     }
 

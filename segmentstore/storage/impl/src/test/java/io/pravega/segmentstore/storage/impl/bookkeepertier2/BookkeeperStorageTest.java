@@ -11,9 +11,12 @@ package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperServiceRunner;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -23,6 +26,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class BookkeeperStorageTest extends StorageTestBase {
     private static final int BOOKIE_COUNT = 1;
@@ -81,9 +85,72 @@ public class BookkeeperStorageTest extends StorageTestBase {
         }
     }
 
+    /**
+     * Tests fencing abilities. We create two different Storage objects with different owner ids.
+     * Part 1: Creation:
+     * * We create the Segment on Storage1:
+     * ** We verify that Storage1 can execute all operations.
+     * ** We verify that Storage2 can execute only read-only operations.
+     * * We open the Segment on Storage2:
+     * ** We verify that Storage1 can execute only read-only operations.
+     * ** We verify that Storage2 can execute all operations.
+     */
+    @Test
     @Override
     public void testFencing() throws Exception {
+        final long epoch1 = 1;
+        final long epoch2 = 2;
+        final String segmentName = "segment";
+        try (val storage1 = createStorage();
+             val storage2 = createStorage()) {
+            storage1.initialize(epoch1);
+            storage2.initialize(epoch2);
 
+            // Create segment in Storage1 (thus Storage1 owns it for now).
+            storage1.create(segmentName, TIMEOUT).join();
+
+            // Storage1 should be able to execute all operations.
+            SegmentHandle handle1 = storage1.openWrite(segmentName).join();
+            verifyWriteOperationsSucceed(handle1, storage1);
+            verifyReadOnlyOperationsSucceed(handle1, storage1);
+
+            // Open the segment in Storage2 (thus Storage2 owns it for now).
+            SegmentHandle handle2 = storage2.openWrite(segmentName).join();
+
+            // Storage1 should be able to execute only read-only operations.
+            verifyWriteOperationsFail(handle1, storage1);
+            verifyReadOnlyOperationsSucceed(handle1, storage1);
+
+            // Storage2 should be able to execute all operations.
+            verifyReadOnlyOperationsSucceed(handle2, storage2);
+            verifyWriteOperationsSucceed(handle2, storage2);
+
+            // Seal and Delete (these should be run last, otherwise we can't run our test).
+            verifyFinalWriteOperationsFail(handle1, storage1);
+            verifyFinalWriteOperationsSucceed(handle2, storage2);
+        }
+    }
+
+    @Override
+    protected void verifyWriteOperationsFail(SegmentHandle handle, Storage storage) {
+        val si = storage.getStreamSegmentInfo(handle.getSegmentName(), TIMEOUT).join();
+        final byte[] data = "hello".getBytes();
+        AssertExtensions.assertThrows(
+                "Write was not fenced out.",
+                () -> storage.write(handle, si.getLength(), new ByteArrayInputStream(data), data.length, TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+
+        // Create a second segment and try to concat it into the primary one.
+        final String concatName = "concat";
+        storage.create(concatName, TIMEOUT).join();
+        val concatHandle = storage.openWrite(concatName).join();
+        storage.write(concatHandle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT).join();
+        storage.seal(concatHandle, TIMEOUT).join();
+        AssertExtensions.assertThrows(
+                "Concat was not fenced out.",
+                () -> storage.concat(handle, si.getLength(), concatHandle.getSegmentName(), TIMEOUT),
+                ex -> ex instanceof StorageNotPrimaryException);
+        storage.delete(concatHandle, TIMEOUT).join();
     }
 
     @Override

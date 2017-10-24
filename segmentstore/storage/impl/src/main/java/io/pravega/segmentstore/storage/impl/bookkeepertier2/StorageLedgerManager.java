@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.storage.impl.bookkeepertier2;
 
@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -24,7 +25,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +41,7 @@ import org.apache.curator.framework.api.transaction.CuratorOp;
 import org.apache.curator.x.async.AsyncCuratorFramework;
 import org.apache.curator.x.async.api.DeleteOption;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * This class represents the manager for StorageLedgers.
@@ -56,13 +57,13 @@ public class StorageLedgerManager {
 
     private ConcurrentHashMap<String, StorageLedger> ledgers;
     private BookKeeper bookkeeper;
+    private long containerEpoc;
 
     public StorageLedgerManager(BookkeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
         this.config = config;
         this.executor = executor;
         this.zkClient = AsyncCuratorFramework.wrap(zkClient);
         ledgers = new ConcurrentHashMap<>();
-
     }
 
     /**
@@ -75,15 +76,16 @@ public class StorageLedgerManager {
      * @Param zkClient
      */
     public CompletableFuture<LedgerData> create(String streamSegmentName, Duration timeout) {
+        StorageLedger storageLedger = new StorageLedger(this, streamSegmentName, 0, this.containerEpoc, false);
         return zkClient.create()
-                       .forPath(getZkPath(streamSegmentName))
+                       .forPath(getZkPath(streamSegmentName), storageLedger.serialize())
                        .toCompletableFuture()
-                       .exceptionally(exc ->  {
+                       .exceptionally(exc -> {
                            translateZKException(streamSegmentName, exc);
                            return null;
                        })
-                       .thenApply( name -> {
-                           ledgers.put(streamSegmentName, new StorageLedger(this, streamSegmentName));
+                       .thenApply(name -> {
+                           ledgers.put(streamSegmentName, storageLedger);
                            return streamSegmentName;
                        })
                        .thenCompose(t -> {
@@ -100,6 +102,8 @@ public class StorageLedgerManager {
             throw new CompletionException(new StreamSegmentExistsException(streamSegmentName));
         } else if (exc instanceof KeeperException.NoNodeException) {
             throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+        } else if (exc instanceof KeeperException.BadVersionException) {
+            throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
         } else {
             throw new CompletionException(exc);
         }
@@ -123,40 +127,90 @@ public class StorageLedgerManager {
      * @param streamSegmentName name of the segment to be fenced.
      */
     public CompletableFuture<?> fence(String streamSegmentName) {
+        AtomicReference<Boolean> tryAgain = new AtomicReference<>(true);
+        AtomicReference<Boolean> needFencing = new AtomicReference<>(false);
+
+        return getOrRetrieveStorageLedger(streamSegmentName, false)
+                .thenCompose(ledger -> {
+                    CompletableFuture<StorageLedger> retVal = new CompletableFuture<StorageLedger>();
+                    if (ledger.getContainerEpoc() == containerEpoc) {
+                        retVal.complete(ledger);
+                        return retVal;
+                    } else if (ledger.getContainerEpoc() > containerEpoc) {
+                        throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
+                    } else {
+                        needFencing.set(true);
+                        ledger.setContainerEpoc(containerEpoc);
+                        return zkClient.setData()
+                                       .withVersion(ledger.getUpdateVersion())
+                                       .forPath(getZkPath(streamSegmentName), ledger.serialize())
+                                       .exceptionally(exc -> {
+                                           if (exc instanceof KeeperException.BadVersionException) {
+                                               //Need to retry as data we had was out of sync
+                                               tryAgain.set(true);
+                                           } else {
+                                               throw new CompletionException(exc);
+                                           }
+                                           return null;
+                                       }).thenApply(stat -> {
+                                           ledger.setUpdateVersion(stat.getVersion());
+                                           return ledger;
+                                });
+                    }
+                }).thenApply(ledger -> {
+                    if (needFencing.get()) {
+                        return fenceAllTheLedgers(streamSegmentName, ledger);
+                    } else {
+                        return ledger;
+                    }
+                });
+    }
+
+    private CompletableFuture<StorageLedger> fenceAllTheLedgers(String streamSegmentName, StorageLedger ledger) {
         return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
                        .toCompletableFuture()
                        .exceptionally(exc -> {
                            translateZKException(streamSegmentName, exc);
                            return null;
                        })
-                       .thenApply(
+                       .thenCompose(
                                children -> {
                                    if (children.size() == 0) {
-                                       return createLedgerAt(streamSegmentName, 0);
+                                       return createLedgerAt(streamSegmentName, 0).thenApply(ledgerData -> {
+                                           ledger.addToList(0, ledgerData);
+                                           return ledger;
+                                       });
                                    } else {
-                                       Optional<String> lastLedger = children.stream().max((x, y) -> (Integer.valueOf(x) < Integer.valueOf(y)) ? -1 : 1);
-                                       return fenceAndCreateNewLedger(streamSegmentName, Integer.valueOf(lastLedger.get()));
+                                       CompletableFuture<LedgerData>[] futures = children.stream()
+                                                                                         .map(child -> {
+                                                                                             int offset = Integer.valueOf(child);
+                                                                                             return fenceLedgerAt(streamSegmentName, offset)
+                                                                                                     .thenApply(ledgerData -> {
+                                                                                                         ledger.addToList(offset, ledgerData);
+                                                                                                         return ledgerData;
+                                                                                                     });
+                                                                                         })
+                                                                                         .toArray(CompletableFuture[]::new);
+                                       return CompletableFuture.allOf(futures).thenApply(v -> ledger);
                                    }
                                });
     }
 
-    private CompletableFuture<?> fenceAndCreateNewLedger(String streamSegmentName, Integer lastLedgerOffset) {
-        return fenceLedgerAt(streamSegmentName, lastLedgerOffset).thenApply(
-                newOffset -> createLedgerAt(streamSegmentName, newOffset));
-    }
-
-    private CompletableFuture<Integer> fenceLedgerAt(String streamSegmentName, int firstOffset) {
-        return zkClient.getData().forPath(streamSegmentName + "/" + firstOffset)
+    private CompletableFuture<LedgerData> fenceLedgerAt(String streamSegmentName, int firstOffset) {
+        Stat stat = new Stat();
+        return zkClient.getData()
+                       .storingStatIn(stat)
+                       .forPath(streamSegmentName + "/" + firstOffset)
                        .toCompletableFuture()
                        .thenApply(data -> {
-                           LedgerData ledgerData = deserializeLedgerData(firstOffset, data);
+                           LedgerData ledgerData = deserializeLedgerData(firstOffset, data, true, stat);
                            try {
                                ledgerData.getLh().close();
                            } catch (Exception e) {
                                throw new CompletionException(e);
                            }
-                           return ledgerData.getLength();
-                          });
+                           return ledgerData;
+                       });
     }
 
     public CompletableFuture<LedgerData> createLedgerAt(String streamSegmentName, int offset) {
@@ -166,17 +220,16 @@ public class StorageLedgerManager {
                 config.getBkWriteQuorumSize(), LEDGER_DIGEST_TYPE, config.getBKPassword(),
                 (errorCode, ledgerHandle, future) -> {
                     if (errorCode == 0) {
-                        LedgerData lh = new LedgerData(ledgerHandle, offset);
+                        LedgerData lh = new LedgerData(ledgerHandle, offset, 0, this.containerEpoc);
                         zkClient.create().forPath(getZkPath(streamSegmentName) + "/" + offset, lh.serialize())
                                 .toCompletableFuture()
                                 .exceptionally(exc -> {
                                     retVal.completeExceptionally(exc);
                                     return null;
                                 })
-                        .thenApply(name -> {
-                            return retVal.complete(lh);
-                        });
-
+                                .thenApply(name -> {
+                                    return retVal.complete(lh);
+                                });
                     } else {
                         retVal.completeExceptionally(BKException.create(errorCode));
                     }
@@ -186,9 +239,10 @@ public class StorageLedgerManager {
 
     /**
      * Initializes the bookkeeper and curator objects.
+     * @param containerEpoch the epoc to be used for the fencing and create calls.
      */
-    public void initialize() {
-
+    public void initialize(long containerEpoch) {
+        this.containerEpoc = containerEpoch;
         int entryTimeout = (int) Math.ceil(this.config.getBkWriteTimeoutMillis() / 1000.0);
         ClientConfiguration config = new ClientConfiguration()
                 .setZkServers(this.config.getZkAddress())
@@ -221,17 +275,17 @@ public class StorageLedgerManager {
         final AtomicReference<Long> currentOffset = new AtomicReference<>(offset);
         final AtomicReference<Integer> currentBufferOffset = new AtomicReference<>(bufferOffset);
 
-        return getOrRetrieveStorageLedger(segmentName)
+        return getOrRetrieveStorageLedger(segmentName, true)
                 .thenCompose(ledger -> {
-                                if (offset + length > ledger.getLength()) {
-                                    throw new CompletionException(new IllegalArgumentException(segmentName));
-                                }
-                                return FutureHelpers.loop(
-                                        () -> {
-                                            return currentLength.get() != 0;
-                                        },
-                                        () -> ledger.getLedgerDataForReadAt(currentOffset.get())
-                                        .thenCompose(ledgerData ->  readDataFromLedger(ledgerData, currentOffset.get(),
+                    if (offset + length > ledger.getLength()) {
+                        throw new CompletionException(new IllegalArgumentException(segmentName));
+                    }
+                    return FutureHelpers.loop(
+                            () -> {
+                                return currentLength.get() != 0;
+                            },
+                            () -> ledger.getLedgerDataForReadAt(currentOffset.get())
+                                        .thenCompose(ledgerData -> readDataFromLedger(ledgerData, currentOffset.get(),
                                                 buffer, currentBufferOffset.get(), currentLength.get()))
                                         .thenApply(dataRead -> {
                                             currentLength.set(currentLength.get() - dataRead);
@@ -239,7 +293,7 @@ public class StorageLedgerManager {
                                             currentBufferOffset.set(currentBufferOffset.get() + dataRead);
                                             return null;
                                         }),
-                              executor);
+                            executor);
                 })
                 .thenApply(v -> length);
     }
@@ -248,75 +302,76 @@ public class StorageLedgerManager {
        /*TODO: This is brute force. Put some hurisitcs. Some possibilities:
        * 1. Store already read data for re-reading
        * 2. Store written data in last-accessed format.
-       * 3. Store the current read pointer. Reads will always be sequential*/
-       final AtomicReference<Long> currentOffset = new AtomicReference<>(offset - ledgerData.getStartOffset());
-       final AtomicReference<Integer> lengthRemaining = new AtomicReference<>(length);
-       final AtomicReference<Integer> currentBufferOffset = new AtomicReference<>(bufferOffset);
-       final AtomicReference<Boolean> readingDone = new AtomicReference<>(false);
-       final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) 0);
-       int entriesInOneRound = 7;
+       * 3. Store the current read pointer. Reads will always be sequential
+       * */
+        final AtomicReference<Long> currentOffset = new AtomicReference<>(offset - ledgerData.getStartOffset());
+        final AtomicReference<Integer> lengthRemaining = new AtomicReference<>(length);
+        final AtomicReference<Integer> currentBufferOffset = new AtomicReference<>(bufferOffset);
+        final AtomicReference<Boolean> readingDone = new AtomicReference<>(false);
+        final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) 0);
+        int entriesInOneRound = 7;
 
-       return FutureHelpers.loop(() -> !readingDone.get(),
-                          () -> {
-                              CompletableFuture<Void> future = new CompletableFuture<>();
+        return FutureHelpers.loop(() -> !readingDone.get(),
+                () -> {
+                    CompletableFuture<Void> future = new CompletableFuture<>();
 
-                              long lastEntryId;
-                              if (ledgerData.getLastAddConfirmed() - firstEntryId.get() < entriesInOneRound) {
-                                  lastEntryId = ledgerData.getLastAddConfirmed();
-                              } else {
-                                  lastEntryId = firstEntryId.get() + entriesInOneRound;
-                              }
-                              ledgerData.getLh().asyncReadEntries(firstEntryId.get(), lastEntryId,
-                                      (errorCode, ledgerHandle, enumeration, o) -> {
-                                  if (errorCode != 0) {
-                                      throw new CompletionException(BKException.create(errorCode));
-                                  }
+                    long lastEntryId;
+                    if (ledgerData.getLastAddConfirmed() - firstEntryId.get() < entriesInOneRound) {
+                        lastEntryId = ledgerData.getLastAddConfirmed();
+                    } else {
+                        lastEntryId = firstEntryId.get() + entriesInOneRound;
+                    }
+                    ledgerData.getLh().asyncReadEntries(firstEntryId.get(), lastEntryId,
+                            (errorCode, ledgerHandle, enumeration, o) -> {
+                                if (errorCode != 0) {
+                                    throw new CompletionException(BKException.create(errorCode));
+                                }
 
-                                  while (enumeration.hasMoreElements()) {
-                                      LedgerEntry entry = enumeration.nextElement();
+                                while (enumeration.hasMoreElements()) {
+                                    LedgerEntry entry = enumeration.nextElement();
 
-                                      if (entry.getLength() <= currentOffset.get()) {
-                                          currentOffset.set(currentOffset.get() - entry.getLength());
-                                      } else {
-                                          long startInEntry = currentOffset.get();
-                                          try {
-                                              InputStream stream = entry.getEntryInputStream();
-                                              long skipped = stream.skip(startInEntry);
+                                    if (entry.getLength() <= currentOffset.get()) {
+                                        currentOffset.set(currentOffset.get() - entry.getLength());
+                                    } else {
+                                        long startInEntry = currentOffset.get();
+                                        try {
+                                            InputStream stream = entry.getEntryInputStream();
+                                            long skipped = stream.skip(startInEntry);
 
-                                              int dataRemainingInEntry = (int) (entry.getLength() - startInEntry);
+                                            int dataRemainingInEntry = (int) (entry.getLength() - startInEntry);
 
-                                              int dataRead = 0;
-                                                  dataRead = stream.read(buffer, currentBufferOffset.get(),
-                                                          dataRemainingInEntry > lengthRemaining.get() ?
-                                                                  lengthRemaining.get() : dataRemainingInEntry);
-                                                  if (dataRead == -1) {
-                                                      log.warn("Data read returned -1" + skipped);
-                                                  }
-                                              lengthRemaining.set(lengthRemaining.get() - dataRead);
-                                              if (lengthRemaining.get() == 0) {
-                                                  future.complete(null);
-                                                  readingDone.set(true);
-                                                  return;
-                                              }
-                                              currentBufferOffset.set(currentBufferOffset.get() + dataRead);
-                                              currentOffset.set((long) 0);
-                                          } catch (IOException e) {
-                                              future.completeExceptionally(new CompletionException(e));
-                                              return;
-                                          }
-                                      }
-                                      if (entry.getEntryId() == ledgerHandle.getLastAddConfirmed()) {
-                                          future.complete(null);
-                                          readingDone.set(true);
-                                      }
-                                  }
-                                  firstEntryId.set(firstEntryId.get() + entriesInOneRound + 1);
-                                  future.complete(null);
-                              }, future);
-                              return future;
-                          },
-                          executor)
-                    .thenApply(v -> length - lengthRemaining.get());
+                                            int dataRead = 0;
+                                            dataRead = stream.read(buffer, currentBufferOffset.get(),
+                                                    dataRemainingInEntry > lengthRemaining.get() ?
+                                                            lengthRemaining.get() : dataRemainingInEntry);
+                                            if (dataRead == -1) {
+                                                log.warn("Data read returned -1" + skipped);
+                                            }
+                                            lengthRemaining.set(lengthRemaining.get() - dataRead);
+                                            if (lengthRemaining.get() == 0) {
+                                                future.complete(null);
+                                                readingDone.set(true);
+                                                return;
+                                            }
+                                            currentBufferOffset.set(currentBufferOffset.get() + dataRead);
+                                            currentOffset.set((long) 0);
+                                        } catch (IOException e) {
+                                            future.completeExceptionally(new CompletionException(e));
+                                            return;
+                                        }
+                                    }
+                                    if (entry.getEntryId() == ledgerHandle.getLastAddConfirmed()) {
+                                        future.complete(null);
+                                        readingDone.set(true);
+                                    }
+                                }
+                                firstEntryId.set(firstEntryId.get() + entriesInOneRound + 1);
+                                future.complete(null);
+                            }, future);
+                    return future;
+                },
+                executor)
+                            .thenApply(v -> length - lengthRemaining.get());
     }
 
     /**
@@ -324,11 +379,12 @@ public class StorageLedgerManager {
      * If the ledger does not exist in the cache, we try to
      *
      * @param streamSegmentName name of the stream segment
+     * @param readOnly whether a readonly copy of BK is expected or a copy for write.
      * @return
      */
-    public CompletableFuture<SegmentProperties> getOrRetrieveStorageLedgerDetails(String streamSegmentName) {
+    public CompletableFuture<SegmentProperties> getOrRetrieveStorageLedgerDetails(String streamSegmentName, boolean readOnly) {
 
-        return getOrRetrieveStorageLedger(streamSegmentName)
+        return getOrRetrieveStorageLedger(streamSegmentName, readOnly)
                 .thenApply(ledger -> StreamSegmentInformation.builder()
                                                              .name(streamSegmentName).length(ledger.getLength())
                                                              .sealed(ledger.isSealed())
@@ -336,49 +392,85 @@ public class StorageLedgerManager {
                                                              .build());
     }
 
-    private CompletableFuture<StorageLedger> getOrRetrieveStorageLedger(String streamSegmentName) {
+    private CompletableFuture<StorageLedger> getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
         CompletableFuture<StorageLedger> retVal = new CompletableFuture<>();
 
         synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
                 StorageLedger ledger = ledgers.get(streamSegmentName);
-                retVal.complete(ledger);
-                return retVal;
+                if (!readOnly && ledger.isReadOnlyHandle()) {
+                    //Check whether the value is read-write, if it is not, flush it so that we create a read-write token
+                    ledgers.remove(streamSegmentName);
+                } else {
+                    // If the caller expects a readonly handle, either a readonly or read-write cached value will work.
+                    retVal.complete(ledger);
+                    return retVal;
+                }
             }
         }
-        return retrieveStorageLedgerMetadata(streamSegmentName);
+        return retrieveStorageLedgerMetadata(streamSegmentName, readOnly);
     }
 
-    private CompletableFuture<StorageLedger> retrieveStorageLedgerMetadata(String streamSegmentName) {
-        StorageLedger storageLedger = new StorageLedger(this, streamSegmentName);
-        return zkClient.getChildren().forPath(getZkPath(streamSegmentName)).toCompletableFuture()
-                .exceptionally(exc -> {
-                    translateZKException(streamSegmentName, exc);
-                    return null;
-                })
-                .thenCompose(children -> {
-                    CompletableFuture<LedgerData>[] retVal =  children.stream().map(child -> {
-                        return zkClient.getData().forPath(child).toCompletableFuture().thenApply(bytes -> {
-                            storageLedger.addToList(Integer.getInteger(child), deserializeLedgerData(Integer.getInteger(child), bytes));
-                            return null;
-                        });
-                    }).toArray(CompletableFuture[]::new);
-                    return CompletableFuture.allOf(retVal);
-                }).thenApply(v -> {
-                    ledgers.put(streamSegmentName, storageLedger);
-                    return storageLedger;
-                });
+    private CompletableFuture<StorageLedger> retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) {
+
+        Stat stat = new Stat();
+        return zkClient.getData().storingStatIn(stat).forPath(getZkPath(streamSegmentName)).toCompletableFuture()
+                       .exceptionally(exc -> {
+                           translateZKException(streamSegmentName, exc);
+                           return null;
+                       })
+                       .thenApply(bytes -> {
+                           StorageLedger retval = StorageLedger.deserialize(this, streamSegmentName, bytes, stat.getVersion());
+                           ledgers.put(streamSegmentName, retval);
+                           return retval;
+                       })
+                       .thenCompose(storageLedger -> {
+                           if (readOnly) {
+                               return getBKLEdgerDetails(streamSegmentName, storageLedger);
+                           } else {
+                               CompletableFuture<StorageLedger> retVal = new CompletableFuture<>();
+                               retVal.complete(storageLedger);
+                               return retVal;
+                           }
+                       });
     }
 
-    private LedgerData deserializeLedgerData(Integer startOffset, byte[] bytes) {
+    private CompletableFuture<StorageLedger> getBKLEdgerDetails(String streamSegmentName, StorageLedger storageLedger) {
+        return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
+                       .toCompletableFuture()
+                       .thenCompose(children -> {
+                           CompletableFuture<LedgerData>[] futures = children.stream()
+                                                                             .map(child -> {
+                                                                                 int offset = Integer.valueOf(child);
+                                                                                 Stat stat = new Stat();
+                                                                                 return zkClient.getData()
+                                                                                                .storingStatIn(stat)
+                                                                                                .forPath(getZkPath(streamSegmentName) + "/" + child)
+                                                                                                .thenApply(bytes -> {
+                                                                                                    LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child),
+                                                                                                            bytes, true, stat);
+                                                                                                    storageLedger.addToList(offset, ledgerData);
+                                                                                                    return ledgerData;
+                                                                                                });
+                                                                             })
+                                                                             .toArray(CompletableFuture[]::new);
+                           return CompletableFuture.allOf(futures).thenApply(v -> storageLedger);
+                       });
+    }
+
+    private LedgerData deserializeLedgerData(Integer startOffset, byte[] bytes, boolean readOnly, Stat stat) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         LedgerHandle lh = null;
         try {
-            lh = bookkeeper.openLedger(bb.getLong(), LEDGER_DIGEST_TYPE, config.getBKPassword());
+            if (readOnly) {
+                lh = bookkeeper.openLedgerNoRecovery(bb.getLong(), LEDGER_DIGEST_TYPE, config.getBKPassword());
+            } else {
+                lh = bookkeeper.openLedger(bb.getLong(), LEDGER_DIGEST_TYPE, config.getBKPassword());
+            }
         } catch (Exception e) {
-          throw new CompletionException(e);
+            throw new CompletionException(e);
         }
-        LedgerData ld = new LedgerData(lh, startOffset);
+        LedgerData ld = new LedgerData(lh, startOffset, stat.getVersion(), containerEpoc);
         ld.setLength((int) lh.getLength());
         ld.setReadonly(lh.isClosed());
         ld.setLastAddConfirmed(lh.getLastAddConfirmed());
@@ -386,7 +478,7 @@ public class StorageLedgerManager {
     }
 
     public CompletableFuture<Void> write(String segmentName, long offset, InputStream data, int length) {
-        return getOrRetrieveStorageLedger(segmentName)
+        return getOrRetrieveStorageLedger(segmentName, false)
                 .thenCompose((StorageLedger ledger) -> {
                     if (ledger.getLength() != offset) {
                         throw new CompletionException(new BadOffsetException(segmentName, ledger.getLength(), offset));
@@ -395,8 +487,8 @@ public class StorageLedgerManager {
                         throw new CompletionException(new StreamSegmentSealedException(segmentName));
                     }
                     return getORCreateLHForOffset(ledger, offset);
-                }).thenCompose(ledgerData ->  {
-                    CompletableFuture<Void> retVal = writeDataAt(ledgerData.getLh(), offset, data, length)
+                }).thenCompose(ledgerData -> {
+                    CompletableFuture<Void> retVal = writeDataAt(ledgerData.getLh(), offset, data, length, segmentName)
                             .thenApply(v -> {
                                 ledgerData.increaseLengthBy(length);
                                 ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
@@ -410,7 +502,7 @@ public class StorageLedgerManager {
          * 3. and update the metadata/persist it*/
     }
 
-    private  CompletableFuture<Void> writeDataAt(LedgerHandle lh, long offset, InputStream data, int length) {
+    private CompletableFuture<Void> writeDataAt(LedgerHandle lh, long offset, InputStream data, int length, String segmentName) {
         byte[] bytes = new byte[length];
         CompletableFuture<Void> retVal = new CompletableFuture<>();
 
@@ -422,14 +514,21 @@ public class StorageLedgerManager {
         }
 
         lh.asyncAddEntry(bytes, (errorCode, ledgerHandle, l, future) -> {
-            if ( errorCode == 0) {
+            if (errorCode == 0) {
                 retVal.complete(null);
             } else {
-                retVal.completeExceptionally(BKException.create(errorCode));
+                retVal.completeExceptionally(translateBKException(BKException.create(errorCode), segmentName));
             }
         }, retVal);
 
         return retVal;
+    }
+
+    private Throwable translateBKException(BKException e, String segmentName) {
+        if (e instanceof BKException.BKLedgerClosedException) {
+            return new StorageNotPrimaryException(segmentName);
+        }
+        return e;
     }
 
     private CompletableFuture<LedgerData> getORCreateLHForOffset(StorageLedger ledger, long offset) {
@@ -437,15 +536,15 @@ public class StorageLedgerManager {
     }
 
     public CompletableFuture<Void> seal(String segmentName) {
-        return this.getOrRetrieveStorageLedger(segmentName)
-                .thenCompose(ledger -> this.sealLedger(ledger.getLastLedgerData()).thenApply(v -> ledger))
-                .thenApply(ledger -> {
-                    ledger.setSealed();
-                    return null;
-                });
+        return this.getOrRetrieveStorageLedger(segmentName, false)
+                   .thenCompose(ledger -> this.sealLedger(ledger.getLastLedgerData()).thenApply(v -> ledger))
+                   .thenApply(ledger -> {
+                       ledger.setSealed();
+                       return null;
+                   });
         /**
-        * TODO:
-        * 1. Persist the fact that StorageLedger is sealed */
+         * TODO:
+         * 1. Persist the fact that StorageLedger is sealed */
     }
 
     private CompletableFuture<Void> sealLedger(LedgerData lastLedgerData) {
@@ -455,7 +554,7 @@ public class StorageLedgerManager {
                 lastLedgerData.getLh().close();
                 future.complete(null);
             } catch (Exception e) {
-               future.completeExceptionally(e);
+                future.completeExceptionally(e);
             }
         });
         return future;
@@ -463,41 +562,64 @@ public class StorageLedgerManager {
 
     public CompletableFuture<Void> concat(String segmentName, String sourceSegment, long offset, Duration timeout) {
         return this.getZKOperationsForConcat(segmentName, sourceSegment, offset)
-                .thenCompose(curatorOps -> {
-                    return zkClient.transaction().forOperations(curatorOps).toCompletableFuture().thenApply(results -> null);
-                });
-
+                   .thenCompose(curatorOps -> {
+                       return zkClient.transaction().forOperations(curatorOps).toCompletableFuture()
+                                      .exceptionally(exc -> {
+                                          ledgers.remove(getZkPath(segmentName));
+                                          translateZKException(segmentName, exc);
+                                          return null;
+                                      })
+                                      .thenApply(results -> {
+                                              getOrRetrieveStorageLedger(segmentName, false)
+                                                      .thenApply(storageLedger -> {
+                                                            storageLedger.setUpdateVersion(storageLedger.getUpdateVersion() + 1);
+                                                            return null;
+                                                      });
+                                      return null;
+                                      });
+                   });
     }
 
     private CompletableFuture<List<CuratorOp>> getZKOperationsForConcat(String segmentName, String sourceSegment, long offset) {
-        return this.getOrRetrieveStorageLedger(segmentName)
+        return this.getOrRetrieveStorageLedger(segmentName, false)
                    .exceptionally(exc -> {
-                                translateZKException(segmentName, exc);
-                                return null;
+                               translateZKException(segmentName, exc);
+                               return null;
                            }
                    )
-            .thenCombine(this.getOrRetrieveStorageLedger(sourceSegment),
-                (target, source) -> {
-                if (!source.isSealed()) {
-                    throw new IllegalStateException("source must be sealed");
-                }
-                return target.addLedgerDataFrom(source);
-            });
+                   .thenCombine(this.getOrRetrieveStorageLedger(sourceSegment, false),
+                           (target, source) -> {
+                               if (!source.isSealed()) {
+                                   throw new IllegalStateException("source must be sealed");
+                               }
+                               if (source.getContainerEpoc() != this.containerEpoc) {
+                                   throw new CompletionException( new StorageNotPrimaryException(target.getName()));
+                               }
+                               List<CuratorOp> retVal = target.addLedgerDataFrom(source);
+                               // Update the segment also to ensure fencing has not happened
+                               retVal.add(createLedgerUpdateOp(target));
+                               return retVal;
+                           });
+    }
+
+    private CuratorOp createLedgerUpdateOp(StorageLedger target) {
+        return zkClient.transactionOp().setData().withVersion(target.getUpdateVersion())
+                       .forPath(getZkPath(target.getName()), target.serialize());
     }
 
     public CompletableFuture<Void> delete(String segmentName) {
-        return this.getOrRetrieveStorageLedger(segmentName)
-            .thenCompose(ledger -> this.zkClient.delete()
-                                                .withOptions(new HashSet<>(
-                                                        Arrays.asList(DeleteOption.guaranteed,
-                                                                DeleteOption.deletingChildrenIfNeeded)))
-                                        .forPath(getZkPath(segmentName))
-                                        .toCompletableFuture()
-                                        .thenApply(v ->  {
-                                            ledgers.remove(segmentName);
-                                            return ledger;
-                                        }))
-            .thenCompose(ledger -> ledger.deleteAllLedgers());
+        return this.getOrRetrieveStorageLedger(segmentName, false)
+                   .thenCompose(ledger -> this.zkClient.delete()
+                                                       .withOptions(new HashSet<>(
+                                                               Arrays.asList(DeleteOption.guaranteed,
+                                                                       DeleteOption.deletingChildrenIfNeeded)))
+                                                       .forPath(getZkPath(segmentName))
+                                                       .toCompletableFuture()
+                                                       .thenApply(v -> {
+                                                           ledgers.remove(segmentName);
+                                                           return ledger;
+                                                       }))
+                   .thenCompose(ledger -> ledger.deleteAllLedgers());
     }
 
     public CompletableFuture<Void> deleteLedger(LedgerHandle lh) {
@@ -506,14 +628,14 @@ public class StorageLedgerManager {
             if (errorCode == 0) {
                 future.complete(null);
             } else {
-                future.completeExceptionally(BKException.create(errorCode));
+                log.warn("Delete ledger failed. Continuing as we gave it our best shot");
+                future.complete(null);
             }
-
         }, future);
         return future;
     }
 
     public CuratorOp createAddOp(String segmentName, int newKey, LedgerData value) {
-        return zkClient.transactionOp().create().forPath(getZkPath(segmentName)+ "/" + newKey, value.serialize());
+        return zkClient.transactionOp().create().forPath(getZkPath(segmentName) + "/" + newKey, value.serialize());
     }
 }
