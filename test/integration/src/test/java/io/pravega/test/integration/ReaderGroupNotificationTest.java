@@ -55,7 +55,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -111,7 +110,7 @@ public class ReaderGroupNotificationTest {
 
     @After
     public void tearDown() throws Exception {
-        executor.shutdown();
+        executor.shutdownNow();
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
@@ -163,7 +162,6 @@ public class ReaderGroupNotificationTest {
             numberOfSegments.set(notification.getNumOfSegments());
             listenerLatch.release();
         };
-        ScheduledExecutorService executor = new InlineExecutor();
         readerGroup.getSegmentNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(15000);
@@ -223,7 +221,6 @@ public class ReaderGroupNotificationTest {
             listenerInvoked.set(true);
             listenerLatch.release();
         };
-        ScheduledExecutorService executor = new InlineExecutor();
         readerGroup.getEndOfDataNotifier(executor).registerListener(l1);
 
         EventRead<String> event1 = reader1.readNextEvent(10000);
