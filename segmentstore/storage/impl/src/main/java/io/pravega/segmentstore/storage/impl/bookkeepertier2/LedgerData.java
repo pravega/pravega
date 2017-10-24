@@ -43,4 +43,7 @@ public class LedgerData {
         this.length += size;
     }
 
+    public int getNearestEntryIdToOffset(Long offset) {
+        return 0;
+    }
 }

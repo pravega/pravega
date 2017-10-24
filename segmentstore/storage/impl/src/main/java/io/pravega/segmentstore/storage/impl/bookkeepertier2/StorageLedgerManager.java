@@ -336,16 +336,17 @@ public class StorageLedgerManager {
     }
 
     private CompletableFuture<Integer> readDataFromLedger(LedgerData ledgerData, long offset, byte[] buffer, int bufferOffset, int length) {
-       /*TODO: This is brute force. Put some hurisitcs. Some possibilities:
-       * 1. Store already read data for re-reading
-       * 2. Store written data in last-accessed format.
-       * 3. Store the current read pointer. Reads will always be sequential
-       * */
+        /* TODO: This is brute force. Put some hurisitcs. Some possibilities:
+         * 1. Store already read data for re-reading
+         * 2. Store written data in last-accessed format.
+         * 3. Store the current read pointer. Reads will always be sequential
+        **/
         final AtomicReference<Long> currentOffset = new AtomicReference<>(offset - ledgerData.getStartOffset());
         final AtomicReference<Integer> lengthRemaining = new AtomicReference<>(length);
         final AtomicReference<Integer> currentBufferOffset = new AtomicReference<>(bufferOffset);
         final AtomicReference<Boolean> readingDone = new AtomicReference<>(false);
         final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) 0);
+        int nearestEntryId = ledgerData.getNearestEntryIdToOffset(currentOffset.get());
         int entriesInOneRound = 7;
 
         return FutureHelpers.loop(() -> !readingDone.get(),
@@ -383,6 +384,8 @@ public class StorageLedgerManager {
                                                             lengthRemaining.get() : dataRemainingInEntry);
                                             if (dataRead == -1) {
                                                 log.warn("Data read returned -1" + skipped);
+                                                future.completeExceptionally(new CompletionException(new IOException()));
+                                                return;
                                             }
                                             lengthRemaining.set(lengthRemaining.get() - dataRead);
                                             if (lengthRemaining.get() == 0) {
