@@ -20,6 +20,7 @@ import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
@@ -122,10 +123,29 @@ class BookKeeperLog implements DurableDataLog {
         this.logNodePath = HierarchyUtils.getPath(this.containerId, this.config.getZkHierarchyDepth());
         this.traceObjectId = String.format("Log[%d]", this.containerId);
         this.writes = new WriteQueue();
-        this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, this::handleWriteProcessorFailures, this.executorService);
-        this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, this::handleRolloverFailure, this.executorService);
+        val retry = createRetryPolicy(this.config.getMaxWriteAttempts(), this.config.getBkWriteTimeoutMillis());
+        this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, retry, this::handleWriteProcessorFailures, this.executorService);
+        this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, retry, this::handleRolloverFailure, this.executorService);
         this.metrics = new BookKeeperMetrics.BookKeeperLog(this.containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
+    }
+
+    private Retry.RetryAndThrowBase<Exception> createRetryPolicy(int maxWriteAttempts, int writeTimeout) {
+        int initialDelay = writeTimeout / maxWriteAttempts;
+        int maxDelay = writeTimeout * maxWriteAttempts;
+        return Retry.withExpBackoff(initialDelay, 2, maxWriteAttempts, maxDelay)
+                    .retryWhen(ex -> true) // Retry for every exception.
+                    .throwingOn(Exception.class);
+    }
+
+    private void handleWriteProcessorFailures(Throwable exception) {
+        log.warn("{}: Too many write processor failures; closing.", this.traceObjectId, exception);
+        close();
+    }
+
+    private void handleRolloverFailure(Throwable exception) {
+        log.warn("{}: Too many rollover failures; closing.", this.traceObjectId, exception);
+        close();
     }
 
     //endregion
@@ -285,24 +305,6 @@ class BookKeeperLog implements DurableDataLog {
         } else if (!processPendingWrites() && !this.closed.get()) {
             // We were not able to complete execution of all writes. Try again.
             this.writeProcessor.runAsync();
-        }
-    }
-
-    /**
-     * Handles a failure from the WriteProcessor.
-     *
-     * @param exception    The causing exception.
-     * @param failureCount The number of consecutive failures.
-     * @return True if the WriteProcessor should be reinvoked, false otherwise.
-     */
-    private boolean handleWriteProcessorFailures(Throwable exception, int failureCount) {
-        log.error("{}: processWritesSync (attempt {}/{}) failed.", this.traceObjectId, failureCount, this.config.getMaxWriteAttempts(), exception);
-        if (failureCount >= this.config.getMaxWriteAttempts()) {
-            log.warn("{}: Too many write processor failures; closing.", this.traceObjectId);
-            close();
-            return false;
-        } else {
-            return true;
         }
     }
 
@@ -725,9 +727,9 @@ class BookKeeperLog implements DurableDataLog {
      *
      * NOTE: this method is not thread safe and is not meant to be executed concurrently. It should only be invoked as
      * part of the Rollover Processor.
-     * @throws DurableDataLogException If an Exception happened during rollover.
      */
-    private void rollover() throws DurableDataLogException {
+    @SneakyThrows(DurableDataLogException.class) // Because this is an arg to SequentialAsyncProcessor, which wants a Runnable.
+    private void rollover() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
         val l = getWriteLedger().ledger;
         if (!l.isClosed() && l.getLength() < this.config.getBkLedgerMaxSize()) {
@@ -754,13 +756,18 @@ class BookKeeperLog implements DurableDataLog {
             LedgerHandle oldLedger;
             synchronized (this.lock) {
                 oldLedger = this.writeLedger.ledger;
-                this.writeLedger.setRolledOver(true);
+                if (!oldLedger.isClosed()) {
+                    // Only mark the old ledger as Rolled Over if it is still open. Otherwise it means it was closed
+                    // because of some failure and should not be marked as such.
+                    this.writeLedger.setRolledOver(true);
+                }
+
                 this.writeLedger = new WriteLedger(newLedger, ledgerMetadata);
                 this.logMetadata = metadata;
             }
 
-            // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks
-            // will be invoked within the lock, thus likely candidates for deadlocks).
+            // Close the old ledger. This must be done outside of the lock, otherwise the pending writes (and their callbacks)
+            // will be invoked within the lock, thus likely candidates for deadlocks.
             Ledgers.close(oldLedger);
             log.info("{}: Rollover: swapped ledger and metadata pointers (Old = {}, New = {}) and closed old ledger.",
                     this.traceObjectId, oldLedger.getId(), newLedger.getId());
@@ -769,24 +776,6 @@ class BookKeeperLog implements DurableDataLog {
             // ledger length. Invoke the Write Processor to execute them.
             this.writeProcessor.runAsync();
             LoggerHelpers.traceLeave(log, this.traceObjectId, "rollover", traceId, true);
-        }
-    }
-
-    /**
-     * Handles a failure from the Rollover Processor.
-     *
-     * @param exception    The causing exception.
-     * @param failureCount The number of consecutive failures.
-     * @return True if the RolloverProcessor should be reinvoked, false otherwise.
-     */
-    private boolean handleRolloverFailure(Throwable exception, int failureCount) {
-        log.error("{}: Rollover failure (attempt {}/{}); log may be unusable.", this.traceObjectId, failureCount, this.config.getMaxWriteAttempts(), exception);
-        if (failureCount >= this.config.getMaxWriteAttempts()) {
-            log.warn("{}: Too many rollover failures; closing.", this.traceObjectId);
-            close();
-            return false;
-        } else {
-            return true;
         }
     }
 
