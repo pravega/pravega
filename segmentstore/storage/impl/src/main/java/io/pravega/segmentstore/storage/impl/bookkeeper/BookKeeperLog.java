@@ -730,6 +730,11 @@ class BookKeeperLog implements DurableDataLog {
      */
     @SneakyThrows(DurableDataLogException.class) // Because this is an arg to SequentialAsyncProcessor, which wants a Runnable.
     private void rollover() {
+        if (this.closed.get()) {
+            // BookKeeperLog is closed; no point in running this.
+            return;
+        }
+
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "rollover");
         val l = getWriteLedger().ledger;
         if (!l.isClosed() && l.getLength() < this.config.getBkLedgerMaxSize()) {
