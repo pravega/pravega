@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -50,7 +51,7 @@ import org.apache.zookeeper.data.Stat;
  * This objects interacts with Zookeeper through Async curator framework to manage the metadata.
  */
 @Slf4j
-public class StorageLedgerManager {
+class StorageLogManager {
     private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
 
     private final BookKeeperStorageConfig config;
@@ -61,7 +62,11 @@ public class StorageLedgerManager {
     private BookKeeper bookkeeper;
     private long containerEpoch;
 
-    public StorageLedgerManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
+    public StorageLogManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
+        Preconditions.checkNotNull(config, "config");
+        Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(zkClient, "zkClient");
+
         this.config = config;
         this.executor = executor;
         this.zkClient = AsyncCuratorFramework.wrap(zkClient);

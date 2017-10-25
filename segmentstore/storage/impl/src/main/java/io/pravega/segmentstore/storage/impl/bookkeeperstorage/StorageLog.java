@@ -28,7 +28,7 @@ import org.apache.curator.framework.api.transaction.CuratorOp;
 **/
 class StorageLog {
 
-    private final StorageLedgerManager manager;
+    private final StorageLogManager manager;
 
     @Getter
     private final String name;
@@ -44,6 +44,7 @@ class StorageLog {
     @Getter
     private long containerEpoch;
 
+    @GuardedBy("$lock")
     @Getter
     private boolean sealed;
 
@@ -54,8 +55,8 @@ class StorageLog {
     @Getter
     private ImmutableDate lastModified;
 
-    public StorageLog(StorageLedgerManager storageLedgerManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
-        this.manager = storageLedgerManager;
+    public StorageLog(StorageLogManager storageLogManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
+        this.manager = storageLogManager;
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
         this.readOnlyHandle = readOnly;
@@ -161,7 +162,7 @@ class StorageLog {
         return retVal;
     }
 
-    public static StorageLog deserialize(StorageLedgerManager manager, String segmentName, byte[] bytes, int version) {
+    public static StorageLog deserialize(StorageLogManager manager, String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         return new StorageLog(manager, segmentName, version, bb.getLong(), false);
     }

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -58,8 +59,9 @@ class BookKeeperStorage implements Storage {
     private final BookKeeperStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
-    private final StorageLedgerManager manager;
+    private final StorageLogManager manager;
     private final CuratorFramework zkClient;
+    private boolean initialized;
 
     //endregion
 
@@ -80,7 +82,7 @@ class BookKeeperStorage implements Storage {
         this.config = config;
         this.zkClient = zkClient;
         this.executor = executor;
-        manager = new StorageLedgerManager(config, zkClient, executor);
+        manager = new StorageLogManager(config, zkClient, executor);
     }
 
     //endregion
@@ -95,11 +97,13 @@ class BookKeeperStorage implements Storage {
     @Override
     public void initialize(long containerEpoch) {
         manager.initialize(containerEpoch);
+        this.initialized = true;
     }
 
     @Override
     public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
+        ensureInitializedAndNotClosed();
 
         return manager.exists(streamSegmentName, null).thenApply(exist -> {
             if (exist) {
@@ -122,6 +126,8 @@ class BookKeeperStorage implements Storage {
                                            int length,
                                            Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName());
+        ensureInitializedAndNotClosed();
+
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
         }
@@ -139,6 +145,7 @@ class BookKeeperStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
+        ensureInitializedAndNotClosed();
 
         return manager.getOrRetrieveStorageLedgerDetails(streamSegmentName, true)
                       .thenApply(segmentProperties -> {
@@ -150,6 +157,8 @@ class BookKeeperStorage implements Storage {
     @Override
     public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "exists", streamSegmentName);
+        ensureInitializedAndNotClosed();
+
        return manager.exists(streamSegmentName, timeout)
                      .thenApply(bool -> {
                          LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName);
@@ -160,6 +169,8 @@ class BookKeeperStorage implements Storage {
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
+        ensureInitializedAndNotClosed();
+
         return manager.fence(streamSegmentName)
                       .thenApply(u -> {
                           SegmentHandle retVal = BookKeeperSegmentHandle.writeHandle(streamSegmentName);
@@ -171,6 +182,8 @@ class BookKeeperStorage implements Storage {
     @Override
     public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
+        ensureInitializedAndNotClosed();
+
         return manager.create(streamSegmentName, timeout)
                 .thenCompose(str -> this.getStreamSegmentInfo(streamSegmentName, timeout))
                 .thenApply(segmentProperties -> {
@@ -185,6 +198,8 @@ class BookKeeperStorage implements Storage {
                                          InputStream data,
                                          int length,
                                          Duration timeout) {
+        ensureInitializedAndNotClosed();
+
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         Preconditions.checkArgument(handle instanceof BookKeeperSegmentHandle, "handle must be instance of bookkeeper segment handle.");
         return manager.write(handle.getSegmentName(), offset, data, length);
@@ -193,17 +208,23 @@ class BookKeeperStorage implements Storage {
     @Override
     public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
+        ensureInitializedAndNotClosed();
+
         return manager.seal(handle.getSegmentName());
     }
 
     @Override
     public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment,
                                           Duration timeout) {
+        ensureInitializedAndNotClosed();
+
         return manager.concat(targetHandle.getSegmentName(), sourceSegment, offset, timeout);
     }
 
     @Override
     public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
+        ensureInitializedAndNotClosed();
+
         return manager.delete(handle.getSegmentName());
     }
 
@@ -216,5 +237,9 @@ class BookKeeperStorage implements Storage {
         this.closed.set(true);
     }
 
+    private void ensureInitializedAndNotClosed() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkState(this.initialized, "BookKeeperStorage is not initialized.");
+    }
     //endregion
 }
