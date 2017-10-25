@@ -8,7 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.task;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.task.LockFailedException;
@@ -101,7 +101,7 @@ public class TaskSweeper implements FailoverSweeper {
                 x -> x != null, executor)
                 .whenCompleteAsync((result, ex) ->
                         log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
-                RETRYABLE_PREDICATE.and(e -> !(ExceptionHelpers.getRealException(e) instanceof LockFailedException)),
+                RETRYABLE_PREDICATE.and(e -> !(Exceptions.unwrap(e) instanceof LockFailedException)),
                 Integer.MAX_VALUE, executor);
     }
 

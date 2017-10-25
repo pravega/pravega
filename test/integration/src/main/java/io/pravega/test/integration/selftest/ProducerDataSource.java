@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
@@ -247,7 +247,7 @@ class ProducerDataSource {
             try {
                 deletionFutures.add(deleteStream(segmentName));
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex) || !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                if (Exceptions.mustRethrow(ex) || !(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
                 }
             }
@@ -259,7 +259,7 @@ class ProducerDataSource {
     private CompletableFuture<Void> deleteStream(String name) {
         return this.store.delete(name, this.config.getTimeout())
                          .exceptionally(ex -> {
-                             ex = ExceptionHelpers.getRealException(ex);
+                             ex = Exceptions.unwrap(ex);
                              if (!(ex instanceof StreamSegmentNotExistsException)) {
                                  throw new CompletionException(ex);
                              }

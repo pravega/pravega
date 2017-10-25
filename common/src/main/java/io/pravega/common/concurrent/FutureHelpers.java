@@ -10,7 +10,6 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.function.Callbacks;
@@ -122,7 +121,7 @@ public final class FutureHelpers {
             future.getNow(null);
             return null;
         } catch (Exception e) {
-            return ExceptionHelpers.getRealException(e);
+            return Exceptions.unwrap(e);
         }
     }
 
@@ -156,7 +155,7 @@ public final class FutureHelpers {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(ExceptionHelpers.getRealException(e));
+            throw Lombok.sneakyThrow(Exceptions.unwrap(e));
         }
     }
 

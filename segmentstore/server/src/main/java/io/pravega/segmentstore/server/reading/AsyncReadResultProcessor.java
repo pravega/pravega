@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -98,7 +98,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
                 this.entryHandler.processResultComplete();
             } else {
                 // An exception was encountered; this must be reported to the entry handler.
-                this.entryHandler.processError(ExceptionHelpers.getRealException(failureCause));
+                this.entryHandler.processError(Exceptions.unwrap(failureCause));
             }
         }
     }

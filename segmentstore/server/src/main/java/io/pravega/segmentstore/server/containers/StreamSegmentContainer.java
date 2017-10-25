@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
@@ -215,7 +214,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Throwable result = null;
         for (Service s : services) {
             if (s.state() == State.FAILED) {
-                Throwable realEx = ExceptionHelpers.getRealException(s.failureCause());
+                Throwable realEx = Exceptions.unwrap(s.failureCause());
                 if (result == null) {
                     result = realEx;
                 } else {
@@ -352,7 +351,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
                     .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor)
                     .exceptionally(ex -> {
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         if (ex instanceof StreamSegmentNotExistsException && toDelete.isTransaction()) {
                             // We are ok if transactions are not found; they may have just been merged in and the metadata
                             // did not get a chance to get updated.

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
@@ -207,7 +206,7 @@ public class StreamSegmentMapper {
         return FutureHelpers
                 .exceptionallyCompose(
                         this.storage.create(segmentName, timer.getRemaining()),
-                        ex -> handleStorageCreateException(segmentName, ExceptionHelpers.getRealException(ex), timer))
+                        ex -> handleStorageCreateException(segmentName, Exceptions.unwrap(ex), timer))
                 .thenComposeAsync(segmentProps ->
                                 // Need to create the state file before we throw any further exceptions in order to recover from
                                 // previous partial executions (where we created a segment but no or empty state file).
@@ -243,7 +242,7 @@ public class StreamSegmentMapper {
         return this.stateStore
                 .get(segmentName, timer.getRemaining())
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (ex instanceof StreamSegmentNotExistsException || ex instanceof DataCorruptionException) {
                         // Segment exists, but the State File is missing or corrupt. We have the data needed to rebuild it,
                         // so ignore any exceptions coming this way.
@@ -682,9 +681,9 @@ public class StreamSegmentMapper {
                  // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
                  // and try again, exactly once.
                  try {
-                     if (ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException) {
+                     if (Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
                          log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
-                                 ExceptionHelpers.getRealException(ex).getMessage());
+                                 Exceptions.unwrap(ex).getMessage());
                          CompletableFuture<T> f = this.metadataCleanup.get().thenComposeAsync(v -> toTry.get(), this.executor);
                          f.thenAccept(result::complete);
                          FutureHelpers.exceptionListener(f, result::completeExceptionally);

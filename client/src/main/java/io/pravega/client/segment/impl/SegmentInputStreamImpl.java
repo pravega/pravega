@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.CircularBuffer;
@@ -187,7 +186,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {
                 Throwable e = FutureHelpers.getException(outstandingRequest);
-                Throwable realException = ExceptionHelpers.getRealException(e);
+                Throwable realException = Exceptions.unwrap(e);
                 if (!(realException instanceof Error || realException instanceof InterruptedException
                         || realException instanceof CancellationException)) {
                     log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);

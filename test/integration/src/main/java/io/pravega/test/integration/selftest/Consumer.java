@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.CancellationToken;
@@ -140,7 +140,7 @@ public class Consumer extends Actor {
         return this.reader
                 .readAllStorage(this.streamName, this::processStorageRead, this.cancellationToken)
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (!(ex instanceof StreamSegmentSealedException)) {
                         throw new CompletionException(ex);
                     }
@@ -240,7 +240,7 @@ public class Consumer extends Actor {
                         .thenComposeAsync(this::processCatchupReads, this.executorService),
                 this.executorService)
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (ex instanceof ObjectClosedException) {
                         // This a normal shutdown, as the catchupQueue is closed when we are done.
                         return null;

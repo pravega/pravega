@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
@@ -456,7 +456,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             try {
                 sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             } catch (Exception ex) {
-                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
                 }
             }

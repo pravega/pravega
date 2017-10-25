@@ -10,7 +10,6 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -322,7 +321,7 @@ class SegmentStoreReader implements StoreReader {
         @SneakyThrows
         private Void readCompleteCallback(SegmentProperties r, Throwable ex) {
             if (ex != null) {
-                ex = ExceptionHelpers.getRealException(ex);
+                ex = Exceptions.unwrap(ex);
                 if (ex instanceof StreamSegmentNotExistsException) {
                     // Cannot continue anymore (segment has been deleted).
                     synchronized (this.readBuffer) {
@@ -377,7 +376,7 @@ class SegmentStoreReader implements StoreReader {
 
         @Override
         public void processError(Throwable cause) {
-            cause = ExceptionHelpers.getRealException(cause);
+            cause = Exceptions.unwrap(cause);
             if (cause instanceof StreamSegmentSealedException) {
                 processResultComplete();
             } else {

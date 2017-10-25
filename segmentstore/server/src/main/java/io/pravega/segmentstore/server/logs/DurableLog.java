@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
@@ -161,7 +160,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                         this.operationProcessor.stopAsync();
                     }
 
-                    notifyFailed(ExceptionHelpers.getRealException(ex));
+                    notifyFailed(Exceptions.unwrap(ex));
                     return null;
                 });
     }

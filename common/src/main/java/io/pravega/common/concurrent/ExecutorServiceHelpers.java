@@ -10,7 +10,7 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -121,7 +121,7 @@ public final class ExecutorServiceHelpers {
                 try {
                     task.run();
                 } catch (Throwable ex) {
-                    if (!ExceptionHelpers.mustRethrow(ex)) {
+                    if (!Exceptions.mustRethrow(ex)) {
                         // Invoke the exception handler, but there's no point in rethrowing the exception, as it will simply
                         // be ignored by the executor.
                         exceptionHandler.accept(ex);

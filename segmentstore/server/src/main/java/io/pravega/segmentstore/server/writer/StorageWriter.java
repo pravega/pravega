@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
@@ -131,7 +131,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         if (isShutdownException(ex) && !canRun()) {
             // Writer is not running and we caught a CancellationException.
             // This is a normal behavior and it is triggered by stopAsync(); just exit without logging or triggering anything else.
-            log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId, ExceptionHelpers.getRealException(ex).getClass().getSimpleName());
+            log.info("{}: StorageWriter intercepted {} while shutting down.", this.traceObjectId, Exceptions.unwrap(ex).getClass().getSimpleName());
             return null;
         }
 
@@ -168,7 +168,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         return result;
                     })
                     .exceptionally(ex -> {
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         if (ex instanceof TimeoutException) {
                             // TimeoutExceptions are acceptable for Reads. In that case we just return null as opposed from
                             // killing the entire Iteration. Even if we were unable to read, we may still need to flush
@@ -181,7 +181,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     });
         } catch (Throwable ex) {
             // This is for synchronous exceptions.
-            Throwable realEx = ExceptionHelpers.getRealException(ex);
+            Throwable realEx = Exceptions.unwrap(ex);
             if (realEx instanceof TimeoutException) {
                 logErrorHandled(realEx);
                 return CompletableFuture.completedFuture(null);
@@ -377,12 +377,12 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private boolean isCriticalError(Throwable ex) {
-        return ExceptionHelpers.mustRethrow(ex)
-                || ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
+        return Exceptions.mustRethrow(ex)
+                || Exceptions.unwrap(ex) instanceof DataCorruptionException;
     }
 
     private boolean isShutdownException(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         return ex instanceof ObjectClosedException || ex instanceof CancellationException;
     }
 
@@ -433,7 +433,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private void logError(Throwable ex, boolean critical) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (critical) {
             log.error("{}: Iteration[{}].CriticalError.", this.traceObjectId, this.state.getIterationId(), ex);
         } else {
@@ -443,7 +443,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     }
 
     private void logErrorHandled(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         log.warn("{}: Iteration[{}].HandledError {}", this.traceObjectId, this.state.getIterationId(), ex.toString());
         //        System.out.println(String.format("%s: Iteration[%s].Warn. %s", this.traceObjectId, this.state.getIterationId(), ex));
     }

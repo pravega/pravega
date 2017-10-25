@@ -16,7 +16,6 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -497,7 +496,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     private void failConnection(Throwable e) {
-        state.failConnection(ExceptionHelpers.getRealException(e));
+        state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }
     
@@ -530,7 +529,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              throw Lombok.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {
-                             if (ExceptionHelpers.getRealException(t) instanceof SegmentSealedException) {
+                             if (Exceptions.unwrap(t) instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
                                  return null;
                              }

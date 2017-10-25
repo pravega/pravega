@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import java.util.ArrayDeque;
@@ -219,7 +218,7 @@ public class OrderedItemProcessor<ItemType, ResultType> implements AutoCloseable
             result.whenCompleteAsync((r, ex) -> executionComplete(ex), this.executor);
             return result;
         } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
+            if (!Exceptions.mustRethrow(ex)) {
                 executionComplete(ex);
             }
 

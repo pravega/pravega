@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -157,7 +157,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows(
                     "Processor did not complete with the expected failure.",
                     () -> testReadResultHandler.completed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                    ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
+                    ex -> Exceptions.unwrap(ex) instanceof IntentionalException);
 
             Assert.assertEquals("Unexpected number of reads processed.", 0, testReadResultHandler.readCount.get());
             Assert.assertNotNull("No read failure encountered.", testReadResultHandler.error.get());

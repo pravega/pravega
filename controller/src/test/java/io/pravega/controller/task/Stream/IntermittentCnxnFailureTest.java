@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.store.stream.StoreException;
@@ -130,8 +130,8 @@ public class IntermittentCnxnFailureTest {
                         return null;
                     });
         } catch (CompletionException ex) {
-            Assert.assertEquals(ExceptionHelpers.getRealException(ex).getMessage(), "stream state unknown");
-            assertEquals(ExceptionHelpers.getRealException(ex).getClass(), IllegalStateException.class);
+            Assert.assertEquals(Exceptions.unwrap(ex).getMessage(), "stream state unknown");
+            assertEquals(Exceptions.unwrap(ex).getClass(), IllegalStateException.class);
         }
 
         // Mock createSegment to return success.

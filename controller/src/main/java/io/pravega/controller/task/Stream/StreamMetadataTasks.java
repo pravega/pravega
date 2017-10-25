@@ -18,7 +18,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -324,7 +324,7 @@ public class StreamMetadataTasks extends TaskBase {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
                             if (e != null) {
-                                Throwable cause = ExceptionHelpers.getRealException(e);
+                                Throwable cause = Exceptions.unwrap(e);
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
@@ -361,7 +361,7 @@ public class StreamMetadataTasks extends TaskBase {
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
                             if (ex != null) {
-                                Throwable e = ExceptionHelpers.getRealException(ex);
+                                Throwable e = Exceptions.unwrap(ex);
                                 if (e instanceof StoreException.DataNotFoundException) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
                                 } else {
@@ -526,7 +526,7 @@ public class StreamMetadataTasks extends TaskBase {
                 }, executor)
                 .handle((result, ex) -> {
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
@@ -639,7 +639,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex) {
-        Throwable cause = ExceptionHelpers.getRealException(ex);
+        Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
@@ -649,7 +649,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex) {
-        Throwable cause = ExceptionHelpers.getRealException(ex);
+        Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else {

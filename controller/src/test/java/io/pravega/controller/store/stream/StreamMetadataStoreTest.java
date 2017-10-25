@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.tables.State;
@@ -341,7 +341,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, true, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof TaskExceptions.StartException);
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
         // 1. start scale
         StartScaleResponse response = store.startScale(scope, stream, scale1SealedSegments,
@@ -374,19 +374,19 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                         store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         // rerun  -- illegal state exception
         AssertExtensions.assertThrows("", () ->
                         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                                 scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.IllegalStateException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         // rerun start scale -- should fail with precondition failure
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScalePreConditionFailureException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScalePreConditionFailureException);
 
         // endregion
 
@@ -406,13 +406,13 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.startScale(scope, stream, scale1SealedSegments,
                         Arrays.asList(segment1, segment2), scaleTs, false, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConflictException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConflictException);
 
         // rerun of scale 1's new segments created method
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
 
         store.scaleNewSegmentsCreated(scope, stream, scale2SealedSegments, scale2SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
 
@@ -420,7 +420,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
 
         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments, scale1SegmentsCreated, scale2ActiveEpoch, scaleTs2, null, executor).get();
 
@@ -430,7 +430,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertThrows("", () ->
                 store.scaleNewSegmentsCreated(scope, stream, scale1SealedSegments, scale1SegmentsCreated,
                         scale1ActiveEpoch, scaleTs, null, executor).join(),
-                e -> ExceptionHelpers.getRealException(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
+                e -> Exceptions.unwrap(e) instanceof ScaleOperationExceptions.ScaleConditionInvalidException);
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
         // endregion
     }

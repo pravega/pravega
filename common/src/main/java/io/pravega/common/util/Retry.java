@@ -10,7 +10,6 @@
 package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import java.time.Duration;
@@ -307,10 +306,10 @@ public final class Retry {
         }
 
         private Class<? extends Throwable> getErrorType(final Throwable e) {
-            if (ExceptionHelpers.shouldUnwrap(retryType) || ExceptionHelpers.shouldUnwrap(throwType)) {
+            if (Exceptions.shouldUnwrap(retryType) || Exceptions.shouldUnwrap(throwType)) {
                 return e.getClass();
             } else {
-                return ExceptionHelpers.getRealException(e).getClass();
+                return Exceptions.unwrap(e).getClass();
             }
         }
     }

@@ -11,7 +11,6 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.concurrent.ServiceHelpers;
@@ -103,7 +102,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
                     // make sure we stop any long-running tasks.
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable ex) {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (failureCause != null) {
                         TestLogger.log(getLogId(), "Original Failure: %s.", failureCause);
                         failureCause = ex;

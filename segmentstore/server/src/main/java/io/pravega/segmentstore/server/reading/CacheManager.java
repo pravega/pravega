@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
@@ -116,7 +115,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         try {
             applyCachePolicy();
         } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
+            if (Exceptions.mustRethrow(ex)) {
                 throw ex;
             }
 
@@ -258,7 +257,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 unregister(c);
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
+                if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 

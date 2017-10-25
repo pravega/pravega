@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
@@ -190,7 +189,7 @@ public class ConcurrentEPSerializedRHTest {
 
         @Override
         public boolean toPostpone(TestBase event, long pickupTime, Throwable exception) {
-            return ExceptionHelpers.getRealException(exception) instanceof TestStartException;
+            return Exceptions.unwrap(exception) instanceof TestStartException;
         }
 
         @Override
@@ -203,7 +202,7 @@ public class ConcurrentEPSerializedRHTest {
                     .runAsync(() -> event.process(null), executor)
                     .whenCompleteAsync((r, e) -> {
                         if (e != null) {
-                            Throwable cause = ExceptionHelpers.getRealException(e);
+                            Throwable cause = Exceptions.unwrap(e);
                             if (cause instanceof OperationDisallowedException) {
                                 Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
                                         .runAsync(() -> writer.write(event), executor)

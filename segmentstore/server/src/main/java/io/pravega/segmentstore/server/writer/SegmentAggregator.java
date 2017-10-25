@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
@@ -262,7 +261,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     setState(AggregatorState.Writing);
                 })
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (ex instanceof StreamSegmentNotExistsException) {
                         // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                         // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
@@ -619,7 +618,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     return result;
                 })
                 .exceptionally(ex -> {
-                    if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
+                    if (Exceptions.unwrap(ex) instanceof BadOffsetException) {
                         // We attempted to write at an offset that already contained other data. This can happen for a number of
                         // reasons, but we do not have enough information here to determine why. We need to enter reconciliation
                         // mode, and hope for the best.
@@ -782,7 +781,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     return result;
                 }, executor)
                 .exceptionally(ex -> {
-                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    Throwable realEx = Exceptions.unwrap(ex);
                     if (realEx instanceof BadOffsetException || realEx instanceof StreamSegmentNotExistsException) {
                         // We either attempted to write at an offset that already contained other data or the Transaction
                         // Segment no longer exists. This can happen for a number of reasons, but we do not have enough
@@ -812,7 +811,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return this.storage
                 .seal(this.handle.get(), timer.getRemaining())
                 .handle((v, ex) -> {
-                    if (ex != null && !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentSealedException)) {
+                    if (ex != null && !(Exceptions.unwrap(ex) instanceof StreamSegmentSealedException)) {
                         // The operation failed, and it was not because the Segment was already Sealed. Throw it again.
                         // We consider the Seal to succeed if the Segment in Storage is already sealed - it's an idempotent operation.
                         throw new CompletionException(ex);

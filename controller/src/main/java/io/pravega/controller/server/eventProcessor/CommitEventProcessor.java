@@ -12,7 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Position;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -141,7 +141,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 log.debug("Transaction {}, sent request to commitStream", txnId);
                 return null;
             } else {
-                Throwable realException = ExceptionHelpers.getRealException(e);
+                Throwable realException = Exceptions.unwrap(e);
                 log.warn("Transaction {}, failed sending event to commitStream. Exception: {} Retrying...", txnId,
                         realException.getClass().getSimpleName());
                 throw new WriteFailedException(realException);

@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ByteArraySegment;
@@ -144,7 +143,7 @@ class StorageReader implements AutoCloseable {
                         finalizeRequest(request);
                     });
         } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
+            if (Exceptions.mustRethrow(ex)) {
                 throw ex;
             }
 
@@ -371,7 +370,7 @@ class StorageReader implements AutoCloseable {
                 int offset = (int) (this.getOffset() - source.getOffset());
                 this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
+                if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 

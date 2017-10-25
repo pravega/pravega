@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
@@ -137,7 +137,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected void errorHandler(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         closeQueue(ex);
         if (!isShutdownException(ex)) {
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
@@ -149,7 +149,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @SneakyThrows
     private Void iterationErrorHandler(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         // If we get an ObjectClosedException while we are shutting down, then it's safe to ignore it. It was most likely
         // caused by the queue being shut down, but the main processing loop has just started another iteration and they
         // crossed paths.
@@ -188,7 +188,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             try {
                 this.operationQueue.add(new CompletableOperation(operation, result));
             } catch (Throwable e) {
-                if (ExceptionHelpers.mustRethrow(e)) {
+                if (Exceptions.mustRethrow(e)) {
                     throw e;
                 }
 
@@ -248,7 +248,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                         this.state.addPending(o);
                         count++;
                     } catch (Throwable ex) {
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         this.state.failOperation(o, ex);
                         if (isFatalException(ex)) {
                             // If we encountered an unrecoverable error then we cannot proceed - rethrow the Exception
@@ -279,7 +279,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             } catch (Throwable ex) {
                 // Fail ALL the operations that haven't been acknowledged yet.
-                ex = ExceptionHelpers.getRealException(ex);
+                ex = Exceptions.unwrap(ex);
                 this.state.fail(ex, null);
 
                 if (isFatalException(ex)) {

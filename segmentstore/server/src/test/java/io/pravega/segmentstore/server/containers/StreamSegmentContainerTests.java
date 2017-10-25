@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.io.StreamHelpers;
@@ -1098,7 +1098,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
         Assert.assertTrue("Container1 did not fail with the correct exception.",
-                ExceptionHelpers.getRealException(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
+                Exceptions.unwrap(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -1121,7 +1121,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
 
-        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        Throwable actualException = Exceptions.unwrap(container.failureCause());
         boolean exceptionMatch = actualException instanceof IntentionalException;
         if (!exceptionMatch) {
             Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'.",
@@ -1156,7 +1156,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
                         .thenAccept(successfulMap::complete)
                         .exceptionally(ex -> {
-                            if (!(ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException)) {
+                            if (!(Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException)) {
                                 // Some other error.
                                 successfulMap.completeExceptionally(ex);
                             } else if (!remaining.hasRemaining()) {
@@ -1178,7 +1178,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             try {
                 sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             } catch (Exception ex) {
-                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
                 }
             }

@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
@@ -556,7 +555,7 @@ class BookKeeperLog implements DurableDataLog {
      * Determines whether the given exception can be retried.
      */
     private static boolean isRetryable(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         return ex instanceof WriteFailureException
                 || ex instanceof DataLogNotAvailableException;
     }

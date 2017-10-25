@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.SequencedItemList;
@@ -408,7 +408,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("DurableLog is not in a failed state after fence-out detected.",
                 Service.State.FAILED, durableLog.state());
         Assert.assertTrue("DurableLog did not fail with the correct exception.",
-                ExceptionHelpers.getRealException(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
+                Exceptions.unwrap(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -820,7 +820,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         return ex instanceof DataLogNotAvailableException && ex.getMessage().equals("intentional");
                     });
         }
@@ -859,7 +859,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
-                        return ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
+                        return Exceptions.unwrap(ex) instanceof DataCorruptionException;
                     });
         }
     }

@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -132,7 +132,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     //region Helpers
 
     protected Duration getExceptionDelay(Throwable ex) {
-        boolean requiresDelay = this.secondEntry == null && ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException;
+        boolean requiresDelay = this.secondEntry == null && Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException;
         return requiresDelay ? EXCEPTION_DELAY : Duration.ZERO;
     }
 
@@ -149,7 +149,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @return True if the exception was handled properly and the base entry swapped, false otherwise.
      */
     private boolean handle(Throwable ex, Duration timeout) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (this.secondEntry == null && isRetryable(ex)) {
             // This is the first attempt and we caught a retry-eligible exception; issue the query for the new entry.
             CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength());
@@ -176,7 +176,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * the result future will complete one way or another.
      */
     private void handleGetContentFailure(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         boolean success;
         try {
             success = handle(ex, RETRY_TIMEOUT);

@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.retryable.RetryableException;
@@ -48,7 +48,7 @@ public class RetryHelperTest {
             }, RetryHelper.RETRYABLE_PREDICATE, 2);
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException);
-            Throwable ex = ExceptionHelpers.getRealException(e.getCause());
+            Throwable ex = Exceptions.unwrap(e.getCause());
             assertTrue(ex instanceof TestException);
         }
 
@@ -77,7 +77,7 @@ public class RetryHelperTest {
             }), RetryHelper.RETRYABLE_PREDICATE, 2, executor);
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException);
-            Throwable ex = ExceptionHelpers.getRealException(e.getCause());
+            Throwable ex = Exceptions.unwrap(e.getCause());
             assertTrue(ex instanceof TestException);
         }
 

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.AsyncMap;
@@ -141,7 +141,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                         // Create Parent if not exists.
                         mapper.createNewStreamSegment(parentSegmentName, null, TIMEOUT)
                               .exceptionally(ex -> {
-                                  if (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentExistsException) {
+                                  if (Exceptions.unwrap(ex) instanceof StreamSegmentExistsException) {
                                       return null;
                                   }
                                   throw new CompletionException(ex);

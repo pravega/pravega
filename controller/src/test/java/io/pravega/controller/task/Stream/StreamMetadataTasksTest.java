@@ -15,7 +15,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -210,7 +210,7 @@ public class StreamMetadataTasksTest {
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
@@ -317,7 +317,7 @@ public class StreamMetadataTasksTest {
         TruncateStreamTask truncateStreamTask = new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         TruncateStreamEvent taken = (TruncateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
@@ -480,7 +480,7 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("", () -> streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, "test",
                 Collections.singletonList(0), response.getSegmentsCreated(),
                 response.getActiveEpoch(), 30, context, executor).get(),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof StoreException.IllegalStateException);
+                ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException);
 
         List<Segment> segments = streamMetadataTasks.startScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context).get();
 

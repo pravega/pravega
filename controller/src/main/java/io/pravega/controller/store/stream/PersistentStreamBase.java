@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
@@ -565,7 +564,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         deleteEpochNode(epoch)
                                 .whenComplete((r, e) -> {
                                     if (e != null) {
-                                        Throwable ex = ExceptionHelpers.getRealException(e);
+                                        Throwable ex = Exceptions.unwrap(e);
                                         if (ex instanceof StoreException.DataNotEmptyException) {
                                             // cant delete as there are transactions still running under epoch node
                                             log.debug("stream {}/{} epoch {} not empty", scope, name, epoch);
@@ -666,7 +665,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     @Override
     public CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId) {
         return verifyLegalState().thenCompose(v -> getTransactionEpoch(txId).handle((epoch, ex) -> {
-            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+            if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
                 return null;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -683,7 +682,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<TxnStatus> checkTransactionStatus(final int epoch, final UUID txId) {
         return verifyLegalState().thenCompose(v -> getActiveTx(epoch, txId).handle((ok, ex) -> {
-            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+            if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -700,7 +699,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<TxnStatus> getCompletedTxnStatus(UUID txId) {
         return getCompletedTx(txId).handle((ok, ex) -> {
-            if (ex != null && ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+            if (ex != null && Exceptions.unwrap(ex) instanceof DataNotFoundException) {
                 return TxnStatus.UNKNOWN;
             } else if (ex != null) {
                 throw new CompletionException(ex);
@@ -826,7 +825,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @SneakyThrows
     private TxnStatus handleDataNotFoundException(Throwable ex) {
-        if (ExceptionHelpers.getRealException(ex) instanceof DataNotFoundException) {
+        if (Exceptions.unwrap(ex) instanceof DataNotFoundException) {
             return TxnStatus.UNKNOWN;
         } else {
             throw ex;

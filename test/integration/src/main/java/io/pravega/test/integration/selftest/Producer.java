@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest;
 
 import io.pravega.common.AbstractTimer;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -136,7 +136,7 @@ class Producer extends Actor {
 
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
         // Log & throw every exception.
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (ex instanceof ProducerDataSource.UnknownStreamException) {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
@@ -205,7 +205,7 @@ class Producer extends Actor {
 
     @SneakyThrows
     private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (this.dataSource.isClosed(operation.getTarget())) {
             return null;
         } else {

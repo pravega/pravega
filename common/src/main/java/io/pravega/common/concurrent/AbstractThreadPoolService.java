@@ -11,7 +11,6 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
@@ -80,7 +79,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         this.runTask.whenComplete((r, ex) -> {
             // Handle any exception that may have been thrown.
             if (ex != null
-                    && !(ExceptionHelpers.getRealException(ex) instanceof CancellationException && state() != State.RUNNING)) {
+                    && !(Exceptions.unwrap(ex) instanceof CancellationException && state() != State.RUNNING)) {
                 // We ignore CancellationExceptions while shutting down - those are expected.
                 errorHandler(ex);
             }
@@ -108,7 +107,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
                     .anyOf(this.runTask, FutureHelpers.delayedFuture(getShutdownTimeout(), this.executor))
                     .whenComplete((r, ex) -> {
                         if (ex != null) {
-                            ex = ExceptionHelpers.getRealException(ex);
+                            ex = Exceptions.unwrap(ex);
                         }
 
                         if (ex == null && !this.runTask.isDone()) {

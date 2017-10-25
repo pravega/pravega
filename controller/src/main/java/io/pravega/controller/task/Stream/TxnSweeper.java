@@ -10,7 +10,7 @@
 package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
@@ -135,7 +135,7 @@ public class TxnSweeper implements FailoverSweeper {
         log.debug("Host = {}, processing transaction {}/{}/{}", failedHost, scope, stream, txnId);
         return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor).handle((r, e) -> {
             if (e != null) {
-                if (ExceptionHelpers.getRealException(e) instanceof StoreException.DataNotFoundException) {
+                if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                     // transaction not found, which means it should already have completed. We will ignore such txns
                     return VersionedTransactionData.EMPTY;
                 } else {

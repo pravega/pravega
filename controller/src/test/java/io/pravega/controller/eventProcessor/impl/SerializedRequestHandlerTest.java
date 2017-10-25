@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
@@ -219,8 +219,8 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         assertFalse(FutureHelpers.await(s1p1));
         assertFalse(FutureHelpers.await(s1p2));
-        AssertExtensions.assertThrows("", s1p1::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
-        AssertExtensions.assertThrows("", s1p2::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
+        AssertExtensions.assertThrows("", s1p1::join, e -> Exceptions.unwrap(e) instanceof TestPostponeException);
+        AssertExtensions.assertThrows("", s1p2::join, e -> Exceptions.unwrap(e) instanceof TestPostponeException);
         assertTrue(postponeS1e1Count.get() == 2);
         assertTrue(postponeS1e2Count.get() > 0);
         stop.set(true);

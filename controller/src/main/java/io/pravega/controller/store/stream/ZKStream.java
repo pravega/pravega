@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
@@ -243,7 +243,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             result.complete(null);
                         } else {
@@ -284,7 +284,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
                 .whenComplete((value, ex) -> {
                     if (ex != null) {
-                        if (ExceptionHelpers.getRealException(ex) instanceof StoreException.DataNotFoundException) {
+                        if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
                             FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
                                     maxExecutionExpiryTime, scaleGracePeriod), future);
                         } else {

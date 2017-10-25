@@ -10,7 +10,6 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -244,7 +243,7 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     @SneakyThrows
     private Void attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         boolean reconciled = false;
         if (isPossibleEndOfSegment(ex)) {
             // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
@@ -253,7 +252,7 @@ class SegmentStoreAdapter extends StoreAdapter {
                                                               .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 reconciled = sp.isSealed() || sp.isDeleted();
             } catch (Throwable ex2) {
-                reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
+                reconciled = isPossibleEndOfSegment(Exceptions.unwrap(ex2));
             }
         }
 
