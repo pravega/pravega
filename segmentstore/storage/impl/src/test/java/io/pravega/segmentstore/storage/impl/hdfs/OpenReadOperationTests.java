@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -16,6 +17,7 @@ import java.util.List;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -28,6 +30,12 @@ public class OpenReadOperationTests extends FileSystemOperationTestBase {
     private static final int FILE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests the OpenReadOperation.
@@ -46,7 +54,7 @@ public class OpenReadOperationTests extends FileSystemOperationTestBase {
             fileList = handle.getFiles();
 
             byte[] data = new byte[i + 1];
-            new WriteOperation(handle, expectedLength, new ByteArrayInputStream(data), data.length, context).run();
+            new WriteOperation(handle, expectedLength, new ByteArrayInputStream(data), data.length, context, metrics).run();
             expectedLength += data.length;
         }
 

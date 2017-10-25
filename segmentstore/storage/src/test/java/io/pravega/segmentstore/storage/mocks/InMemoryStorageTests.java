@@ -41,7 +41,8 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
 
     @Before
     public void setUp() {
-        this.factory = new InMemoryStorageFactory(executorService());
+        metrics = new InMemoryMetrics();
+        this.factory = new InMemoryStorageFactory(executorService(), metrics);
     }
 
     @After

@@ -59,6 +59,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         s3Config = s3Config.withIdentity(adapterConfig.getAccessKey()).withSecretKey(adapterConfig.getSecretKey());
         s3Proxy = new S3ProxyImpl(endpoint, s3Config);
         s3Proxy.start();
+        metrics = new ExtendedS3StorageMetrics();
         createStorage();
         client.createBucket(bucketName);
         List<ObjectKey> keys = client.listObjects(bucketName).getObjects().stream().map(object -> {
@@ -110,7 +111,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
 
         client = new S3JerseyClientWrapper(s3Config, s3Proxy);
 
-        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService());
+        ExtendedS3Storage storage = new ExtendedS3Storage(client, adapterConfig, executorService(), metrics);
         return storage;
     }
 

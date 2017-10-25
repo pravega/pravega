@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
-import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;

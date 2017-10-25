@@ -9,12 +9,13 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.SegmentHandle;
+import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -22,6 +23,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
@@ -82,6 +84,7 @@ class HDFSStorage implements Storage {
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
     private FileSystemOperation.OperationContext context;
+    private final StorageMetricsBase metrics;
 
     //endregion
 
@@ -89,11 +92,12 @@ class HDFSStorage implements Storage {
 
     /**
      * Creates a new instance of the HDFSStorage class.
-     *
-     * @param config   The configuration to use.
+     *  @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
+     * @param metrics  Class to record stats.
      */
-    HDFSStorage(HDFSStorageConfig config, Executor executor) {
+    HDFSStorage(HDFSStorageConfig config, Executor executor, StorageMetricsBase metrics) {
+        this.metrics = metrics;
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
@@ -133,15 +137,6 @@ class HDFSStorage implements Storage {
         conf.set("fs.default.name", this.config.getHdfsHostURL());
         conf.set("fs.default.fs", this.config.getHdfsHostURL());
         conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
-
-        // FileSystem has a bad habit of caching Clients/Instances based on target URI. We do not like this, since we
-        // want to own our implementation so that when we close it, we don't interfere with others.
-        conf.set("fs.hdfs.impl.disable.cache", "true");
-        if (!this.config.isReplaceDataNodesOnFailure()) {
-            // Default is DEFAULT, so we only set this if we want it disabled.
-            conf.set("dfs.client.block.write.replace-datanode-on-failure.policy", "NEVER");
-        }
-
         this.context = new FileSystemOperation.OperationContext(epoch, openFileSystem(conf), this.config);
         log.info("Initialized (HDFSHost = '{}', Epoch = {}).", this.config.getHdfsHostURL(), epoch);
     }
@@ -167,7 +162,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-        return runAsync(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context));
+        return runAsync(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context, metrics));
     }
 
     @Override
@@ -187,7 +182,7 @@ class HDFSStorage implements Storage {
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context));
+        return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context, metrics));
     }
 
     @Override

@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -38,6 +39,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -86,17 +88,25 @@ public class ExtendedS3Storage implements Storage {
     private final S3Client client;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
+    private final StorageMetricsBase metrics;
 
     //endregion
 
     //region constructor
-
-    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor) {
+    /**
+     * Creates a new instance of the ExtendedS3Storage class.
+     * @param client  The S3Client used to connect to the extended S3 server.
+     * @param config   The configuration to use.
+     * @param executor The executor to use for running async operations.
+     * @param metrics  Metrics to record the stats.
+     */
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         this.config = config;
         this.client = client;
         this.executor = executor;
         this.closed = new AtomicBoolean(false);
+        this.metrics = metrics;
 
     }
 
@@ -195,6 +205,7 @@ public class ExtendedS3Storage implements Storage {
 
     private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException, StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
+        Timer timer = new Timer();
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
@@ -215,7 +226,8 @@ public class ExtendedS3Storage implements Storage {
             }
 
             int bytesRead = StreamHelpers.readAll(reader, buffer, bufferOffset, length);
-
+            metrics.getReadLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getReadBytes().add(bytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -315,6 +327,7 @@ public class ExtendedS3Storage implements Storage {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
+        Timer timer = new Timer();
 
         SegmentProperties si = syncGetStreamSegmentInfo(handle.getSegmentName());
 
@@ -328,6 +341,9 @@ public class ExtendedS3Storage implements Storage {
 
         client.putObject(this.config.getBucket(), this.config.getRoot() + handle.getSegmentName(),
                 Range.fromOffsetLength(offset, length), data);
+
+        metrics.getWriteLatency().reportSuccessEvent(timer.getElapsed());
+        metrics.getWriteBytes().add(length);
         LoggerHelpers.traceLeave(log, "write", traceId);
         return null;
     }

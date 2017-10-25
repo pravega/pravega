@@ -14,7 +14,7 @@ import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -23,18 +23,24 @@ import java.util.concurrent.ExecutorService;
 public class ExtendedS3StorageFactory implements StorageFactory {
     private final ExtendedS3StorageConfig config;
     private final ExecutorService executor;
+    private final StorageMetricsBase metrics;
 
     /**
      * Creates a new instance of the NFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
+     *  @param config   The Configuration to use.
      * @param executor An executor to use for background operations.
+     * @param metrics  Class for recording storage statistics.
      */
-    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor) {
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
+        this.metrics = metrics;
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.config = config;
         this.executor = executor;
+    }
+
+    public ExtendedS3StorageFactory(ExtendedS3StorageConfig extendedS3Config, ExecutorService executor) {
+        this(extendedS3Config, executor, new ExtendedS3StorageMetrics());
     }
 
     @Override
@@ -45,6 +51,6 @@ public class ExtendedS3StorageFactory implements StorageFactory {
                 .withNamespace(config.getNamespace());
 
         S3JerseyClient client = new S3JerseyClient(s3Config);
-        return new ExtendedS3Storage(client, this.config, this.executor);
+        return new ExtendedS3Storage(client, this.config, this.executor, this.metrics);
     }
 }

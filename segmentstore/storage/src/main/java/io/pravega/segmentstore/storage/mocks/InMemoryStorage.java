@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.TruncateableStorage;
 import java.io.ByteArrayInputStream;
@@ -57,6 +58,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     private final SyncContext syncContext;
     private final AtomicBoolean initialized;
     private final AtomicBoolean closed;
+    private final StorageMetricsBase metrics;
     private boolean ownsExecutorService;
 
     //endregion
@@ -64,11 +66,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     //region Constructor
 
     public InMemoryStorage() {
-        this(Executors.newScheduledThreadPool(1));
+        this(Executors.newScheduledThreadPool(1), new InMemoryMetrics());
         this.ownsExecutorService = true;
     }
 
-    public InMemoryStorage(ScheduledExecutorService executor) {
+    public InMemoryStorage(ScheduledExecutorService executor, StorageMetricsBase metrics) {
         this.executor = executor;
         this.offsetTriggers = new HashMap<>();
         this.sealTriggers = new HashMap<>();
@@ -76,6 +78,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
         this.syncContext = new SyncContext(this.currentOwnerId::get);
         this.initialized = new AtomicBoolean();
         this.closed = new AtomicBoolean();
+        this.metrics = metrics;
+    }
+
+    public InMemoryStorage(ScheduledExecutorService executor) {
+        this(executor, new InMemoryMetrics());
     }
 
     //endregion
@@ -145,8 +152,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
         ensurePreconditions();
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot write using a read-only handle.");
-        CompletableFuture<Void> result = CompletableFuture.runAsync(() ->
-                getStreamSegmentData(handle.getSegmentName()).write(offset, data, length), this.executor);
+        CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
+            getStreamSegmentData(handle.getSegmentName()).write(offset, data, length);
+            metrics.getWriteBytes().add(length);
+            metrics.getWriteLatency().reportSuccessValue(1);
+        }, this.executor);
         result.thenRunAsync(() -> fireOffsetTriggers(handle.getSegmentName(), offset + length), this.executor);
         return result;
     }
@@ -154,8 +164,11 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         ensurePreconditions();
-        return CompletableFuture.supplyAsync(() ->
-                getStreamSegmentData(handle.getSegmentName()).read(offset, buffer, bufferOffset, length), this.executor);
+        return CompletableFuture.supplyAsync(() -> {
+            int bytesRead = getStreamSegmentData(handle.getSegmentName()).read(offset, buffer, bufferOffset, length);
+            metrics.getReadBytes().add(bytesRead);
+            return bytesRead;
+        }, this.executor);
     }
 
     @Override

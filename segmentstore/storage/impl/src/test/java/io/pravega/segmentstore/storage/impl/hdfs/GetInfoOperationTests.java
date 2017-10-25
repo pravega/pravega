@@ -10,12 +10,14 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -28,6 +30,12 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
     private static final int WRITE_COUNT = 10;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests general GetInfoOperation behavior.
@@ -43,7 +51,7 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
             val context = newContext(i, fs);
             val handle = new OpenWriteOperation(SEGMENT_NAME, context).call();
             byte[] data = new byte[i + 1];
-            new WriteOperation(handle, expectedLength, new ByteArrayInputStream(data), data.length, context).run();
+            new WriteOperation(handle, expectedLength, new ByteArrayInputStream(data), data.length, context, metrics).run();
             expectedLength += data.length;
         }
 
@@ -76,11 +84,11 @@ public class GetInfoOperationTests extends FileSystemOperationTestBase {
         val context1 = newContext(1, fs);
         new CreateOperation(SEGMENT_NAME, context1).call();
         val handle1 = new OpenWriteOperation(SEGMENT_NAME, context1).call();
-        new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1).run();
+        new WriteOperation(handle1, 0, new ByteArrayInputStream(new byte[1]), 1, context1, metrics).run();
 
         val context2 = newContext(context1.epoch + 1, fs);
         val handle2 = new OpenWriteOperation(SEGMENT_NAME, context2).call();
-        new WriteOperation(handle2, 1, new ByteArrayInputStream(new byte[1]), 1, context1).run();
+        new WriteOperation(handle2, 1, new ByteArrayInputStream(new byte[1]), 1, context1, metrics).run();
 
         // Delete first file.
         fs.delete(handle2.getFiles().get(0).getPath(), true);

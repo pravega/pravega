@@ -29,6 +29,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -745,7 +746,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
         TestContext(WriterConfig config) {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.baseStorage = new InMemoryStorage(executorService());
+            this.baseStorage = new InMemoryStorage(executorService(), new InMemoryMetrics());
             this.storage = new TestStorage(this.baseStorage);
             this.storage.initialize(1);
             this.config = config;

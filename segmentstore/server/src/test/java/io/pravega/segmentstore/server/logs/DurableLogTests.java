@@ -48,6 +48,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -767,7 +768,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;
@@ -878,7 +879,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
         long segmentId;
 
@@ -967,7 +968,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1083,7 +1084,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1169,7 +1170,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = new InMemoryStorage(executorService(), new InMemoryMetrics());
         storage.initialize(1);
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1359,7 +1360,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.cacheFactory = new InMemoryCacheFactory();
-            this.storage = new InMemoryStorage(this.executorService);
+            this.storage = new InMemoryStorage(this.executorService, new InMemoryMetrics());
             this.storage.initialize(1);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
             this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);

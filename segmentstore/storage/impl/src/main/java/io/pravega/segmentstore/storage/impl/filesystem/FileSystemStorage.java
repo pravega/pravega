@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +30,6 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
@@ -42,7 +42,6 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.security.AccessControlException;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -83,6 +82,7 @@ public class FileSystemStorage implements Storage {
     private final FileSystemStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
+    private final StorageMetricsBase metrics;
 
     //endregion
 
@@ -90,16 +90,17 @@ public class FileSystemStorage implements Storage {
 
     /**
      * Creates a new instance of the FileSystemStorage class.
-     *
-     * @param config   The configuration to use.
+     *  @param config   The configuration to use.
      * @param executor The executor to use for running async operations.
+     * @param metrics  Metrics to record the stats.
      */
-    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
+    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor, StorageMetricsBase metrics) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         this.closed = new AtomicBoolean(false);
         this.config = config;
         this.executor = executor;
+        this.metrics = metrics;
     }
 
     //endregion
@@ -237,8 +238,8 @@ public class FileSystemStorage implements Storage {
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
-            FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
-            FileSystemMetrics.READ_BYTES.add(totalBytesRead);
+            metrics.getReadLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getReadBytes().add(totalBytesRead);
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
         }
@@ -312,8 +313,8 @@ public class FileSystemStorage implements Storage {
                     length -= bytesWritten;
                 }
             }
-            FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-            FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
+            metrics.getWriteLatency().reportSuccessEvent(timer.getElapsed());
+            metrics.getWriteBytes().add(totalBytesWritten);
             LoggerHelpers.traceLeave(log, "write", traceId);
             return null;
         }

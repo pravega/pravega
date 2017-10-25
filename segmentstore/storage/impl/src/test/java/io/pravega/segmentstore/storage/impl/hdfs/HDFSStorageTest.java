@@ -9,15 +9,12 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Collections;
-import java.util.concurrent.Executor;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -34,6 +31,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Collections;
+import java.util.concurrent.Executor;
 
 /**
  * Unit tests for HDFSStorage.
@@ -54,6 +58,7 @@ public class HDFSStorageTest extends StorageTestBase {
                 .with(HDFSStorageConfig.REPLICATION, 1)
                 .with(HDFSStorageConfig.URL, String.format("hdfs://localhost:%d/", hdfsCluster.getNameNodePort()))
                 .build();
+        metrics = new HDFSMetrics();
     }
 
     @After
@@ -128,7 +133,7 @@ public class HDFSStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new TestHDFSStorage(this.adapterConfig, executorService());
+        return new TestHDFSStorage(this.adapterConfig, executorService(), metrics);
     }
 
     //region TestHDFSStorage
@@ -138,8 +143,8 @@ public class HDFSStorageTest extends StorageTestBase {
      * 'read-only' permission issues observed with that one.
      **/
     private static class TestHDFSStorage extends HDFSStorage {
-        TestHDFSStorage(HDFSStorageConfig config, Executor executor) {
-            super(config, executor);
+        TestHDFSStorage(HDFSStorageConfig config, Executor executor, StorageMetricsBase metrics) {
+            super(config, executor, metrics);
         }
 
         @Override

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.storage.StorageMetricsBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -19,6 +20,7 @@ import lombok.Cleanup;
 import lombok.val;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -33,6 +35,12 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(TIMEOUT_SECONDS);
     private final Random rnd = new Random(0);
+    private StorageMetricsBase metrics;
+
+    @Before
+    public void setUp() throws Exception {
+        metrics = new HDFSMetrics();
+    }
 
     /**
      * Tests various combinations of bad input to the Concat command.
@@ -164,14 +172,14 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
             byte[] data = new byte[WRITE_LENGTH];
             rnd.nextBytes(data);
             val targetHandle = new OpenWriteOperation(TARGET_SEGMENT, context).call();
-            new WriteOperation(targetHandle, targetDataStream.size(), new ByteArrayInputStream(data), data.length, context).run();
+            new WriteOperation(targetHandle, targetDataStream.size(), new ByteArrayInputStream(data), data.length, context, metrics).run();
             targetDataStream.write(data);
 
             // Write to source.
             data = new byte[WRITE_LENGTH];
             rnd.nextBytes(data);
             val sourceHandle = new OpenWriteOperation(SOURCE_SEGMENT, context).call();
-            new WriteOperation(sourceHandle, sourceDataStream.size(), new ByteArrayInputStream(data), data.length, context).run();
+            new WriteOperation(sourceHandle, sourceDataStream.size(), new ByteArrayInputStream(data), data.length, context, metrics).run();
             sourceDataStream.write(data);
         }
 
@@ -190,7 +198,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
         val handle = new OpenWriteOperation(segmentName, context).call();
         byte[] writeData = new byte[WRITE_LENGTH];
         rnd.nextBytes(writeData);
-        new WriteOperation(handle, 0, new ByteArrayInputStream(writeData), writeData.length, context).run();
+        new WriteOperation(handle, 0, new ByteArrayInputStream(writeData), writeData.length, context, metrics).run();
         if (expectedDataStream != null) {
             expectedDataStream.write(writeData);
         }
@@ -226,7 +234,7 @@ public class ConcatOperationTests extends FileSystemOperationTestBase {
         Assert.assertFalse("Unexpected value for FileSystem.sealed.", targetInfo.isSealed());
 
         byte[] actualData = new byte[expectedData.length];
-        int bytesRead = new ReadOperation(targetHandle, 0, actualData, 0, actualData.length, context).call();
+        int bytesRead = new ReadOperation(targetHandle, 0, actualData, 0, actualData.length, context, metrics).call();
         Assert.assertEquals("Unexpected number of bytes read from target file.", actualData.length, bytesRead);
         Assert.assertArrayEquals("Unexpected data read from target file.", expectedData, actualData);
     }

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.store;
 
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
+import io.pravega.segmentstore.storage.mocks.InMemoryMetrics;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.util.concurrent.ScheduledExecutorService;
 import org.junit.After;
@@ -24,7 +25,8 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
 
     @Before
     public void setUp() {
-        this.storageFactory = new InMemoryStorageFactory(executorService());
+        InMemoryMetrics metrics = new InMemoryMetrics();
+        this.storageFactory = new InMemoryStorageFactory(executorService(), metrics);
         this.durableDataLogFactory = new PermanentDurableDataLogFactory(executorService());
     }
 
