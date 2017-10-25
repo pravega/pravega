@@ -162,7 +162,6 @@ public class BookkeeperStorage implements Storage {
     @Override
     public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        manager.dropCachedValue(streamSegmentName);
         return manager.fence(streamSegmentName)
                       .thenApply(u -> {
                           SegmentHandle retVal = BookkeeperSegmentHandle.writeHandle(streamSegmentName);

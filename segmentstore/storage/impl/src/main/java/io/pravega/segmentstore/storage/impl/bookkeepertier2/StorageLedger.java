@@ -100,7 +100,11 @@ public class StorageLedger {
     }
 
     public LedgerData getLastLedgerData() {
-        return this.dataMap.entrySet().stream().max((entry1, entry2) ->  entry1.getKey() - entry2.getKey()).get().getValue();
+        if (this.dataMap.isEmpty()) {
+            return null;
+        } else {
+            return this.dataMap.entrySet().stream().max((entry1, entry2) -> entry1.getKey() - entry2.getKey()).get().getValue();
+        }
     }
 
     public void setSealed() {
