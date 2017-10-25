@@ -63,6 +63,11 @@ public class StorageLedger {
         this.updateVersion = updateVersion;
     }
 
+    /**
+     * Returns the BK ledger which has the given offset and is writable.
+     * @param offset offset from which writes start.
+     * @return The metadata of the ledger.
+     */
     public CompletableFuture<LedgerData> getLedgerDataForWriteAt(long offset) {
         CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
         if (offset != length) {
@@ -72,6 +77,7 @@ public class StorageLedger {
         if (ledgerData != null && !ledgerData.getLh().isClosed()) {
             retVal.complete(ledgerData);
         } else {
+            /** If there is no ledger, create a new one. */
             return manager.createLedgerAt(this.name, (int) offset).thenApply(data -> {
                 this.dataMap.put((int) offset, data);
                 return data;
@@ -80,8 +86,14 @@ public class StorageLedger {
         return retVal;
     }
 
+    /**
+     * Add a new BK ledger and metadata at a given offset.
+     * @param offset The starting offset represented by the ledger.
+     * @param ledgerData metadata of the ledger.
+     */
     public synchronized void addToList(int offset, LedgerData ledgerData) {
-        //If we are replacing an existing ledger, adjust the length
+
+        /** If we are replacing an existing ledger, adjust the length */
 
         LedgerData older = this.dataMap.put(offset, ledgerData);
         if (older != null) {
@@ -90,9 +102,16 @@ public class StorageLedger {
         this.length += ledgerData.getLh().getLength();
     }
 
+    /**
+     * Increase length of the StorageLedger as a side effect of the write operation.
+     * This is just a cache operation. The length is not persisted.
+     *
+     * @param size size of data written.
+     */
     public synchronized void increaseLengthBy(int size) {
         this.length += size;
     }
+
 
     public synchronized CompletableFuture<Void> deleteAllLedgers() {
         return CompletableFuture.allOf(
@@ -111,6 +130,11 @@ public class StorageLedger {
         sealed = true;
     }
 
+    /**
+     * Creates a list of curator transaction for merging source StorageLedger in to this.
+     * @param source Name of the source ledger.
+     * @return list of curator operations.
+     */
     public List<CuratorOp> addLedgerDataFrom(StorageLedger source) {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
             int newKey = entry.getKey() + this.length;
