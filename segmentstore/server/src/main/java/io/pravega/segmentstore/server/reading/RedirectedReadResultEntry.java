@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -63,7 +63,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         Preconditions.checkArgument(this.adjustedOffset >= 0, "Given offset adjustment would result in a negative offset.");
         this.retryGetEntry = retryGetEntry;
         this.executorService = executorService;
-        if (FutureHelpers.isSuccessful(entry.getContent())) {
+        if (Futures.isSuccessful(entry.getContent())) {
             this.result = entry.getContent();
         } else {
             this.result = new CompletableFuture<>();
@@ -75,8 +75,8 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         this.firstEntry.getContent()
                        .thenAccept(this.result::complete)
                        .exceptionally(ex -> {
-                           FutureHelpers.delayedFuture(getExceptionDelay(ex), this.executorService)
-                                        .thenAccept(v -> handleGetContentFailure(ex));
+                           Futures.delayedFuture(getExceptionDelay(ex), this.executorService)
+                                  .thenAccept(v -> handleGetContentFailure(ex));
                            return null;
                        });
     }
@@ -212,7 +212,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private void setOutcomeAfterSecondEntry() {
         CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
         sourceFuture.thenAccept(this.result::complete);
-        FutureHelpers.exceptionListener(sourceFuture, this.result::completeExceptionally);
+        Futures.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }
 
     @Override

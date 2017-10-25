@@ -11,7 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -78,30 +78,30 @@ public class TxnSweeper implements FailoverSweeper {
     @Override
     public CompletableFuture<Void> sweepFailedProcesses(Supplier<Set<String>> activeHosts) {
         if (!transactionMetadataTasks.isReady()) {
-            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+            return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         CompletableFuture<Set<String>> hostsOwningTxns = withRetriesAsync(streamMetadataStore::listHostsOwningTxn,
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
         return hostsOwningTxns.thenComposeAsync(index -> {
             index.removeAll(activeHosts.get());
             log.info("Failed hosts {} have orphaned tasks", index);
-            return FutureHelpers.allOf(index.stream().map(this::handleFailedProcess).collect(Collectors.toList()));
+            return Futures.allOf(index.stream().map(this::handleFailedProcess).collect(Collectors.toList()));
         }, executor);
     }
 
     @Override
     public CompletableFuture<Void> handleFailedProcess(String failedHost) {
         if (!transactionMetadataTasks.isReady()) {
-            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+            return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         log.info("Host={}, sweeping orphaned transactions", failedHost);
-        CompletableFuture<Void> delay = FutureHelpers.delayedFuture(Duration.ofMillis(2 * maxTxnTimeoutMillis), executor);
+        CompletableFuture<Void> delay = Futures.delayedFuture(Duration.ofMillis(2 * maxTxnTimeoutMillis), executor);
         return delay.thenComposeAsync(x -> withRetriesAsync(() -> sweepOrphanedTxnsWithoutDelay(failedHost),
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor));
     }
 
     private CompletableFuture<Void> sweepOrphanedTxnsWithoutDelay(String failedHost) {
-        CompletableFuture<Void> failOverTxns = FutureHelpers.doWhileLoop(() -> failOverTxns(failedHost),
+        CompletableFuture<Void> failOverTxns = Futures.doWhileLoop(() -> failOverTxns(failedHost),
                 x -> x != null, executor);
         return failOverTxns.whenCompleteAsync((v, e) -> {
             if (e != null) {

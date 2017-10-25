@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaggedResource;
@@ -79,8 +79,8 @@ public class TaskSweeper implements FailoverSweeper {
                     log.info("Hosts {} have ongoing tasks", registeredHosts);
                     registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
-                    return FutureHelpers.allOf(registeredHosts.stream()
-                            .map(this::handleFailedProcess).collect(Collectors.toList()));
+                    return Futures.allOf(registeredHosts.stream()
+                                                        .map(this::handleFailedProcess).collect(Collectors.toList()));
                 }, executor);
     }
 
@@ -96,10 +96,10 @@ public class TaskSweeper implements FailoverSweeper {
     public CompletableFuture<Void> handleFailedProcess(final String oldHostId) {
 
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
-        return withRetriesAsync(() -> FutureHelpers.doWhileLoop(
+        return withRetriesAsync(() -> Futures.doWhileLoop(
                 () -> executeHostTask(oldHostId),
                 x -> x != null, executor)
-                .whenCompleteAsync((result, ex) ->
+                                             .whenCompleteAsync((result, ex) ->
                         log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
                 RETRYABLE_PREDICATE.and(e -> !(Exceptions.unwrap(e) instanceof LockFailedException)),
                 Integer.MAX_VALUE, executor);
@@ -223,8 +223,8 @@ public class TaskSweeper implements FailoverSweeper {
                     // Eventually, when all task objects are ready, all the orphaned tasks of failed host shall
                     // be executed and the failed host's identifier shall be removed from the hostIndex.
                     log.info("Task module for method {} not yet ready, delaying processing it", method.getName());
-                    return FutureHelpers.delayedFuture(Duration.ofMillis(100), executor)
-                            .thenApplyAsync(ignore -> null, executor);
+                    return Futures.delayedFuture(Duration.ofMillis(100), executor)
+                                  .thenApplyAsync(ignore -> null, executor);
                 }
 
             } else {

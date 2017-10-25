@@ -22,7 +22,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.Event;
@@ -173,7 +173,7 @@ class ClientReader implements StoreReader, AutoCloseable {
         }
 
         CompletableFuture<Void> resumeReading(Consumer<ReadItem> eventHandler, CancellationToken cancellationToken) {
-            return FutureHelpers.loop(
+            return Futures.loop(
                     () -> canRead(cancellationToken),
                     () -> CompletableFuture.runAsync(() -> readNextItem(eventHandler), ClientReader.this.executor),
                     ClientReader.this.executor);

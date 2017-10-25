@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -198,7 +198,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         @Override
         public boolean processEntry(ReadResultEntry e) {
             try {
-                Assert.assertTrue("Received Entry that is not ready to serve data yet.", FutureHelpers.isSuccessful(e.getContent()));
+                Assert.assertTrue("Received Entry that is not ready to serve data yet.", Futures.isSuccessful(e.getContent()));
                 ReadResultEntryContents c = e.getContent().join();
                 byte[] data = new byte[c.getLength()];
                 StreamHelpers.readAll(c.getData(), data, 0, data.length);

@@ -16,7 +16,7 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
@@ -98,9 +98,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         // 3. Load data into SegmentAggregators.
         // 4. Flush eligible SegmentAggregators.
         // 5. Acknowledge (truncate).
-        return FutureHelpers.loop(
+        return Futures.loop(
                 this::canRun,
-                () -> FutureHelpers
+                () -> Futures
                         .delayedFuture(getIterationStartDelay(), this.executor)
                         .thenRun(this::beginIteration)
                         .thenComposeAsync(this::readData, this.executor)
@@ -186,7 +186,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                 logErrorHandled(realEx);
                 return CompletableFuture.completedFuture(null);
             } else {
-                return FutureHelpers.failedFuture(ex);
+                return Futures.failedFuture(ex);
             }
         }
     }
@@ -269,7 +269,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                                            .map(a -> a.flush(this.config.getFlushTimeout(), this.executor))
                                            .collect(Collectors.toList());
 
-        return FutureHelpers
+        return Futures
                 .allOfWithResults(flushFutures)
                 .thenAccept(flushResults -> {
                     FlushStageResult result = new FlushStageResult();

@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
@@ -74,13 +74,13 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
 
     @Override
     public CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: abort txn received on Stream Request Multiplexer"));
     }
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: commit txn received on Stream Request Multiplexer"));
     }
 

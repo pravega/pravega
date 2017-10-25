@@ -11,7 +11,7 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -224,7 +224,7 @@ class ProducerDataSource {
                     }));
         }
 
-        return FutureHelpers.allOf(creationFutures);
+        return Futures.allOf(creationFutures);
     }
 
     /**
@@ -253,7 +253,7 @@ class ProducerDataSource {
             }
         }
 
-        return FutureHelpers.allOf(deletionFutures);
+        return Futures.allOf(deletionFutures);
     }
 
     private CompletableFuture<Void> deleteStream(String name) {

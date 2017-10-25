@@ -10,7 +10,7 @@
 package io.pravega.controller.util;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.retryable.RetryableException;
 import org.junit.After;
@@ -82,14 +82,14 @@ public class RetryHelperTest {
         }
 
         AtomicInteger count = new AtomicInteger(0);
-        assertTrue(FutureHelpers.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        assertTrue(Futures.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             if (count.incrementAndGet() < 2) {
                 throw new TestException();
             }
             return count.get();
         }), RetryHelper.RETRYABLE_PREDICATE, 2, executor), RuntimeException::new) == 2);
 
-        assertTrue(FutureHelpers.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        assertTrue(Futures.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             if (count.incrementAndGet() < 4) {
                 throw new RuntimeException();
             }

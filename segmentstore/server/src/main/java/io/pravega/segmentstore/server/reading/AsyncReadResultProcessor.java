@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -110,7 +110,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     private void processResult(Executor executor) {
         // Process the result, one entry at a time, until one of the stopping conditions occurs.
         AtomicBoolean shouldContinue = new AtomicBoolean(true);
-        FutureHelpers
+        Futures
                 .loop(
                         () -> !this.closed.get() && shouldContinue.get(),
                         () -> {

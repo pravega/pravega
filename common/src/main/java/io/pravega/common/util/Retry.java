@@ -11,7 +11,7 @@ package io.pravega.common.util;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
@@ -220,12 +220,12 @@ public final class Retry {
             AtomicBoolean isDone = new AtomicBoolean();
             AtomicInteger attemptNumber = new AtomicInteger(1);
             AtomicLong delay = new AtomicLong(0);
-            return FutureHelpers.loop(
+            return Futures.loop(
                     () -> !isDone.get(),
-                    () -> FutureHelpers.delayedFuture(Duration.ofMillis(delay.get()), executorService)
-                            .thenRunAsync(task, executorService)
-                            .thenRun(() -> isDone.set(true)) // We are done.
-                            .exceptionally(ex -> {
+                    () -> Futures.delayedFuture(Duration.ofMillis(delay.get()), executorService)
+                                 .thenRunAsync(task, executorService)
+                                 .thenRun(() -> isDone.set(true)) // We are done.
+                                 .exceptionally(ex -> {
                                 if (!canRetry(ex)) {
                                     // Cannot retry this exception. Fail now.
                                     isDone.set(true);
@@ -252,9 +252,9 @@ public final class Retry {
             CompletableFuture<ReturnT> result = new CompletableFuture<>();
             AtomicInteger attemptNumber = new AtomicInteger(1);
             AtomicLong delay = new AtomicLong(0);
-            FutureHelpers.loop(
+            Futures.loop(
                     () -> !result.isDone(),
-                    () -> FutureHelpers
+                    () -> Futures
                             .delayedFuture(r, delay.get(), executorService)
                             .thenAccept(result::complete) // We are done.
                             .exceptionally(ex -> {

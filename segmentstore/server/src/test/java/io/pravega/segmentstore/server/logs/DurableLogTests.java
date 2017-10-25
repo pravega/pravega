@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -160,7 +160,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Empty log.
         CompletableFuture<Void> emptyLogBarrier = durableLog.operationProcessingBarrier(TIMEOUT);
         emptyLogBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("Barrier for empty log did not complete successfully.", FutureHelpers.isSuccessful(emptyLogBarrier));
+        Assert.assertTrue("Barrier for empty log did not complete successfully.", Futures.isSuccessful(emptyLogBarrier));
 
         // Add a few operations, and verify the "barrier" is always completed after them.
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
@@ -177,8 +177,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Wait for barrier to complete.
         afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("barrier for non-empty log did not complete successfully.", FutureHelpers.isSuccessful(afterBarrier));
-        Assert.assertTrue("barrier was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
+        Assert.assertTrue("barrier for non-empty log did not complete successfully.", Futures.isSuccessful(afterBarrier));
+        Assert.assertTrue("barrier was completed before its previous operations were completed.", Futures.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
@@ -592,9 +592,9 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
-        Assert.assertFalse("read() returned a completed future when there is no data available.", FutureHelpers.isSuccessful(readFuture));
+        Assert.assertFalse("read() returned a completed future when there is no data available.", Futures.isSuccessful(readFuture));
 
-        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis(2000), setup.executorService);
+        CompletableFuture<Void> controlFuture = Futures.delayedFuture(Duration.ofMillis(2000), setup.executorService);
         AssertExtensions.assertThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
@@ -1304,7 +1304,7 @@ public class DurableLogTests extends OperationLogTestBase {
             try {
                 completionFuture = durableLog.add(o, TIMEOUT);
             } catch (Exception ex) {
-                completionFuture = FutureHelpers.failedFuture(ex);
+                completionFuture = Futures.failedFuture(ex);
             }
 
             completionFutures.add(new OperationWithCompletion(o, completionFuture));

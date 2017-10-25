@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -210,7 +210,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
         ensureRunning();
-        return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
+        return Futures.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
     }
 
     @Override

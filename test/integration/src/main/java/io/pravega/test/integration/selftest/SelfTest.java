@@ -15,7 +15,7 @@ import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
@@ -77,7 +77,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     public void close() {
         if (!this.closed.get()) {
             try {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+                Futures.await(ServiceHelpers.stopAsync(this, this.executor));
                 this.dataSource.deleteAllStreams()
                         .exceptionally(ex -> {
                             TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);

@@ -43,7 +43,7 @@ import lombok.Getter;
 import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * Manages the state of the reader group on behalf of a reader.

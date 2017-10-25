@@ -10,7 +10,7 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -81,9 +81,9 @@ public class ConcurrentEPSerializedRHTest {
 
         request1.future.complete(null);
 
-        assertTrue(FutureHelpers.await(result1));
-        assertTrue(FutureHelpers.await(result2));
-        assertTrue(FutureHelpers.await(result3));
+        assertTrue(Futures.await(result1));
+        assertTrue(Futures.await(result2));
+        assertTrue(Futures.await(result3));
         assertTrue(state.get().equals("ACTIVE"));
         stop.set(true);
     }
@@ -127,10 +127,10 @@ public class ConcurrentEPSerializedRHTest {
             if (state.get().equals("STATE1")) {
                 // perform workflow
                 if (retryCount.getAndIncrement() < 5) {
-                    return FutureHelpers.failedFuture(new RetryableTestException());
+                    return Futures.failedFuture(new RetryableTestException());
                 }
             } else {
-                return FutureHelpers.failedFuture(new TestStartException());
+                return Futures.failedFuture(new TestStartException());
             }
 
             waitingForPhase1.complete(null);
@@ -152,7 +152,7 @@ public class ConcurrentEPSerializedRHTest {
                         .thenAccept(x -> state.compareAndSet("STATE2", "ACTIVE"))
                         .thenAccept(x -> result2.complete(null));
             } else {
-                return FutureHelpers.failedFuture(new OperationDisallowedException());
+                return Futures.failedFuture(new OperationDisallowedException());
             }
         }
     }
@@ -170,7 +170,7 @@ public class ConcurrentEPSerializedRHTest {
                         .thenAccept(x -> state.compareAndSet("STATE3", "ACTIVE"))
                         .thenAccept(x -> result3.complete(null));
             } else {
-                return FutureHelpers.failedFuture(new OperationDisallowedException());
+                return Futures.failedFuture(new OperationDisallowedException());
             }
         }
     }

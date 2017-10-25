@@ -11,7 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
@@ -347,23 +347,23 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     @SuppressWarnings("ReturnCount")
     private CompletableFuture<Void> validate(long lease, long maxExecutionPeriod, long scaleGracePeriod) {
         if (lease <= 0) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("lease should be a positive number"));
+            return Futures.failedFuture(new IllegalArgumentException("lease should be a positive number"));
         }
         if (maxExecutionPeriod <= 0) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("maxExecutionPeriod should be a positive number"));
+            return Futures.failedFuture(new IllegalArgumentException("maxExecutionPeriod should be a positive number"));
         }
         if (scaleGracePeriod <= 0) {
-            return FutureHelpers.failedFuture(
+            return Futures.failedFuture(
                     new IllegalArgumentException("scaleGracePeriod should be a positive number"));
         }
         // If scaleGracePeriod is larger than maxScaleGracePeriod return error
         if (scaleGracePeriod > timeoutService.getMaxScaleGracePeriod()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
+            return Futures.failedFuture(new IllegalArgumentException("scaleGracePeriod too large, max value is "
                     + timeoutService.getMaxScaleGracePeriod()));
         }
         // If lease value is too large return error
         if (lease > scaleGracePeriod || lease > maxExecutionPeriod || lease > timeoutService.getMaxLeaseValue()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("lease value too large, max value is "
+            return Futures.failedFuture(new IllegalArgumentException("lease value too large, max value is "
                     + Math.min(scaleGracePeriod, Math.min(maxExecutionPeriod, timeoutService.getMaxLeaseValue()))));
         }
         return CompletableFuture.completedFuture(null);
@@ -603,10 +603,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<Segment> segments, final UUID txnId) {
-        return FutureHelpers.allOf(segments.stream()
-                .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
-                .collect(Collectors.toList()));
+        return Futures.allOf(segments.stream()
+                                     .parallel()
+                                     .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                                     .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
@@ -621,7 +621,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private CompletableFuture<Void> checkReady() {
         if (!ready) {
-            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+            return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         } else {
             return CompletableFuture.completedFuture(null);
         }

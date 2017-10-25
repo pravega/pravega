@@ -15,7 +15,7 @@ import io.pravega.common.MathHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.common.util.SortedDeque;
@@ -110,7 +110,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     @Override
     protected CompletableFuture<Void> doRun() {
-        return FutureHelpers
+        return Futures
                 .loop(this::isRunning,
                         () -> delayIfNecessary()
                                 .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
@@ -214,7 +214,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
         delayMillis = Math.min(delayMillis, MAX_DELAY_MILLIS);
         this.metrics.processingDelay(delayMillis);
-        return FutureHelpers.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
+        return Futures.delayedFuture(Duration.ofMillis(delayMillis), this.executor);
     }
 
     /**

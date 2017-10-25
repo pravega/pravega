@@ -12,7 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
@@ -453,22 +453,22 @@ public abstract class StreamMetadataStoreTest {
         StreamProperty<StreamConfiguration> configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
         assertFalse(configProperty.isUpdating());
         // run update configuration multiple times
-        assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
+        assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration2, null, executor)));
         configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
 
         assertTrue(configProperty.isUpdating());
 
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
 
-        assertFalse(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+        assertFalse(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
 
-        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
 
         configProperty = store.getConfigurationProperty(scope, stream, true, null, executor).join();
         assertEquals(configuration2, configProperty.getProperty());
 
-        assertTrue(FutureHelpers.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
-        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+        assertTrue(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
     }
 
     @Test
@@ -595,7 +595,7 @@ public abstract class StreamMetadataStoreTest {
         Map<Integer, Long> truncation = new HashMap<>();
         truncation.put(0, 0L);
         truncation.put(1, 0L);
-        assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation, null, executor)));
+        assertTrue(Futures.await(store.startTruncation(scope, stream, truncation, null, executor)));
 
         StreamProperty<StreamTruncationRecord> truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
         assertTrue(truncationProperty.isUpdating());
@@ -604,8 +604,8 @@ public abstract class StreamMetadataStoreTest {
         truncation2.put(0, 0L);
         truncation2.put(1, 0L);
 
-        assertFalse(FutureHelpers.await(store.startTruncation(scope, stream, truncation2, null, executor)));
-        assertTrue(FutureHelpers.await(store.completeTruncation(scope, stream, null, executor)));
+        assertFalse(Futures.await(store.startTruncation(scope, stream, truncation2, null, executor)));
+        assertTrue(Futures.await(store.completeTruncation(scope, stream, null, executor)));
 
         truncationProperty = store.getTruncationProperty(scope, stream, true, null, executor).join();
         assertEquals(truncation, truncationProperty.getProperty().getStreamCut());
@@ -616,8 +616,8 @@ public abstract class StreamMetadataStoreTest {
         truncation3.put(0, 0L);
         truncation3.put(1, 0L);
 
-        assertTrue(FutureHelpers.await(store.startTruncation(scope, stream, truncation3, null, executor)));
-        assertTrue(FutureHelpers.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
+        assertTrue(Futures.await(store.startTruncation(scope, stream, truncation3, null, executor)));
+        assertTrue(Futures.await(store.completeUpdateConfiguration(scope, stream, null, executor)));
     }
 }
 

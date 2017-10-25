@@ -15,7 +15,7 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -128,7 +128,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(ServiceHelpers.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
             this.durableLog.close();
@@ -363,7 +363,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         notifyMetadataRemoved(deletedSegments);
-        return FutureHelpers.allOf(deletionFutures);
+        return Futures.allOf(deletionFutures);
     }
 
     @Override

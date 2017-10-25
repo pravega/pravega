@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.CancellationToken;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
@@ -234,12 +234,12 @@ public class Consumer extends Actor {
             return CompletableFuture.completedFuture(null);
         }
 
-        return FutureHelpers.loop(
+        return Futures.loop(
                 this::canRun,
                 () -> this.catchupQueue.take(CATCHUP_READ_COUNT)
                         .thenComposeAsync(this::processCatchupReads, this.executorService),
                 this.executorService)
-                .exceptionally(ex -> {
+                      .exceptionally(ex -> {
                     ex = Exceptions.unwrap(ex);
                     if (ex instanceof ObjectClosedException) {
                         // This a normal shutdown, as the catchupQueue is closed when we are done.
@@ -251,7 +251,7 @@ public class Consumer extends Actor {
     }
 
     private CompletableFuture<Void> processCatchupReads(Queue<StoreReader.ReadItem> catchupReads) {
-        return FutureHelpers.loop(
+        return Futures.loop(
                 () -> !catchupReads.isEmpty(),
                 () -> processCatchupRead(catchupReads.poll()),
                 this.executorService);

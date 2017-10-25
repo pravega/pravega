@@ -11,7 +11,7 @@ package io.pravega.test.integration.selftest;
 
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -66,7 +66,7 @@ class Producer extends Actor {
     @Override
     protected CompletableFuture<Void> run() {
         this.canContinue.set(true);
-        return FutureHelpers.loop(
+        return Futures.loop(
                 this::canLoop,
                 this::runOneIteration,
                 this.executorService);
@@ -116,7 +116,7 @@ class Producer extends Actor {
                     // Exception handled; skip this iteration since there's nothing more we can do.
                     continue;
                 } else {
-                    result = FutureHelpers.failedFuture(ex);
+                    result = Futures.failedFuture(ex);
                 }
             }
 
@@ -130,7 +130,7 @@ class Producer extends Actor {
             }));
         }
 
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
 
 

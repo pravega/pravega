@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.writer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -411,8 +411,8 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             } else {
                 if (this.addProcessed == null) {
                     // We need to wait for an add, and nobody else is waiting for it too.
-                    this.addProcessed = FutureHelpers.futureWithTimeout(timeout, this.executor);
-                    FutureHelpers.onTimeout(this.addProcessed, ex -> {
+                    this.addProcessed = Futures.futureWithTimeout(timeout, this.executor);
+                    Futures.onTimeout(this.addProcessed, ex -> {
                         synchronized (this.lock) {
                             if (this.addProcessed.isCompletedExceptionally()) {
                                 this.addProcessed = null;

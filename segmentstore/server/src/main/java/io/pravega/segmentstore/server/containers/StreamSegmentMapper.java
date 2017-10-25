@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -124,7 +124,7 @@ public class StreamSegmentMapper {
         long segmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(segmentId)) {
             // Quick fail: see if this is an active Segment, and if so, don't bother with anything else.
-            return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
+            return Futures.failedFuture(new StreamSegmentExistsException(streamSegmentName));
         }
 
         CompletableFuture<Void> result = createSegmentInStorageWithRecovery(streamSegmentName, attributes, new TimeoutTimer(timeout));
@@ -203,7 +203,7 @@ public class StreamSegmentMapper {
      * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
      */
     private CompletableFuture<Void> createSegmentInStorageWithRecovery(String segmentName, Collection<AttributeUpdate> attributes, TimeoutTimer timer) {
-        return FutureHelpers
+        return Futures
                 .exceptionallyCompose(
                         this.storage.create(segmentName, timer.getRemaining()),
                         ex -> handleStorageCreateException(segmentName, Exceptions.unwrap(ex), timer))
@@ -236,7 +236,7 @@ public class StreamSegmentMapper {
     private CompletableFuture<SegmentProperties> handleStorageCreateException(String segmentName, Throwable originalException, TimeoutTimer timer) {
         if (!(originalException instanceof StreamSegmentExistsException)) {
             // Some other kind of exception that we can't handle here.
-            return FutureHelpers.failedFuture(originalException);
+            return Futures.failedFuture(originalException);
         }
 
         return this.stateStore
@@ -259,7 +259,7 @@ public class StreamSegmentMapper {
                         return this.storage.getStreamSegmentInfo(segmentName, timer.getRemaining());
                     } else {
                         // Both Segment and State File exist; nothing to rebuild, so re-throw original exception.
-                        return FutureHelpers.failedFuture(originalException);
+                        return Futures.failedFuture(originalException);
                     }
                 }, this.executor);
     }
@@ -285,7 +285,7 @@ public class StreamSegmentMapper {
             // Looks like the Segment is active and we have it in our Metadata. Return the result from there.
             SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             if (sm.isDeleted()) {
-                result = FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                result = Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
                 result = CompletableFuture.completedFuture(sm.getSnapshot());
             }
@@ -344,7 +344,7 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(streamSegmentId)) {
             // We already have a value, just return it (but make sure the Segment has not been deleted).
             if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
-                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
                 // Even though we have the value in the metadata, we need to be very careful not to invoke this callback
                 // before any other existing callbacks are invoked. As such, verify if we have an existing PendingRequest
@@ -542,7 +542,7 @@ public class StreamSegmentMapper {
         if (properties.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
             failAssignment(properties.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
-            return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
+            return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
         long existingSegmentId = this.containerMetadata.getStreamSegmentId(properties.getName(), true);
@@ -656,7 +656,7 @@ public class StreamSegmentMapper {
 
     private CompletableFuture<Void> validateParentSegmentEligibility(SegmentProperties parentInfo) {
         if (parentInfo.isDeleted() || parentInfo.isSealed()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("Cannot create a Transaction for a deleted or sealed Segment."));
+            return Futures.failedFuture(new IllegalArgumentException("Cannot create a Transaction for a deleted or sealed Segment."));
         } else {
             return CompletableFuture.completedFuture(null);
         }
@@ -686,7 +686,7 @@ public class StreamSegmentMapper {
                                  Exceptions.unwrap(ex).getMessage());
                          CompletableFuture<T> f = this.metadataCleanup.get().thenComposeAsync(v -> toTry.get(), this.executor);
                          f.thenAccept(result::complete);
-                         FutureHelpers.exceptionListener(f, result::completeExceptionally);
+                         Futures.exceptionListener(f, result::completeExceptionally);
                      } else {
                          result.completeExceptionally(ex);
                      }
@@ -752,7 +752,7 @@ public class StreamSegmentMapper {
         final Function<Long, CompletableFuture<T>> callback;
 
         void complete(long segmentId) {
-            FutureHelpers.completeAfter(() -> this.callback.apply(segmentId), this.result);
+            Futures.completeAfter(() -> this.callback.apply(segmentId), this.result);
         }
 
         void completeExceptionally(Throwable ex) {

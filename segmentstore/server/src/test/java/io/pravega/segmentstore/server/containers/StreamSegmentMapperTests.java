@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -162,14 +162,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext();
 
         // 1. Segment.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.createHandler = name -> Futures.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
         // 2. Transaction.
-        context.storage.createHandler = name -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.createHandler = name -> Futures.failedFuture(new IntentionalException());
         setupStorageGetHandler(context,
                 Collections.singleton(segmentName),
                 name -> StreamSegmentInformation.builder().name(name).build());
@@ -432,7 +432,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         setupOperationLog(context);
 
         // 1. Unable to access storage.
-        context.storage.getInfoHandler = sn -> FutureHelpers.failedFuture(new IntentionalException());
+        context.storage.getInfoHandler = sn -> Futures.failedFuture(new IntentionalException());
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
@@ -470,7 +470,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         val segmentName2 = segmentName + "2";
         val transactionName2 = StreamSegmentNameUtils.getTransactionNameFromId(segmentName2, UUID.randomUUID());
         context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(sn).build());
-        testStateStore.getHandler = () -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
+        testStateStore.getHandler = () -> Futures.failedFuture(new IntentionalException("intentional"));
 
         AssertExtensions.assertThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Segment when attributes could not be retrieved.",
@@ -506,10 +506,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicBoolean cleanupInvoked = new AtomicBoolean();
 
         // We use 'containerId' as a proxy for the exception id (to make sure we collect the right one).
-        context.operationLog.addHandler = op -> FutureHelpers.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
+        context.operationLog.addHandler = op -> Futures.failedFuture(new TooManyActiveSegmentsException(exceptionCounter.incrementAndGet(), 0));
         Supplier<CompletableFuture<Void>> noOpCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
+                return Futures.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
             return CompletableFuture.completedFuture(null);
         };
@@ -536,7 +536,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         cleanupInvoked.set(false);
         Supplier<CompletableFuture<Void>> workingCleanup = () -> {
             if (!cleanupInvoked.compareAndSet(false, true)) {
-                return FutureHelpers.failedFuture(new AssertionError("Cleanup invoked multiple times."));
+                return Futures.failedFuture(new AssertionError("Cleanup invoked multiple times."));
             }
 
             setupOperationLog(context); // Setup the OperationLog to function correctly.
@@ -575,10 +575,10 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         AtomicBoolean operationLogInvoked = new AtomicBoolean(false);
         context.operationLog.addHandler = op -> {
             if (!(op instanceof StreamSegmentMapOperation)) {
-                return FutureHelpers.failedFuture(new IllegalArgumentException("unexpected operation"));
+                return Futures.failedFuture(new IllegalArgumentException("unexpected operation"));
             }
             if (operationLogInvoked.getAndSet(true)) {
-                return FutureHelpers.failedFuture(new IllegalStateException("multiple calls to OperationLog.add"));
+                return Futures.failedFuture(new IllegalStateException("multiple calls to OperationLog.add"));
             }
 
             // Need to set SegmentId on operation.
@@ -797,7 +797,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.createHandler = segmentName -> {
             synchronized (storageSegments) {
                 if (storageSegments.contains(segmentName)) {
-                    return FutureHelpers.failedFuture(new StreamSegmentExistsException(segmentName));
+                    return Futures.failedFuture(new StreamSegmentExistsException(segmentName));
                 } else {
                     storageSegments.add(segmentName);
                     return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(segmentName).build());
@@ -810,7 +810,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.getInfoHandler = segmentName -> {
             synchronized (storageSegments) {
                 if (!storageSegments.contains(segmentName)) {
-                    return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(segmentName));
+                    return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
                 } else {
                     return CompletableFuture.completedFuture(infoGetter.apply(segmentName));
                 }

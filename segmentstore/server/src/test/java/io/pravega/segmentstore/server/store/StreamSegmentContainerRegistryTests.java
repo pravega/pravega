@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -71,7 +71,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
             expectedContainerIds.add(containerId);
         }
 
-        List<ContainerHandle> handles = FutureHelpers.allOfWithResults(handleFutures).join();
+        List<ContainerHandle> handles = Futures.allOfWithResults(handleFutures).join();
         HashSet<Integer> actualHandleIds = new HashSet<>();
         for (ContainerHandle handle : handles) {
             actualHandleIds.add(handle.getContainerId());
@@ -286,7 +286,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, executorService()));
+                Futures.await(ServiceHelpers.stopAsync(this, executorService()));
                 ReusableLatch signal = this.closeReleaseSignal;
                 if (signal != null) {
                     // Wait until we are told to complete.

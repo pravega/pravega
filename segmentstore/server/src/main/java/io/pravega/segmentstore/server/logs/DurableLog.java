@@ -16,7 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
@@ -126,7 +126,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(ServiceHelpers.stopAsync(this, this.executor));
 
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
@@ -501,7 +501,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                tr.future.complete(FutureHelpers.runOrFail(
+                tr.future.complete(Futures.runOrFail(
                         () -> this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount),
                         tr.future));
             }
@@ -532,7 +532,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         TailRead(long afterSequenceNumber, int maxCount, Duration timeout, ScheduledExecutorService executor) {
             this.afterSequenceNumber = afterSequenceNumber;
             this.maxCount = maxCount;
-            this.future = FutureHelpers.futureWithTimeout(timeout, executor);
+            this.future = Futures.futureWithTimeout(timeout, executor);
         }
 
         @Override

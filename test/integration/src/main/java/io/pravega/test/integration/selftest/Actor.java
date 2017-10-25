@@ -12,7 +12,7 @@ package io.pravega.test.integration.selftest;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.ServiceHelpers;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.time.Duration;
@@ -70,7 +70,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
+            Futures.await(ServiceHelpers.stopAsync(this, this.executorService));
             this.closed.set(true);
         }
     }
@@ -83,7 +83,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        this.runTask = FutureHelpers
+        this.runTask = Futures
                 .delayedFuture(INITIAL_DELAY, this.executorService)
                 .thenCompose(v -> run());
         this.runTask.whenComplete((r, ex) -> stopAsync());

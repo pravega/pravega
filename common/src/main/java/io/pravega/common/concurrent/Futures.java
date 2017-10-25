@@ -41,7 +41,7 @@ import lombok.val;
 /**
  * Extensions to Future and CompletableFuture.
  */
-public final class FutureHelpers {
+public final class Futures {
 
     /**
      * Waits for the provided future to be complete, and returns true if it was successful, false otherwise.
@@ -90,7 +90,7 @@ public final class FutureHelpers {
 
             // Async termination.
             f.thenAccept(toComplete::complete);
-            FutureHelpers.exceptionListener(f, toComplete::completeExceptionally);
+            Futures.exceptionListener(f, toComplete::completeExceptionally);
         } catch (Throwable ex) {
             // Synchronous termination.
             toComplete.completeExceptionally(ex);
@@ -347,7 +347,7 @@ public final class FutureHelpers {
      * in the input map.
      */
     public static <K, V> CompletableFuture<Map<K, V>> allOfWithResults(Map<K, CompletableFuture<V>> futureMap) {
-        return FutureHelpers
+        return Futures
                 .allOf(futureMap.values())
                 .thenApply(ignored ->
                         futureMap.entrySet().stream()
@@ -366,7 +366,7 @@ public final class FutureHelpers {
      * in the input map.
      */
     public static <K, V> CompletableFuture<Map<K, V>> keysAllOfWithResults(Map<CompletableFuture<K>, V> futureMap) {
-        return FutureHelpers
+        return Futures
                 .allOf(futureMap.keySet())
                 .thenApply(ignored ->
                         futureMap.entrySet().stream()
@@ -396,7 +396,7 @@ public final class FutureHelpers {
         Preconditions.checkNotNull(input);
 
         val allFutures = input.stream().collect(Collectors.toMap(key -> key, predicate::apply));
-        return FutureHelpers
+        return Futures
                 .allOf(allFutures.values())
                 .thenApply(ignored ->
                         allFutures.entrySet()

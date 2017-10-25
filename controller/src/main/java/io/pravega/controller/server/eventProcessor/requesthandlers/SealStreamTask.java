@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -82,7 +82,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     }
 
     private CompletableFuture<Void> setSealed(String scope, String stream, OperationContext context) {
-        return FutureHelpers.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor));
+        return Futures.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor));
     }
 
     @Override

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.test.common.AssertExtensions;
@@ -178,7 +178,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         // Simulate a container that takes a long time to start. Should be greater than a few monitor loops.
         ContainerHandle containerHandle = mock(ContainerHandle.class);
         when(containerHandle.getContainerId()).thenReturn(2);
-        CompletableFuture<ContainerHandle> startupFuture = FutureHelpers.delayedFuture(
+        CompletableFuture<ContainerHandle> startupFuture = Futures.delayedFuture(
                 () -> CompletableFuture.completedFuture(containerHandle), 3000, executorService());
         when(containerRegistry.startContainer(eq(2), any()))
                 .thenReturn(startupFuture);
@@ -215,7 +215,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         segMonitor.initialize(Duration.ofSeconds(1));
 
         // Simulate a container that fails to start.
-        CompletableFuture<ContainerHandle> failedFuture = FutureHelpers.failedFuture(new RuntimeException());
+        CompletableFuture<ContainerHandle> failedFuture = Futures.failedFuture(new RuntimeException());
         when(containerRegistry.startContainer(eq(2), any()))
                 .thenReturn(failedFuture);
 

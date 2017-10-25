@@ -60,7 +60,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(ServiceHelpers.stopAsync(this, this.executor));
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
@@ -100,11 +100,11 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
             notifyStoppedOrFailed(null);
         } else if (this.runTask.isDone()) {
             // Our runTask is done. See if it completed normally or not.
-            notifyStoppedOrFailed(FutureHelpers.getException(this.runTask));
+            notifyStoppedOrFailed(Futures.getException(this.runTask));
         } else {
             // Still running. Wait (async) for the task to complete or a timeout to expire.
             CompletableFuture
-                    .anyOf(this.runTask, FutureHelpers.delayedFuture(getShutdownTimeout(), this.executor))
+                    .anyOf(this.runTask, Futures.delayedFuture(getShutdownTimeout(), this.executor))
                     .whenComplete((r, ex) -> {
                         if (ex != null) {
                             ex = Exceptions.unwrap(ex);

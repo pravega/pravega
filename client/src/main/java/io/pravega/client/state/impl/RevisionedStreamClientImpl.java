@@ -19,7 +19,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
@@ -64,7 +64,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        if (FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
+        if (Futures.getAndHandleExceptions(wasWritten, RuntimeException::new)) {
             long newOffset = getNewOffset(offset, size);
             log.trace("Wrote from {} to {}", offset, newOffset);
             return new RevisionImpl(segment, newOffset, 0);
@@ -92,7 +92,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         } catch (SegmentSealedException e) {
             throw new CorruptedStateException("Unexpected end of segment ", e);
         }
-        FutureHelpers.getAndHandleExceptions(wasWritten, RuntimeException::new);
+        Futures.getAndHandleExceptions(wasWritten, RuntimeException::new);
     }
 
     @Override

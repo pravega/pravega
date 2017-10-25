@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
@@ -145,11 +145,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     @Override
     public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
-        return FutureHelpers.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
+        return Futures.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
                 new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
-                .collect(Collectors.toList()))
-                .thenAccept(TableHelper::validateStreamCut)
-                .thenCompose(valid -> getTruncationData(true)
+                                                 .collect(Collectors.toList()))
+                      .thenAccept(TableHelper::validateStreamCut)
+                      .thenCompose(valid -> getTruncationData(true)
                         .thenCompose(truncationData -> {
                             Preconditions.checkNotNull(truncationData);
                             StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
@@ -266,7 +266,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         return setStateData(new Data<>(SerializationUtils.serialize(state), currState.getVersion()))
                                 .thenApply(x -> true);
                     } else {
-                        return FutureHelpers.failedFuture(StoreException.create(
+                        return Futures.failedFuture(StoreException.create(
                                 StoreException.Type.OPERATION_NOT_ALLOWED,
                                 "Stream: " + getName() + " State: " + state.name()));
                     }
@@ -300,9 +300,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState().thenCompose(v -> getHistoryTable())
                 .thenApply(x -> TableHelper.getScaleMetadata(x.getData()))
                 .thenCompose(listOfScaleRecords ->
-                        FutureHelpers.allOfWithResults(listOfScaleRecords.stream().map(record -> {
+                        Futures.allOfWithResults(listOfScaleRecords.stream().map(record -> {
                             long scaleTs = record.getLeft();
-                            CompletableFuture<List<Segment>> list = FutureHelpers.allOfWithResults(
+                            CompletableFuture<List<Segment>> list = Futures.allOfWithResults(
                                     record.getRight().stream().map(this::getSegment)
                                     .collect(Collectors.toList()));
 
@@ -324,9 +324,9 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<List<Segment>> findOverlapping(Segment segment, List<Integer> candidates) {
-        return verifyLegalState().thenCompose(v -> FutureHelpers.allOfWithResults(candidates.stream()
-                                                                                            .map(this::getSegment)
-                                                                                            .collect(Collectors.toList())))
+        return verifyLegalState().thenCompose(v -> Futures.allOfWithResults(candidates.stream()
+                                                                                      .map(this::getSegment)
+                                                                                      .collect(Collectors.toList())))
                                  .thenApply(successorCandidates -> successorCandidates.stream()
                                                                                       .filter(x -> x.overlaps(segment))
                                                                                       .collect(Collectors.toList()));
@@ -372,7 +372,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                 list -> new SimpleImmutableEntry<>(successor, list.stream().map(Segment::getNumber)
                                                         .collect(Collectors.toList()))));
                                     }
-                                    return FutureHelpers.allOfWithResults(resultFutures);
+                                    return Futures.allOfWithResults(resultFutures);
                                 })
                                 .thenApply(list -> list.stream().collect(Collectors.toMap(e -> e.getKey().getNumber(), Map.Entry::getValue)))));
     }
@@ -527,7 +527,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
         } else {
             log.debug("scale conflict for stream {}/{} with segments to seal {}", scope, name, sealedSegments);
 
-            return FutureHelpers.failedFuture(new ScaleOperationExceptions.ScaleConflictException());
+            return Futures.failedFuture(new ScaleOperationExceptions.ScaleConflictException());
         }
     }
 
@@ -544,7 +544,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                            final List<Integer> newSegments,
                                                            final int epoch,
                                                            final long scaleTimestamp) {
-        return verifyState(() -> FutureHelpers.toVoid(addPartialHistoryRecord(sealedSegments, newSegments, epoch)),
+        return verifyState(() -> Futures.toVoid(addPartialHistoryRecord(sealedSegments, newSegments, epoch)),
                 Lists.newArrayList(State.SCALING));
     }
 
@@ -588,8 +588,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> clearMarkers(final List<Integer> segments) {
-        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(segments.stream().parallel()
-                .map(this::removeColdMarker).collect(Collectors.toList())));
+        return Futures.toVoid(Futures.allOfWithResults(segments.stream().parallel()
+                                                               .map(this::removeColdMarker).collect(Collectors.toList())));
     }
 
     /**
@@ -606,7 +606,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                                           final List<Integer> newSegments,
                                                           final int activeEpoch,
                                                           final long scaleTimestamp) {
-        return verifyState(() -> FutureHelpers.toVoid(clearMarkers(sealedSegments)
+        return verifyState(() -> Futures.toVoid(clearMarkers(sealedSegments)
                 .thenCompose(x -> completeScale(scaleTimestamp, sealedSegments, activeEpoch, newSegments))),
                 Lists.newArrayList(State.SCALING));
     }
@@ -916,8 +916,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<List<Segment>> getSegments(final List<Integer> segments) {
-        return FutureHelpers.allOfWithResults(segments.stream().map(this::getSegment)
-                .collect(Collectors.toList()));
+        return Futures.allOfWithResults(segments.stream().map(this::getSegment)
+                                                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {
@@ -1023,7 +1023,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable, false).get();
                     return addIndexRecord(newRecord)
                             .thenCompose(x -> updateHistoryTable(updated))
-                            .thenCompose(x -> FutureHelpers.toVoid(updateState(State.ACTIVE)))
+                            .thenCompose(x -> Futures.toVoid(updateState(State.ACTIVE)))
                             .whenComplete((r, e) -> {
                                 if (e != null) {
                                     log.warn("{}/{} attempt to complete scale for epoch {}. {}", scope, name, activeEpoch, e.getClass().getName());
