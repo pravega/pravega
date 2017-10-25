@@ -16,7 +16,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.common.util.SortedDeque;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -502,7 +502,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                             // Then fail the remaining operations (which also handles fatal errors) and bail out.
                             collectFailureCandidates(ex, commitArgs, toFail);
                             if (isFatalException(ex)) {
-                                CallbackHelpers.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
+                                Callbacks.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
                             }
 
                             return;
@@ -564,7 +564,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
             // perform a new recovery that will detect any possible data loss or corruption.
-            CallbackHelpers.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
+            Callbacks.invokeSafely(OperationProcessor.this::errorHandler, ex, null);
         }
 
         /**

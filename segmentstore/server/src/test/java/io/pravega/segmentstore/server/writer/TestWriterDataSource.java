@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -306,7 +306,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
         }
 
         if (callback != null) {
-            CallbackHelpers.invokeSafely(callback, streamSegmentId, null);
+            Callbacks.invokeSafely(callback, streamSegmentId, null);
         }
 
         return this.metadata.getStreamSegmentMetadata(streamSegmentId);

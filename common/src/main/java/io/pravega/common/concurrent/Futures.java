@@ -11,7 +11,6 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
@@ -238,7 +237,7 @@ public final class Futures {
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null) {
-                CallbackHelpers.invokeSafely(exceptionListener, ex, null);
+                Callbacks.invokeSafely(exceptionListener, ex, null);
             }
         });
     }
@@ -256,7 +255,7 @@ public final class Futures {
     public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture, Class<E> exceptionClass, Consumer<E> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null && exceptionClass.isAssignableFrom(ex.getClass())) {
-                CallbackHelpers.invokeSafely(exceptionListener, (E) ex, null);
+                Callbacks.invokeSafely(exceptionListener, (E) ex, null);
             }
         });
     }

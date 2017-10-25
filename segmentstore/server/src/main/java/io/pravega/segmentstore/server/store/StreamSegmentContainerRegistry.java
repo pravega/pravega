@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -228,7 +228,7 @@ class StreamSegmentContainerRegistry implements SegmentContainerRegistry {
         void notifyContainerStopped() {
             Consumer<Integer> handler = this.containerStoppedListener;
             if (handler != null) {
-                CallbackHelpers.invokeSafely(handler, this.containerId, null);
+                Callbacks.invokeSafely(handler, this.containerId, null);
             }
         }
 
