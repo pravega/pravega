@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.bookkeepertier2;
+package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -18,14 +18,15 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import org.apache.curator.framework.api.transaction.CuratorOp;
 
 /*
-* Storage Ledger represent a single segment. A segment is rolled over whenever a ownership change is observed.
+* Storage Log represents a single segment. A segment is rolled over whenever a ownership change is observed.
 *
 **/
-public class StorageLedger {
+class StorageLog {
 
     private final StorageLedgerManager manager;
 
@@ -35,31 +36,30 @@ public class StorageLedger {
     @Getter
     private final boolean readOnlyHandle;
 
+    private final ConcurrentHashMap<Integer, LedgerData> dataMap;
+
     @Getter
     private int updateVersion;
 
     @Getter
-    private long containerEpoc;
-
-    private ConcurrentHashMap<Integer, LedgerData> dataMap;
+    private long containerEpoch;
 
     @Getter
     private boolean sealed;
 
+    @GuardedBy("$lock")
     @Getter
-    private int length;
+    private long length;
 
     @Getter
     private ImmutableDate lastModified;
 
-
-
-    public StorageLedger(StorageLedgerManager storageLedgerManager, String streamSegmentName, int updateVersion, long containerEpoc, boolean readOnly) {
-        manager = storageLedgerManager;
-        dataMap = new ConcurrentHashMap<>();
+    public StorageLog(StorageLedgerManager storageLedgerManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
+        this.manager = storageLedgerManager;
+        this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
         this.readOnlyHandle = readOnly;
-        this.containerEpoc = containerEpoc;
+        this.containerEpoch = containerEpoch;
         this.updateVersion = updateVersion;
     }
 
@@ -72,16 +72,17 @@ public class StorageLedger {
         CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
         if (offset != length) {
             retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
+            return retVal;
         }
         LedgerData ledgerData = this.getLastLedgerData();
-        if (ledgerData != null && !ledgerData.getLh().isClosed()) {
+        if (ledgerData != null && !ledgerData.getLedgerHandle().isClosed()) {
             retVal.complete(ledgerData);
         } else {
             /** If there is no ledger, create a new one. */
-            return manager.createLedgerAt(this.name, (int) offset).thenApply(data -> {
+            retVal = manager.createLedgerAt(this.name, (int) offset).thenApply(data -> {
                 this.dataMap.put((int) offset, data);
                 return data;
-        });
+            });
         }
         return retVal;
     }
@@ -97,13 +98,13 @@ public class StorageLedger {
 
         LedgerData older = this.dataMap.put(offset, ledgerData);
         if (older != null) {
-            this.length -= older.getLh().getLength();
+            this.length -= older.getLedgerHandle().getLength();
         }
-        this.length += ledgerData.getLh().getLength();
+        this.length += ledgerData.getLedgerHandle().getLength();
     }
 
     /**
-     * Increase length of the StorageLedger as a side effect of the write operation.
+     * Increase length of the StorageLog as a side effect of the write operation.
      * This is just a cache operation. The length is not persisted.
      *
      * @param size size of data written.
@@ -112,10 +113,9 @@ public class StorageLedger {
         this.length += size;
     }
 
-
     public synchronized CompletableFuture<Void> deleteAllLedgers() {
         return CompletableFuture.allOf(
-                this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLh())).toArray(CompletableFuture[]::new));
+                this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLedgerHandle())).toArray(CompletableFuture[]::new));
     }
 
     public LedgerData getLastLedgerData() {
@@ -126,30 +126,31 @@ public class StorageLedger {
         }
     }
 
-    public void setSealed() {
+    public synchronized void markSealed() {
         sealed = true;
     }
 
     /**
-     * Creates a list of curator transaction for merging source StorageLedger in to this.
+     * Creates a list of curator transaction for merging source StorageLog in to this.
      * @param source Name of the source ledger.
      * @return list of curator operations.
      */
-    public List<CuratorOp> addLedgerDataFrom(StorageLedger source) {
+    public synchronized List<CuratorOp> addLedgerDataFrom(StorageLog source) {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
-            int newKey = entry.getKey() + this.length;
+            int newKey = (int) (entry.getKey() + this.length);
             this.dataMap.put(newKey, entry.getValue());
             return manager.createAddOp(this.name, newKey, entry.getValue());
         }).collect(Collectors.toList());
 
-        this.length  += source.length;
+        this.length += source.length;
         return retVal;
     }
 
-    public CompletableFuture<LedgerData> getLedgerDataForReadAt(long offset) {
+    public synchronized CompletableFuture<LedgerData> getLedgerDataForReadAt(long offset) {
         CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
         if (offset >= length) {
             retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
+            return retVal;
         }
         Optional<Map.Entry<Integer, LedgerData>> found = dataMap.entrySet().stream().filter(entry -> (entry.getKey() <= offset) && (offset < (entry.getKey() + entry.getValue().getLength()))).findFirst();
         if (found.isPresent()) {
@@ -160,24 +161,24 @@ public class StorageLedger {
         return retVal;
     }
 
-    public static StorageLedger deserialize(StorageLedgerManager manager, String segmentName, byte[] bytes, int version) {
+    public static StorageLog deserialize(StorageLedgerManager manager, String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
-        return new StorageLedger(manager, segmentName, version, bb.getLong(), false);
+        return new StorageLog(manager, segmentName, version, bb.getLong(), false);
     }
 
-    public void setContainerEpoc(long containerEpoc) {
-        this.containerEpoc = containerEpoc;
+    public void setContainerEpoch(long containerEpoch) {
+        this.containerEpoch = containerEpoch;
     }
 
     public byte[] serialize() {
         int size = Long.SIZE;
         ByteBuffer bb = ByteBuffer.allocate(size);
-        bb.putLong(this.containerEpoc);
+        bb.putLong(this.containerEpoch);
 
         return bb.array();
     }
 
-    public void setUpdateVersion(int version) {
+    public synchronized void setUpdateVersion(int version) {
         this.updateVersion = version;
     }
 }

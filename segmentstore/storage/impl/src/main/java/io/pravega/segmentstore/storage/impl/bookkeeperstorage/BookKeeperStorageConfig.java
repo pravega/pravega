@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.bookkeepertier2;
+package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
@@ -19,7 +19,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import lombok.Getter;
 
-public class BookkeeperStorageConfig {
+public class BookKeeperStorageConfig {
     public static final Property<String> ZK_ADDRESS = Property.named("zkAddress", "localhost:2181");
     public static final Property<Integer> ZK_SESSION_TIMEOUT = Property.named("zkSessionTimeoutMillis", 10000);
     public static final Property<Integer> ZK_CONNECTION_TIMEOUT = Property.named("zkConnectionTimeoutMillis", 10000);
@@ -94,7 +94,7 @@ public class BookkeeperStorageConfig {
      *
      * @param properties The TypedProperties object to read Properties from.
      */
-    private BookkeeperStorageConfig(TypedProperties properties) throws ConfigurationException {
+    private BookKeeperStorageConfig(TypedProperties properties) throws ConfigurationException {
         this.zkAddress = properties.get(ZK_ADDRESS);
         this.zkSessionTimeout = Duration.ofMillis(properties.getInt(ZK_SESSION_TIMEOUT));
         this.zkConnectionTimeout = Duration.ofMillis(properties.getInt(ZK_CONNECTION_TIMEOUT));
@@ -124,7 +124,7 @@ public class BookkeeperStorageConfig {
      *
      * @return A new Builder for this class.
      */
-    public static ConfigBuilder<BookkeeperStorageConfig> builder() {
-        return new ConfigBuilder<>(COMPONENT_CODE, BookkeeperStorageConfig::new);
+    public static ConfigBuilder<BookKeeperStorageConfig> builder() {
+        return new ConfigBuilder<>(COMPONENT_CODE, BookKeeperStorageConfig::new);
     }
 }

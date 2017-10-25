@@ -7,21 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.bookkeepertier2;
+package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.SegmentHandle;
 
-public class BookkeeperSegmentHandle implements SegmentHandle {
+class BookKeeperSegmentHandle implements SegmentHandle {
     private final String segmentName;
     private final boolean isReadOnly;
 
     /**
-     * Creates a new instance of FileSystem segment handle.
+     * Creates a new instance of BookKeeper segment handle.
      * @param streamSegmentName Name of the segment.
-     * @param isReadOnly  Whether the segment is read only or not.
+     * @param isReadOnly  Whether the segment is read-only or not.
      */
-    public BookkeeperSegmentHandle(String streamSegmentName, boolean isReadOnly) {
+    public BookKeeperSegmentHandle(String streamSegmentName, boolean isReadOnly) {
         this.segmentName = Preconditions.checkNotNull(streamSegmentName, "segmentName");
         this.isReadOnly = isReadOnly;
     }
@@ -37,10 +37,10 @@ public class BookkeeperSegmentHandle implements SegmentHandle {
     }
 
     public static SegmentHandle readHandle(String streamSegmentName) {
-        return new BookkeeperSegmentHandle(streamSegmentName, true);
+        return new BookKeeperSegmentHandle(streamSegmentName, true);
     }
 
     public static SegmentHandle writeHandle(String streamSegmentName) {
-        return new BookkeeperSegmentHandle(streamSegmentName, false);
+        return new BookKeeperSegmentHandle(streamSegmentName, false);
     }
 }

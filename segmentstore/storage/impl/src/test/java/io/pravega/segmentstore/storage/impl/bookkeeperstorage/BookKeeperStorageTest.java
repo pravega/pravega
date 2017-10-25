@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.bookkeepertier2;
+package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -28,14 +28,14 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class BookkeeperStorageTest extends StorageTestBase {
+public class BookKeeperStorageTest extends StorageTestBase {
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
 
     private static final AtomicReference<BookKeeperServiceRunner> BK_SERVICE = new AtomicReference<>();
     private static final AtomicInteger BK_PORT = new AtomicInteger();
     private static final AtomicReference<CuratorFramework> ZK_CLIENT = new AtomicReference<>();
-    private static final AtomicReference<BookkeeperStorageConfig> CONFIG = new AtomicReference<>();
+    private static final AtomicReference<BookKeeperStorageConfig> CONFIG = new AtomicReference<>();
 
     @BeforeClass
     public static void setUp() throws Exception {
@@ -65,15 +65,15 @@ public class BookkeeperStorageTest extends StorageTestBase {
         ZK_CLIENT.get().start();
 
         // Setup config to use the port and namespace.
-        CONFIG.set(BookkeeperStorageConfig
+        CONFIG.set(BookKeeperStorageConfig
                 .builder()
-                .with(BookkeeperStorageConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
-                .with(BookkeeperStorageConfig.ZK_METADATA_PATH, namespace)
-                .with(BookkeeperStorageConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
-                .with(BookkeeperStorageConfig.BK_ENSEMBLE_SIZE, 1)
-                .with(BookkeeperStorageConfig.BK_WRITE_QUORUM_SIZE, 1)
-                .with(BookkeeperStorageConfig.BK_ACK_QUORUM_SIZE, 1)
-                .with(BookkeeperStorageConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
+                .with(BookKeeperStorageConfig.ZK_ADDRESS, "localhost:" + BK_PORT.get())
+                .with(BookKeeperStorageConfig.ZK_METADATA_PATH, namespace)
+                .with(BookKeeperStorageConfig.BK_LEDGER_PATH, "/pravega/bookkeeper/ledgers")
+                .with(BookKeeperStorageConfig.BK_ENSEMBLE_SIZE, 1)
+                .with(BookKeeperStorageConfig.BK_WRITE_QUORUM_SIZE, 1)
+                .with(BookKeeperStorageConfig.BK_ACK_QUORUM_SIZE, 1)
+                .with(BookKeeperStorageConfig.BK_WRITE_TIMEOUT, 1000) // This is the minimum we can set anyway.
                 .build());
     }
 
@@ -155,15 +155,15 @@ public class BookkeeperStorageTest extends StorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return new BookkeeperStorage(CONFIG.get(), ZK_CLIENT.get(), executorService());
+        return new BookKeeperStorage(CONFIG.get(), ZK_CLIENT.get(), executorService());
     }
 
     @Override
     protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
         if (readOnly) {
-            return BookkeeperSegmentHandle.readHandle(segmentName);
+            return BookKeeperSegmentHandle.readHandle(segmentName);
         } else {
-            return BookkeeperSegmentHandle.writeHandle(segmentName);
+            return BookKeeperSegmentHandle.writeHandle(segmentName);
         }
     }
 }

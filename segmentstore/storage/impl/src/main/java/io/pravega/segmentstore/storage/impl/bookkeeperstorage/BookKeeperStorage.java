@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.impl.bookkeepertier2;
+package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
@@ -29,17 +29,17 @@ import org.apache.curator.framework.CuratorFramework;
  *
  * Each segment is represented by a log built on top of bookkeeper ledgers. This implementation follows some of recommendations
  * here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
- * This log is called a StorageLedger. A storage ledger consists of a number of ledgers and metadata for the segment and the ledgers.
+ * This log is called a StorageLog. A storage ledger consists of a number of ledgers and metadata for the segment and the ledgers.
  * The metadata is stored in ZK. It is accessed using the async curator framework.
  *
  * Fencing: The recommended implementation of fencing as described in the URL ensures that the latest caller owns the log.
- * In case of Storage implementation the requirement is different. A Storage with higher epoc is supposed to own the log,
+ * In case of Storage implementation the requirement is different. A Storage with higher epoch is supposed to own the log,
  * irrespective of the time the fencing happens. Because of this a CAS operation in ZK for a storage ledger decides ownership.
  *
  * Here is the algorithm that describes ownership change through the openWrite() call:
  *
- * 1. Check the current epoc for the given StorageLedger.
- * 2. If the current epoc is larger, set it to the new epoc, other wise throw StorageNotPrimary error.
+ * 1. Check the current epoch for the given StorageLog.
+ * 2. If the current epoch is larger, set it to the new epoc, otherwise throw StorageNotPrimaryException.
  * 3. Try and fence all the ledgers. The last ledger may be empty, in this case delete the ledger.
  * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK.
  *
@@ -51,12 +51,11 @@ import org.apache.curator.framework.CuratorFramework;
  * 3. Update all the metadata about ledgers in one transaction using transaction() API for curator.
  */
 @Slf4j
-public class BookkeeperStorage implements Storage {
-    private static final int NUM_RETRIES = 3;
+class BookKeeperStorage implements Storage {
 
     //region members
 
-    private final BookkeeperStorageConfig config;
+    private final BookKeeperStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
     private final StorageLedgerManager manager;
@@ -67,15 +66,16 @@ public class BookkeeperStorage implements Storage {
     //region constructor
 
     /**
-     * Creates a new instance of the BookkeeperStorage class.
+     * Creates a new instance of the BookKeeperStorage class.
      *
      * @param config   The configuration to use.
      * @param zkClient Curator framework to interact with ZK.
      * @param executor The executor to use for running async operations.
      */
-    public BookkeeperStorage(BookkeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
+    public BookKeeperStorage(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(zkClient, "zkClient");
         this.closed = new AtomicBoolean(false);
         this.config = config;
         this.zkClient = zkClient;
@@ -103,13 +103,12 @@ public class BookkeeperStorage implements Storage {
 
         return manager.exists(streamSegmentName, null).thenApply(exist -> {
             if (exist) {
-                return BookkeeperSegmentHandle.readHandle(streamSegmentName);
+                return BookKeeperSegmentHandle.readHandle(streamSegmentName);
             } else {
                 throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
             }
-        }).exceptionally((Throwable exception) -> {
-            throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
-        }).thenApply( handle -> {
+        })
+        .thenApply( handle -> {
             LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
             return handle;
         });
@@ -155,8 +154,7 @@ public class BookkeeperStorage implements Storage {
                      .thenApply(bool -> {
                          LoggerHelpers.traceLeave(log, "exists", traceId, streamSegmentName);
                          return bool;
-                     })
-                     .exceptionally(t -> false);
+                     });
     }
 
     @Override
@@ -164,7 +162,7 @@ public class BookkeeperStorage implements Storage {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         return manager.fence(streamSegmentName)
                       .thenApply(u -> {
-                          SegmentHandle retVal = BookkeeperSegmentHandle.writeHandle(streamSegmentName);
+                          SegmentHandle retVal = BookKeeperSegmentHandle.writeHandle(streamSegmentName);
                           LoggerHelpers.traceLeave(log, "openWrite", traceId, streamSegmentName);
                           return retVal;
                       });
@@ -188,6 +186,7 @@ public class BookkeeperStorage implements Storage {
                                          int length,
                                          Duration timeout) {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
+        Preconditions.checkArgument(handle instanceof BookKeeperSegmentHandle, "handle must be instance of bookkeeper segment handle.");
         return manager.write(handle.getSegmentName(), offset, data, length);
     }
 
