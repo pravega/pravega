@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.store;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
@@ -286,7 +286,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         @Override
         public void close() {
             if (!this.closed.getAndSet(true)) {
-                Futures.await(ServiceHelpers.stopAsync(this, executorService()));
+                Futures.await(Services.stopAsync(this, executorService()));
                 ReusableLatch signal = this.closeReleaseSignal;
                 if (signal != null) {
                     // Wait until we are told to complete.

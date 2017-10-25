@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Services;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -70,7 +70,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            Futures.await(ServiceHelpers.stopAsync(this, this.executorService));
+            Futures.await(Services.stopAsync(this, this.executorService));
             this.closed.set(true);
         }
     }

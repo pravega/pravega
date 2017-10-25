@@ -60,7 +60,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
     @Override
     public void close() {
         if (!this.closed.get()) {
-            Futures.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(Services.stopAsync(this, this.executor));
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }

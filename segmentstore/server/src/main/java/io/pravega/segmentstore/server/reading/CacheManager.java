@@ -14,7 +14,7 @@ import com.google.common.util.concurrent.AbstractScheduledService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +84,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (state() == State.RUNNING) {
-                Futures.await(ServiceHelpers.stopAsync(this, this.executorService));
+                Futures.await(Services.stopAsync(this, this.executorService));
             }
 
             synchronized (this.clients) {
