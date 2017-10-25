@@ -147,10 +147,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     public CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut) {
         return Futures.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
                 new SimpleEntry<>(segment.keyStart, segment.keyEnd)))
-                                                 .collect(Collectors.toList()))
-                      .thenAccept(TableHelper::validateStreamCut)
-                      .thenCompose(valid -> getTruncationData(true)
-                        .thenCompose(truncationData -> {
+                .collect(Collectors.toList()))
+                .thenAccept(TableHelper::validateStreamCut)
+                .thenCompose(valid -> getTruncationData(true)
+                .thenCompose(truncationData -> {
                             Preconditions.checkNotNull(truncationData);
                             StreamProperty<StreamTruncationRecord> previous = SerializationUtils.deserialize(truncationData.getData());
                             Exceptions.checkArgument(!previous.isUpdating(), "TruncationRecord", "Truncation record conflict");
@@ -589,7 +589,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<Void> clearMarkers(final List<Integer> segments) {
         return Futures.toVoid(Futures.allOfWithResults(segments.stream().parallel()
-                                                               .map(this::removeColdMarker).collect(Collectors.toList())));
+                .map(this::removeColdMarker).collect(Collectors.toList())));
     }
 
     /**
@@ -917,7 +917,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     private CompletableFuture<List<Segment>> getSegments(final List<Integer> segments) {
         return Futures.allOfWithResults(segments.stream().map(this::getSegment)
-                                                .collect(Collectors.toList()));
+                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Void> createNewEpoch(int epoch) {

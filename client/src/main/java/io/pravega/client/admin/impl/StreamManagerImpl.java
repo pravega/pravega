@@ -51,11 +51,11 @@ public class StreamManagerImpl implements StreamManager {
         log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
         return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .retentionPolicy(config.getRetentionPolicy())
-                                                                                         .build()),
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .retentionPolicy(config.getRetentionPolicy())
+                        .build()),
                 RuntimeException::new);
     }
 
@@ -63,11 +63,11 @@ public class StreamManagerImpl implements StreamManager {
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .retentionPolicy(config.getRetentionPolicy())
-                                                                                         .build()),
+                        .scope(scopeName)
+                        .streamName(streamName)
+                        .scalingPolicy(config.getScalingPolicy())
+                        .retentionPolicy(config.getRetentionPolicy())
+                        .build()),
                 RuntimeException::new);
     }
 

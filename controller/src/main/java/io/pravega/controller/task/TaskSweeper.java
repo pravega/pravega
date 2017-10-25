@@ -80,7 +80,7 @@ public class TaskSweeper implements FailoverSweeper {
                     registeredHosts.removeAll(withRetries(runningProcesses, UNCONDITIONAL_PREDICATE, Integer.MAX_VALUE));
                     log.info("Failed hosts {} have orphaned tasks", registeredHosts);
                     return Futures.allOf(registeredHosts.stream()
-                                                        .map(this::handleFailedProcess).collect(Collectors.toList()));
+                            .map(this::handleFailedProcess).collect(Collectors.toList()));
                 }, executor);
     }
 
@@ -99,7 +99,7 @@ public class TaskSweeper implements FailoverSweeper {
         return withRetriesAsync(() -> Futures.doWhileLoop(
                 () -> executeHostTask(oldHostId),
                 x -> x != null, executor)
-                                             .whenCompleteAsync((result, ex) ->
+                     .whenCompleteAsync((result, ex) ->
                         log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
                 RETRYABLE_PREDICATE.and(e -> !(Exceptions.unwrap(e) instanceof LockFailedException)),
                 Integer.MAX_VALUE, executor);

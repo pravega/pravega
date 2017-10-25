@@ -604,9 +604,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
-                                     .parallel()
-                                     .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
-                                     .collect(Collectors.toList()));
+                .parallel()
+                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
