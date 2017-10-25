@@ -85,6 +85,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
+        log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
+        processResult(controllerService.truncateStream(request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
+    }
+
+    @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("sealStream called for stream {}/{}.", request.getScope(), request.getStream());
         processResult(controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);

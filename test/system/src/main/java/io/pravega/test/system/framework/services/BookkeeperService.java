@@ -11,15 +11,6 @@ package io.pravega.test.system.framework.services;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.model.v2.App;
-import mesosphere.marathon.client.model.v2.Container;
-import mesosphere.marathon.client.model.v2.Docker;
-import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.MarathonException;
-
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +21,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.model.v2.App;
+import mesosphere.marathon.client.model.v2.Container;
+import mesosphere.marathon.client.model.v2.Docker;
+import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.model.v2.Parameter;
+import mesosphere.marathon.client.model.v2.Volume;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -64,7 +63,7 @@ public class BookkeeperService extends MarathonBasedService {
         try {
             marathonClient.createApp(createBookieApp());
             if (wait) {
-                waitUntilServiceRunning().get(10, TimeUnit.MINUTES);
+                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
@@ -110,7 +109,7 @@ public class BookkeeperService extends MarathonBasedService {
         Parameter element1 = new Parameter("env", "DLOG_EXTRA_OPTS=-Xms512m");
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
-        app.setPortDefinitions(Arrays.asList(createPortDefinition(BK_PORT)));
+        app.setPorts(Arrays.asList(BK_PORT));
         app.setRequirePorts(true);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;

@@ -132,7 +132,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void hello(Hello hello) {
         log.info("Received hello from connection: {}", connection);
-        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
     }
 
     /**
@@ -302,9 +302,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
-            connection.send(new SegmentIsSealed(requestId, segment));
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
             log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             WrongHostException wrongHost = (WrongHostException) u;

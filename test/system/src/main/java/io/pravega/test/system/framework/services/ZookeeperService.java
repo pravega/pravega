@@ -9,22 +9,21 @@
  */
 package io.pravega.test.system.framework.services;
 
-import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
-
+import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.Utils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
-import io.pravega.test.system.framework.TestFrameworkException;
-import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
 import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
+import mesosphere.marathon.client.MarathonException;
+
+import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {

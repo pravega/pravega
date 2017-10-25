@@ -94,7 +94,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(streamConfig1).get();
+        stream.createConfigurationIfAbsent(StreamProperty.complete(streamConfig1)).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());

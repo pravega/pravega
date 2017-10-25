@@ -42,13 +42,13 @@ public class SegmentToContainerMapperTests {
      */
     @Test
     public void testUniformMapping() {
-        testUniformMapping(20, 10000, 0.10, (num) -> getSegmentName(num));
-        testUniformMapping(20, 10000, 0.10, (num) -> Integer.toString(num));
-        testUniformMapping(100, 100000, 0.10, (num) -> getSegmentName(num));
-        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toString(num));
-        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toBinaryString(num));
-        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toOctalString(num));
-        testUniformMapping(100, 100000, 0.10, (num) -> Integer.toHexString(num));
+        testUniformMapping(20, 10000, 0.10, num -> getSegmentName(num));
+        testUniformMapping(20, 10000, 0.10, num -> Integer.toString(num));
+        testUniformMapping(100, 100000, 0.10, num -> getSegmentName(num));
+        testUniformMapping(100, 100000, 0.10, num -> Integer.toString(num));
+        testUniformMapping(100, 100000, 0.10, num -> Integer.toBinaryString(num));
+        testUniformMapping(100, 100000, 0.10, num -> Integer.toOctalString(num));
+        testUniformMapping(100, 100000, 0.10, num -> Integer.toHexString(num));
     }
 
     private void testUniformMapping(int containerCount, int streamSegmentCount, double maxDeviation,

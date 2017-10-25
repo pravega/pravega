@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.common.util.ImmutableDate;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,6 +24,15 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * @throws IllegalArgumentException If the value is invalid.
      */
     void setStorageLength(long value);
+
+    /**
+     * Sets the first offset available for reading for this StreamSegment. This essentially marks the Segment as truncated
+     * at this offset.
+     *
+     * @param value The new first available offset.
+     * @throws IllegalArgumentException If the value is invalid.
+     */
+    void setStartOffset(long value);
 
     /**
      * Sets the current Length for this StreamSegment.
