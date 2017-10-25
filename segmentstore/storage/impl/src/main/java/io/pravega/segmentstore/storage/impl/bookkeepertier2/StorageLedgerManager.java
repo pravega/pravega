@@ -461,6 +461,7 @@ public class StorageLedgerManager {
     private CompletableFuture<LedgerData> getORCreateLHForOffset(StorageLedger ledger, long offset) {
         return ledger.getLedgerDataForWriteAt(offset);
     }
+
     private CompletableFuture<Void> sealLedger(LedgerData lastLedgerData) {
         CompletableFuture<Void> future = new CompletableFuture<>();
         executor.execute(() -> {
