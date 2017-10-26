@@ -31,6 +31,8 @@ public class BookKeeperStorageConfig {
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
     public static final Property<String> BK_PASSWORD = Property.named("bkPass", "");
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
+    public static final Property<Integer> BK_READ_ENTRIES_IN_ONE_GO = Property.named("bkReadEntriesInOneGo", 10);
+
     public static final String COMPONENT_CODE = "bookkeeper";
 
     /**
@@ -87,6 +89,12 @@ public class BookKeeperStorageConfig {
     @Getter
     private final int bkWriteTimeoutMillis;
 
+    /**
+     *  Number of entries that are read in one call to BookKeeper.
+     */
+    @Getter
+    private final int bkReadEntriesInOneGo;
+
     private final byte[] bkPassword;
 
     /**
@@ -110,6 +118,7 @@ public class BookKeeperStorageConfig {
         }
         this.bkWriteTimeoutMillis = properties.getInt(BK_WRITE_TIMEOUT);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
+        this.bkReadEntriesInOneGo = properties.getInt(BK_READ_ENTRIES_IN_ONE_GO);
     }
 
     /**
@@ -119,6 +128,7 @@ public class BookKeeperStorageConfig {
         return Arrays.copyOf(this.bkPassword, this.bkPassword.length);
     }
 
+
     /**
      * Creates a new ConfigBuilder that can be used to create instances of this class.
      *
@@ -127,4 +137,6 @@ public class BookKeeperStorageConfig {
     public static ConfigBuilder<BookKeeperStorageConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, BookKeeperStorageConfig::new);
     }
+
+
 }

@@ -35,6 +35,11 @@ public class LedgerData {
     private boolean isReadonly;
     private long lastAddConfirmed = -1;
 
+    @GuardedBy("$lock")
+    private long lastReadOffset = 0;
+    @GuardedBy("$lock")
+    private long lastReadEntry = 0;
+
     public byte[] serialize() {
         int size = Long.SIZE + Long.SIZE;
 
@@ -46,5 +51,17 @@ public class LedgerData {
 
     public synchronized void increaseLengthBy(int size) {
         this.length += size;
+    }
+
+    public synchronized long getNearestEntryIDToOffset( long offset) {
+        if (this.lastReadOffset < offset) {
+            return lastReadEntry;
+        }
+        return 0;
+    }
+
+    public synchronized void saveLastReadOffset(Long offset, long entryId) {
+        this.lastReadOffset = offset;
+        this.lastReadEntry = entryId;
     }
 }

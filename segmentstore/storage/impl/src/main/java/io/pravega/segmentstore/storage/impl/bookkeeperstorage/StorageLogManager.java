@@ -568,17 +568,13 @@ class StorageLogManager {
     }
 
     private CompletableFuture<Integer> readDataFromLedger(LedgerData ledgerData, long offset, byte[] buffer, int bufferOffset, int length) {
-        /* TODO: This is brute force. Put some hurisitcs. Some possibilities:
-         * 1. Store already read data for re-reading
-         * 2. Store written data in last-accessed format.
-         * 3. Store the current read pointer. Reads will always be sequential
-        **/
+
         final AtomicReference<Long> currentOffset = new AtomicReference<>(offset - ledgerData.getStartOffset());
         final AtomicReference<Integer> lengthRemaining = new AtomicReference<>(length);
         final AtomicReference<Integer> currentBufferOffset = new AtomicReference<>(bufferOffset);
         final AtomicReference<Boolean> readingDone = new AtomicReference<>(false);
-        final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) 0);
-        int entriesInOneRound = 70;
+        final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) ledgerData.getNearestEntryIDToOffset(currentOffset.get()));
+        int entriesInOneRound = config.getBkReadEntriesInOneGo();
 
         return FutureHelpers.loop(() -> !readingDone.get(),
                 () -> {
@@ -621,6 +617,7 @@ class StorageLogManager {
                                             }
                                             lengthRemaining.set(lengthRemaining.get() - dataRead);
                                             if (lengthRemaining.get() == 0) {
+                                                ledgerData.saveLastReadOffset(offset + length - ledgerData.getStartOffset(), entry.getEntryId());
                                                 future.complete(null);
                                                 readingDone.set(true);
                                                 return;
