@@ -32,10 +32,7 @@ import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -98,6 +95,7 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
         final AtomicBoolean txnWrite = new AtomicBoolean(false);
+        final Map<UUID, Integer> txnMap = new HashMap<>();
     }
 
     void performFailoverTest() {
@@ -235,7 +233,36 @@ abstract class AbstractFailoverTests {
 
     void waitForTxnsToComplete() {
         log.info("Wait for txns to complete");
+        int txnCommittedCount = 0;
+        int txnCommittedExceptionallyCount = 0;
+        int txnNotCommittedCount = 0;
+        int size = testState.txnStatusFutureList.size();
+        log.info("total number of transaction futures to wait upon to complete {}", size);
         if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
+            for( int i =0; i < size; i++) {
+                if (testState.txnStatusFutureList.get(i).isDone()) {
+                    txnCommittedCount++;
+                }
+                else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
+                    txnCommittedExceptionallyCount++;
+                }
+                else {
+                    txnNotCommittedCount++;
+                }
+            }
+            log.info("total number of transactions {}", testState.txnMap.size());
+            for(int k =0; k< testState.txnMap.size(); k++) {
+                if(testState.txnMap.get(k) == 0) {
+                    log.info("txn with id  {} did not get committed", testState.txnMap.get(k));
+                }
+                else if(testState.txnMap.get(k) == 1){
+                    log.info("txn with id {} , neither committed not aborted", testState.txnMap.get(k));
+                }
+            }
+
+            log.info("Txn committed count {}", txnCommittedCount);
+            log.info("Txn committed exceptionally count {}", txnCommittedExceptionallyCount);
+            log.info("Txn not committed {}", txnNotCommittedCount);
             log.error("Transaction futures did not complete with exceptions");
         }
         // check for exceptions during transaction commits
@@ -254,6 +281,8 @@ abstract class AbstractFailoverTests {
 
                 try {
                     transaction = writer.beginTxn();
+                    log.info(" Transaction with id  {} created at time {}", transaction.getTxnId().toString(), System.currentTimeMillis());
+                    testState.txnMap.put(transaction.getTxnId(), 1);
 
                     for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
                         long value = testState.eventData.incrementAndGet();
@@ -286,14 +315,24 @@ abstract class AbstractFailoverTests {
     CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
                                                    final AtomicLong eventWriteCount) {
 
+
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
             Transaction.Status status = txn.checkStatus();
             log.debug("Txn id {} status is {}", txn.getTxnId(), status);
             if (status.equals(Transaction.Status.COMMITTED)) {
+                testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                            y = y + 1;
+                return y;
+            });
+                log.info(" Transaction with id  {} committed at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
                 eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
                 log.info("Event write count: {}", eventWriteCount.get());
             } else if (status.equals(Transaction.Status.ABORTED)) {
-                log.debug("Transaction with id: {} aborted", txn.getTxnId());
+                testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                    y = y - 1;
+                    return y;
+                });
+                log.info(" Transaction with id  {} aborted at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
             } else {
                 throw new TxnNotCompleteException();
             }
