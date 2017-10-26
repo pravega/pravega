@@ -225,4 +225,21 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         checkNotNull(executor, "executor");
         return this.notifierFactory.getEndOfDataNotifier(executor);
     }
+
+    @Override
+    public Map<Stream, StreamCut> getStreamCuts() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
+        ReaderGroupState state = synchronizer.getState();
+        Map<Stream, Map<Segment, Long>> positions = state.getPositions();
+        HashMap<Stream, StreamCut> cuts = new HashMap<>();
+
+        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
+            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            cuts.put(streamPosition.getKey(), position);
+        }
+
+        return cuts;
+    }
 }
