@@ -32,7 +32,14 @@ import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -232,39 +239,51 @@ abstract class AbstractFailoverTests {
     }
 
     void waitForTxnsToComplete() {
-        log.info("Wait for txns to complete");
-        int txnCommittedCount = 0;
-        int txnCommittedExceptionallyCount = 0;
-        int txnNotCommittedCount = 0;
-        int size = testState.txnStatusFutureList.size();
-        log.info("total number of transaction futures to wait upon to complete {}", size);
-        if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
-            for( int i =0; i < size; i++) {
-                if (testState.txnStatusFutureList.get(i).isDone()) {
-                    txnCommittedCount++;
-                }
-                else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
-                    txnCommittedExceptionallyCount++;
-                }
-                else {
-                    txnNotCommittedCount++;
-                }
-            }
-            log.info("total number of transactions {}", testState.txnMap.size());
-            for(int k =0; k< testState.txnMap.size(); k++) {
-                if(testState.txnMap.get(k) == 0) {
-                    log.info("txn with id  {} did not get committed", testState.txnMap.get(k));
-                }
-                else if(testState.txnMap.get(k) == 1){
-                    log.info("txn with id {} , neither committed not aborted", testState.txnMap.get(k));
-                }
-            }
 
-            log.info("Txn committed count {}", txnCommittedCount);
-            log.info("Txn committed exceptionally count {}", txnCommittedExceptionallyCount);
-            log.info("Txn not committed {}", txnNotCommittedCount);
+        log.info("Wait for txns to complete");
+        if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
             log.error("Transaction futures did not complete with exceptions");
         }
+        int txnFutureCompletedCount = 0;
+        int txnFutureCompletedExceptionallyCount = 0;
+        int txnFutureNotCompletedCount = 0;
+        int size = testState.txnStatusFutureList.size();
+        log.info("total number of transaction futures to wait upon to complete {}", size);
+        for (int i = 0; i < size; i++) {
+            if (testState.txnStatusFutureList.get(i).isDone()) {
+                txnFutureCompletedCount++;
+            } else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
+                txnFutureCompletedExceptionallyCount++;
+            } else {
+                txnFutureNotCompletedCount++;
+            }
+        }
+        log.info("Txn futures completed count {}", txnFutureCompletedCount);
+        log.info("Txn futures completed exceptionally count {}", txnFutureCompletedExceptionallyCount);
+        log.info("Txn futures not completed count {}", txnFutureNotCompletedCount);
+
+        int committedTxns = 0;
+        int notCommittedTxns = 0;
+        int neitheCommittedNorAbortedTxns = 0;
+        log.info("total number of transactions {}", testState.txnMap.size());
+        Set<UUID> txnSet = testState.txnMap.keySet();
+       for (Map.Entry mapEntry: testState.txnMap.entrySet()) {
+            String keyValue = (String) mapEntry.getKey();
+            int value = (Integer) mapEntry.getValue();
+           if (value == 0) {
+                notCommittedTxns++;
+                log.info("txn with id  {} did not get committed", keyValue);
+            } else if (value == 1) {
+                neitheCommittedNorAbortedTxns++;
+                log.info("txn with id {} , neither committed not aborted", keyValue);
+            } else {
+                committedTxns++;
+            }
+        }
+        log.info("txn committed count {}", committedTxns);
+        log.info("txn not committed count {}", notCommittedTxns);
+        log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns);
+
         // check for exceptions during transaction commits
         if (testState.getTxnWriteException.get() != null) {
             log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
@@ -314,7 +333,6 @@ abstract class AbstractFailoverTests {
 
     CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
                                                    final AtomicLong eventWriteCount) {
-
 
         return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
             Transaction.Status status = txn.checkStatus();
