@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.retryable.RetryableException;
@@ -91,13 +91,13 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
 
         return streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
                 .thenCompose(segments ->
-                        FutureHelpers.allOfWithResults(
+                        Futures.allOfWithResults(
                                 segments.stream()
                                         .parallel()
                                         .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
-                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))
+                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),

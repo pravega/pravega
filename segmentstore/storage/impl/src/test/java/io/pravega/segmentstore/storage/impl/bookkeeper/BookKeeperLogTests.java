@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
@@ -238,7 +238,7 @@ public class BookKeeperLogTests extends DurableDataLogTestBase {
             }
 
             // Wait for all writes to complete, then reassemble the data in the order set by LogAddress.
-            val addresses = FutureHelpers.allOfWithResults(futures).join();
+            val addresses = Futures.allOfWithResults(futures).join();
             for (int i = 0; i < dataList.size(); i++) {
                 writeData.put(addresses.get(i), dataList.get(i));
             }

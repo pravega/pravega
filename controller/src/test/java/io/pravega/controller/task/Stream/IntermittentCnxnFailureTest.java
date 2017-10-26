@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.test.common.TestingServerStarter;
@@ -125,13 +125,13 @@ public class IntermittentCnxnFailureTest {
                     .retryingOn(StoreException.DataNotFoundException.class)
                     .throwingOn(IllegalStateException.class)
                     .run(() -> {
-                        FutureHelpers.getAndHandleExceptions(streamStore.getConfiguration(SCOPE, stream1, null, executor),
+                        Futures.getAndHandleExceptions(streamStore.getConfiguration(SCOPE, stream1, null, executor),
                                 CompletionException::new);
                         return null;
                     });
         } catch (CompletionException ex) {
-            Assert.assertEquals(ExceptionHelpers.getRealException(ex).getMessage(), "stream state unknown");
-            assertEquals(ExceptionHelpers.getRealException(ex).getClass(), IllegalStateException.class);
+            Assert.assertEquals(Exceptions.unwrap(ex).getMessage(), "stream state unknown");
+            assertEquals(Exceptions.unwrap(ex).getClass(), IllegalStateException.class);
         }
 
         // Mock createSegment to return success.
@@ -143,7 +143,7 @@ public class IntermittentCnxnFailureTest {
                 .retryingOn(IllegalStateException.class)
                 .throwingOn(RuntimeException.class)
                 .run(() -> {
-                    FutureHelpers.getAndHandleExceptions(
+                    Futures.getAndHandleExceptions(
                             streamStore.getConfiguration(SCOPE, stream1, null, executor)
                                     .thenAccept(configuration -> result.set(configuration.equals(configuration1))),
                             CompletionException::new);

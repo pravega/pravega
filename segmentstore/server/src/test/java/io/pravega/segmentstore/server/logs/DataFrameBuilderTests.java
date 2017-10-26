@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.function.Callbacks;
@@ -161,9 +160,9 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             attemptCount.decrementAndGet();
 
             // Check that we actually did want an exception to happen.
-            Throwable expectedError = ExceptionHelpers.getRealException(asyncInjector.getLastCycleException());
+            Throwable expectedError = Exceptions.unwrap(asyncInjector.getLastCycleException());
             Assert.assertNotNull("An error happened but none was expected: " + ex, expectedError);
-            Throwable actualError = ExceptionHelpers.getRealException(ex);
+            Throwable actualError = Exceptions.unwrap(ex);
             if (!(ex instanceof ObjectClosedException)) {
                 // First failure.
                 Assert.assertEquals("Unexpected error occurred upon commit.", expectedError, actualError);

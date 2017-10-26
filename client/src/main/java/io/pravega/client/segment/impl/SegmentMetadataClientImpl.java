@@ -15,7 +15,7 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -127,7 +127,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             c = connection;
             connection = null;
         }
-        if (c != null && FutureHelpers.isSuccessful(c)) {
+        if (c != null && Futures.isSuccessful(c)) {
             try {
                 c.getNow(null).close();
             } catch (Exception e) {
@@ -238,8 +238,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(getSegmentInfo())
-                                                     .getSegmentLength();
+                                 return Futures.getThrowingException(getSegmentInfo())
+                                               .getSegmentLength();
                              });
     }
 
@@ -249,8 +249,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(getPropertyAsync(attribute.getValue()))
-                                                     .getValue();
+                                 return Futures.getThrowingException(getPropertyAsync(attribute.getValue()))
+                                               .getValue();
                              });
     }
 
@@ -260,10 +260,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                              .throwingOn(InvalidStreamException.class)
                              .run(() -> {
-                                 return FutureHelpers.getThrowingException(updatePropertyAsync(attribute.getValue(),
+                                 return Futures.getThrowingException(updatePropertyAsync(attribute.getValue(),
                                                                                                  expectedValue,
                                                                                                  newValue))
-                                                     .isSuccess();
+                                               .isSuccess();
                              });
     }
 

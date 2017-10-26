@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -109,7 +109,7 @@ public class ControllerStreamMetadataTest {
         assertTrue(controller.deleteScope(SCOPE).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        assertFalse(FutureHelpers.await(controller.createStream(streamConfiguration)));
+        assertFalse(Futures.await(controller.createStream(streamConfiguration)));
 
         // Again create the scope.
         assertTrue(controller.createScope(SCOPE).join());
@@ -118,7 +118,7 @@ public class ControllerStreamMetadataTest {
         assertTrue(controller.createStream(streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
-        assertFalse(FutureHelpers.await(controller.deleteScope(SCOPE)));
+        assertFalse(Futures.await(controller.deleteScope(SCOPE)));
 
         // Try creating already existing scope.
         assertFalse(controller.createScope(SCOPE).join());
@@ -127,7 +127,7 @@ public class ControllerStreamMetadataTest {
         assertFalse(controller.createStream(streamConfiguration).join());
 
         // Delete test stream. This operation should fail, since it is not yet SEALED.
-        assertFalse(FutureHelpers.await(controller.deleteStream(SCOPE, STREAM)));
+        assertFalse(Futures.await(controller.deleteStream(SCOPE, STREAM)));
 
         // Seal the test stream. This operation should succeed.
         assertTrue(controller.sealStream(SCOPE, STREAM).join());
@@ -145,14 +145,14 @@ public class ControllerStreamMetadataTest {
         assertFalse(controller.deleteScope("non_existent_scope").join());
 
         // Create a scope with invalid characters. It should fail.
-        assertFalse(FutureHelpers.await(controller.createScope("abc/def")));
+        assertFalse(Futures.await(controller.createScope("abc/def")));
 
         // Try creating stream with invalid characters. It should fail.
-        assertFalse(FutureHelpers.await(controller.createStream(StreamConfiguration.builder()
-                                                                                   .scope(SCOPE)
-                                                                                   .streamName("abc/def")
-                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
-                                                                                   .build())));
+        assertFalse(Futures.await(controller.createStream(StreamConfiguration.builder()
+                                                                             .scope(SCOPE)
+                                                                             .streamName("abc/def")
+                                                                             .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                             .build())));
     }
 
     @Test(timeout = 10000)

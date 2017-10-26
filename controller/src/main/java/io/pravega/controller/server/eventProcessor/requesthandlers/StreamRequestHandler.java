@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
@@ -68,19 +68,19 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     @Override
     public boolean toPostpone(ControllerEvent event, long pickupTime, Throwable exception) {
         // We will let the event be postponed for 2 minutes before declaring failure.
-        return ExceptionHelpers.getRealException(exception) instanceof TaskExceptions.StartException &&
+        return Exceptions.unwrap(exception) instanceof TaskExceptions.StartException &&
                 (System.currentTimeMillis() - pickupTime) < Duration.ofMinutes(2).toMillis();
     }
 
     @Override
     public CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: abort txn received on Stream Request Multiplexer"));
     }
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: commit txn received on Stream Request Multiplexer"));
     }
 
@@ -122,7 +122,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
         withRetries(() -> task.execute(event), executor)
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(e);
+                        Throwable cause = Exceptions.unwrap(e);
                         if (writeBackPredicate.test(cause)) {
                             Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
                                     .runAsync(() -> task.writeBack(event), executor)

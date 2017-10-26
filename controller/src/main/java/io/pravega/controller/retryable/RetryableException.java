@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.retryable;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 
 /**
  * Retryable exception. Throw this when you want to let the caller know that this exception is transient and
@@ -19,7 +19,7 @@ import io.pravega.common.ExceptionHelpers;
 public interface RetryableException {
 
     static boolean isRetryable(Throwable e) {
-        Throwable cause = ExceptionHelpers.getRealException(e);
+        Throwable cause = Exceptions.unwrap(e);
 
         return cause instanceof RetryableException;
     }

@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -406,7 +406,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     private CompletableFuture<Void> createSizeTrigger(String segmentName, long minSize, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
+        CompletableFuture<Void> result = Futures.futureWithTimeout(timeout, segmentName, this.executor);
         result.whenComplete((r, ex) -> {
             synchronized (this.offsetTriggers) {
                 HashMap<Long, CompletableFuture<Void>> segmentTriggers = this.offsetTriggers.getOrDefault(segmentName, null);
@@ -424,7 +424,7 @@ public class InMemoryStorage implements TruncateableStorage, ListenableStorage {
     }
 
     private CompletableFuture<Void> createSealTrigger(String segmentName, Duration timeout) {
-        CompletableFuture<Void> result = FutureHelpers.futureWithTimeout(timeout, segmentName, this.executor);
+        CompletableFuture<Void> result = Futures.futureWithTimeout(timeout, segmentName, this.executor);
         result.whenComplete((r, ex) -> {
             synchronized (this.sealTriggers) {
                 this.sealTriggers.remove(segmentName);
