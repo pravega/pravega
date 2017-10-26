@@ -495,7 +495,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 // Try to read from the beginning.
                 actualLength = storage.read(readHandle, 0, actualData, 0, actualData.length, TIMEOUT).join();
             } catch (Exception ex) {
-                ex = (Exception) ExceptionHelpers.getRealException(ex);
+                ex = (Exception) Exceptions.unwrap(ex);
                 if (!(ex instanceof StreamSegmentTruncatedException) || metadataProps.getStartOffset() == 0) {
                     // We encountered an unexpected Exception, or a Truncated Segment which was not expected to be truncated.
                     throw ex;

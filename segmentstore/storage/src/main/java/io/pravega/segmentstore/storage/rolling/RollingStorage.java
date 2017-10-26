@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.storage.rolling;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ByteArraySegment;
@@ -266,7 +265,7 @@ public class RollingStorage implements SyncStorage {
         } catch (StreamSegmentExistsException ex) {
             throw ex;
         } catch (Exception ex) {
-            if (!ExceptionHelpers.mustRethrow(ex) && headerHandle != null) {
+            if (!Exceptions.mustRethrow(ex) && headerHandle != null) {
                 // If we encountered an error while writing the handle file, delete it before returning the exception,
                 // otherwise we'll leave behind an empty file.
                 try {
@@ -692,7 +691,7 @@ public class RollingStorage implements SyncStorage {
 
     @SneakyThrows(StreamingException.class)
     private void checkTruncatedSegment(StreamingException ex, RollingSegmentHandle handle, SubSegment subSegment) throws StreamSegmentTruncatedException {
-        if (ex != null && (ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException) || !subSegment.exists()) {
+        if (ex != null && (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) || !subSegment.exists()) {
             // We ran into a SubSegment that does not exist (either marked as such or due to a failed read).
             subSegment.markInexistent();
             String message = String.format("Offsets %d-%d have been deleted.", subSegment.getStartOffset(), subSegment.getLastOffset());

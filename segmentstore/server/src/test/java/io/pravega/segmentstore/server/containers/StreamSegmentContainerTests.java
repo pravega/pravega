@@ -1389,7 +1389,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         AtomicBoolean canContinue = new AtomicBoolean(true);
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
-        return FutureHelpers.loop(
+        return Futures.loop(
                 canContinue::get,
                 () -> context.storage.getStreamSegmentInfo(metadataProps.getName(), TIMEOUT)
                                      .thenCompose(storageProps -> {
@@ -1397,9 +1397,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                                      canContinue.set(false);
                                      return CompletableFuture.completedFuture(null);
                                  } else if (!timer.hasRemaining()) {
-                                     return FutureHelpers.failedFuture(new TimeoutException());
+                                     return Futures.failedFuture(new TimeoutException());
                                  } else {
-                                     return FutureHelpers.delayedFuture(Duration.ofMillis(10), executorService());
+                                     return Futures.delayedFuture(Duration.ofMillis(10), executorService());
                                  }
                              }).thenRun(Runnables.doNothing()),
                 executorService());

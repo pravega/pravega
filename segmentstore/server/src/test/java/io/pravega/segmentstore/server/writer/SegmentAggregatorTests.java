@@ -1454,7 +1454,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
                 () -> context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
+                ex -> Exceptions.unwrap(ex) instanceof IntentionalException);
 
         context.storage.setTruncateInterceptor(null);
 
