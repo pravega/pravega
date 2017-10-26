@@ -14,7 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -93,6 +93,47 @@ public class SegmentHelper {
         return result;
     }
 
+    public CompletableFuture<Boolean> truncateSegment(final String scope,
+                                                    final String stream,
+                                                    final int segmentNumber,
+                                                    final long offset,
+                                                    final HostControllerStore hostControllerStore,
+                                                    final ConnectionFactory clientCF) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
+        final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
+                result.complete(true);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
+        };
+
+        WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(idGenerator.get(),
+                Segment.getScopedName(scope, stream, segmentNumber), offset);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
     public CompletableFuture<Boolean> deleteSegment(final String scope,
                                                     final String stream,
                                                     final int segmentNumber,
@@ -132,7 +173,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), 
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(),
                 Segment.getScopedName(scope, stream, segmentNumber));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
@@ -396,7 +437,7 @@ public class SegmentHelper {
                 }
             }
         }).exceptionally(e -> {
-            Throwable cause = ExceptionHelpers.getRealException(e);
+            Throwable cause = Exceptions.unwrap(e);
             if (cause instanceof WireCommandFailedException) {
                 resultFuture.completeExceptionally(cause);
             } else if (cause instanceof ConnectionFailedException) {

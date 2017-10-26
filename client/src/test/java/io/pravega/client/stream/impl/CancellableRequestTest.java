@@ -9,7 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,7 @@ public class CancellableRequestTest {
     public void testTermination() {
         CancellableRequest<Boolean> request = new CancellableRequest<>();
         request.start(() -> CompletableFuture.completedFuture(null), any -> true, executor);
-        assertTrue(FutureHelpers.await(request.getFuture()));
+        assertTrue(Futures.await(request.getFuture()));
     }
 
     @Test

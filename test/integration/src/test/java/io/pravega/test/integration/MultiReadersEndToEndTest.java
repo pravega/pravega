@@ -13,7 +13,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.integration.utils.IntegerSerializer;
 import io.pravega.test.integration.utils.SetupUtils;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -174,7 +174,7 @@ public class MultiReadersEndToEndTest {
         }
 
         // Wait until all readers are done.
-        futures.forEach(f -> FutureHelpers.getAndHandleExceptions(f, RuntimeException::new));
+        futures.forEach(f -> Futures.getAndHandleExceptions(f, RuntimeException::new));
         executorService.shutdownNow();
         return read;
     }

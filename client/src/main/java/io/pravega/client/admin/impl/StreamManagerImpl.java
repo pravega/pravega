@@ -10,13 +10,15 @@
 package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,7 +50,7 @@ public class StreamManagerImpl implements StreamManager {
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
-        return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
                         .scope(scopeName)
                         .streamName(streamName)
                         .scalingPolicy(config.getScalingPolicy())
@@ -60,7 +62,7 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
-        return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
+        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
                         .scope(scopeName)
                         .streamName(streamName)
                         .scalingPolicy(config.getScalingPolicy())
@@ -70,26 +72,35 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public boolean truncateStream(String scopeName, String streamName, StreamCut streamCut) {
+        Preconditions.checkNotNull(streamCut);
+
+        log.info("Truncating scope/stream: {}/{} with stream cut: {}", scopeName, streamName, streamCut);
+        return Futures.getAndHandleExceptions(controller.truncateStream(scopeName, streamName, streamCut),
+                RuntimeException::new);
+    }
+
+    @Override
     public boolean sealStream(String scopeName, String streamName) {
-        return FutureHelpers.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
     }
 
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
-        return FutureHelpers.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
     }
 
     @Override
     public boolean createScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
-        return FutureHelpers.getAndHandleExceptions(controller.createScope(scopeName),
+        return Futures.getAndHandleExceptions(controller.createScope(scopeName),
                 RuntimeException::new);
         
     }
 
     @Override
     public boolean deleteScope(String scopeName) {
-        return FutureHelpers.getAndHandleExceptions(controller.deleteScope(scopeName),
+        return Futures.getAndHandleExceptions(controller.deleteScope(scopeName),
                 RuntimeException::new);
     }
 

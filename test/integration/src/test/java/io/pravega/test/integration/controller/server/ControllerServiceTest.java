@@ -16,7 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -93,7 +93,7 @@ public class ControllerServiceTest {
         assertTrue(controller.deleteScope(scope).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        assertFalse(FutureHelpers.await(controller.createStream(streamConfiguration)));
+        assertFalse(Futures.await(controller.createStream(streamConfiguration)));
 
         // Again create the scope.
         assertTrue(controller.createScope(scope).join());
@@ -102,23 +102,23 @@ public class ControllerServiceTest {
         assertTrue(controller.createStream(streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
-        assertFalse(FutureHelpers.await(controller.deleteScope(scope)));
+        assertFalse(Futures.await(controller.deleteScope(scope)));
 
         // Delete a non-existent scope.
         assertFalse(controller.deleteScope("non_existent_scope").get());
 
         // Create a scope with invalid characters. It should fail.
-        assertFalse(FutureHelpers.await(controller.createScope("abc/def")));
+        assertFalse(Futures.await(controller.createScope("abc/def")));
 
         // Try creating already existing scope. 
         assertFalse(controller.createScope(scope).join());
 
         // Try creating stream with invalid characters. It should fail.
-        assertFalse(FutureHelpers.await(controller.createStream(StreamConfiguration.builder()
-                                                                                   .scope(scope)
-                                                                                   .streamName("abc/def")
-                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
-                                                                                   .build())));
+        assertFalse(Futures.await(controller.createStream(StreamConfiguration.builder()
+                                                                             .scope(scope)
+                                                                             .streamName("abc/def")
+                                                                             .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                             .build())));
 
         // Try creating already existing stream.
         assertFalse(controller.createStream(streamConfiguration).join());
@@ -252,11 +252,11 @@ public class ControllerServiceTest {
 
 
     private static void updateConfigOfNonExistantStream(Controller controller) {
-        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
-                                                               .scope("scope")
-                                                               .streamName("streamName")
-                                                               .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
-                                                               .build())));
+        assertFalse(Futures.await(controller.updateStream(StreamConfiguration.builder()
+                                                                             .scope("scope")
+                                                                             .streamName("streamName")
+                                                                             .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
+                                                                             .build())));
     }
 
     private static void updataMinSegmentes(Controller controller, final String scope,
@@ -297,11 +297,11 @@ public class ControllerServiceTest {
 
     private static void updateStreamName(Controller controller, final String scope,
                                          final ScalingPolicy scalingPolicy) {
-        assertFalse(FutureHelpers.await(controller.updateStream(StreamConfiguration.builder()
-                                                               .scope(scope)
-                                                               .streamName("stream4")
-                                                               .scalingPolicy(scalingPolicy)
-                                                               .build())));
+        assertFalse(Futures.await(controller.updateStream(StreamConfiguration.builder()
+                                                                             .scope(scope)
+                                                                             .streamName("stream4")
+                                                                             .scalingPolicy(scalingPolicy)
+                                                                             .build())));
     }
 
     private static void sealAStream(ControllerWrapper controllerWrapper, Controller controller,
@@ -332,7 +332,7 @@ public class ControllerServiceTest {
 
     private static void sealNonExistantStream(Controller controller,
                                               final String scopeSeal) {
-        assertFalse(FutureHelpers.await(controller.sealStream(scopeSeal, "nonExistentStream")));
+        assertFalse(Futures.await(controller.sealStream(scopeSeal, "nonExistentStream")));
     }
 
     private static void streamDuplicationNotAllowed(Controller controller, final StreamConfiguration config) throws InterruptedException,

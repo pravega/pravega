@@ -9,11 +9,11 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.StreamConfiguration;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -81,7 +81,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                         return x;
                     });
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
@@ -97,27 +97,27 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             scopes.get(scopeName).removeStreamFromScope(streamName);
             return super.deleteStream(scopeName, streamName, context, executor);
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
         }
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
-                                                          final String streamName,
-                                                          final StreamConfigWithVersion configuration,
-                                                          final OperationContext context,
-                                                          final Executor executor) {
+    public CompletableFuture<Void> startUpdateConfiguration(final String scopeName,
+                                                            final String streamName,
+                                                            final StreamConfiguration configuration,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
-                return FutureHelpers.
+                return Futures.
                         failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
-            return streams.get(scopeStreamName).updateConfiguration(configuration);
+            return streams.get(scopeStreamName).startUpdateConfiguration(configuration);
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
@@ -162,7 +162,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -187,7 +187,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> streams.stream().map(
                             stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 

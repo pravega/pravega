@@ -39,7 +39,7 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -169,8 +169,8 @@ public class ReadTest {
 
         SegmentInputStreamFactoryImpl segmentConsumerClient = new SegmentInputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
-                                       .getSegments().iterator().next();
+        Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new)
+                                 .getSegments().iterator().next();
 
         @Cleanup("close")
         SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());

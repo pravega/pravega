@@ -19,6 +19,7 @@ service ControllerService {
     rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
     rpc updateStream(StreamConfig) returns (UpdateStreamStatus);
+    rpc truncateStream(StreamCut) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
@@ -164,6 +165,12 @@ message StreamConfig {
     ScalingPolicy scalingPolicy = 2;
     RetentionPolicy retentionPolicy = 3;
 }
+
+message StreamCut {
+    StreamInfo streamInfo = 1;
+    map<int32, int64> cut = 2;
+}
+
 
 message SegmentId {
     StreamInfo streamInfo = 1;

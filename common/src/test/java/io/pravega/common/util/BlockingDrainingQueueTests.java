@@ -9,7 +9,7 @@
  */
 package io.pravega.common.util;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import java.util.Collection;
 import java.util.Queue;
@@ -59,7 +59,7 @@ public class BlockingDrainingQueueTests {
         for (int i = 0; i < ITEM_COUNT; i++) {
             queue.add(i);
             val takeResult = queue.take(MAX_READ_COUNT);
-            Assert.assertTrue("take() returned an incomplete Future when data is available.", FutureHelpers.isSuccessful(takeResult));
+            Assert.assertTrue("take() returned an incomplete Future when data is available.", Futures.isSuccessful(takeResult));
             val entries = takeResult.join();
             Assert.assertEquals("Unexpected number of items polled.", 1, entries.size());
             Assert.assertEquals("Unexpected value polled from queue.", i, (int) entries.peek());
@@ -101,7 +101,7 @@ public class BlockingDrainingQueueTests {
 
         for (int i = 0; i < ITEM_COUNT; i += MAX_READ_COUNT) {
             val takeResult = queue.take(MAX_READ_COUNT);
-            Assert.assertTrue("take() returned an incomplete Future when data is available.", FutureHelpers.isSuccessful(takeResult));
+            Assert.assertTrue("take() returned an incomplete Future when data is available.", Futures.isSuccessful(takeResult));
             val entries = takeResult.join();
 
             int expectedCount = Math.min(MAX_READ_COUNT, ITEM_COUNT - i);
@@ -146,7 +146,7 @@ public class BlockingDrainingQueueTests {
         takeResult.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         // Verify result.
-        Assert.assertTrue("Queue did not unblock after adding a value.", FutureHelpers.isSuccessful(takeResult));
+        Assert.assertTrue("Queue did not unblock after adding a value.", Futures.isSuccessful(takeResult));
         Queue<Integer> result = takeResult.join();
         Assert.assertEquals("Unexpected number of items polled.", 1, result.size());
         Assert.assertEquals("Unexpected value polled from queue.", valueToQueue, (int) result.peek());

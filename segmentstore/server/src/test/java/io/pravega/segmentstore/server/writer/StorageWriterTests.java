@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -173,7 +173,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 () -> ServiceListeners.awaitShutdown(context.writer, TIMEOUT, true),
                 ex -> ex instanceof IllegalStateException);
 
-        Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof DataCorruptionException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter: " + context.writer.failureCause(), Exceptions.unwrap(context.writer.failureCause()) instanceof DataCorruptionException);
     }
 
     /**
@@ -253,7 +253,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalStateException);
 
         ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
-        Assert.assertTrue("Unexpected failure cause for StorageWriter.", ExceptionHelpers.getRealException(context.writer.failureCause()) instanceof ReconciliationFailureException);
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.", Exceptions.unwrap(context.writer.failureCause()) instanceof ReconciliationFailureException);
     }
 
     /**

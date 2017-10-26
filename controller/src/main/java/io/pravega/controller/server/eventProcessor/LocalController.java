@@ -24,7 +24,7 @@ import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -129,6 +129,29 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
+        throw new NotImplementedException("truncation using StreamCut object not supported in local controller");
+    }
+
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+        return this.controller.truncateStream(scope, stream, streamCut).thenApply(x -> {
+            switch (x.getStatus()) {
+            case FAILURE:
+                throw new ControllerFailureException("Failed to truncate stream: " + stream);
+            case SCOPE_NOT_FOUND:
+                throw new IllegalArgumentException("Scope does not exist: " + scope);
+            case STREAM_NOT_FOUND:
+                throw new IllegalArgumentException("Stream does not exist: " + stream);
+            case SUCCESS:
+                return true;
+            default:
+                throw new ControllerFailureException("Unknown return status truncating stream " + stream
+                                                     + " " + x.getStatus());
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
         return this.controller.sealStream(scope, streamName).thenApply(x -> {
             switch (x.getStatus()) {
@@ -175,7 +198,7 @@ public class LocalController implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
-                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                        cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
 
@@ -269,7 +292,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        return FutureHelpers.toVoidExpecting(
+        return Futures.toVoidExpecting(
                 controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
                 PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                 PingFailedException::new);

@@ -20,7 +20,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -175,7 +175,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
             try {
                 return getWriter(streamName, event.getRoutingKey()).writeEvent(routingKey, payload);
             } catch (Exception ex) {
-                return FutureHelpers.failedFuture(ex);
+                return Futures.failedFuture(ex);
             }
         }
     }

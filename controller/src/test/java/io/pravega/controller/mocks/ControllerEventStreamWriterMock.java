@@ -12,7 +12,7 @@ package io.pravega.controller.mocks;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.Data;
@@ -31,7 +31,7 @@ public class ControllerEventStreamWriterMock implements EventStreamWriter<Contro
 
     @Override
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
-        FutureHelpers.delayedFuture(() ->
+        Futures.delayedFuture(() ->
                 streamRequestHandler.processEvent(event), 1000, executor);
         return CompletableFuture.completedFuture(null);
     }

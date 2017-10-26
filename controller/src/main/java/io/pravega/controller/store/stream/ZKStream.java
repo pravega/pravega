@@ -10,14 +10,15 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.Cache;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
@@ -43,6 +44,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
     private static final String CONFIGURATION_PATH = STREAM_PATH + "/configuration";
+    private static final String TRUNCATION_PATH = STREAM_PATH + "/truncation";
     private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
@@ -52,6 +54,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final ZKStoreHelper store;
     private final String creationPath;
     private final String configurationPath;
+    private final String truncationPath;
     private final String statePath;
     private final String segmentPath;
     private final String historyPath;
@@ -64,13 +67,14 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
     private final Cache<Integer> cache;
 
-    public ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
         super(scopeName, streamName);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
+        truncationPath = String.format(TRUNCATION_PATH, scopeName, streamName);
         statePath = String.format(STATE_PATH, scopeName, streamName);
         segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
@@ -87,7 +91,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         return store.getChildren(activeTxRoot).thenCompose(list ->
-                FutureHelpers.allOfWithResults(list.stream().map(epoch ->
+                Futures.allOfWithResults(list.stream().map(epoch ->
                         getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
                 .thenApply(list -> list.stream().reduce(0, Integer::sum));
     }
@@ -178,8 +182,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamConfiguration configuration) {
-        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(new StreamConfigWithVersion(configuration, 0)))
+    public CompletableFuture<Void> createConfigurationIfAbsent(final StreamProperty<StreamConfiguration> configuration) {
+        return store.createZNodeIfNotExist(configurationPath, SerializationUtils.serialize(configuration))
                 .thenApply(x -> cache.invalidateCache(configurationPath));
     }
 
@@ -239,7 +243,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             result.complete(null);
                         } else {
@@ -265,7 +269,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
-                        .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
+                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))
                         )));
     }
@@ -280,8 +284,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
                 .whenComplete((value, ex) -> {
                     if (ex != null) {
-                        if (ExceptionHelpers.getRealException(ex) instanceof StoreException.DataNotFoundException) {
-                            FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
+                        if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                            Futures.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
                                     maxExecutionExpiryTime, scaleGracePeriod), future);
                         } else {
                             future.completeExceptionally(ex);
@@ -317,7 +321,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 String activeTxnPath = getActiveTxPath(epoch, txId.toString());
                 map.put(str, store.checkExists(activeTxnPath));
             }
-            return FutureHelpers.allOfWithResults(map);
+            return Futures.allOfWithResults(map);
         }).thenApply(map -> {
             Optional<Map.Entry<String, Boolean>> opt = map.entrySet().stream().filter(Map.Entry::getValue).findFirst();
             if (opt.isPresent()) {
@@ -384,13 +388,38 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> setConfigurationData(final StreamConfigWithVersion configuration) {
-        return store.setData(configurationPath, new Data<>(SerializationUtils.serialize(configuration), configuration.getVersion() - 1))
+    public CompletableFuture<Void> createTruncationDataIfAbsent(final StreamProperty<StreamTruncationRecord> truncationRecord) {
+        return store.createZNodeIfNotExist(truncationPath, SerializationUtils.serialize(truncationRecord))
+                .thenApply(x -> cache.invalidateCache(truncationPath));
+    }
+
+    @Override
+    CompletableFuture<Void> setTruncationData(final Data<Integer> truncationRecord) {
+        return store.setData(truncationPath, truncationRecord)
+                .whenComplete((r, e) -> cache.invalidateCache(truncationPath));
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
+        if (ignoreCached) {
+            cache.invalidateCache(truncationPath);
+        }
+
+        return cache.getCachedData(truncationPath);
+    }
+
+    @Override
+    CompletableFuture<Void> setConfigurationData(final Data<Integer> configuration) {
+        return store.setData(configurationPath, configuration)
                 .whenComplete((r, e) -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    public CompletableFuture<Data<Integer>> getConfigurationData() {
+    CompletableFuture<Data<Integer>> getConfigurationData(boolean ignoreCached) {
+        if (ignoreCached) {
+            cache.invalidateCache(configurationPath);
+        }
+
         return cache.getCachedData(configurationPath);
     }
 

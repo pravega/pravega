@@ -11,11 +11,10 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -127,7 +126,7 @@ public class StreamSegmentMapper {
         long segmentId = this.containerMetadata.getStreamSegmentId(streamSegmentName, true);
         if (isValidStreamSegmentId(segmentId)) {
             // Quick fail: see if this is an active Segment, and if so, don't bother with anything else.
-            return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
+            return Futures.failedFuture(new StreamSegmentExistsException(streamSegmentName));
         }
 
         CompletableFuture<Void> result = createSegmentInStorageWithRecovery(streamSegmentName, attributes, new TimeoutTimer(timeout));
@@ -208,10 +207,10 @@ public class StreamSegmentMapper {
     private CompletableFuture<Void> createSegmentInStorageWithRecovery(String segmentName, Collection<AttributeUpdate> attributes, TimeoutTimer timer) {
         SegmentRollingPolicy rollingPolicy = getRollingPolicy(attributes);
 
-        return FutureHelpers
+        return Futures
                 .exceptionallyCompose(
                         this.storage.create(segmentName, rollingPolicy, timer.getRemaining()),
-                        ex -> handleStorageCreateException(segmentName, ExceptionHelpers.getRealException(ex), timer))
+                        ex -> handleStorageCreateException(segmentName, Exceptions.unwrap(ex), timer))
                 .thenComposeAsync(segmentProps ->
                                 // Need to create the state file before we throw any further exceptions in order to recover from
                                 // previous partial executions (where we created a segment but no or empty state file).
@@ -241,13 +240,13 @@ public class StreamSegmentMapper {
     private CompletableFuture<SegmentProperties> handleStorageCreateException(String segmentName, Throwable originalException, TimeoutTimer timer) {
         if (!(originalException instanceof StreamSegmentExistsException)) {
             // Some other kind of exception that we can't handle here.
-            return FutureHelpers.failedFuture(originalException);
+            return Futures.failedFuture(originalException);
         }
 
         return this.stateStore
                 .get(segmentName, timer.getRemaining())
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (ex instanceof StreamSegmentNotExistsException || ex instanceof DataCorruptionException) {
                         // Segment exists, but the State File is missing or corrupt. We have the data needed to rebuild it,
                         // so ignore any exceptions coming this way.
@@ -264,7 +263,7 @@ public class StreamSegmentMapper {
                         return this.storage.getStreamSegmentInfo(segmentName, timer.getRemaining());
                     } else {
                         // Both Segment and State File exist; nothing to rebuild, so re-throw original exception.
-                        return FutureHelpers.failedFuture(originalException);
+                        return Futures.failedFuture(originalException);
                     }
                 }, this.executor);
     }
@@ -290,7 +289,7 @@ public class StreamSegmentMapper {
             // Looks like the Segment is active and we have it in our Metadata. Return the result from there.
             SegmentMetadata sm = this.containerMetadata.getStreamSegmentMetadata(streamSegmentId);
             if (sm.isDeleted()) {
-                result = FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                result = Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
                 result = CompletableFuture.completedFuture(sm.getSnapshot());
             }
@@ -349,7 +348,7 @@ public class StreamSegmentMapper {
         if (isValidStreamSegmentId(streamSegmentId)) {
             // We already have a value, just return it (but make sure the Segment has not been deleted).
             if (this.containerMetadata.getStreamSegmentMetadata(streamSegmentId).isDeleted()) {
-                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             } else {
                 // Even though we have the value in the metadata, we need to be very careful not to invoke this callback
                 // before any other existing callbacks are invoked. As such, verify if we have an existing PendingRequest
@@ -547,7 +546,7 @@ public class StreamSegmentMapper {
         if (properties.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
             failAssignment(properties.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
-            return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
+            return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
         }
 
         long existingSegmentId = this.containerMetadata.getStreamSegmentId(properties.getName(), true);
@@ -661,7 +660,7 @@ public class StreamSegmentMapper {
 
     private CompletableFuture<Void> validateParentSegmentEligibility(SegmentProperties parentInfo) {
         if (parentInfo.isDeleted() || parentInfo.isSealed()) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("Cannot create a Transaction for a deleted or sealed Segment."));
+            return Futures.failedFuture(new IllegalArgumentException("Cannot create a Transaction for a deleted or sealed Segment."));
         } else {
             return CompletableFuture.completedFuture(null);
         }
@@ -702,12 +701,12 @@ public class StreamSegmentMapper {
                  // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
                  // and try again, exactly once.
                  try {
-                     if (ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException) {
+                     if (Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
                          log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
-                                 ExceptionHelpers.getRealException(ex).getMessage());
+                                 Exceptions.unwrap(ex).getMessage());
                          CompletableFuture<T> f = this.metadataCleanup.get().thenComposeAsync(v -> toTry.get(), this.executor);
                          f.thenAccept(result::complete);
-                         FutureHelpers.exceptionListener(f, result::completeExceptionally);
+                         Futures.exceptionListener(f, result::completeExceptionally);
                      } else {
                          result.completeExceptionally(ex);
                      }
@@ -773,7 +772,7 @@ public class StreamSegmentMapper {
         final Function<Long, CompletableFuture<T>> callback;
 
         void complete(long segmentId) {
-            FutureHelpers.completeAfter(() -> this.callback.apply(segmentId), this.result);
+            Futures.completeAfter(() -> this.callback.apply(segmentId), this.result);
         }
 
         void completeExceptionally(Throwable ex) {

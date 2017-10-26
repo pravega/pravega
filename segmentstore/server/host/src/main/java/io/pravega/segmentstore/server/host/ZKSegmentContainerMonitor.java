@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -142,7 +142,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         }
 
         // Wait for all the containers to be closed.
-        FutureHelpers.await(FutureHelpers.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
+        Futures.await(Futures.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
     }
 
     @VisibleForTesting

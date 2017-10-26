@@ -14,10 +14,13 @@ import io.netty.buffer.Unpooled;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+
+import lombok.Data;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -68,9 +71,37 @@ public class WireCommandsTest {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, buf));
     }
 
+    /*
+     * Test that we are able to decode the message of a previous version.
+     * Specifically here, we create a data structure that corresponds to the
+     * response to append data that does not include the last field (version 2)
+     * and check that we are able to decode it correctly.
+     */
+    @Data
+    public static final class DataAppendedV2 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final UUID writerId;
+        final long eventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+        }
+    }
+
     @Test
     public void testDataAppended() throws IOException {
-        testCommand(new WireCommands.DataAppended(uuid, l));
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
+        commandV2.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(uuid, l, -1));
+
+        // Test that we are able to encode and decode the current response
+        // to append data correctly.
+        testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE));
     }
 
     @Test
@@ -256,6 +287,12 @@ public class WireCommandsTest {
         WireCommand read = command.getType().readFrom(new DataInputStream(new ByteArrayInputStream(array)),
                                                       array.length);
         assertEquals(command, read);
+    }
+
+    private void testCommandFromByteArray(byte[] bytes, WireCommand compatibleCommand) throws IOException {
+        WireCommand read = compatibleCommand.getType().readFrom(new DataInputStream(new ByteArrayInputStream(bytes)),
+                bytes.length);
+        assertEquals(compatibleCommand, read);
     }
 
 }

@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
@@ -23,6 +23,7 @@ import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,12 +42,14 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     private final UpdateStreamTask updateStreamTask;
     private final SealStreamTask sealStreamTask;
     private final DeleteStreamTask deleteStreamTask;
+    private final TruncateStreamTask truncateStreamTask;
 
     public StreamRequestHandler(AutoScaleTask autoScaleTask,
                                 ScaleOperationTask scaleOperationTask,
                                 UpdateStreamTask updateStreamTask,
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
+                                TruncateStreamTask truncateStreamTask,
                                 ScheduledExecutorService executor) {
         super(executor);
         this.autoScaleTask = autoScaleTask;
@@ -54,6 +57,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
         this.updateStreamTask = updateStreamTask;
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
+        this.truncateStreamTask = truncateStreamTask;
     }
 
     @Override
@@ -64,19 +68,19 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     @Override
     public boolean toPostpone(ControllerEvent event, long pickupTime, Throwable exception) {
         // We will let the event be postponed for 2 minutes before declaring failure.
-        return ExceptionHelpers.getRealException(exception) instanceof TaskExceptions.StartException &&
+        return Exceptions.unwrap(exception) instanceof TaskExceptions.StartException &&
                 (System.currentTimeMillis() - pickupTime) < Duration.ofMinutes(2).toMillis();
     }
 
     @Override
     public CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: abort txn received on Stream Request Multiplexer"));
     }
 
     @Override
     public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return FutureHelpers.failedFuture(new RequestUnsupportedException(
+        return Futures.failedFuture(new RequestUnsupportedException(
                 "StreamRequestHandler: commit txn received on Stream Request Multiplexer"));
     }
 
@@ -97,6 +101,11 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     }
 
     @Override
+    public CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent) {
+        return withCompletion(truncateStreamTask, truncateStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+    }
+
+    @Override
     public CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent) {
         return withCompletion(sealStreamTask, sealStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
     }
@@ -113,7 +122,7 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
         withRetries(() -> task.execute(event), executor)
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(e);
+                        Throwable cause = Exceptions.unwrap(e);
                         if (writeBackPredicate.test(cause)) {
                             Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
                                     .runAsync(() -> task.writeBack(event), executor)

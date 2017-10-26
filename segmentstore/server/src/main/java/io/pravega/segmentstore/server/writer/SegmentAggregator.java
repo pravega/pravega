@@ -11,11 +11,10 @@ package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.AbstractTimer;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -266,7 +265,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     setState(AggregatorState.Writing);
                 })
                 .exceptionally(ex -> {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (ex instanceof StreamSegmentNotExistsException) {
                         // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                         // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
@@ -473,12 +472,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     break;
                 //$CASES-OMITTED$
                 default:
-                    result = FutureHelpers.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
+                    result = Futures.failedFuture(new IllegalStateException(String.format("Unexpected state for SegmentAggregator (%s) for segment '%s'.", this.state, this.metadata.getName())));
                     break;
             }
         } catch (Exception ex) {
             // Convert synchronous errors into async errors - it's easier to handle on the receiving end.
-            result = FutureHelpers.failedFuture(ex);
+            result = Futures.failedFuture(ex);
         }
 
         return result
@@ -500,7 +499,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushNormally", this.operations.size());
         FlushResult result = new FlushResult();
         AtomicBoolean canContinue = new AtomicBoolean(true);
-        return FutureHelpers
+        return Futures
                 .loop(
                         canContinue::get,
                         () -> flushOnce(timer, executor),
@@ -564,7 +563,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> flushFully(TimeoutTimer timer, Executor executor) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushFully");
         FlushResult result = new FlushResult();
-        return FutureHelpers
+        return Futures
                 .loop(
                         this::canContinueFlushingFully,
                         () -> flushPendingAppends(timer.getRemaining())
@@ -595,7 +594,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> flushExcess(TimeoutTimer timer, Executor executor) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushExcess");
         FlushResult result = new FlushResult();
-        return FutureHelpers
+        return Futures
                 .loop(
                         this::canContinueFlushingExcess,
                         () -> flushPendingAppends(timer.getRemaining())
@@ -650,7 +649,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         try {
             flushArgs = getFlushArgs();
         } catch (DataCorruptionException ex) {
-            return FutureHelpers.failedFuture(ex);
+            return Futures.failedFuture(ex);
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushPendingAppends");
@@ -672,7 +671,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     return result;
                 })
                 .exceptionally(ex -> {
-                    if (ExceptionHelpers.getRealException(ex) instanceof BadOffsetException) {
+                    if (Exceptions.unwrap(ex) instanceof BadOffsetException) {
                         // We attempted to write at an offset that already contained other data. This can happen for a number of
                         // reasons, but we do not have enough information here to determine why. We need to enter reconciliation
                         // mode, and hope for the best.
@@ -766,7 +765,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private CompletableFuture<FlushResult> mergeWith(UpdateableSegmentMetadata transactionMetadata, MergeTransactionOperation mergeOp, TimeoutTimer timer, Executor executor) {
         if (transactionMetadata.isDeleted()) {
-            return FutureHelpers.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
+            return Futures.failedFuture(new DataCorruptionException(String.format("Attempted to merge with deleted Transaction segment '%s'.", transactionMetadata.getName())));
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "mergeWith", transactionMetadata.getId(), transactionMetadata.getName(), transactionMetadata.isSealedInStorage());
@@ -835,7 +834,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
                     return result;
                 }, executor)
                 .exceptionally(ex -> {
-                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    Throwable realEx = Exceptions.unwrap(ex);
                     if (realEx instanceof BadOffsetException || realEx instanceof StreamSegmentNotExistsException) {
                         // We either attempted to write at an offset that already contained other data or the Transaction
                         // Segment no longer exists. This can happen for a number of reasons, but we do not have enough
@@ -865,7 +864,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return this.storage
                 .seal(this.handle.get(), timer.getRemaining())
                 .handle((v, ex) -> {
-                    if (ex != null && !(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentSealedException)) {
+                    if (ex != null && !(Exceptions.unwrap(ex) instanceof StreamSegmentSealedException)) {
                         // The operation failed, and it was not because the Segment was already Sealed. Throw it again.
                         // We consider the Seal to succeed if the Segment in Storage is already sealed - it's an idempotent operation.
                         throw new CompletionException(ex);
@@ -927,7 +926,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Process each Operation in sequence, as long as its starting offset is less than ReconciliationState.getStorageInfo().getLength()
         FlushResult result = new FlushResult();
         AtomicBoolean exceededStorageLength = new AtomicBoolean(false);
-        return FutureHelpers
+        return Futures
                 .loop(
                         () -> this.operations.size() > 0 && !exceededStorageLength.get(),
                         () -> {
@@ -978,7 +977,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             updateStatePostTruncate();
             result = CompletableFuture.completedFuture(new FlushResult());
         } else {
-            result = FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Operation '%s' is not supported for reconciliation.", op), this.metadata, storageInfo));
+            result = Futures.failedFuture(new ReconciliationFailureException(String.format("Operation '%s' is not supported for reconciliation.", op), this.metadata, storageInfo));
         }
         return result;
     }
@@ -999,7 +998,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Read data from Storage, and compare byte-by-byte.
         InputStream appendStream = this.dataSource.getAppendData(op.getStreamSegmentId(), op.getStreamSegmentOffset(), (int) op.getLength());
         if (appendStream == null) {
-            return FutureHelpers.failedFuture(new ReconciliationFailureException(
+            return Futures.failedFuture(new ReconciliationFailureException(
                     String.format("Unable to reconcile operation '%s' because no append data is associated with it.", op), this.metadata, storageInfo));
         }
 
@@ -1010,7 +1009,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
 
         // Read all data from storage.
         byte[] storageData = new byte[(int) readLength];
-        return FutureHelpers
+        return Futures
                 .loop(
                         () -> bytesReadSoFar.get() < readLength,
                         () -> this.storage.read(this.handle.get(), op.getStreamSegmentOffset() + bytesReadSoFar.get(), storageData, bytesReadSoFar.get(), (int) readLength - bytesReadSoFar.get(), timer.getRemaining()),
@@ -1055,12 +1054,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // Verify that the transaction segment is still registered in metadata.
         UpdateableSegmentMetadata transactionMeta = this.dataSource.getStreamSegmentMetadata(op.getTransactionSegmentId());
         if (transactionMeta == null || transactionMeta.isDeleted()) {
-            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is deleted or missing from the metadata.", op), this.metadata, storageInfo));
+            return Futures.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is deleted or missing from the metadata.", op), this.metadata, storageInfo));
         }
 
         // Verify that the operation fits fully within this segment (mergers are atomic - they either merge all or nothing).
         if (op.getLastStreamSegmentOffset() > storageInfo.getLength()) {
-            return FutureHelpers.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is not fully merged into the parent.", op), this.metadata, storageInfo));
+            return Futures.failedFuture(new ReconciliationFailureException(String.format("Cannot reconcile operation '%s' because the transaction segment is not fully merged into the parent.", op), this.metadata, storageInfo));
         }
 
         // Verify that the transaction segment does not exist in Storage anymore.
@@ -1100,7 +1099,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         } else {
             // A Seal was encountered as an Operation that should have been processed (based on its offset),
             // but the Segment in Storage is not sealed.
-            return FutureHelpers.failedFuture(new ReconciliationFailureException("Segment was supposed to be sealed in storage but it is not.", this.metadata, storageInfo));
+            return Futures.failedFuture(new ReconciliationFailureException("Segment was supposed to be sealed in storage but it is not.", this.metadata, storageInfo));
         }
     }
 

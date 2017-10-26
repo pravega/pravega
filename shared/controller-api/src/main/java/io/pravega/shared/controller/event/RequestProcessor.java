@@ -54,6 +54,14 @@ public interface RequestProcessor {
     CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent);
 
     /**
+     * Method to process truncate stream event.
+     *
+     * @param truncateStreamEvent truncate stream event.
+     * @return
+     */
+    CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent);
+
+    /**
      * Method to process seal stream event.
      *
      * @param sealStreamEvent stream stream event.

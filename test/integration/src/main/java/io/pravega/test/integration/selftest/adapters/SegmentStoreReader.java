@@ -10,10 +10,9 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.CancellationToken;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -168,7 +167,7 @@ class SegmentStoreReader implements StoreReader {
          * which are then passed on via the given event handler.
          */
         CompletableFuture<Void> run() {
-            return FutureHelpers.loop(
+            return Futures.loop(
                     () -> !this.cancellationToken.isCancellationRequested(),
                     () -> SegmentStoreReader.this.storage
                             .getStreamSegmentInfo(segmentName, SegmentStoreReader.this.testConfig.getTimeout())
@@ -190,10 +189,10 @@ class SegmentStoreReader implements StoreReader {
             if (diff <= 0) {
                 if (segmentInfo.isSealed()) {
                     // Segment has been sealed; no point in looping anymore.
-                    return FutureHelpers.failedFuture(new StreamSegmentSealedException(this.segmentName));
+                    return Futures.failedFuture(new StreamSegmentSealedException(this.segmentName));
                 } else {
                     // No change in the segment.
-                    return FutureHelpers.delayedFuture(this.waitDuration, SegmentStoreReader.this.executor);
+                    return Futures.delayedFuture(this.waitDuration, SegmentStoreReader.this.executor);
                 }
             } else {
                 byte[] buffer = new byte[(int) Math.min(Integer.MAX_VALUE, diff)];
@@ -266,7 +265,7 @@ class SegmentStoreReader implements StoreReader {
          * whenever there is new data available, which is interpreted as Events.
          */
         CompletableFuture<Void> run() {
-            return FutureHelpers.loop(
+            return Futures.loop(
                     this::canRun,
                     () -> SegmentStoreReader.this.store
                             .read(segmentName, getReadOffset(), Integer.MAX_VALUE, SegmentStoreReader.this.testConfig.getTimeout())
@@ -325,7 +324,7 @@ class SegmentStoreReader implements StoreReader {
         @SneakyThrows
         private Void readCompleteCallback(SegmentProperties r, Throwable ex) {
             if (ex != null) {
-                ex = ExceptionHelpers.getRealException(ex);
+                ex = Exceptions.unwrap(ex);
                 if (ex instanceof StreamSegmentNotExistsException) {
                     // Cannot continue anymore (segment has been deleted).
                     synchronized (this.readBuffer) {
@@ -380,7 +379,7 @@ class SegmentStoreReader implements StoreReader {
 
         @Override
         public void processError(Throwable cause) {
-            cause = ExceptionHelpers.getRealException(cause);
+            cause = Exceptions.unwrap(cause);
             if (cause instanceof StreamSegmentSealedException) {
                 processResultComplete();
             } else {
