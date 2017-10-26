@@ -124,7 +124,4 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @throws IllegalArgumentException If handle is read-only.
      */
     CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout);
-
-    @Override
-    void close();
 }

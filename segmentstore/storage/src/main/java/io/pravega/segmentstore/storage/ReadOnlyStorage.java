@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Read-Only abstraction for Permanent Storage.
  */
-public interface ReadOnlyStorage {
+public interface ReadOnlyStorage extends AutoCloseable {
     /**
      * Initializes this Storage instance with the given ContainerEpoch.
      *
@@ -81,4 +81,7 @@ public interface ReadOnlyStorage {
      * it will contain the cause of the failure.
      */
     CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout);
+
+    @Override
+    void close();
 }

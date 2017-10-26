@@ -9,13 +9,13 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Map;
@@ -26,7 +26,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -34,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-class StorageReader implements AutoCloseable {
+public class StorageReader implements AutoCloseable {
     //region Members
 
     private final String traceObjectId;
@@ -56,18 +55,32 @@ class StorageReader implements AutoCloseable {
     /**
      * Creates a new instance of the StorageReader class.
      *
-     * @param storage  A ReadOnlyStorage to use for data fetching.
-     * @param executor An Executor to use for running asynchronous tasks.
+     * @param segmentMetadata A SegmentMetadata to create the StorageReader for.
+     * @param storage         A ReadOnlyStorage to use for data fetching.
+     * @param executor        An Executor to use for running asynchronous tasks.
      */
     StorageReader(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
-        Preconditions.checkNotNull(storage, "storage");
-        Preconditions.checkNotNull(executor, "executor");
+        this(segmentMetadata.getName(), storage, executor, String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(),
+                segmentMetadata.getId()));
+    }
 
-        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
-        this.segmentName = segmentMetadata.getName();
-        this.storage = storage;
-        this.executor = executor;
+    /**
+     * Creates a new instance of the StorageReader class.
+     *
+     * @param segmentName The name of the Segment to create the StorageReader for.
+     * @param storage     A ReadOnlyStorage to use for data fetching.
+     * @param executor    An Executor to use for running asynchronous tasks.
+     */
+    public StorageReader(String segmentName, ReadOnlyStorage storage, Executor executor) {
+        this(segmentName, storage, executor, String.format("StorageReader[%s]", segmentName));
+    }
+
+    private StorageReader(String segmentName, ReadOnlyStorage storage, Executor executor, String traceObjectId) {
+        this.segmentName = Preconditions.checkNotNull(segmentName, "segmentName");
+        this.storage = Preconditions.checkNotNull(storage, "storage");
+        this.executor = Preconditions.checkNotNull(executor, "executor");
         this.pendingRequests = new TreeMap<>();
+        this.traceObjectId = traceObjectId;
     }
 
     //endregion
@@ -76,15 +89,18 @@ class StorageReader implements AutoCloseable {
 
     @Override
     public void close() {
+        ArrayList<Request> toClose = null;
         synchronized (this.lock) {
-            if (this.closed) {
-                return;
+            if (!this.closed) {
+                this.closed = true;
+
+                // Cancel all pending reads and unregister them.
+                toClose = new ArrayList<>(this.pendingRequests.values());
+                this.pendingRequests.clear();
             }
+        }
 
-            this.closed = true;
-
-            // Cancel all pending reads and unregister them.
-            ArrayList<Request> toClose = new ArrayList<>(this.pendingRequests.values());
+        if (toClose != null) {
             toClose.forEach(Request::cancel);
         }
     }
@@ -191,13 +207,23 @@ class StorageReader implements AutoCloseable {
     }
 
     private CompletableFuture<SegmentHandle> getHandle() {
+        CompletableFuture<SegmentHandle> result;
+        boolean needsAssignment = false;
         synchronized (this.lock) {
             if (this.handle == null) {
-                this.handle = storage.openRead(this.segmentName);
+                this.handle = new CompletableFuture<>();
+                needsAssignment = true;
             }
 
-            return this.handle;
+            result = this.handle;
         }
+
+        if (needsAssignment) {
+            this.storage.openRead(this.segmentName);
+            Futures.completeAfter(() -> this.storage.openRead(this.segmentName), result);
+        }
+
+        return result;
     }
 
     //endregion

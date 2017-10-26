@@ -235,6 +235,11 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public void close() {
+            // Nothing to do.
+        }
+
+        @Override
         public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
             return CompletableFuture.completedFuture(InMemoryStorage.newHandle(streamSegmentName, true));
         }
