@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.Exceptions;
@@ -41,9 +42,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentContainer {
     //region Members
+    @VisibleForTesting
+    static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
     private static final int CONTAINER_ID = Integer.MAX_VALUE; // So that it doesn't collide with any other real Container Id.
     private static final int CONTAINER_EPOCH = 1; // This guarantees that any write operations should be fenced out if attempted.
-    private static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
 
     private final AsyncMap<String, SegmentState> stateStore;
     private final SegmentStateMapper segmentStateMapper;
@@ -55,8 +57,13 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
 
     //region Constructor
 
-    ReadOnlySegmentContainer(ContainerConfig config, StorageFactory storageFactory, ScheduledExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
+    /**
+     * Creates a new instance of the ReadOnlySegmentContainer class.
+     *
+     * @param storageFactory A StorageFactory used to create Storage adapters.
+     * @param executor       An Executor to use for async operations.
+     */
+    ReadOnlySegmentContainer(StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         Storage writableStorage = storageFactory.createStorageAdapter();

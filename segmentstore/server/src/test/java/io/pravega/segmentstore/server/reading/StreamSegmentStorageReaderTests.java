@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -142,8 +143,8 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
 
     }
 
-    private void verifyReadResult(StreamSegmentReadResult readResult, SegmentProperties si, int expectedStartOffset,
-                                  int expectedLength, byte[] writtenData) throws Exception {
+    public static void verifyReadResult(ReadResult readResult, SegmentProperties si, int expectedStartOffset,
+                                        int expectedLength, byte[] writtenData) throws Exception {
         Assert.assertEquals("Unexpected ReadResult.StartOffset.", expectedStartOffset, readResult.getStreamSegmentStartOffset());
         while (readResult.hasNext()) {
             val entry = readResult.next();
