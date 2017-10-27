@@ -84,6 +84,12 @@ project('common') {
             project(':shared:protocol').sourceSets.main.java
         }
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 def withoutLog4j = { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
@@ -102,6 +108,12 @@ project ('shared') {
     javadoc {
         exclude 'io/pravega/shared/*'
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project ('shared:metrics') {
@@ -125,6 +137,12 @@ project ('shared:metrics') {
     javadoc {
         exclude 'io/pravega/shared/*'
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('shared:protocol') {
@@ -134,6 +152,12 @@ project('shared:protocol') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('client') {
@@ -156,6 +180,12 @@ project('client') {
         failOnError = false
         exclude "**/impl/**";
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 project('test:testcommon') {
     dependencies {
@@ -168,6 +198,12 @@ project('test:testcommon') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLog4j
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('segmentstore:contracts') {
@@ -175,6 +211,12 @@ project('segmentstore:contracts') {
         compile project(':common')
         testCompile project(':test:testcommon')
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('segmentstore:storage') {
@@ -184,6 +226,12 @@ project('segmentstore:storage') {
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('segmentstore:storage:impl') {
@@ -211,6 +259,12 @@ project('segmentstore:storage:impl') {
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('segmentstore:server') {
@@ -222,6 +276,12 @@ project('segmentstore:server') {
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('segmentstore:server:host') {
@@ -273,6 +333,12 @@ project('segmentstore:server:host') {
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('test:integration') {
@@ -384,6 +450,13 @@ project('shared:controller-api') {
     javadoc {
         exclude 'io/pravega/controller/*'
     }
+
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('controller') {
@@ -446,6 +519,13 @@ project('controller') {
     applicationDistribution.into("bin") {
         from(createAppWithGCLogging)
     }
+
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('standalone') {
@@ -492,6 +572,13 @@ project('standalone') {
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
     }
+
+    test {
+        onlyIf {
+            project.hasProperty("enableTests")
+        }
+    }
+
 }
 
 project('test:system') {
