@@ -13,6 +13,7 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -93,6 +94,52 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
         // We try to read 1 byte beyond the end of the segment to verify the reading ends correctly.
         val readResult = StreamSegmentStorageReader.read(si, 0, writtenData.length + 1, SEGMENT_APPEND_SIZE - 1, s);
         verifyReadResult(readResult, si, 0, writtenData.length, writtenData);
+    }
+
+    /**
+     * Tests the read() method when errors are present.
+     */
+    @Test
+    public void testReadWithErrors() throws Exception {
+        @Cleanup
+        val s = createStorage();
+
+        // 1. Segment does not exist.
+        val si1 = StreamSegmentInformation.builder().name(SEGMENT_NAME).length(SEGMENT_LENGTH).startOffset(0).sealed(true).build();
+        val rr1 = StreamSegmentStorageReader.read(si1, 0, SEGMENT_LENGTH, SEGMENT_APPEND_SIZE - 1, s);
+        val firstEntry1 = rr1.next();
+        Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, firstEntry1.getType());
+        AssertExtensions.assertThrows(
+                "Unexpected exception when Segment does not exist initially.",
+                () -> {
+                    firstEntry1.requestContent(TIMEOUT);
+                    return firstEntry1.getContent();
+                },
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        populate(s);
+
+        // 2. Segment exists initially, but is deleted while reading.
+        val si2 = StreamSegmentInformation.builder().name(SEGMENT_NAME).length(SEGMENT_LENGTH).startOffset(0).sealed(true).build();
+        val rr2 = StreamSegmentStorageReader.read(si2, 0, SEGMENT_LENGTH, SEGMENT_APPEND_SIZE - 1, s);
+
+        // Skip over the first entry.
+        val firstEntry2 = rr2.next();
+        firstEntry2.requestContent(TIMEOUT);
+        firstEntry2.getContent().join();
+
+        // Delete the Segment, then attempt to read again.
+        s.delete(s.openWrite(SEGMENT_NAME).join(), TIMEOUT).join();
+        val secondEntry = rr2.next();
+        Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, secondEntry.getType());
+        AssertExtensions.assertThrows(
+                "Unexpected exception when Segment was deleted while reading.",
+                () -> {
+                    secondEntry.requestContent(TIMEOUT);
+                    return secondEntry.getContent();
+                },
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
     }
 
     private void verifyReadResult(StreamSegmentReadResult readResult, SegmentProperties si, int expectedStartOffset,
