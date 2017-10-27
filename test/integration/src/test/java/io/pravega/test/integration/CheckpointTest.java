@@ -112,7 +112,8 @@ public class CheckpointTest {
         assertEquals(testString, read.getEvent());
 
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", new InlineExecutor());
+        @Cleanup("shutdown") final InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", backgroundExecutor);
         assertFalse(checkpoint.isDone());
         read = reader.readNextEvent(60000);
         assertTrue(read.isCheckpoint());
@@ -193,7 +194,9 @@ public class CheckpointTest {
                                                                        ReaderConfig.builder().build(), clock::get,
                                                                        clock::get);
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
-        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint", new InlineExecutor());
+        @Cleanup("shutdown") final InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("Checkpoint",
+                backgroundExecutor);
         assertFalse(checkpoint.isDone());
         EventRead<String> read = reader1.readNextEvent(60000);
         assertTrue(read.isCheckpoint());
