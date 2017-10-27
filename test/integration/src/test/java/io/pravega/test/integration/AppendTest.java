@@ -65,6 +65,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -74,6 +76,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+@Slf4j
 public class AppendTest {
     private Level originalLevel;
     private ServiceBuilder serviceBuilder;
@@ -233,6 +236,7 @@ public class AppendTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
@@ -254,6 +258,7 @@ public class AppendTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);
@@ -267,9 +272,14 @@ public class AppendTest {
             throws InterruptedException, ExecutionException, TimeoutException {
         Timer timer = new Timer();
         for (int i = 0; i < number; i++) {
-            Future<Void> ack = producer.writeEvent(testString);
-            if (synchronous) {
-                ack.get(5, TimeUnit.SECONDS);
+            try {
+                Future<Void> ack = producer.writeEvent(testString);
+                if (synchronous) {
+                    ack.get(5, TimeUnit.SECONDS);
+                }
+            } catch (Throwable e) {
+                log.error(" Error : during write: ", e);
+                throw e;
             }
         }
         producer.flush();
