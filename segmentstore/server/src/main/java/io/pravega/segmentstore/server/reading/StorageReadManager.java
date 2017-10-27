@@ -26,6 +26,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -60,27 +61,14 @@ public class StorageReadManager implements AutoCloseable {
      * @param executor        An Executor to use for running asynchronous tasks.
      */
     StorageReadManager(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
-        this(segmentMetadata.getName(), storage, executor, String.format("StorageReadManager[%d-%d]", segmentMetadata.getContainerId(),
-                segmentMetadata.getId()));
-    }
+        Preconditions.checkNotNull(storage, "storage");
+        Preconditions.checkNotNull(executor, "executor");
 
-    /**
-     * Creates a new instance of the StorageReadManager class.
-     *
-     * @param segmentName The name of the Segment to create the StorageReadManager for.
-     * @param storage     A ReadOnlyStorage to use for data fetching.
-     * @param executor    An Executor to use for running asynchronous tasks.
-     */
-    public StorageReadManager(String segmentName, ReadOnlyStorage storage, Executor executor) {
-        this(segmentName, storage, executor, String.format("StorageReadManager[%s]", segmentName));
-    }
-
-    private StorageReadManager(String segmentName, ReadOnlyStorage storage, Executor executor, String traceObjectId) {
-        this.segmentName = Preconditions.checkNotNull(segmentName, "segmentName");
-        this.storage = Preconditions.checkNotNull(storage, "storage");
-        this.executor = Preconditions.checkNotNull(executor, "executor");
+        this.traceObjectId = String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(), segmentMetadata.getId());
+        this.segmentName = segmentMetadata.getName();
+        this.storage = storage;
+        this.executor = executor;
         this.pendingRequests = new TreeMap<>();
-        this.traceObjectId = traceObjectId;
     }
 
     //endregion
@@ -89,18 +77,15 @@ public class StorageReadManager implements AutoCloseable {
 
     @Override
     public void close() {
-        ArrayList<Request> toClose = null;
         synchronized (this.lock) {
-            if (!this.closed) {
-                this.closed = true;
-
-                // Cancel all pending reads and unregister them.
-                toClose = new ArrayList<>(this.pendingRequests.values());
-                this.pendingRequests.clear();
+            if (this.closed) {
+                return;
             }
-        }
 
-        if (toClose != null) {
+            this.closed = true;
+
+            // Cancel all pending reads and unregister them.
+            ArrayList<Request> toClose = new ArrayList<>(this.pendingRequests.values());
             toClose.forEach(Request::cancel);
         }
     }
@@ -207,23 +192,13 @@ public class StorageReadManager implements AutoCloseable {
     }
 
     private CompletableFuture<SegmentHandle> getHandle() {
-        CompletableFuture<SegmentHandle> result;
-        boolean needsAssignment = false;
         synchronized (this.lock) {
             if (this.handle == null) {
-                this.handle = new CompletableFuture<>();
-                needsAssignment = true;
+                this.handle = storage.openRead(this.segmentName);
             }
 
-            result = this.handle;
+            return this.handle;
         }
-
-        if (needsAssignment) {
-            this.storage.openRead(this.segmentName);
-            Futures.completeAfter(() -> this.storage.openRead(this.segmentName), result);
-        }
-
-        return result;
     }
 
     //endregion
