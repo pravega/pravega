@@ -131,7 +131,7 @@ public class ReadTest {
         StreamSegmentStore segmentStore = serviceBuilder.createStreamSegmentService();
 
         fillStoreForSegment(segmentName, clientId, data, entries, segmentStore);
-
+        @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
         SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000));
