@@ -2,6 +2,8 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
+import io.pravega.common.Exceptions;
+import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
@@ -9,6 +11,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -31,6 +34,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     //region Members
     private static final int CONTAINER_ID = Integer.MAX_VALUE; // So that it doesn't collide with any other real Container Id.
     private static final int CONTAINER_EPOCH = 1; // This guarantees that any write operations should be fenced out if attempted.
+    private static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
 
     private final AsyncMap<String, SegmentState> stateStore;
     private final ReadOnlyStorage storage;
@@ -41,7 +45,8 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
 
     //region Constructor
 
-    ReadOnlySegmentContainer(StorageFactory storageFactory, ScheduledExecutorService executor) {
+    ReadOnlySegmentContainer(ContainerConfig config, StorageFactory storageFactory, ScheduledExecutorService executor) {
+        Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         Storage writableStorage = storageFactory.createStorageAdapter();
@@ -94,13 +99,18 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
 
     @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-        return null;
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
+                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
         return null;
     }
+
 
     //endregion
 

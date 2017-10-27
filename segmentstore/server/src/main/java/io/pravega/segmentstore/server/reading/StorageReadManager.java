@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-public class StorageReader implements AutoCloseable {
+public class StorageReadManager implements AutoCloseable {
     //region Members
 
     private final String traceObjectId;
@@ -53,29 +53,29 @@ public class StorageReader implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the StorageReader class.
+     * Creates a new instance of the StorageReadManager class.
      *
-     * @param segmentMetadata A SegmentMetadata to create the StorageReader for.
+     * @param segmentMetadata A SegmentMetadata to create the StorageReadManager for.
      * @param storage         A ReadOnlyStorage to use for data fetching.
      * @param executor        An Executor to use for running asynchronous tasks.
      */
-    StorageReader(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
-        this(segmentMetadata.getName(), storage, executor, String.format("StorageReader[%d-%d]", segmentMetadata.getContainerId(),
+    StorageReadManager(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
+        this(segmentMetadata.getName(), storage, executor, String.format("StorageReadManager[%d-%d]", segmentMetadata.getContainerId(),
                 segmentMetadata.getId()));
     }
 
     /**
-     * Creates a new instance of the StorageReader class.
+     * Creates a new instance of the StorageReadManager class.
      *
-     * @param segmentName The name of the Segment to create the StorageReader for.
+     * @param segmentName The name of the Segment to create the StorageReadManager for.
      * @param storage     A ReadOnlyStorage to use for data fetching.
      * @param executor    An Executor to use for running asynchronous tasks.
      */
-    public StorageReader(String segmentName, ReadOnlyStorage storage, Executor executor) {
-        this(segmentName, storage, executor, String.format("StorageReader[%s]", segmentName));
+    public StorageReadManager(String segmentName, ReadOnlyStorage storage, Executor executor) {
+        this(segmentName, storage, executor, String.format("StorageReadManager[%s]", segmentName));
     }
 
-    private StorageReader(String segmentName, ReadOnlyStorage storage, Executor executor, String traceObjectId) {
+    private StorageReadManager(String segmentName, ReadOnlyStorage storage, Executor executor, String traceObjectId) {
         this.segmentName = Preconditions.checkNotNull(segmentName, "segmentName");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
@@ -267,7 +267,7 @@ public class StorageReader implements AutoCloseable {
     //region Request
 
     /**
-     * Represents a Request for a StorageReader operation.
+     * Represents a Request for a StorageReadManager operation.
      */
     static class Request {
         //region Members
@@ -282,7 +282,7 @@ public class StorageReader implements AutoCloseable {
         //region Constructor
 
         /**
-         * Creates a new instance of the StorageReader.Request class.
+         * Creates a new instance of the StorageReadManager.Request class.
          *
          * @param offset          The offset to read at.
          * @param length          The length of the read.
