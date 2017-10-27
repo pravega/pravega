@@ -24,7 +24,9 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -76,10 +78,14 @@ public class ZookeeperDockerService extends DockerBasedService {
 
     private ServiceSpec setServiceSpec() {
 
+        Map<String, String> labels = new HashMap<>();
+        labels.put("com.docker.swarm.service.name", serviceName);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
                         .hostname(serviceName)
+                        .labels(labels)
                         .healthcheck(ContainerConfig.Healthcheck.create(null,
                                 1000000000L, 1000000000L, 3)).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
@@ -92,7 +98,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(ZKSERVICE_ZKPORT).targetPort(ZKSERVICE_ZKPORT)
                         .publishMode(PortConfig.PortConfigPublishMode.HOST).build()).build())
                 .taskTemplate(taskSpec)
-                .mode(ServiceMode.withReplicas(instances)).build();
+                .build();
         return spec;
     }
 }

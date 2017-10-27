@@ -574,10 +574,18 @@ abstract class AbstractFailoverTests {
         }
         controllerService.scaleService(3, true);
         List<URI> conUris = controllerService.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == 9090 : uri.getPort() == 9092).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;

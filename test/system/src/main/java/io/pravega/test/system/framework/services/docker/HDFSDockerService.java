@@ -26,7 +26,9 @@ import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -71,6 +73,8 @@ public class HDFSDockerService extends DockerBasedService {
     }
 
     private ServiceSpec setServiceSpec() {
+        Map<String, String> labels = new HashMap<>();
+        labels.put("com.docker.swarm.task.name", serviceName);
         Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
         String env1 = "SSH_PORT=2222";
         String env2 = "HDFS_HOST="+serviceName;
@@ -80,21 +84,22 @@ public class HDFSDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(mount)
+                        .labels(labels)
                         .hostname(serviceName)
-                        .args("hdfs").build())
+                        .build())
                 .resources(ResourceRequirements.builder()
                         .reservations(Resources.builder()
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
         List<PortConfig> portConfigs = new ArrayList<>();
-        PortConfig port1 = PortConfig.builder().publishedPort(8020).protocol("TCP").name("hdfs").build();
-        PortConfig port2 = PortConfig.builder().publishedPort(50090).protocol("TCP").name("hdfs-secondary").build();
-        PortConfig port3 = PortConfig.builder().publishedPort(50010).protocol("TCP").name("hdfs-datanode").build();
-        PortConfig port4 = PortConfig.builder().publishedPort(50020).protocol("TCP").name("hdfs-datanode-ipc").build();
-        PortConfig port5 = PortConfig.builder().publishedPort(50075).protocol("TCP").name("hdfs-datanode-http").build();
-        PortConfig port6 = PortConfig.builder().publishedPort(50070).protocol("TCP").name("hdfs-web").build();
-        PortConfig port7 = PortConfig.builder().publishedPort(2222).protocol("TCP").name("hdfs-ssh").build();
+        PortConfig port1 = PortConfig.builder().publishedPort(8020).targetPort(8020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs").build();
+        PortConfig port2 = PortConfig.builder().publishedPort(50090).targetPort(50090).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-secondary").build();
+        PortConfig port3 = PortConfig.builder().publishedPort(50010).targetPort(50010).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode").build();
+        PortConfig port4 = PortConfig.builder().publishedPort(50020).targetPort(50020).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode-ipc").build();
+        PortConfig port5 = PortConfig.builder().publishedPort(50075).targetPort(50075).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-datanode-http").build();
+        PortConfig port6 = PortConfig.builder().publishedPort(50070).targetPort(50070).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-web").build();
+        PortConfig port7 = PortConfig.builder().publishedPort(2222).targetPort(2222).publishMode(PortConfig.PortConfigPublishMode.HOST).name("hdfs-ssh").build();
         portConfigs.add(port1);
         portConfigs.add(port2);
         portConfigs.add(port3);

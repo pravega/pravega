@@ -171,7 +171,9 @@ public class PravegaTest {
     @Test(timeout = 10 * 60 * 1000)
     public void simpleTest() throws InterruptedException, URISyntaxException {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", null)
+                : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 

@@ -300,7 +300,8 @@ public class ReaderCheckpointTest {
     }
 
     private URI fetchControllerURI() {
-        Service conService = new PravegaControllerService("controller", null);
+        Service conService = Utils.isDockerLocalExecEnabled() ?  new PravegaControllerDockerService("controller", null)
+                : new PravegaControllerService("controller", null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

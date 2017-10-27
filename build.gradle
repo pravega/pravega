@@ -583,9 +583,6 @@ project('test:system') {
 
         doFirst {
             tasks.testJarForDocker.execute()
-            exec {
-                executable "./preTestScript.sh"
-            }
         }
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 

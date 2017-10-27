@@ -96,7 +96,9 @@ public class MultiControllerTest {
 
     @Before
     public void setup() {
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
@@ -121,7 +123,7 @@ public class MultiControllerTest {
         log.info("Pravega Controller service instance details: {}", conUris);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ?  uri.getPort() == 9090 : uri.getPort() == 9092).map(URI::getAuthority)
                 .collect(Collectors.toList());
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);

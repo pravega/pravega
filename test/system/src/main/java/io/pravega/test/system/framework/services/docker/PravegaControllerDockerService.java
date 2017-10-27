@@ -83,7 +83,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000));
+                setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
+                setSystemProperty("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
         Map<String, String> labels = new HashMap<>();
@@ -106,8 +107,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                 .ports(Arrays.asList(PortConfig.builder()
-                        .publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
-                        PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
+                        .publishedPort(CONTROLLER_PORT).build(),
+                        PortConfig.builder().publishedPort(REST_PORT).build())).
                 build())
                 .build();
         return spec;

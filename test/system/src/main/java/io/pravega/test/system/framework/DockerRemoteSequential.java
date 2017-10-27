@@ -24,7 +24,6 @@ import io.pravega.common.concurrent.FutureHelpers;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Assert;
-
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -36,7 +35,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import static io.pravega.test.system.framework.Utils.getConfig;
 import static org.junit.Assert.assertFalse;
 
@@ -47,7 +45,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private final static String IMAGE = "java:8";
     public final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
     public String id;
-    final String expectedDockerApiVersion = "1.30";
+    final String expectedDockerApiVersion = "1.26";
 
 
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -55,9 +53,9 @@ public class DockerRemoteSequential implements TestExecutor {
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
         try {
             final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
-        if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
-            throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
-        }
+            if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
+                throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
+            }
         } catch (DockerException e) {
             log.error("Unable to find docker client version", e);
         }
@@ -74,7 +72,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 .<Void>thenApply(v1 -> {
                     try {
                         if (Exceptions.handleInterrupted(() -> client.inspectContainer(id).state().exitCode() != 0)) {
-                            throw new AssertionError("Test failed"
+                            throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
                     } catch (DockerException e) {
@@ -126,6 +124,9 @@ public class DockerRemoteSequential implements TestExecutor {
                 Assert.fail("Unable to copy test jar to the container.Test failure");
             }
 
+            String networkId = client.listNetworks(DockerClient.ListNetworksParam.byNetworkName("docker-network")).get(0).id();
+            client.connectToNetwork(id, networkId);
+
             // Inspect container
             final ContainerInfo info = client.inspectContainer(id);
 
@@ -146,7 +147,7 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testClassName", className);
 
         HostConfig hostConfig = HostConfig.builder()
-                .portBindings(ImmutableMap.of(DOCKER_CLIENT_PORT + "/tcp", Arrays.asList(PortBinding.of(LoginClient.MESOS_MASTER, DOCKER_CLIENT_PORT)))).networkMode("host").build();
+                .portBindings(ImmutableMap.of(DOCKER_CLIENT_PORT + "/tcp", Arrays.asList(PortBinding.of(LoginClient.MESOS_MASTER, DOCKER_CLIENT_PORT)))).networkMode("docker_gwbridge").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)

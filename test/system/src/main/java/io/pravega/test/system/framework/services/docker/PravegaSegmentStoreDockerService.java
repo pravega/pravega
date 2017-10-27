@@ -26,10 +26,12 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import io.pravega.common.Exceptions;
 import java.net.URI;
-import java.util.ArrayList;
 import lombok.extern.slf4j.Slf4j;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -81,6 +83,9 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     }
 
     private ServiceSpec setServiceSpec() {
+        Map<String, String> labels = new HashMap<>();
+        labels.put("com.docker.swarm.task.name", serviceName);
+
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
@@ -111,6 +116,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION)
                         .hostname(serviceName)
+                        .labels(labels)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount))
                         .env(envList).args("segmentstore").build())

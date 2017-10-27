@@ -28,7 +28,9 @@ import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -76,6 +78,9 @@ public class BookkeeperDockerService extends DockerBasedService {
 
     private ServiceSpec setServiceSpec() {
 
+        Map<String, String> labels = new HashMap<>();
+        labels.put("com.docker.swarm.service.name", serviceName);
+
         Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
                 .build();
         Mount mount2 = Mount.builder().type("volume").source("logs-volume")
@@ -96,6 +101,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
+                        .labels(labels)
                         .image(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.create(null, 1000000000L, 1000000000L, 3))
                         .mounts(Arrays.asList(mount1, mount2))
@@ -106,10 +112,10 @@ public class BookkeeperDockerService extends DockerBasedService {
                                 .memoryBytes(setMemInBytes(mem)).nanoCpus(setNanoCpus(cpu)).build())
                         .build())
                 .build();
-        ServiceSpec spec = ServiceSpec.builder().name(serviceName)
+        ServiceSpec spec = ServiceSpec.builder().name(serviceName).mode(ServiceMode.withReplicas(instances))
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().publishedPort(BK_PORT).build()).build())
-                .taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
+                .taskTemplate(taskSpec)
                 .build();
         return spec;
     }

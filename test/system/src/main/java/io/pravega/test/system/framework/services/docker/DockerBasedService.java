@@ -11,10 +11,13 @@ package io.pravega.test.system.framework.services.docker;
 
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.Container;
+import com.spotify.docker.client.messages.swarm.EndpointSpec;
+import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
@@ -66,14 +69,16 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     public boolean isRunning() {
         boolean value = false;
         try {
-            //list the service with filter 'serviceName'
-            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
-            int containerCount = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.filter("name", serviceName)).size());
-            if (!serviceList.isEmpty()) {
-                long replicas = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
-                if (((long) containerCount) == replicas) {
-                    return true;
+            Service.Criteria criteria1 = Service.Criteria.builder().serviceName(serviceName).build();
+            List<Service> serviceList1 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria1));
+            log.info("service list size in isRunning  {}", serviceList1.size());
+            if (!serviceList1.isEmpty()) {
+                long replicas = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList1.get(0).id()).spec().mode().replicated().replicas());
+                log.info("replicas {}", replicas);
+                List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
+                log.info("container list size in isRunning {}", containerList.size());
+                if (containerList.size() == replicas) {
+                    value = true;
                 }
             }
         } catch (DockerException e) {
@@ -95,15 +100,27 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     @Override
     public List<URI> getServiceDetails() {
-        Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+        Service.Criteria criteria2 = Service.Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
-            List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
-            for (int i = 0; i < containerList.size(); i++) {
-                String ip = containerList.get(i).networkSettings().networks().get(DOCKER_NETWORK).ipAddress();
-                URI uri = URI.create("tcp://" + ip + ":" + Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().ports().get(0).publishedPort()));
-                uriList.add(uri);
+            List<Service> serviceList2 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria2));
+            log.info("service list size in getServiceDetails  {}", serviceList2.size());
+            if (!serviceList2.isEmpty()) {
+                ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList2.get(0).id()).spec().endpointSpec().ports());
+                List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
+                log.info("container size in getServiceDetails {}", containerList.size());
+                for (int i = 0; i < containerList.size(); i++) {
+                    String[] uriArray = containerList.get(i).networkSettings().networks().get("docker-network").ipAddress().split("/");
+                    log.info("uri array {}", uriArray[0]);
+                    log.info("port list size {}", numPorts.size());
+                    for (int k = 0; k < numPorts.size(); k++) {
+                        int port = numPorts.get(k).publishedPort();
+                        log.info("port {}", port);
+                        log.info("uri list {}", uriArray[0]);
+                        URI uri = URI.create("tcp://" + uriArray[0] + ":" + port);
+                        uriList.add(uri);
+                    }
+                }
             }
         } catch (DockerException e) {
             log.error("Unable to list service details", e);
@@ -118,10 +135,11 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             TaskSpec taskSpec = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
             String serviceId = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).id());
-            Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, 1L, ServiceSpec.builder().mode(ServiceMode.withReplicas(instanceCount)).
-                    taskTemplate(taskSpec).name(serviceName).build()));
+            EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
+            Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
+            Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
             String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
-            log.info("Update state {}", updateState.toString());
+            log.info("Update state {}", updateState);
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get());
             }

@@ -160,7 +160,9 @@ public class ControllerRestApiTest {
     @Test(timeout = 300000)
     public void restApiTests() {
 
-        Service conService = new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", null)
+                : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerRESTUri = ctlURIs.get(1);
         Invocation.Builder builder;
