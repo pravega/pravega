@@ -45,11 +45,6 @@ public final class StreamSegmentStorageReader {
         Preconditions.checkNotNull(segmentInfo, "segmentInfo");
         Preconditions.checkNotNull(storage, "storage");
         String traceId = String.format("Read[%s]", segmentInfo.getName());
-        if (startOffset + maxReadLength > segmentInfo.getLength()) {
-            // Adjust max read length to not exceed the last known offset of the Segment.
-            maxReadLength = (int) (segmentInfo.getLength() - startOffset);
-        }
-
         return new StreamSegmentReadResult(startOffset, maxReadLength, new SegmentReader(segmentInfo, readBlockSize, storage), traceId);
     }
 
@@ -70,19 +65,24 @@ public final class StreamSegmentStorageReader {
             if (readOffset < this.segmentInfo.getStartOffset()) {
                 // We attempted to read from a truncated portion of the Segment.
                 return new TruncatedReadResultEntry(readOffset, readLength, this.segmentInfo.getStartOffset());
-            } else if (readOffset >= this.segmentInfo.getLength() && this.segmentInfo.isSealed()) {
+            } else if (readOffset >= this.segmentInfo.getLength()) {
                 // We've reached the end of a Sealed Segment.
                 return new EndOfStreamSegmentReadResultEntry(readOffset, readLength);
             } else {
                 // Execute the read from Storage.
+                if (readOffset + readLength > segmentInfo.getLength()) {
+                    // Adjust max read length to not exceed the last known offset of the Segment.
+                    readLength = (int) (segmentInfo.getLength() - readOffset);
+                }
+
+                readLength = Math.min(this.readBlockSize, readLength);
                 return new StorageReadResultEntry(readOffset, readLength, this::fetchContents);
             }
         }
 
-        private void fetchContents(long segmentOffset, int requestedReadLength, Consumer<ReadResultEntryContents> successCallback,
+        private void fetchContents(long segmentOffset, int readLength, Consumer<ReadResultEntryContents> successCallback,
                                    Consumer<Throwable> failureCallback, Duration timeout) {
             try {
-                int readLength = Math.min(this.readBlockSize, requestedReadLength);
                 byte[] readBuffer = new byte[readLength];
                 getHandle()
                         .thenCompose(h -> this.storage.read(h, segmentOffset, readBuffer, 0, readLength, timeout))
