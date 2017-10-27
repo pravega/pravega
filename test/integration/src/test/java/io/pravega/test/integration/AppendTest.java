@@ -200,6 +200,7 @@ public class AppendTest {
         String scope = "scope";
         String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
