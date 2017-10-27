@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
@@ -37,6 +46,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     private static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
 
     private final AsyncMap<String, SegmentState> stateStore;
+    private final SegmentStateMapper segmentStateMapper;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
@@ -52,6 +62,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
         Storage writableStorage = storageFactory.createStorageAdapter();
         this.storage = writableStorage;
         this.stateStore = new SegmentStateStore(writableStorage, this.executor);
+        this.segmentStateMapper = new SegmentStateMapper(this.stateStore, writableStorage);
         this.closed = new AtomicBoolean();
     }
 
@@ -108,7 +119,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return null;
+        return this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout);
     }
 
 
