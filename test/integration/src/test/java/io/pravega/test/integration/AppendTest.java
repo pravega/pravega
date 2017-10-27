@@ -204,6 +204,7 @@ public class AppendTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
+        @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
@@ -212,7 +213,7 @@ public class AppendTest {
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
-        @Cleanup("close")
+        @Cleanup
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
@@ -231,6 +232,7 @@ public class AppendTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
