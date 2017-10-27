@@ -240,10 +240,30 @@ abstract class AbstractFailoverTests {
 
     void waitForTxnsToComplete() {
 
-        log.info("Wait for txns to complete");
-        if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
-            log.error("Transaction futures did not complete with exceptions");
+        int committedTxns1 = 0;
+        int notCommittedTxns1 = 0;
+        int neitheCommittedNorAbortedTxns1 = 0;
+        log.info("total number of transactions {}", testState.txnMap.size());
+        for (Map.Entry mapEntry: testState.txnMap.entrySet()) {
+            String keyValue = mapEntry.getKey().toString();
+            int value = (Integer) mapEntry.getValue();
+            if (value == 0) {
+                notCommittedTxns1++;
+                log.info("txn with id  {} did not get committed", keyValue);
+            } else if (value == 1) {
+                neitheCommittedNorAbortedTxns1++;
+                log.info("txn with id {} , neither committed not aborted", keyValue);
+            } else {
+                committedTxns1++;
+            }
         }
+        log.info("txn committed count {}", committedTxns1);
+        log.info("txn not committed count {}", notCommittedTxns1);
+        log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns1);
+
+        log.info("Wait for txns to complete");
+        FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList));
+
         int txnFutureCompletedCount = 0;
         int txnFutureCompletedExceptionallyCount = 0;
         int txnFutureNotCompletedCount = 0;
@@ -266,9 +286,8 @@ abstract class AbstractFailoverTests {
         int notCommittedTxns = 0;
         int neitheCommittedNorAbortedTxns = 0;
         log.info("total number of transactions {}", testState.txnMap.size());
-        Set<UUID> txnSet = testState.txnMap.keySet();
        for (Map.Entry mapEntry: testState.txnMap.entrySet()) {
-            String keyValue = (String) mapEntry.getKey();
+            String keyValue = mapEntry.getKey().toString();
             int value = (Integer) mapEntry.getValue();
            if (value == 0) {
                 notCommittedTxns++;
@@ -398,6 +417,9 @@ abstract class AbstractFailoverTests {
     }
 
     void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
+        while (readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders().size() != 0) {
+            Thread.sleep(5);
+        }
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());

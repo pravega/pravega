@@ -41,6 +41,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -48,6 +49,7 @@ import org.junit.runner.RunWith;
  * Test cases for deploying multiple segment stores.
  */
 @Slf4j
+@Ignore
 @RunWith(SystemTestRunner.class)
 public class MultiSegmentStoreTest {
 
