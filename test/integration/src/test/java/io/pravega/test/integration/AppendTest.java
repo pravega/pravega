@@ -101,7 +101,7 @@ public class AppendTest {
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         UUID uuid = UUID.randomUUID();
@@ -116,6 +116,7 @@ public class AppendTest {
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
@@ -139,7 +140,7 @@ public class AppendTest {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
