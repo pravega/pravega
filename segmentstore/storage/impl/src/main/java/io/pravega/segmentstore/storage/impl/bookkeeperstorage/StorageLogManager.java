@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -227,7 +227,7 @@ class StorageLogManager {
                         throw new CompletionException(new IllegalArgumentException(segmentName));
                     }
                     /** Loop till the data is read completely. */
-                    return FutureHelpers.loop(
+                    return Futures.loop(
                             () -> {
                                 return currentLength.get() != 0;
                             },
@@ -576,7 +576,7 @@ class StorageLogManager {
         final AtomicReference<Long> firstEntryId = new AtomicReference<>((long) ledgerData.getNearestEntryIDToOffset(currentOffset.get()));
         int entriesInOneRound = config.getBkReadEntriesInOneGo();
 
-        return FutureHelpers.loop(() -> !readingDone.get(),
+        return Futures.loop(() -> !readingDone.get(),
                 () -> {
                     CompletableFuture<Void> future = new CompletableFuture<>();
 
