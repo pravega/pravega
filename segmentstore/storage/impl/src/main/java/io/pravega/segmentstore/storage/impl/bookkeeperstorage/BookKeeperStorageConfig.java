@@ -33,7 +33,7 @@ public class BookKeeperStorageConfig {
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
     public static final Property<Integer> BK_READ_ENTRIES_IN_ONE_GO = Property.named("bkReadEntriesInOneGo", 10);
 
-    public static final String COMPONENT_CODE = "bookkeeper";
+    public static final String COMPONENT_CODE = "bookkeeperstorage";
 
     /**
      * The address (host and port) where the ZooKeeper controlling BookKeeper for this cluster can be found at.
