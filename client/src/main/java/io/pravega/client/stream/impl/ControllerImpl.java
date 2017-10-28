@@ -27,7 +27,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -77,7 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -354,7 +354,7 @@ public class ControllerImpl implements Controller {
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
                         log.error("failed to start scale {}", e);
-                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                        cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {
                             final boolean started = handleScaleResponse(stream, startScaleResponse);
@@ -366,7 +366,7 @@ public class ControllerImpl implements Controller {
                                 }
                             }, isDone -> !started || isDone, executor);
                         } catch (Exception ex) {
-                            cancellableRequest.start(() -> FutureHelpers.failedFuture(ex), any -> true, executor);
+                            cancellableRequest.start(() -> Futures.failedFuture(ex), any -> true, executor);
                         }
                     }
                 });
@@ -769,10 +769,10 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                                              PingFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("pingTransaction failed: ", e);
                     }
@@ -797,9 +797,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("commitTransaction failed: ", e);
                     }
@@ -824,9 +824,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("abortTransaction failed: ", e);
                     }

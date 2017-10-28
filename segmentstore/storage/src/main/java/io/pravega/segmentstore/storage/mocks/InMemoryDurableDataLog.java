@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.OrderedItemProcessor;
@@ -166,7 +166,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             }
             result = CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
         } catch (Throwable ex) {
-            return FutureHelpers.failedFuture(ex);
+            return Futures.failedFuture(ex);
         }
 
         Duration delay = this.appendDelayProvider.get();
@@ -176,8 +176,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
         } else {
             // Schedule the append after the given delay.
             return result.thenComposeAsync(
-                    logAddress -> FutureHelpers.delayedFuture(delay, this.executorService)
-                                               .thenApply(ignored -> logAddress),
+                    logAddress -> Futures.delayedFuture(delay, this.executorService)
+                                         .thenApply(ignored -> logAddress),
                     this.executorService);
         }
     }

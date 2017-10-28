@@ -11,9 +11,9 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
@@ -209,7 +209,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. getSegmentInfo
         for (String segmentName : segmentNames) {
@@ -273,11 +273,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                 long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.length / 2 + 1;
                 truncationOffsets.put(segmentName, truncateOffset);
-                opFutures.add(FutureHelpers.toVoid(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT)));
+                opFutures.add(Futures.toVoid(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT)));
             }
         }
 
-        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. getSegmentInfo
         for (String segmentName : segmentNames) {
@@ -352,7 +352,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         submitFutures.forEach(this::await);
 
         // Now wait for all the appends to finish.
-        FutureHelpers.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(opFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. getSegmentInfo: verify final state of the attribute.
         SegmentProperties sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
@@ -433,7 +433,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 2.1 Verify that if we pass wrong offsets, the append is failed.
         for (String segmentName : segmentNames) {
@@ -487,7 +487,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Seal first half of segments.
         ArrayList<CompletableFuture<Long>> sealFutures = new ArrayList<>();
@@ -495,7 +495,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             sealFutures.add(context.container.sealStreamSegment(segmentNames.get(i), TIMEOUT));
         }
 
-        FutureHelpers.allOf(sealFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(sealFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Check that the segments were properly sealed.
         for (int i = 0; i < segmentNames.size(); i++) {
@@ -612,7 +612,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 3. Delete the first half of the segments.
         ArrayList<CompletableFuture<Void>> deleteFutures = new ArrayList<>();
@@ -621,7 +621,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             deleteFutures.add(context.container.deleteStreamSegment(segmentName, TIMEOUT));
         }
 
-        FutureHelpers.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(deleteFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 4. Verify that only the first half of the segments (and their Transactions) were deleted, and not the others.
         for (int i = 0; i < segmentNames.size(); i++) {
@@ -714,7 +714,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // 5. Verify their contents.
         checkReadIndex(segmentContents, lengths, context);
@@ -797,11 +797,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         segmentsToSeal.forEach(segmentName -> operationFutures
-                .add(FutureHelpers.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
-        FutureHelpers.allOf(operationFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                .add(Futures.toVoid(context.container.sealStreamSegment(segmentName, TIMEOUT))));
+        Futures.allOf(operationFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Now wait for all the reads to complete, and verify their results against the expected output.
-        FutureHelpers.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(entryHandlers.values().stream().map(h -> h.getCompleted()).collect(Collectors.toList())).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         readProcessors.forEach(AsyncReadResultProcessor::close);
 
         // Check to see if any errors got thrown (and caught) during the reading process).
@@ -1098,7 +1098,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
         Assert.assertEquals("Container1 is not in a failed state after fence-out detected.", Service.State.FAILED, container1.state());
         Assert.assertTrue("Container1 did not fail with the correct exception.",
-                ExceptionHelpers.getRealException(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
+                Exceptions.unwrap(container1.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -1121,7 +1121,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ServiceListeners.awaitShutdown(container, shutdownTimeout, false);
         Assert.assertEquals("Container is not in a failed state failed startup.", Service.State.FAILED, container.state());
 
-        Throwable actualException = ExceptionHelpers.getRealException(container.failureCause());
+        Throwable actualException = Exceptions.unwrap(container.failureCause());
         boolean exceptionMatch = actualException instanceof IntentionalException;
         if (!exceptionMatch) {
             Assert.fail(String.format("Container did not fail with the correct exception. Expected '%s', Actual '%s'.",
@@ -1145,18 +1145,18 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // Append continuously to an existing segment in order to trigger truncations (these are necessary for forced evictions).
         val appendFuture = localContainer.appendRandomly(appendSegment, false, () -> !successfulMap.isDone());
-        FutureHelpers.exceptionListener(appendFuture, successfulMap::completeExceptionally);
+        Futures.exceptionListener(appendFuture, successfulMap::completeExceptionally);
 
         // Repeatedly try to get info on 'segment1' (activate it), until we succeed or time out.
         TimeoutTimer remaining = new TimeoutTimer(TIMEOUT);
-        FutureHelpers.loop(
+        Futures.loop(
                 () -> !successfulMap.isDone(),
-                () -> FutureHelpers
+                () -> Futures
                         .delayedFuture(Duration.ofMillis(250), executorService())
                         .thenCompose(v -> localContainer.getStreamSegmentInfo(targetSegment, false, TIMEOUT))
                         .thenAccept(successfulMap::complete)
                         .exceptionally(ex -> {
-                            if (!(ExceptionHelpers.getRealException(ex) instanceof TooManyActiveSegmentsException)) {
+                            if (!(Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException)) {
                                 // Some other error.
                                 successfulMap.completeExceptionally(ex);
                             } else if (!remaining.hasRemaining()) {
@@ -1178,7 +1178,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             try {
                 sp = context.container.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             } catch (Exception ex) {
-                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
                 }
             }
@@ -1279,7 +1279,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
@@ -1287,7 +1287,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (Map.Entry<String, ArrayList<String>> e : transactionsBySegment.entrySet()) {
             String parentName = e.getKey();
             for (String transactionName : e.getValue()) {
-                mergeFutures.add(FutureHelpers.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
+                mergeFutures.add(Futures.toVoid(context.container.sealStreamSegment(transactionName, TIMEOUT)));
                 mergeFutures.add(context.container.mergeTransaction(transactionName, TIMEOUT));
 
                 // Update parent length.
@@ -1300,7 +1300,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private byte[] getAppendData(String segmentName, int appendId) {
@@ -1316,7 +1316,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             futures.add(context.container.createStreamSegment(segmentName, null, TIMEOUT));
         }
 
-        FutureHelpers.allOf(futures).join();
+        Futures.allOf(futures).join();
         return segmentNames;
     }
 
@@ -1329,7 +1329,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(futures).join();
+        Futures.allOf(futures).join();
 
         // Get the Transaction names and index them by parent segment names.
         HashMap<String, ArrayList<String>> transactions = new HashMap<>();
@@ -1370,7 +1370,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             segmentsCompletion.add(waitForSegmentInStorage(sp, context.storage));
         }
 
-        return FutureHelpers.allOf(segmentsCompletion);
+        return Futures.allOf(segmentsCompletion);
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
@@ -1406,7 +1406,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val futures = segmentNames.stream()
                                   .map(s -> activateSegment(s, context.container))
                                   .collect(Collectors.toList());
-        FutureHelpers.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private CompletableFuture<Void> activateSegment(String segmentName, StreamSegmentStore container) {
@@ -1490,7 +1490,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         CompletableFuture<Void> triggerMetadataCleanup(Collection<String> expectedSegmentNames) {
             String tempSegmentName = getSegmentName(Long.hashCode(System.nanoTime()));
             HashSet<String> remainingSegments = new HashSet<>(expectedSegmentNames);
-            CompletableFuture<Void> cleanupTask = FutureHelpers.futureWithTimeout(TIMEOUT, this.executor);
+            CompletableFuture<Void> cleanupTask = Futures.futureWithTimeout(TIMEOUT, this.executor);
 
             // Inject this callback into the MetadataCleaner callback, which was setup for us in createMetadataCleaner().
             this.metadataCleanupFinishedCallback = evictedSegmentNames -> {
@@ -1501,7 +1501,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             };
 
             CompletableFuture<Void> af = appendRandomly(tempSegmentName, true, () -> !cleanupTask.isDone());
-            FutureHelpers.exceptionListener(af, cleanupTask::completeExceptionally);
+            Futures.exceptionListener(af, cleanupTask::completeExceptionally);
             return cleanupTask;
         }
 
@@ -1511,7 +1511,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         CompletableFuture<Void> appendRandomly(String segmentName, boolean createSegment, Supplier<Boolean> canContinue) {
             byte[] appendData = new byte[1];
             return (createSegment ? createStreamSegment(segmentName, null, TIMEOUT) : CompletableFuture.completedFuture(null))
-                    .thenCompose(v -> FutureHelpers.loop(
+                    .thenCompose(v -> Futures.loop(
                             canContinue,
                             () -> append(segmentName, appendData, null, TIMEOUT),
                             this.executor))

@@ -11,8 +11,8 @@ package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import io.pravega.common.function.CallbackHelpers;
 import com.google.common.base.Preconditions;
+import io.pravega.common.function.Callbacks;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -87,7 +87,7 @@ public class CompletableOperation {
 
         this.done = true;
         if (this.successHandler != null) {
-            CallbackHelpers.invokeSafely(this.successHandler, null, cex -> log.error("Success Callback invocation failure.", cex));
+            Callbacks.invokeSafely(this.successHandler, null, cex -> log.error("Success Callback invocation failure.", cex));
         }
     }
 
@@ -99,7 +99,7 @@ public class CompletableOperation {
     public void fail(Throwable ex) {
         this.done = true;
         if (this.failureHandler != null) {
-            CallbackHelpers.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure.", cex));
+            Callbacks.invokeSafely(this.failureHandler, ex, cex -> log.error("Fail Callback invocation failure.", cex));
         }
     }
 

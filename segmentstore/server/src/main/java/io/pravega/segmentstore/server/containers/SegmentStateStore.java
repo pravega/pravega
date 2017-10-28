@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.AsyncMap;
@@ -148,7 +148,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
 
     @SneakyThrows(Throwable.class)
     private <T> T handleSegmentNotExistsException(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (ex instanceof StreamSegmentNotExistsException) {
             // It's ok if the state segment does not exist.
             return null;

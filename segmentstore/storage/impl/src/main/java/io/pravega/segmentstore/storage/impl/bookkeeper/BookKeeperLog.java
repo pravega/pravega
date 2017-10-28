@@ -10,12 +10,11 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
@@ -236,7 +235,7 @@ class BookKeeperLog implements DurableDataLog {
         ensurePreconditions();
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "append", data.getLength());
         if (data.getLength() > getMaxAppendLength()) {
-            return FutureHelpers.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
+            return Futures.failedFuture(new WriteTooLongException(data.getLength(), getMaxAppendLength()));
         }
 
         Timer timer = new Timer();
@@ -556,7 +555,7 @@ class BookKeeperLog implements DurableDataLog {
      * Determines whether the given exception can be retried.
      */
     private static boolean isRetryable(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         return ex instanceof WriteFailureException
                 || ex instanceof DataLogNotAvailableException;
     }

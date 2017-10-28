@@ -13,7 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AvlTreeIndex;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SortedIndex;
@@ -556,7 +556,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
                 CompletableFuture<ReadResultEntryContents> entryContent = entry.getContent();
                 entryContent.thenAccept(r::complete);
-                FutureHelpers.exceptionListener(entryContent, r::fail);
+                Futures.exceptionListener(entryContent, r::fail);
             }
         }
     }
@@ -601,7 +601,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
         // Since we know all entries should be in the cache and are contiguous, there is no need
-        assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+        assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
         val entryContents = nextEntry.getContent().join();
 
         ArrayList<InputStream> contents = new ArrayList<>();
@@ -766,7 +766,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Collect the contents of congruent Index Entries into a list, as long as we still encounter data in the cache.
         ArrayList<InputStream> contents = new ArrayList<>();
         do {
-            assert FutureHelpers.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
+            assert Futures.isSuccessful(nextEntry.getContent()) : "Found CacheReadResultEntry that is not completed yet: " + nextEntry;
             val entryContents = nextEntry.getContent().join();
             contents.add(entryContents.getData());
             readLength += entryContents.getLength();

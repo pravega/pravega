@@ -15,8 +15,8 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -184,7 +184,7 @@ public class StreamMetadataTasksTest {
         // 1. happy day test
         // update.. should succeed
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture = streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture.join());
 
         configProp = streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor).join();
@@ -201,7 +201,7 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
 
         AtomicBoolean loop = new AtomicBoolean(false);
-        FutureHelpers.loop(() -> !loop.get(),
+        Futures.loop(() -> !loop.get(),
                 () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop::set), executor).join();
@@ -210,12 +210,12 @@ public class StreamMetadataTasksTest {
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
-        assertTrue(FutureHelpers.await(updateStreamTask.execute(taken)));
+        assertTrue(Futures.await(updateStreamTask.execute(taken)));
 
         // 3. multiple back to back updates.
         StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
@@ -229,7 +229,7 @@ public class StreamMetadataTasksTest {
         // ensure that previous updatestream has posted the event and set status to updating,
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
-        FutureHelpers.loop(() -> !loop2.get(),
+        Futures.loop(() -> !loop2.get(),
                 () -> streamStorePartialMock.getConfigurationProperty(SCOPE, stream1, true, null, executor)
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop2::set), executor).join();
@@ -248,7 +248,7 @@ public class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.FAILURE, updateOperationFuture2.join());
 
         // process event
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, updateOperationFuture1.join());
 
@@ -277,7 +277,7 @@ public class StreamMetadataTasksTest {
         assertTrue(scaleOpResult.getStatus().equals(ScaleStreamStatus.STARTED));
 
         ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
-        assertTrue(FutureHelpers.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
+        assertTrue(Futures.await(scaleTask.execute((ScaleOpEvent) requestEventWriter.eventQueue.take())));
 
         // start truncation
         StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test",
@@ -290,7 +290,7 @@ public class StreamMetadataTasksTest {
         streamCut.put(1, 11L);
         CompletableFuture<UpdateStreamStatus.Status> truncateFuture = streamMetadataTasks.truncateStream(SCOPE, "test",
                 streamCut, null);
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateFuture.join());
 
         truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).join();
@@ -308,7 +308,7 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks.truncateStream(SCOPE, "test", streamCut2, null);
 
         AtomicBoolean loop = new AtomicBoolean(false);
-        FutureHelpers.loop(() -> !loop.get(),
+        Futures.loop(() -> !loop.get(),
                 () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop::set), executor).join();
@@ -317,12 +317,12 @@ public class StreamMetadataTasksTest {
         TruncateStreamTask truncateStreamTask = new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         TruncateStreamEvent taken = (TruncateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
-                e -> ExceptionHelpers.getRealException(e) instanceof StoreException.OperationNotAllowedException);
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
-        assertTrue(FutureHelpers.await(truncateStreamTask.execute(taken)));
+        assertTrue(Futures.await(truncateStreamTask.execute(taken)));
 
         // 3. multiple back to back updates.
 
@@ -336,7 +336,7 @@ public class StreamMetadataTasksTest {
         // ensure that previous updatestream has posted the event and set status to updating,
         // only then call second updateStream
         AtomicBoolean loop2 = new AtomicBoolean(false);
-        FutureHelpers.loop(() -> !loop2.get(),
+        Futures.loop(() -> !loop2.get(),
                 () -> streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor)
                         .thenApply(StreamProperty::isUpdating)
                         .thenAccept(loop2::set), executor).join();
@@ -354,7 +354,7 @@ public class StreamMetadataTasksTest {
         assertEquals(UpdateStreamStatus.Status.FAILURE, truncateOpFuture2.join());
 
         // process event
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
         // verify that first request for update also completes with success.
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateOp1.join());
 
@@ -370,7 +370,7 @@ public class StreamMetadataTasksTest {
 
         //seal a stream.
         CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
@@ -407,15 +407,15 @@ public class StreamMetadataTasksTest {
         //seal stream.
         CompletableFuture<UpdateStreamStatus.Status> sealOperationResult = streamMetadataTasks.sealStream(SCOPE, stream1, null);
 
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertTrue(streamStorePartialMock.isSealed(SCOPE, stream1, null, executor).get());
-        FutureHelpers.await(sealOperationResult);
+        Futures.await(sealOperationResult);
         assertEquals(UpdateStreamStatus.Status.SUCCESS, sealOperationResult.get());
 
         // delete after seal
         CompletableFuture<Controller.DeleteStreamStatus.Status> future = streamMetadataTasks.deleteStream(SCOPE, stream1, null);
-        assertTrue(FutureHelpers.await(processEvent(requestEventWriter)));
+        assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
     }
@@ -480,7 +480,7 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("", () -> streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, "test",
                 Collections.singletonList(0), response.getSegmentsCreated(),
                 response.getActiveEpoch(), 30, context, executor).get(),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof StoreException.IllegalStateException);
+                ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException);
 
         List<Segment> segments = streamMetadataTasks.startScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context).get();
 

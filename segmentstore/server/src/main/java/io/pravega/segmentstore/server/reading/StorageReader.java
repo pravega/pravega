@@ -9,9 +9,8 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
@@ -144,7 +143,7 @@ class StorageReader implements AutoCloseable {
                         finalizeRequest(request);
                     });
         } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
+            if (Exceptions.mustRethrow(ex)) {
                 throw ex;
             }
 
@@ -274,7 +273,7 @@ class StorageReader implements AutoCloseable {
             this.timeout = timeout;
             this.resultFuture = new CompletableFuture<>();
             this.resultFuture.thenAccept(successCallback);
-            FutureHelpers.exceptionListener(this.resultFuture, failureCallback);
+            Futures.exceptionListener(this.resultFuture, failureCallback);
         }
 
         //endregion
@@ -325,7 +324,7 @@ class StorageReader implements AutoCloseable {
         void addDependent(Request request) {
             Preconditions.checkArgument(isSubRequest(this, request), "Given Request does is not a sub-request of this one.");
             this.resultFuture.thenRun(() -> request.complete(this));
-            FutureHelpers.exceptionListener(this.resultFuture, request::fail);
+            Futures.exceptionListener(this.resultFuture, request::fail);
         }
 
         /**
@@ -371,7 +370,7 @@ class StorageReader implements AutoCloseable {
                 int offset = (int) (this.getOffset() - source.getOffset());
                 this.resultFuture.complete(new Result(sourceResult.getData().subSegment(offset, getLength()), true));
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
+                if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 

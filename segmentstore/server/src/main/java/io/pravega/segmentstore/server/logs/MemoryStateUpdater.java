@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -115,7 +115,7 @@ class MemoryStateUpdater {
                 try {
                     operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation);
                 } catch (Throwable ex) {
-                    if (ExceptionHelpers.mustRethrow(ex)) {
+                    if (Exceptions.mustRethrow(ex)) {
                         throw ex;
                     } else {
                         throw new DataCorruptionException(String.format("Unable to create a CachedStreamSegmentAppendOperation from operation '%s'.", operation), ex);

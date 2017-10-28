@@ -15,7 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
@@ -49,7 +49,7 @@ abstract class AbstractScaleTests {
     }
 
     void recordResult(final CompletableFuture<Void> scaleTestResult, final String testName) {
-        FutureHelpers.getAndHandleExceptions(scaleTestResult.handle((r, e) -> {
+        Futures.getAndHandleExceptions(scaleTestResult.handle((r, e) -> {
             if (e != null) {
                 log.error("test {} failed with exception {}", testName, e);
             } else {

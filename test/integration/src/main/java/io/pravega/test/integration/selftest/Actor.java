@@ -11,10 +11,9 @@ package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -71,7 +70,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
+            Futures.await(Services.stopAsync(this, this.executorService));
             this.closed.set(true);
         }
     }
@@ -84,7 +83,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
     protected void doStart() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         notifyStarted();
-        this.runTask = FutureHelpers
+        this.runTask = Futures
                 .delayedFuture(INITIAL_DELAY, this.executorService)
                 .thenCompose(v -> run());
         this.runTask.whenComplete((r, ex) -> stopAsync());
@@ -103,7 +102,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
                     // make sure we stop any long-running tasks.
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable ex) {
-                    ex = ExceptionHelpers.getRealException(ex);
+                    ex = Exceptions.unwrap(ex);
                     if (failureCause != null) {
                         TestLogger.log(getLogId(), "Original Failure: %s.", failureCause);
                         failureCause = ex;
