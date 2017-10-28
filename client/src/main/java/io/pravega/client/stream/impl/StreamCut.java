@@ -9,10 +9,13 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
+
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -29,5 +32,15 @@ public class StreamCut implements Serializable {
     private final Stream stream;
     @Getter(value = AccessLevel.PACKAGE)
     private final Map<Segment, Long> positions;
-    
+
+    @VisibleForTesting
+    public boolean validate(Set<String> segmentNames) {
+        for (Segment s: positions.keySet()) {
+            if (!segmentNames.contains(s.getScopedName())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

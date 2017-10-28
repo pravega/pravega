@@ -19,7 +19,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -104,14 +104,14 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
         recentMessage.set(true);
-        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
+        Futures.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
     
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
-        FutureHelpers.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        Futures.getAndHandleExceptions(getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
 
     @Override

@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.writer;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -541,7 +541,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
                 if (setException.get() != null) {
-                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), ExceptionHelpers.getRealException(ex));
+                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), Exceptions.unwrap(ex));
                     exceptionCount++;
                 } else {
                     // Not expecting any exception this time.
@@ -723,7 +723,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
                 if (setException.get() != null) {
-                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), ExceptionHelpers.getRealException(ex));
+                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), Exceptions.unwrap(ex));
                 } else {
                     // Not expecting any exception this time.
                     throw ex;
@@ -1096,10 +1096,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
                 if (setException.get() != null) {
-                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), ExceptionHelpers.getRealException(ex));
+                    Assert.assertEquals("Unexpected exception thrown.", setException.get(), Exceptions.unwrap(ex));
                 } else {
                     // Only expecting a BadOffsetException after our own injected exception.
-                    Throwable realEx = ExceptionHelpers.getRealException(ex);
+                    Throwable realEx = Exceptions.unwrap(ex);
                     Assert.assertTrue("Unexpected exception thrown: " + realEx, realEx instanceof BadOffsetException);
                 }
             }
@@ -1147,7 +1147,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
                 () -> context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
+                ex -> Exceptions.unwrap(ex) instanceof IntentionalException);
 
         context.storage.setSealInterceptor(null);
         // Second time: we are in reconciliation mode, so flush must succeed (and update internal state based on storage).
@@ -1205,14 +1205,14 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
                 () -> context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof IntentionalException);
+                ex -> Exceptions.unwrap(ex) instanceof IntentionalException);
 
         // Second time: we are not yet in reconcilation mode, but we are about to detect that the Transaction segment
         // no longer exists
         AssertExtensions.assertThrows(
                 "IntentionalException did not propagate to flush() caller.",
                 () -> context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
-                ex -> ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException);
+                ex -> Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException);
 
         // Third time: we should be in reconciliation mode, and we should be able to recover from it.
         context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -1284,7 +1284,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     context.segmentAggregator.flush(TIMEOUT, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Exception ex) {
                     errorCount++;
-                    Assert.assertTrue("", ExceptionHelpers.getRealException(ex) instanceof BadOffsetException);
+                    Assert.assertTrue("", Exceptions.unwrap(ex) instanceof BadOffsetException);
                 }
 
                 flushLoopCount++;
@@ -1552,7 +1552,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             Assert.assertNotNull("Expected a FlushResult.", flushResult);
             return flushResult;
         } catch (Throwable ex) {
-            ex = ExceptionHelpers.getRealException(ex);
+            ex = Exceptions.unwrap(ex);
             T expectedException = exceptionProvider.get();
             Assert.assertEquals("Unexpected exception or no exception got thrown.", expectedException, ex);
             return null;

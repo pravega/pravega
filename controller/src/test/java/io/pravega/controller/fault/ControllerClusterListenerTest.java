@@ -14,7 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -164,7 +164,7 @@ public class ControllerClusterListenerTest {
         String hostName = "localhost";
         Host host = new Host(hostName, 10, "originalhost");
         // Following futures are used as latches. When awaitRunning a sweeper, we wait on a latch by calling
-        // FutureHelpers.await across the test case.
+        // Futures.await across the test case.
         // Future for ensuring that task sweeper is ready and we let the sweep happen.
         CompletableFuture<Void> taskSweep = new CompletableFuture<>();
         // Future for when taskSweeper.failedHost is called once
@@ -237,7 +237,7 @@ public class ControllerClusterListenerTest {
         clusterListener.awaitRunning();
         log.info("cluster started");
         // ensure that task sweep happens after cluster listener becomes ready.
-        assertTrue(FutureHelpers.await(taskSweep, 3000));
+        assertTrue(Futures.await(taskSweep, 3000));
         log.info("task sweeper completed");
 
         // ensure only tasks are swept
@@ -257,8 +257,8 @@ public class ControllerClusterListenerTest {
         validateRemovedNode(newHost.getHostId());
         log.info("deregistering new host");
 
-        assertTrue(FutureHelpers.await(taskHostSweep1, 3000));
-        assertTrue(FutureHelpers.await(txnHostSweepIgnore, 10000));
+        assertTrue(Futures.await(taskHostSweep1, 3000));
+        assertTrue(Futures.await(txnHostSweepIgnore, 10000));
 
         log.info("task sweep for new host done");
 
@@ -280,7 +280,7 @@ public class ControllerClusterListenerTest {
                 new EventStreamWriterMock<>());
         txnSweeper.awaitInitialization();
 
-        assertTrue(FutureHelpers.await(txnSweep, 3000));
+        assertTrue(Futures.await(txnSweep, 3000));
 
         // verify that post initialization txns are swept. And host specific txn sweep is also performed.
         verify(txnSweeper, times(1)).sweepFailedProcesses(any());
@@ -293,8 +293,8 @@ public class ControllerClusterListenerTest {
         log.info("removing newhost2");
 
         validateRemovedNode(newHost.getHostId());
-        assertTrue(FutureHelpers.await(taskHostSweep2, 3000));
-        assertTrue(FutureHelpers.await(txnHostSweep2, 3000));
+        assertTrue(Futures.await(taskHostSweep2, 3000));
+        assertTrue(Futures.await(txnHostSweep2, 3000));
 
         verify(taskSweeper, atLeast(2)).handleFailedProcess(anyString());
         verify(txnSweeper, atLeast(1)).handleFailedProcess(anyString());

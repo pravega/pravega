@@ -9,7 +9,7 @@
  */
 package io.pravega.common.concurrent;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.IntentionalException;
@@ -90,7 +90,7 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
                              if (count.get() >= expectedCount) {
                                  finished.complete(null);
                              }
-                             return ExceptionHelpers.getRealException(t) instanceof IntentionalException;
+                             return Exceptions.unwrap(t) instanceof IntentionalException;
                          })
                          .throwingOn(Exception.class);
         val error = new CompletableFuture<Throwable>();
@@ -107,9 +107,9 @@ public class SequentialAsyncProcessorTests extends ThreadPooledTestSuite {
         p.runAsync();
 
         finished.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-        val finalException = ExceptionHelpers.getRealException(error.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
+        val finalException = Exceptions.unwrap(error.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS));
         Assert.assertEquals("Unexpected number of final invocations.", expectedCount, count.get());
         Assert.assertTrue("Unexpected final error callback.", finalException instanceof RetriesExhaustedException
-                && ExceptionHelpers.getRealException(finalException.getCause()) instanceof IntentionalException);
+                && Exceptions.unwrap(finalException.getCause()) instanceof IntentionalException);
     }
 }

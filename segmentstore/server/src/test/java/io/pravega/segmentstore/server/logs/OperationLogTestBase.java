@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.collect.Iterators;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -456,7 +456,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         static CompletableFuture<Void> allOf(Collection<OperationWithCompletion> operations) {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             operations.forEach(oc -> futures.add(oc.completion));
-            return FutureHelpers.allOf(futures);
+            return Futures.allOf(futures);
         }
     }
 

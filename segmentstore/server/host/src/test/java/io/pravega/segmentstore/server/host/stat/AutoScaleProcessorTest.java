@@ -13,7 +13,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
@@ -119,10 +119,10 @@ public class AutoScaleProcessorTest {
                 0.0, 0.0, 10.10, 0.0);
 
         monitor.notifySealed(streamSegmentName1);
-        assertTrue(FutureHelpers.await(result));
-        assertTrue(FutureHelpers.await(result2));
-        assertTrue(FutureHelpers.await(result3));
-        assertTrue(FutureHelpers.await(result4));
+        assertTrue(Futures.await(result));
+        assertTrue(Futures.await(result2));
+        assertTrue(Futures.await(result3));
+        assertTrue(Futures.await(result4));
     }
 
     @Test(timeout = 10000)
@@ -143,7 +143,7 @@ public class AutoScaleProcessorTest {
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(FutureHelpers.await(scaleDownFuture));
+        assertTrue(Futures.await(scaleDownFuture));
 
         assertNull(monitor.get(streamSegmentName1));
     }

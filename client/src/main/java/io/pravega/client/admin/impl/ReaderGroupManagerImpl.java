@@ -33,7 +33,7 @@ import java.util.Set;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 
 /**

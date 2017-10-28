@@ -11,7 +11,7 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.Retry;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
@@ -82,7 +82,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
                   .whenComplete((r, ex) -> {
                       if (ex != null) {
                           // If we were unable to execute after all retries, invoke the failure callback.
-                          CallbackHelpers.invokeSafely(this.failureCallback, ex, null);
+                          Callbacks.invokeSafely(this.failureCallback, ex, null);
                       }
 
                       boolean loopAgain;

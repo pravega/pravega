@@ -15,7 +15,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -165,7 +165,7 @@ public class StreamTransactionMetadataTasksTest {
             CompletableFuture<Void> spy = Mockito.spy(CompletableFuture.completedFuture(null));
             Mockito.when(spy.get()).thenThrow(InterruptedException.class);
             ackFutures.add(spy);
-            ackFutures.add(FutureHelpers.failedFuture(new WriteFailedException()));
+            ackFutures.add(Futures.failedFuture(new WriteFailedException()));
             ackFutures.add(CompletableFuture.completedFuture(null));
         }
         return ackFutures;

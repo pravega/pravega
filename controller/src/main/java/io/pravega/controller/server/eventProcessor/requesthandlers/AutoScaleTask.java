@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -139,12 +139,12 @@ public class AutoScaleTask {
                         final int maxScaleDownFactor = input.getRight();
 
                         // fetch their cold status for all candidates
-                        return FutureHelpers.filter(candidates,
+                        return Futures.filter(candidates,
                                 candidate -> streamMetadataStore.isCold(request.getScope(),
                                         request.getStream(),
                                         candidate.getNumber(),
                                         context, executor))
-                                .thenApply(segments -> {
+                                      .thenApply(segments -> {
                                     if (maxScaleDownFactor == 1 && segments.size() == 3) {
                                         // Note: sorted by keystart so just pick first two.
                                         return Lists.newArrayList(segments.get(0), segments.get(1));

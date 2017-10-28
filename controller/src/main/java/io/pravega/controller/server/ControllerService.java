@@ -12,7 +12,7 @@ package io.pravega.controller.server;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.shared.NameUtils;
@@ -73,7 +73,7 @@ public class ControllerService {
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
-            return FutureHelpers.failedFuture(new IllegalStateException("Controller cluster not initialized"));
+            return Futures.failedFuture(new IllegalStateException("Controller cluster not initialized"));
         }
 
         return CompletableFuture.supplyAsync(() -> {
@@ -172,8 +172,8 @@ public class ControllerService {
                 segment.getSegmentNumber(),
                 context,
                 executor)
-                .thenComposeAsync(successors -> FutureHelpers.keysAllOfWithResults(successors.entrySet().stream()
-                        .collect(Collectors.toMap(
+                .thenComposeAsync(successors -> Futures.keysAllOfWithResults(successors.entrySet().stream()
+                                                                                       .collect(Collectors.toMap(
                         entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
                                 segment.getStreamInfo().getStream(),
                                 entry.getKey(),

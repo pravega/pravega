@@ -16,9 +16,8 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -420,7 +419,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 // if connection is null getConnection() establishes a connection and retransmits all events in inflight
                 // list.
-                connection = FutureHelpers.getThrowingException(getConnection());
+                connection = Futures.getThrowingException(getConnection());
             } catch (SegmentSealedException e) {
                 // Add the event to inflight and indicate to the caller that the segment is sealed.
                 state.addToInflight(event);
@@ -483,7 +482,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (!state.isInflightEmpty()) {
             log.debug("Flushing writer: {}", writerId);
             try {
-                ClientConnection connection = FutureHelpers.getThrowingException(getConnection());
+                ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
             } catch (Exception e) {
                 failConnection(e);
@@ -497,7 +496,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     private void failConnection(Throwable e) {
-        state.failConnection(ExceptionHelpers.getRealException(e));
+        state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }
     
@@ -530,7 +529,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                              throw Lombok.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {
-                             if (ExceptionHelpers.getRealException(t) instanceof SegmentSealedException) {
+                             if (Exceptions.unwrap(t) instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts to {} because segment is sealed", segmentName);
                                  return null;
                              }
