@@ -31,9 +31,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 public class BookKeeperStorageTest extends StorageTestBase {
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
-
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
 
@@ -41,6 +38,9 @@ public class BookKeeperStorageTest extends StorageTestBase {
     private static final AtomicInteger BK_PORT = new AtomicInteger();
     private static final AtomicReference<CuratorFramework> ZK_CLIENT = new AtomicReference<>();
     private static final AtomicReference<BookKeeperStorageConfig> CONFIG = new AtomicReference<>();
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @BeforeClass
     public static void setUp() throws Exception {

@@ -674,7 +674,7 @@ class LogStorageManager {
                                        });
                                    } else {
                                        CompletableFuture<LedgerData>[] futures = null;
-                                       future = children
+                                       futures = children
                                                .stream()
                                                .map(child -> {
                                                    int offset = Integer.valueOf(child);
