@@ -31,7 +31,7 @@ import org.apache.curator.framework.CuratorFramework;
  *
  * Each segment is represented by a log built on top of bookkeeper ledgers. This implementation follows some of recommendations
  * here: https://bookkeeper.apache.org/docs/r4.4.0/bookkeeperLedgers2Logs.html
- * This log is called a StorageLog. A storage ledger consists of a number of ledgers and metadata for the segment and the ledgers.
+ * This log is called a LogStorage. A storage ledger consists of a number of ledgers and metadata for the segment and the ledgers.
  * The metadata is stored in ZK. It is accessed using the async curator framework.
  *
  * Fencing: The recommended implementation of fencing as described in the URL ensures that the latest caller owns the log.
@@ -40,7 +40,7 @@ import org.apache.curator.framework.CuratorFramework;
  *
  * Here is the algorithm that describes ownership change through the openWrite() call:
  *
- * 1. Check the current epoch for the given StorageLog.
+ * 1. Check the current epoch for the given LogStorage.
  * 2. If the current epoch is larger, set it to the new epoc, otherwise throw StorageNotPrimaryException.
  * 3. Try and fence all the ledgers. The last ledger may be empty, in this case delete the ledger.
  * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK.
@@ -60,7 +60,7 @@ class BookKeeperStorage implements Storage {
     private final BookKeeperStorageConfig config;
     private final ExecutorService executor;
     private final AtomicBoolean closed;
-    private final StorageLogManager manager;
+    private final LogStorageManager manager;
     private final CuratorFramework zkClient;
     private boolean initialized;
 
@@ -83,7 +83,7 @@ class BookKeeperStorage implements Storage {
         this.config = config;
         this.zkClient = zkClient;
         this.executor = executor;
-        manager = new StorageLogManager(config, zkClient, executor);
+        manager = new LogStorageManager(config, zkClient, executor);
     }
 
     //endregion

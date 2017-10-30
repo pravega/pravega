@@ -51,18 +51,18 @@ import org.apache.zookeeper.data.Stat;
  * This objects interacts with Zookeeper through Async curator framework to manage the metadata.
  */
 @Slf4j
-class StorageLogManager {
+class LogStorageManager {
     private static final BookKeeper.DigestType LEDGER_DIGEST_TYPE = BookKeeper.DigestType.MAC;
 
     private final BookKeeperStorageConfig config;
     private final ExecutorService executor;
     private final AsyncCuratorFramework zkClient;
 
-    private ConcurrentHashMap<String, StorageLog> ledgers;
+    private ConcurrentHashMap<String, LogStorage> ledgers;
     private BookKeeper bookkeeper;
     private long containerEpoch;
 
-    public StorageLogManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
+    public LogStorageManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(zkClient, "zkClient");
@@ -76,20 +76,20 @@ class StorageLogManager {
     //region Storage API
 
     /**
-     * Creates a StorageLog at location streamSegmentName.
+     * Creates a LogStorage at location streamSegmentName.
      *
      * @param streamSegmentName Full name of the stream segment
      * @param timeout           timeout value for the operation
-     * @return A new instance of StorageLog if one does not already exist
+     * @return A new instance of LogStorage if one does not already exist
      * @Param bookkeeper the BK instance
      * @Param zkClient
      */
     public CompletableFuture<LedgerData> create(String streamSegmentName, Duration timeout) {
-        StorageLog storageLog = new StorageLog(this, streamSegmentName, 0, this.containerEpoch, false);
+        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, false);
 
         /** Create the node for the segment in the ZK. */
         return zkClient.create()
-                       .forPath(getZkPath(streamSegmentName), storageLog.serialize())
+                       .forPath(getZkPath(streamSegmentName), logStorage.serialize())
                        .toCompletableFuture()
                        .exceptionally(exc -> {
                            translateZKException(streamSegmentName, exc);
@@ -97,7 +97,7 @@ class StorageLogManager {
                        })
                        /** Add the ledger to the local cache.*/
                        .thenApply(name -> {
-                           ledgers.put(streamSegmentName, storageLog);
+                           ledgers.put(streamSegmentName, logStorage);
                            return streamSegmentName;
                        })
                        /** Create the first ledger and add it to the local cache */
@@ -124,11 +124,11 @@ class StorageLogManager {
         AtomicReference<Boolean> tryAgain = new AtomicReference<>(true);
         AtomicReference<Boolean> needFencing = new AtomicReference<>(false);
 
-        /** Get the StorageLog metadata. */
+        /** Get the LogStorage metadata. */
         return getOrRetrieveStorageLedger(streamSegmentName, false)
                 /** check whether fencing is required. */
                 .thenCompose(ledger -> {
-                    CompletableFuture<StorageLog> retVal = new CompletableFuture<StorageLog>();
+                    CompletableFuture<LogStorage> retVal = new CompletableFuture<LogStorage>();
                     if (ledger.getContainerEpoch() == containerEpoch) {
                         retVal.complete(ledger);
                         return retVal;
@@ -161,7 +161,7 @@ class StorageLogManager {
                         log.info("Fencing all the ledgers for {}", streamSegmentName);
                         return fenceLedgersAndCreateOneAtEnd(streamSegmentName, ledger);
                     } else {
-                        CompletableFuture<StorageLog> future = new CompletableFuture<>();
+                        CompletableFuture<LogStorage> future = new CompletableFuture<>();
                         future.complete(ledger);
                         return future;
                     }
@@ -260,7 +260,7 @@ class StorageLogManager {
         log.info("Writing {} at offset {} for segment {}", length, offset, segmentName);
 
         return getOrRetrieveStorageLedger(segmentName, false)
-                .thenCompose((StorageLog ledger) -> {
+                .thenCompose((LogStorage ledger) -> {
                     if (ledger.getLength() != offset) {
                         throw new CompletionException(new BadOffsetException(segmentName, ledger.getLength(), offset));
                     }
@@ -340,12 +340,12 @@ class StorageLogManager {
                                                       })
                                                       .thenCompose(results -> {
                                                           return getOrRetrieveStorageLedger(segmentName, false)
-                                                                  .thenCompose(storageLog -> {
-                                                                      storageLog.setUpdateVersion(storageLog.getUpdateVersion() + 1);
+                                                                  .thenCompose(logStorage -> {
+                                                                      logStorage.setUpdateVersion(logStorage.getUpdateVersion() + 1);
                                                                       /** Fence all the ledgers and add one at the end. */
-                                                                      return fenceLedgersAndCreateOneAtEnd(segmentName, storageLog);
+                                                                      return fenceLedgersAndCreateOneAtEnd(segmentName, logStorage);
                                                                   })
-                                                                  .thenApply(storageLog -> null);
+                                                                  .thenApply(logStorage -> null);
                                                       }))
                    /** Delete metadata and cache for the source once the operation is complete. */
                    .thenCompose(v -> this.zkClient.delete()
@@ -459,7 +459,7 @@ class StorageLogManager {
         return e;
     }
 
-    private CompletableFuture<LedgerData> getORCreateLHForOffset(StorageLog ledger, long offset) {
+    private CompletableFuture<LedgerData> getORCreateLHForOffset(LogStorage ledger, long offset) {
         return ledger.getLedgerDataForWriteAt(offset);
     }
 
@@ -499,12 +499,12 @@ class StorageLogManager {
         return ld;
     }
 
-    private CompletableFuture<StorageLog> getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
-        CompletableFuture<StorageLog> retVal = new CompletableFuture<>();
+    private CompletableFuture<LogStorage> getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
+        CompletableFuture<LogStorage> retVal = new CompletableFuture<>();
 
         synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
-                StorageLog ledger = ledgers.get(streamSegmentName);
+                LogStorage ledger = ledgers.get(streamSegmentName);
                 if (!readOnly && ledger.isReadOnlyHandle()) {
                     //Check whether the value is read-write, if it is not, flush it so that we create a read-write token
                     ledgers.remove(streamSegmentName);
@@ -518,7 +518,7 @@ class StorageLogManager {
         return retrieveStorageLedgerMetadata(streamSegmentName, readOnly);
     }
 
-    private CompletableFuture<StorageLog> retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) {
+    private CompletableFuture<LogStorage> retrieveStorageLedgerMetadata(String streamSegmentName, boolean readOnly) {
 
         Stat stat = new Stat();
         return zkClient.getData().storingStatIn(stat).forPath(getZkPath(streamSegmentName)).toCompletableFuture()
@@ -527,7 +527,7 @@ class StorageLogManager {
                            return null;
                        })
                        .thenApply(bytes -> {
-                           StorageLog retval = StorageLog.deserialize(this, streamSegmentName, bytes, stat.getVersion());
+                           LogStorage retval = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion());
                            ledgers.put(streamSegmentName, retval);
                            return retval;
                        })
@@ -535,14 +535,14 @@ class StorageLogManager {
                            if (readOnly) {
                                return getBKLEdgerDetails(streamSegmentName, storageLog);
                            } else {
-                               CompletableFuture<StorageLog> retVal = new CompletableFuture<>();
+                               CompletableFuture<LogStorage> retVal = new CompletableFuture<>();
                                retVal.complete(storageLog);
                                return retVal;
                            }
                        });
     }
 
-    private CompletableFuture<StorageLog> getBKLEdgerDetails(String streamSegmentName, StorageLog storageLog) {
+    private CompletableFuture<LogStorage> getBKLEdgerDetails(String streamSegmentName, LogStorage logStorage) {
         return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
                        .toCompletableFuture()
                        .thenCompose(children -> {
@@ -558,12 +558,12 @@ class StorageLogManager {
                                                                                                             bytes, true, stat);
                                                                                                     ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
                                                                                                     ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
-                                                                                                    storageLog.addToList(offset, ledgerData);
+                                                                                                    logStorage.addToList(offset, ledgerData);
                                                                                                     return ledgerData;
                                                                                                 });
                                                                              })
                                                                              .toArray(CompletableFuture[]::new);
-                           return CompletableFuture.allOf(futures).thenApply(v -> storageLog);
+                           return CompletableFuture.allOf(futures).thenApply(v -> logStorage);
                        });
     }
 
@@ -643,20 +643,20 @@ class StorageLogManager {
                             .thenApply(v -> length - lengthRemaining.get());
     }
 
-    private CompletableFuture<StorageLog> fenceLedgersAndCreateOneAtEnd(String streamSegmentName, StorageLog ledger) {
+    private CompletableFuture<LogStorage> fenceLedgersAndCreateOneAtEnd(String streamSegmentName, LogStorage ledger) {
         return fenceAllTheLedgers(streamSegmentName, ledger)
-                .thenCompose(storageLog -> {
+                .thenCompose(logStorage -> {
                     log.info("Made all the ledgers readonly. Adding a new ledger at {} for {}",
-                            storageLog.getLength(), streamSegmentName);
-                    return createLedgerAt(streamSegmentName, (int) storageLog.getLength())
+                            logStorage.getLength(), streamSegmentName);
+                    return createLedgerAt(streamSegmentName, (int) logStorage.getLength())
                             .thenApply(ledgerData -> {
-                                storageLog.addToList((int) storageLog.getLength(), ledgerData);
-                                return storageLog;
+                                logStorage.addToList((int) logStorage.getLength(), ledgerData);
+                                return logStorage;
                             });
                 });
     }
 
-    private CompletableFuture<StorageLog> fenceAllTheLedgers(String streamSegmentName, StorageLog ledger) {
+    private CompletableFuture<LogStorage> fenceAllTheLedgers(String streamSegmentName, LogStorage ledger) {
         return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
                        .toCompletableFuture()
                        .exceptionally(exc -> {
@@ -775,12 +775,12 @@ class StorageLogManager {
                            });
     }
 
-    private CuratorOp createLedgerDeleteOp(LedgerData lastLedger, StorageLog target) {
+    private CuratorOp createLedgerDeleteOp(LedgerData lastLedger, LogStorage target) {
         return zkClient.transactionOp().delete()
                        .forPath(getZkPath(target.getName()) + "/" + lastLedger.getStartOffset());
     }
 
-    private CuratorOp createLedgerUpdateOp(StorageLog target) {
+    private CuratorOp createLedgerUpdateOp(LogStorage target) {
         return zkClient.transactionOp().setData().withVersion(target.getUpdateVersion())
                        .forPath(getZkPath(target.getName()), target.serialize());
     }

@@ -26,9 +26,9 @@ import org.apache.curator.framework.api.transaction.CuratorOp;
 * Storage Log represents a single segment. A segment is rolled over whenever a ownership change is observed.
 *
 **/
-class StorageLog {
+class LogStorage {
 
-    private final StorageLogManager manager;
+    private final LogStorageManager manager;
 
     @Getter
     private final String name;
@@ -55,8 +55,8 @@ class StorageLog {
     @Getter
     private ImmutableDate lastModified;
 
-    public StorageLog(StorageLogManager storageLogManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
-        this.manager = storageLogManager;
+    public LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
+        this.manager = logStorageManager;
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
         this.readOnlyHandle = readOnly;
@@ -105,7 +105,7 @@ class StorageLog {
     }
 
     /**
-     * Increase length of the StorageLog as a side effect of the write operation.
+     * Increase length of the LogStorage as a side effect of the write operation.
      * This is just a cache operation. The length is not persisted.
      *
      * @param size size of data written.
@@ -132,11 +132,11 @@ class StorageLog {
     }
 
     /**
-     * Creates a list of curator transaction for merging source StorageLog in to this.
+     * Creates a list of curator transaction for merging source LogStorage in to this.
      * @param source Name of the source ledger.
      * @return list of curator operations.
      */
-    public synchronized List<CuratorOp> addLedgerDataFrom(StorageLog source) {
+    public synchronized List<CuratorOp> addLedgerDataFrom(LogStorage source) {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
             int newKey = (int) (entry.getKey() + this.length);
             this.dataMap.put(newKey, entry.getValue());
@@ -162,9 +162,9 @@ class StorageLog {
         return retVal;
     }
 
-    public static StorageLog deserialize(StorageLogManager manager, String segmentName, byte[] bytes, int version) {
+    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
-        return new StorageLog(manager, segmentName, version, bb.getLong(), false);
+        return new LogStorage(manager, segmentName, version, bb.getLong(), false);
     }
 
     public void setContainerEpoch(long containerEpoch) {
