@@ -142,6 +142,7 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')
@@ -415,6 +416,7 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
+        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion

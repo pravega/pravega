@@ -11,10 +11,10 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
@@ -56,9 +56,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -76,6 +73,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -144,7 +143,8 @@ public class ControllerImpl implements Controller {
 
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        this.client = ControllerServiceGrpc.newStub(this.channel);
+        this.client = ControllerServiceGrpc.newStub(this.channel)
+                .withCallCredentials(MoreCallCredentials.from(GoogleCredentials));
     }
 
     @Override
