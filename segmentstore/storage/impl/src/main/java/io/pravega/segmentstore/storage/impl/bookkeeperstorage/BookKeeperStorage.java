@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -127,6 +128,7 @@ class BookKeeperStorage implements Storage {
                                            Duration timeout) {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName());
         ensureInitializedAndNotClosed();
+        Timer timer = new Timer();
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
             throw new ArrayIndexOutOfBoundsException();
@@ -138,6 +140,11 @@ class BookKeeperStorage implements Storage {
                 .thenApply(retVal -> {
                     LoggerHelpers.traceLeave(log, "read", traceId, handle.getSegmentName());
                     return retVal;
+                })
+                .thenApply(lengthRead -> {
+                    BookKeeperStorageMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
+                    BookKeeperStorageMetrics.READ_BYTES.add(lengthRead);
+                    return lengthRead;
                 });
 
     }
@@ -200,9 +207,14 @@ class BookKeeperStorage implements Storage {
                                          Duration timeout) {
         ensureInitializedAndNotClosed();
 
+        Timer timer = new Timer();
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
         Preconditions.checkArgument(handle instanceof BookKeeperSegmentHandle, "handle must be instance of bookkeeper segment handle.");
-        return manager.write(handle.getSegmentName(), offset, data, length);
+        return manager.write(handle.getSegmentName(), offset, data, length)
+                      .thenAccept(lengthWritten -> {
+                          BookKeeperStorageMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+                          BookKeeperStorageMetrics.WRITE_BYTES.add(lengthWritten);
+                      });
     }
 
     @Override

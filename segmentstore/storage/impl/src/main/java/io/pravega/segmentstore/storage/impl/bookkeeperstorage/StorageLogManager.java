@@ -256,7 +256,7 @@ class StorageLogManager {
      * @param length size of the data to be written.
      * @return A CompletableFuture which completes once the write is complete.
      */
-    public CompletableFuture<Void> write(String segmentName, long offset, InputStream data, int length) {
+    public CompletableFuture<Integer> write(String segmentName, long offset, InputStream data, int length) {
         log.info("Writing {} at offset {} for segment {}", length, offset, segmentName);
 
         return getOrRetrieveStorageLedger(segmentName, false)
@@ -270,13 +270,13 @@ class StorageLogManager {
                     /** Get the last ledger where data can be appended. */
                     return getORCreateLHForOffset(ledger, offset);
                 }).thenCompose(ledgerData -> {
-                    CompletableFuture<Void> retVal = writeDataAt(ledgerData.getLedgerHandle(), offset, data, length, segmentName)
+                    CompletableFuture<Integer> retVal = writeDataAt(ledgerData.getLedgerHandle(), offset, data, length, segmentName)
                             .thenApply(v -> {
                                 /** Update lengths in the cache. The lengths are not persisted. */
                                 ledgerData.increaseLengthBy(length);
                                 ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
                                 ledgers.get(segmentName).increaseLengthBy(length);
-                                return v;
+                                return length;
                             });
                     return retVal;
                 });
