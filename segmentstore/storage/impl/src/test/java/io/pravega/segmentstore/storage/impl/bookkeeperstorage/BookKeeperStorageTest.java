@@ -26,9 +26,14 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 public class BookKeeperStorageTest extends StorageTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+
     private static final int BOOKIE_COUNT = 1;
     private static final int THREAD_POOL_SIZE = 20;
 

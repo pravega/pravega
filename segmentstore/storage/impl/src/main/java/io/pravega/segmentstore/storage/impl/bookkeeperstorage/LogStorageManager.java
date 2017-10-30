@@ -546,23 +546,25 @@ class LogStorageManager {
         return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
                        .toCompletableFuture()
                        .thenCompose(children -> {
-                           CompletableFuture<LedgerData>[] futures = children.stream()
-                                                                             .map(child -> {
-                                                                                 int offset = Integer.valueOf(child);
-                                                                                 Stat stat = new Stat();
-                                                                                 return zkClient.getData()
-                                                                                                .storingStatIn(stat)
-                                                                                                .forPath(getZkPath(streamSegmentName) + "/" + child)
-                                                                                                .thenApply(bytes -> {
-                                                                                                    LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child),
-                                                                                                            bytes, true, stat);
-                                                                                                    ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
-                                                                                                    ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
-                                                                                                    logStorage.addToList(offset, ledgerData);
-                                                                                                    return ledgerData;
-                                                                                                });
-                                                                             })
-                                                                             .toArray(CompletableFuture[]::new);
+                           CompletableFuture<LedgerData>[] futures = null;
+                           futures = children
+                                   .stream()
+                                   .map(child -> {
+                                       int offset = Integer.valueOf(child);
+                                       Stat stat = new Stat();
+                                       return zkClient.getData()
+                                                      .storingStatIn(stat)
+                                                      .forPath(getZkPath(streamSegmentName) + "/" + child)
+                                                      .thenApply(bytes -> {
+                                                          LedgerData ledgerData = deserializeLedgerData(Integer.valueOf(child),
+                                                                  bytes, true, stat);
+                                                          ledgerData.setLastAddConfirmed(ledgerData.getLedgerHandle().getLastAddConfirmed());
+                                                          ledgerData.setLength((int) ledgerData.getLedgerHandle().getLength());
+                                                          logStorage.addToList(offset, ledgerData);
+                                                          return ledgerData;
+                                                      });
+                                   })
+                                   .toArray(CompletableFuture[]::new);
                            return CompletableFuture.allOf(futures).thenApply(v -> logStorage);
                        });
     }
@@ -671,23 +673,25 @@ class LogStorageManager {
                                            return ledger;
                                        });
                                    } else {
-                                       CompletableFuture<LedgerData>[] futures = children.stream()
-                                                                                         .map(child -> {
-                                                                                             int offset = Integer.valueOf(child);
-                                                                                             return fenceLedgerAt(streamSegmentName, offset)
-                                                                                                     .thenCompose(ledgerData -> {
-                                                                                                         if (ledgerData.getLedgerHandle().getLength() == 0) {
-                                                                                                             tryDeleteLedger(ledgerData.getLedgerHandle().getId());
-                                                                                                             return zkClient.delete().forPath(getZkPath(streamSegmentName) + "/" + child).toCompletableFuture()
-                                                                                                                            .thenApply(v -> null);
-                                                                                                         }
-                                                                                                         ledger.addToList(offset, ledgerData);
-                                                                                                         CompletableFuture<LedgerData> retval = new CompletableFuture<LedgerData>();
-                                                                                                         retval.complete(ledgerData);
-                                                                                                         return retval;
-                                                                                                     });
-                                                                                         })
-                                                                                         .toArray(CompletableFuture[]::new);
+                                       CompletableFuture<LedgerData>[] futures = null;
+                                       future = children
+                                               .stream()
+                                               .map(child -> {
+                                                   int offset = Integer.valueOf(child);
+                                                   return fenceLedgerAt(streamSegmentName, offset)
+                                                           .thenCompose(ledgerData -> {
+                                                               if (ledgerData.getLedgerHandle().getLength() == 0) {
+                                                                   tryDeleteLedger(ledgerData.getLedgerHandle().getId());
+                                                                   return zkClient.delete().forPath(getZkPath(streamSegmentName) + "/" + child).toCompletableFuture()
+                                                                                  .thenApply(v -> null);
+                                                               }
+                                                               ledger.addToList(offset, ledgerData);
+                                                               CompletableFuture<LedgerData> retval = new CompletableFuture<LedgerData>();
+                                                               retval.complete(ledgerData);
+                                                               return retval;
+                                                           });
+                                               })
+                                               .toArray(CompletableFuture[]::new);
                                        return CompletableFuture.allOf(futures).thenApply(v -> {
                                            return ledger;
                                        });

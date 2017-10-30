@@ -36,21 +36,23 @@ import org.apache.curator.framework.CuratorFramework;
  *
  * Fencing: The recommended implementation of fencing as described in the URL ensures that the latest caller owns the log.
  * In case of Storage implementation the requirement is different. A Storage with higher epoch is supposed to own the log,
- * irrespective of the time the fencing happens. Because of this a CAS operation in ZK for a storage ledger decides ownership.
+ * irrespective of the time the fencing happens. Because of this a CAS operation in ZK for a storage ledger followed by fencing decides ownership.
  *
  * Here is the algorithm that describes ownership change through the openWrite() call:
  *
  * 1. Check the current epoch for the given LogStorage.
  * 2. If the current epoch is larger, set it to the new epoc, otherwise throw StorageNotPrimaryException.
  * 3. Try and fence all the ledgers. The last ledger may be empty, in this case delete the ledger.
- * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK.
+ * 4. Create a new ledger and add it to the list of ledgers as well as to the ZK conditionally.
+ *    We ensure that only one such action is successful. In case such a ledger already exists, the call fails.
  *
  * Concat: Apache bookkeeper does not have a native concat which appends two ledgers on the server side. To overcome this,
  * concatenation is implemented as a pure metadata operation. Here is the algorithm used for concat() call:
  *
  * 1. Get the target and source ledgers.
  * 2. Update the offset of the source ledgers to the offsets after the concatenation.
- * 3. Update all the metadata about ledgers in one transaction using transaction() API for curator.
+ * 3. Update all the metadata about ledgers in one transaction using transaction() API of curator.
+ *    These operations are done conditionally so that only one operation succeeds.
  */
 @Slf4j
 class BookKeeperStorage implements Storage {
@@ -146,7 +148,6 @@ class BookKeeperStorage implements Storage {
                     BookKeeperStorageMetrics.READ_BYTES.add(lengthRead);
                     return lengthRead;
                 });
-
     }
 
     @Override
