@@ -22,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Helper methods that allow controlling Services.
  */
-public final class ServiceHelpers {
+public final class Services {
     /**
      * Asynchronously starts a Service and returns a CompletableFuture that will indicate when it is running.
      *

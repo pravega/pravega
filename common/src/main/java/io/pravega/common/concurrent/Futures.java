@@ -10,9 +10,7 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
@@ -42,7 +40,7 @@ import lombok.val;
 /**
  * Extensions to Future and CompletableFuture.
  */
-public final class FutureHelpers {
+public final class Futures {
 
     /**
      * Waits for the provided future to be complete, and returns true if it was successful, false otherwise.
@@ -91,7 +89,7 @@ public final class FutureHelpers {
 
             // Async termination.
             f.thenAccept(toComplete::complete);
-            FutureHelpers.exceptionListener(f, toComplete::completeExceptionally);
+            Futures.exceptionListener(f, toComplete::completeExceptionally);
         } catch (Throwable ex) {
             // Synchronous termination.
             toComplete.completeExceptionally(ex);
@@ -122,7 +120,7 @@ public final class FutureHelpers {
             future.getNow(null);
             return null;
         } catch (Exception e) {
-            return ExceptionHelpers.getRealException(e);
+            return Exceptions.unwrap(e);
         }
     }
 
@@ -156,7 +154,7 @@ public final class FutureHelpers {
             Thread.currentThread().interrupt();
             throw Lombok.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(ExceptionHelpers.getRealException(e));
+            throw Lombok.sneakyThrow(Exceptions.unwrap(e));
         }
     }
 
@@ -239,7 +237,7 @@ public final class FutureHelpers {
     public static <T> void exceptionListener(CompletableFuture<T> completableFuture, Consumer<Throwable> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null) {
-                CallbackHelpers.invokeSafely(exceptionListener, ex, null);
+                Callbacks.invokeSafely(exceptionListener, ex, null);
             }
         });
     }
@@ -257,7 +255,7 @@ public final class FutureHelpers {
     public static <T, E extends Throwable> void exceptionListener(CompletableFuture<T> completableFuture, Class<E> exceptionClass, Consumer<E> exceptionListener) {
         completableFuture.whenComplete((r, ex) -> {
             if (ex != null && exceptionClass.isAssignableFrom(ex.getClass())) {
-                CallbackHelpers.invokeSafely(exceptionListener, (E) ex, null);
+                Callbacks.invokeSafely(exceptionListener, (E) ex, null);
             }
         });
     }
@@ -348,7 +346,7 @@ public final class FutureHelpers {
      * in the input map.
      */
     public static <K, V> CompletableFuture<Map<K, V>> allOfWithResults(Map<K, CompletableFuture<V>> futureMap) {
-        return FutureHelpers
+        return Futures
                 .allOf(futureMap.values())
                 .thenApply(ignored ->
                         futureMap.entrySet().stream()
@@ -367,7 +365,7 @@ public final class FutureHelpers {
      * in the input map.
      */
     public static <K, V> CompletableFuture<Map<K, V>> keysAllOfWithResults(Map<CompletableFuture<K>, V> futureMap) {
-        return FutureHelpers
+        return Futures
                 .allOf(futureMap.keySet())
                 .thenApply(ignored ->
                         futureMap.entrySet().stream()
@@ -397,7 +395,7 @@ public final class FutureHelpers {
         Preconditions.checkNotNull(input);
 
         val allFutures = input.stream().collect(Collectors.toMap(key -> key, predicate::apply));
-        return FutureHelpers
+        return Futures
                 .allOf(allFutures.values())
                 .thenApply(ignored ->
                         allFutures.entrySet()

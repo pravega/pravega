@@ -14,7 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -133,6 +133,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     public void hello(Hello hello) {
         log.info("Received hello from connection: {}", connection);
         connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
+            log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
+            connection.close();
+        }
     }
 
     /**
@@ -246,7 +250,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
-            boolean conditionalFailed = exception != null && (ExceptionHelpers.getRealException(exception) instanceof BadOffsetException);
+            boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
+            long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
             synchronized (lock) {
                 Preconditions.checkState(outstandingAppend == append,
                         "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
@@ -272,7 +277,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (statsRecorder != null) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
-                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber()));
+                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber(), previousEventNumber));
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
             }

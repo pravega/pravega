@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
@@ -263,7 +263,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (e == null) {
                         connection.send(new SegmentAttributeUpdated(requestId, true));
                     } else {
-                        if (ExceptionHelpers.getRealException(e) instanceof BadAttributeUpdateException) {
+                        if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
                             log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
                             connection.send(new SegmentAttributeUpdated(requestId, false));
                         } else {
@@ -447,7 +447,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.deleteStreamSegment(transactionName, TIMEOUT)
                 .thenRun(() -> connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid())))
                 .exceptionally(e -> {
-                    if (ExceptionHelpers.getRealException(e) instanceof StreamSegmentNotExistsException) {
+                    if (Exceptions.unwrap(e) instanceof StreamSegmentNotExistsException) {
                         connection.send(new TransactionAborted(requestId, abortTx.getSegment(), abortTx.getTxid()));
                         return null;
                     } else {
@@ -544,7 +544,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @SneakyThrows
     private Long ignoreSegmentSealed(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (!(ex instanceof StreamSegmentSealedException)) {
             throw ex;
         }

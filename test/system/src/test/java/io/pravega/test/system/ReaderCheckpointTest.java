@@ -14,6 +14,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import io.pravega.common.concurrent.Futures;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -52,7 +53,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -213,7 +213,7 @@ public class ReaderCheckpointTest {
         }
 
         //results from all readers
-        List<List<EventRead<Integer>>> results = FutureHelpers.allOfWithResults(readResults).join();
+        List<List<EventRead<Integer>>> results = Futures.allOfWithResults(readResults).join();
         List<EventRead<Integer>> eventsRead = results.stream().flatMap(List::stream).collect(Collectors.toList());
 
         verifyEvents(eventsRead, startInclusive, endExclusive);
@@ -222,7 +222,7 @@ public class ReaderCheckpointTest {
     private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String readerId) {
         CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(
                 () -> readEvents(readerId), readerExecutor);
-        FutureHelpers.exceptionListener(result,
+        Futures.exceptionListener(result,
                 t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
         return result;
     }

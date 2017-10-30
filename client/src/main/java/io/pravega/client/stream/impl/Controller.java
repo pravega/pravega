@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +66,18 @@ public interface Controller extends AutoCloseable {
      *         indicate that the stream was updated because the config is now different from before.
      */
     CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
+
+    /**
+     * Api to Truncate stream. This api takes a stream cut point which corresponds to a cut in the stream segments which is
+     * consistent and covers the entire key range space.
+     *
+     * @param scope      Scope
+     * @param streamName Stream
+     * @param streamCut  Stream cut to updated
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     * indicate that the stream was truncated at the supplied cut.
+     */
+    CompletableFuture<Boolean> truncateStream(final String scope, final String streamName, final StreamCut streamCut);
 
     /**
      * Api to seal stream.

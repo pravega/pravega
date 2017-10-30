@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.mocks;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.Cache;
 
@@ -62,7 +62,7 @@ public class InMemoryCache implements Cache {
 
             Consumer<String> callback = this.closeCallback;
             if (callback != null) {
-                CallbackHelpers.invokeSafely(callback, this.id, null);
+                Callbacks.invokeSafely(callback, this.id, null);
             }
         }
     }

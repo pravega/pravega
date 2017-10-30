@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
@@ -89,7 +89,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         val alreadySealed = storage.registerSealTrigger(segment1, TIMEOUT);
         alreadySealed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Seal trigger was not immediately completed when segment already sealed.",
-                FutureHelpers.isSuccessful(alreadySealed));
+                Futures.isSuccessful(alreadySealed));
     }
 
     /**
@@ -130,7 +130,7 @@ public class InMemoryStorageTests extends TruncateableStorageTestBase {
         val alreadyExceeded = storage.registerSizeTrigger(segment1, triggerOffset, TIMEOUT);
         alreadyExceeded.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertTrue("Size trigger was not immediately completed when segment already exceeds size.",
-                FutureHelpers.isSuccessful(alreadyExceeded));
+                Futures.isSuccessful(alreadyExceeded));
 
         // Trigger cancelled when segment is sealed.
         val size3 = storage.registerSizeTrigger(segment1, triggerOffset * 2, TIMEOUT);

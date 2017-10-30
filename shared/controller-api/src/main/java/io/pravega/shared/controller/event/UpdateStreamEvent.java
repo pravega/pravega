@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.controller.event;
 
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.Data;
 
 import java.util.concurrent.CompletableFuture;
@@ -18,8 +17,6 @@ import java.util.concurrent.CompletableFuture;
 public class UpdateStreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
-    private final int version;
-    private final Controller.StreamConfig streamConfig;
 
     @Override
     public String getKey() {

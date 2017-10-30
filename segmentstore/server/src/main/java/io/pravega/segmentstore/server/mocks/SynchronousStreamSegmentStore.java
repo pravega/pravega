@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.mocks;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -34,7 +34,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates,
                                           Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, data, attributeUpdates, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
@@ -42,28 +42,28 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data,
                                           Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, offset, data, attributeUpdates, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Void> updateAttributes(String streamSegmentName, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         CompletableFuture<Void> result = impl.updateAttributes(streamSegmentName, attributeUpdates, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         CompletableFuture<ReadResult> result = impl.read(streamSegmentName, offset, maxLength, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         CompletableFuture<SegmentProperties> result = impl.getStreamSegmentInfo(streamSegmentName, waitForPendingOps, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
@@ -71,7 +71,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes,
                                                        Duration timeout) {
         CompletableFuture<Void> result = impl.createStreamSegment(streamSegmentName, attributes, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
@@ -79,35 +79,35 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId,
                                                        Collection<AttributeUpdate> attributes, Duration timeout) {
         CompletableFuture<String> result = impl.createTransaction(parentStreamSegmentName, transactionId, attributes, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         CompletableFuture<Void> result = impl.mergeTransaction(transactionName, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
         CompletableFuture<Long> result = impl.sealStreamSegment(streamSegmentName, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         CompletableFuture<Void> result = impl.deleteStreamSegment(streamSegmentName, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 
     @Override
     public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         CompletableFuture<Long> result = impl.truncateStreamSegment(streamSegmentName, offset, timeout);
-        FutureHelpers.await(result);
+        Futures.await(result);
         return result;
     }
 }

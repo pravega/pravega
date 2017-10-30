@@ -27,7 +27,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -77,7 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -301,6 +301,49 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
+        return truncateStream(scope, stream, streamCut.getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
+    }
+
+    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
+
+        final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
+            client.truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn("Failed to truncate stream: {}/{}", scope, stream);
+                    throw new ControllerFailureException("Failed to truncate stream: " + scope + "/" + stream);
+                case SCOPE_NOT_FOUND:
+                    log.warn("Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case STREAM_NOT_FOUND:
+                    log.warn("Stream does not exist: {}/{}", scope, stream);
+                    throw new IllegalArgumentException("Stream does not exist: " + stream);
+                case SUCCESS:
+                    log.info("Successfully updated stream: {}/{}", scope, stream);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status updating stream " + scope + "/" + stream
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("updateStream failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "updateStream", traceId);
+        });
+    }
+
+    @Override
     public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
@@ -311,7 +354,7 @@ public class ControllerImpl implements Controller {
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
                         log.error("failed to start scale {}", e);
-                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                        cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {
                             final boolean started = handleScaleResponse(stream, startScaleResponse);
@@ -323,7 +366,7 @@ public class ControllerImpl implements Controller {
                                 }
                             }, isDone -> !started || isDone, executor);
                         } catch (Exception ex) {
-                            cancellableRequest.start(() -> FutureHelpers.failedFuture(ex), any -> true, executor);
+                            cancellableRequest.start(() -> Futures.failedFuture(ex), any -> true, executor);
                         }
                     }
                 });
@@ -726,10 +769,10 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                                              PingFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("pingTransaction failed: ", e);
                     }
@@ -754,9 +797,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("commitTransaction failed: ", e);
                     }
@@ -781,9 +824,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("abortTransaction failed: ", e);
                     }

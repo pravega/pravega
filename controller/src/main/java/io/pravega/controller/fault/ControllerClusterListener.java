@@ -16,7 +16,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.cluster.Host;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
@@ -120,7 +120,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     }
 
     private CompletableFuture<Void> handleHostRemoved(Host host) {
-        return FutureHelpers.allOf(sweepers.stream().map(sweeper -> {
+        return Futures.allOf(sweepers.stream().map(sweeper -> {
             if (sweeper.isReady()) {
                 // Note: if we find sweeper to be ready, it is possible that this processes can be swept by both
                 // sweepFailedProcesses and handleFailedProcess. A sweep is safe and idempotent operation.
@@ -133,7 +133,7 @@ public class ControllerClusterListener extends AbstractIdleService {
     }
 
     private CompletableFuture<Void> sweepAll(Supplier<Set<String>> processes) {
-        return FutureHelpers.allOf(sweepers.stream().map(sweeper -> RetryHelper.withIndefiniteRetriesAsync(() -> {
+        return Futures.allOf(sweepers.stream().map(sweeper -> RetryHelper.withIndefiniteRetriesAsync(() -> {
             if (!sweeper.isReady()) {
                 log.trace("sweeper not ready, retrying with exponential backoff");
                 throw new RuntimeException("sweeper not ready");

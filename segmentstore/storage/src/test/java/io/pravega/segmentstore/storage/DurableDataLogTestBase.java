@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
@@ -89,7 +89,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
             }
 
-            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val results = Futures.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             for (int i = 0; i < results.size(); i++) {
                 LogAddress address = results.get(i);
                 Assert.assertNotNull("No address returned from append() for index " + i, address);
@@ -351,7 +351,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             data.add(writeData);
         }
 
-        val addresses = FutureHelpers.allOfWithResults(futures).join();
+        val addresses = Futures.allOfWithResults(futures).join();
         for (int i = 0; i < data.size(); i++) {
             writtenData.put(addresses.get(i), data.get(i));
         }

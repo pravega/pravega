@@ -42,7 +42,11 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
 
     @Override
     public void hello(Hello hello) {
-        log.info("Received hello: {}", hello);
+        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
+            log.error("Incompatible wire protocol versions {}", hello);
+        } else {
+            log.info("Received hello: {}", hello);
+        }
     }
     
     @Override

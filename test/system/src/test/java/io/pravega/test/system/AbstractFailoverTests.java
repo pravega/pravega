@@ -24,7 +24,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.services.BookkeeperService;
 import io.pravega.test.system.framework.services.PravegaControllerService;
@@ -243,7 +243,7 @@ abstract class AbstractFailoverTests {
         int notCommittedTxns1 = 0;
         int neitheCommittedNorAbortedTxns1 = 0;
         log.info("total number of transactions {}", testState.txnMap.size());
-        for (Map.Entry mapEntry: testState.txnMap.entrySet()) {
+        for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
             String keyValue = mapEntry.getKey().toString();
             int value = (Integer) mapEntry.getValue();
             if (value == 0) {
@@ -261,121 +261,123 @@ abstract class AbstractFailoverTests {
         log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns1);
 
         log.info("Wait for txns to complete");
-        FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList));
+        if (!Futures.await(Futures.allOf(testState.txnStatusFutureList))) {
+            log.error("Transaction futures did not complete with exceptions");
 
-        int txnFutureCompletedCount = 0;
-        int txnFutureCompletedExceptionallyCount = 0;
-        int txnFutureNotCompletedCount = 0;
-        int size = testState.txnStatusFutureList.size();
-        log.info("total number of transaction futures to wait upon to complete {}", size);
-        for (int i = 0; i < size; i++) {
-            if (testState.txnStatusFutureList.get(i).isDone()) {
-                txnFutureCompletedCount++;
-            } else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
-                txnFutureCompletedExceptionallyCount++;
-            } else {
-                txnFutureNotCompletedCount++;
-            }
-        }
-        log.info("Txn futures completed count {}", txnFutureCompletedCount);
-        log.info("Txn futures completed exceptionally count {}", txnFutureCompletedExceptionallyCount);
-        log.info("Txn futures not completed count {}", txnFutureNotCompletedCount);
-
-        int committedTxns = 0;
-        int notCommittedTxns = 0;
-        int neitheCommittedNorAbortedTxns = 0;
-        log.info("total number of transactions {}", testState.txnMap.size());
-       for (Map.Entry mapEntry: testState.txnMap.entrySet()) {
-            String keyValue = mapEntry.getKey().toString();
-            int value = (Integer) mapEntry.getValue();
-           if (value == 0) {
-                notCommittedTxns++;
-                log.info("txn with id  {} did not get committed", keyValue);
-            } else if (value == 1) {
-                neitheCommittedNorAbortedTxns++;
-                log.info("txn with id {} , neither committed not aborted", keyValue);
-            } else {
-                committedTxns++;
-            }
-        }
-        log.info("txn committed count {}", committedTxns);
-        log.info("txn not committed count {}", notCommittedTxns);
-        log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns);
-
-        // check for exceptions during transaction commits
-        if (testState.getTxnWriteException.get() != null) {
-            log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
-            Assert.fail("Unable to commit transaction. Test failure");
-        }
-    }
-
-
-    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
-        return CompletableFuture.runAsync(() -> {
-            while (!testState.stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
-                AtomicBoolean txnIsDone = new AtomicBoolean(false);
-
-                try {
-                    transaction = writer.beginTxn();
-                    log.info(" Transaction with id  {} created at time {}", transaction.getTxnId().toString(), System.currentTimeMillis());
-                    testState.txnMap.put(transaction.getTxnId(), 1);
-
-                    for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
-                        long value = testState.eventData.incrementAndGet();
-                        transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
-                    }
-                    //commit Txn
-                    transaction.commit();
-                    txnIsDone.set(true);
-
-                    //wait for transaction to get committed
-                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
-                } catch (Throwable e) {
-                    // Given that we have retry logic both in the interaction with controller and
-                    // segment store, we should fail the test case in the presence of any exception
-                    // caught here.
-                    txnIsDone.set(true);
-                    log.warn("Exception while writing events in the transaction: ", e);
-                    if (transaction != null) {
-                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
-                    }
-                    testState.getTxnWriteException.set(e);
-                    return;
+            int txnFutureCompletedCount = 0;
+            int txnFutureCompletedExceptionallyCount = 0;
+            int txnFutureNotCompletedCount = 0;
+            int size = testState.txnStatusFutureList.size();
+            log.info("total number of transaction futures to wait upon to complete {}", size);
+            for (int i = 0; i < size; i++) {
+                if (testState.txnStatusFutureList.get(i).isDone()) {
+                    txnFutureCompletedCount++;
+                } else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
+                    txnFutureCompletedExceptionallyCount++;
+                } else {
+                    txnFutureNotCompletedCount++;
                 }
             }
-            closeWriter(writer);
-        }, executorService);
-    }
+            log.info("Txn futures completed count {}", txnFutureCompletedCount);
+            log.info("Txn futures completed exceptionally count {}", txnFutureCompletedExceptionallyCount);
+            log.info("Txn futures not completed count {}", txnFutureNotCompletedCount);
 
-    CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
-                                                   final AtomicLong eventWriteCount) {
-
-        return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
-            Transaction.Status status = txn.checkStatus();
-            log.debug("Txn id {} status is {}", txn.getTxnId(), status);
-            if (status.equals(Transaction.Status.COMMITTED)) {
-                testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
-                            y = y + 1;
-                return y;
-            });
-                log.info(" Transaction with id  {} committed at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
-                eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
-                log.info("Event write count: {}", eventWriteCount.get());
-            } else if (status.equals(Transaction.Status.ABORTED)) {
-                testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
-                    y = y - 1;
-                    return y;
-                });
-                log.info(" Transaction with id  {} aborted at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
-            } else {
-                throw new TxnNotCompleteException();
+            int committedTxns = 0;
+            int notCommittedTxns = 0;
+            int neitheCommittedNorAbortedTxns = 0;
+            log.info("total number of transactions {}", testState.txnMap.size());
+            for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
+                String keyValue = mapEntry.getKey().toString();
+                int value = (Integer) mapEntry.getValue();
+                if (value == 0) {
+                    notCommittedTxns++;
+                    log.info("txn with id  {} did not get committed", keyValue);
+                } else if (value == 1) {
+                    neitheCommittedNorAbortedTxns++;
+                    log.info("txn with id {} , neither committed not aborted", keyValue);
+                } else {
+                    committedTxns++;
+                }
             }
+            log.info("txn committed count {}", committedTxns);
+            log.info("txn not committed count {}", notCommittedTxns);
+            log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns);
 
-            return CompletableFuture.completedFuture(null);
-        }, executorService);
+            // check for exceptions during transaction commits
+            if (testState.getTxnWriteException.get() != null) {
+                log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
+                Assert.fail("Unable to commit transaction. Test failure");
+            }
+        }
     }
+
+
+        CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
+            return CompletableFuture.runAsync(() -> {
+                while (!testState.stopWriteFlag.get()) {
+                    Transaction<Long> transaction = null;
+                    AtomicBoolean txnIsDone = new AtomicBoolean(false);
+
+                    try {
+                        transaction = writer.beginTxn();
+                        log.info(" Transaction with id  {} created at time {}", transaction.getTxnId().toString(), System.currentTimeMillis());
+                        testState.txnMap.put(transaction.getTxnId(), 1);
+
+                        for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
+                            long value = testState.eventData.incrementAndGet();
+                            transaction.writeEvent(String.valueOf(value), value);
+                            log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
+                        }
+                        //commit Txn
+                        transaction.commit();
+                        txnIsDone.set(true);
+
+                        //wait for transaction to get committed
+                        testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
+                    } catch (Throwable e) {
+                        // Given that we have retry logic both in the interaction with controller and
+                        // segment store, we should fail the test case in the presence of any exception
+                        // caught here.
+                        txnIsDone.set(true);
+                        log.warn("Exception while writing events in the transaction: ", e);
+                        if (transaction != null) {
+                            log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                        }
+                        testState.getTxnWriteException.set(e);
+                        return;
+                    }
+                }
+                closeWriter(writer);
+            }, executorService);
+        }
+
+        CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn, final AtomicLong eventWriteCount) {
+
+            return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
+                Transaction.Status status = txn.checkStatus();
+                log.debug("Txn id {} status is {}", txn.getTxnId(), status);
+                if (status.equals(Transaction.Status.COMMITTED)) {
+                    testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                        y = y + 1;
+                        return y;
+                    });
+                    log.info(" Transaction with id  {} committed at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
+                    eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
+                    log.info("Event write count: {}", eventWriteCount.get());
+                } else if (status.equals(Transaction.Status.ABORTED)) {
+                    testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                        y = y - 1;
+                        return y;
+                    });
+                    log.info(" Transaction with id  {} aborted at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
+                } else {
+                    throw new TxnNotCompleteException();
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }, executorService);
+        }
+
 
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
@@ -459,7 +461,7 @@ abstract class AbstractFailoverTests {
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     writerFutureList.add(writerFuture);
                 } else  {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
@@ -469,16 +471,16 @@ abstract class AbstractFailoverTests {
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
-                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    Futures.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     writerFutureList.add(txnWriteFuture);
                 }
 
             }
         }).thenRun(() -> {
             testState.writers.addAll(writerFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
+            Futures.completeAfter(() -> Futures.allOf(writerFutureList),
                     testState.writersListComplete.get(0));
-            FutureHelpers.exceptionListener(testState.writersListComplete.get(0),
+            Futures.exceptionListener(testState.writersListComplete.get(0),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
@@ -506,13 +508,13 @@ abstract class AbstractFailoverTests {
                         ReaderConfig.builder().build());
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
-                FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
+                Futures.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
                 readerFutureList.add(readerFuture);
             }
         }).thenRun(() -> {
             testState.readers.addAll(readerFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
-            FutureHelpers.exceptionListener(testState.readersComplete,
+            Futures.completeAfter(() -> Futures.allOf(readerFutureList), testState.readersComplete);
+            Futures.exceptionListener(testState.readersComplete,
                     t -> log.error("Exception while waiting for all readers to complete", t));
         });
     }
@@ -534,7 +536,7 @@ abstract class AbstractFailoverTests {
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     newWritersFutureList.add(writerFuture);
                 } else  {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
@@ -544,14 +546,14 @@ abstract class AbstractFailoverTests {
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
-                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    Futures.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     newWritersFutureList.add(txnWriteFuture);
                 }
             }
         }).thenRun(() -> {
             testState.writers.addAll(newWritersFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
-            FutureHelpers.exceptionListener(testState.writersListComplete.get(1),
+            Futures.completeAfter(() -> Futures.allOf(newWritersFutureList), testState.writersListComplete.get(1));
+            Futures.exceptionListener(testState.writersListComplete.get(1),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
@@ -562,7 +564,7 @@ abstract class AbstractFailoverTests {
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        if (!FutureHelpers.await(FutureHelpers.allOf(testState.writersListComplete))) {
+        if (!Futures.await(Futures.allOf(testState.writersListComplete))) {
             log.error("Writers stopped with exceptions");
         }
 
@@ -579,7 +581,7 @@ abstract class AbstractFailoverTests {
         testState.stopReadFlag.set(true);
 
         log.info("Wait for readers execution to complete");
-        if (!FutureHelpers.await(testState.readersComplete)) {
+        if (!Futures.await(testState.readersComplete)) {
             log.error("Readers stopped with exceptions");
         }
         //check for exceptions during read
@@ -666,3 +668,4 @@ abstract class AbstractFailoverTests {
     }
 
 }
+
