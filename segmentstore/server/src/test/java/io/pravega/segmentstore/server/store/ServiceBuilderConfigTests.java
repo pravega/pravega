@@ -153,6 +153,7 @@ public class ServiceBuilderConfigTests {
                         && Modifier.isPublic(m.getModifiers())) {
                     Object expectedValue = m.invoke(expectedConfig);
                     Object actualValue = m.invoke(actualConfig);
+                    System.out.println(String.format("%s: %s  %s", m.getName(), expectedValue, actualValue));
                     if (expectedValue == null) {
                         Assert.assertNull("Expected a null value for " + getPropName(c, m), actualValue);
                     } else {

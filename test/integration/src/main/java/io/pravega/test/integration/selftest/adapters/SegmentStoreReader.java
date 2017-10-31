@@ -100,7 +100,7 @@ class SegmentStoreReader implements StoreReader {
                 .read(segmentName, a.offset, a.length, this.testConfig.getTimeout())
                 .thenApplyAsync(readResult -> {
                     byte[] data = new byte[a.length];
-                    quickRead(readResult, data);
+                    readResult.readRemaining(data, this.testConfig.getTimeout());
                     return new SegmentStoreReadItem(new Event(new ByteArraySegment(data), 0), address);
                 }, this.executor);
     }
@@ -114,33 +114,6 @@ class SegmentStoreReader implements StoreReader {
         }
 
         return new StorageReader(segmentName, eventHandler, cancellationToken).run();
-    }
-
-    //endregion
-
-    //region Helpers
-
-    /**
-     * Reads the contents of the ReadResult into the given array. TODO: consider moving as a default method in ReadResult.
-     */
-    @SneakyThrows(IOException.class)
-    private int quickRead(ReadResult readResult, byte[] target) {
-        int bytesRead = 0;
-        while (readResult.hasNext()) {
-            ReadResultEntry entry = readResult.next();
-            if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() == ReadResultEntryType.Future) {
-                // Reached the end.
-                break;
-            } else if (!entry.getContent().isDone()) {
-                entry.requestContent(this.testConfig.getTimeout());
-            }
-
-            ReadResultEntryContents contents = entry.getContent().join();
-            StreamHelpers.readAll(contents.getData(), target, bytesRead, Math.min(contents.getLength(), target.length - bytesRead));
-            bytesRead += contents.getLength();
-        }
-
-        return bytesRead;
     }
 
     //endregion
