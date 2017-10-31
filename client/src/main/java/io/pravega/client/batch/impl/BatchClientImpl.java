@@ -35,7 +35,7 @@ import java.util.TreeSet;
 import lombok.Cleanup;
 import org.apache.commons.lang3.NotImplementedException;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Beta
 public class BatchClientImpl implements BatchClient {
