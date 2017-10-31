@@ -13,7 +13,7 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -71,7 +71,7 @@ public class AsyncSegmentInputStreamTest {
         
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
-        assertTrue(FutureHelpers.isSuccessful(readFuture));
+        assertTrue(Futures.isSuccessful(readFuture));
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
         inOrder.verify(c).close();
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
@@ -92,7 +92,7 @@ public class AsyncSegmentInputStreamTest {
         CompletableFuture<SegmentRead> read = in.read(1234, 5678);
         assertFalse(read.isDone());
         in.close();
-        AssertExtensions.assertThrows(ConnectionClosedException.class, () -> FutureHelpers.getThrowingException(read));
+        AssertExtensions.assertThrows(ConnectionClosedException.class, () -> Futures.getThrowingException(read));
         verify(c).close();
     }
 
@@ -115,7 +115,7 @@ public class AsyncSegmentInputStreamTest {
             processor.segmentRead(segmentRead);            
         });
         verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
-        assertTrue(FutureHelpers.isSuccessful(readFuture));
+        assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(segmentRead, readFuture.join());
         verifyNoMoreInteractions(c);
     }
@@ -139,7 +139,7 @@ public class AsyncSegmentInputStreamTest {
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good)));         
         });
         verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678));
-        assertTrue(FutureHelpers.isSuccessful(readFuture));
+        assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(ByteBuffer.wrap(good), readFuture.join().getData());
         verifyNoMoreInteractions(c);
     }

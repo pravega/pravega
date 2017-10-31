@@ -10,11 +10,10 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
@@ -211,7 +210,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> seal(String streamName, Duration timeout) {
         ensureRunning();
-        return FutureHelpers.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
+        return Futures.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
     }
 
     @Override
@@ -245,7 +244,7 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     @SneakyThrows
     private Void attemptReconcile(Throwable ex, String segmentName, Duration timeout) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         boolean reconciled = false;
         if (isPossibleEndOfSegment(ex)) {
             // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
@@ -254,7 +253,7 @@ class SegmentStoreAdapter extends StoreAdapter {
                                                               .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 reconciled = sp.isSealed() || sp.isDeleted();
             } catch (Throwable ex2) {
-                reconciled = isPossibleEndOfSegment(ExceptionHelpers.getRealException(ex2));
+                reconciled = isPossibleEndOfSegment(Exceptions.unwrap(ex2));
             }
         }
 

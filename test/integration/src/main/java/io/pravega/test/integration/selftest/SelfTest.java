@@ -15,8 +15,8 @@ import com.google.common.util.concurrent.Service;
 import com.google.common.util.concurrent.ServiceManager;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
@@ -65,7 +65,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
         this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
         this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
-        ServiceHelpers.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
+        Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
     }
 
@@ -77,7 +77,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     public void close() {
         if (!this.closed.get()) {
             try {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+                Futures.await(Services.stopAsync(this, this.executor));
                 this.dataSource.deleteAllStreams()
                         .exceptionally(ex -> {
                             TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);
@@ -109,7 +109,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         TestLogger.log(LOG_ID, "Starting.");
 
         // Create all segments, then start the Actor Manager.
-        ServiceHelpers.startAsync(this.store, this.executor)
+        Services.startAsync(this.store, this.executor)
                 .thenCompose(v -> this.dataSource.createStreams())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).

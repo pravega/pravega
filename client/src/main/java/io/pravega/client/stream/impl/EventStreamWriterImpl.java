@@ -39,7 +39,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.

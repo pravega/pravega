@@ -12,7 +12,7 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -138,7 +138,7 @@ class BookKeeperAdapter extends StoreAdapter {
         int id;
         synchronized (this.internalIds) {
             if (this.internalIds.containsKey(logName)) {
-                return FutureHelpers.failedFuture(new StreamSegmentExistsException(logName));
+                return Futures.failedFuture(new StreamSegmentExistsException(logName));
             }
 
             id = this.internalIds.size();
@@ -175,11 +175,11 @@ class BookKeeperAdapter extends StoreAdapter {
         ensureRunning();
         DurableDataLog log = this.logs.getOrDefault(logName, null);
         if (log == null) {
-            return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(logName));
+            return Futures.failedFuture(new StreamSegmentNotExistsException(logName));
         }
 
         ArrayView s = event.getSerialization();
-        return FutureHelpers.toVoid(log.append(s, timeout));
+        return Futures.toVoid(log.append(s, timeout));
     }
 
     @Override

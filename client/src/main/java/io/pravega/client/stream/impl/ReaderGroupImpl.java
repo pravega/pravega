@@ -36,7 +36,7 @@ import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
 import io.pravega.client.stream.notifications.Observable;
 import io.pravega.client.stream.notifications.SegmentNotification;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -56,8 +56,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static io.pravega.common.concurrent.FutureHelpers.allOfWithResults;
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.allOfWithResults;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Slf4j
 @Data
@@ -133,8 +133,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
-        return FutureHelpers.loop(checkpointPending::get, () -> {
-            return FutureHelpers.delayedTask(() -> {
+        return Futures.loop(checkpointPending::get, () -> {
+            return Futures.delayedTask(() -> {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 if (checkpointPending.get()) {
@@ -143,8 +143,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                            .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
-                            .whenComplete((v, t) -> synchronizer.close());
+                      .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
+                      .whenComplete((v, t) -> synchronizer.close());
     }
 
     @SneakyThrows(CheckpointFailedException.class)
@@ -203,7 +203,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
         CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
-        for (Segment s : FutureHelpers.getAndHandleExceptions(unread, RuntimeException::new)) {
+        for (Segment s : Futures.getAndHandleExceptions(unread, RuntimeException::new)) {
             @Cleanup
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
             totalLength += metadataClient.fetchCurrentSegmentLength();
@@ -224,5 +224,22 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public Observable<EndOfDataNotification> getEndOfDataNotifier(ScheduledExecutorService executor) {
         checkNotNull(executor, "executor");
         return this.notifierFactory.getEndOfDataNotifier(executor);
+    }
+
+    @Override
+    public Map<Stream, StreamCut> getStreamCuts() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
+        ReaderGroupState state = synchronizer.getState();
+        Map<Stream, Map<Segment, Long>> positions = state.getPositions();
+        HashMap<Stream, StreamCut> cuts = new HashMap<>();
+
+        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
+            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            cuts.put(streamPosition.getKey(), position);
+        }
+
+        return cuts;
     }
 }

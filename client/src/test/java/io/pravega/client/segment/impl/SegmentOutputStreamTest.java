@@ -17,7 +17,7 @@ import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.Append;
@@ -781,7 +781,7 @@ public class SegmentOutputStreamTest {
         cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate segment does not exist
         verify(connection).close();
         assertTrue(ack.isCompletedExceptionally());
-        assertTrue(FutureHelpers.getException(ack) instanceof NoSuchSegmentException);
+        assertTrue(Futures.getException(ack) instanceof NoSuchSegmentException);
     }
     
 }

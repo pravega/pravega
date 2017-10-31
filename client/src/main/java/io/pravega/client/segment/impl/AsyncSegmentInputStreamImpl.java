@@ -15,7 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -178,7 +178,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             c = connection;
             connection = null;
         }
-        if (c != null && FutureHelpers.isSuccessful(c)) {
+        if (c != null && Futures.isSuccessful(c)) {
             try {
                 c.getNow(null).close();
             } catch (Exception e) {

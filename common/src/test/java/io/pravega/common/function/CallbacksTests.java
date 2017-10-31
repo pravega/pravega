@@ -17,9 +17,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for CallbackHelpers class.
+ * Unit tests for Callbacks class.
  */
-public class CallbackHelpersTests {
+public class CallbacksTests {
     /**
      * Tests the CallbackHelpers.invokeSafely(Consumer) method.
      *
@@ -34,7 +34,7 @@ public class CallbackHelpersTests {
         AtomicBoolean exceptionHandled = new AtomicBoolean(false);
         Consumer<Throwable> failureHandler = ex -> exceptionHandled.set(true);
 
-        CallbackHelpers.invokeSafely(goodConsumer, 1, failureHandler);
+        Callbacks.invokeSafely(goodConsumer, 1, failureHandler);
         Assert.assertFalse("Exception handler was invoked when no exception was thrown.", exceptionHandled.get());
         Assert.assertEquals("Unexpected number of callback invocations.", 1, invokeCount.get());
 
@@ -47,17 +47,17 @@ public class CallbackHelpersTests {
         };
 
         // With explicit callback.
-        CallbackHelpers.invokeSafely(badConsumer, 1, failureHandler);
+        Callbacks.invokeSafely(badConsumer, 1, failureHandler);
         Assert.assertTrue("Exception handler was not invoked when an exception was thrown.", exceptionHandled.get());
         Assert.assertEquals("Unexpected number of callback invocations.", 0, invokeCount.get());
         exceptionHandled.set(false);
 
         // With no callback.
-        CallbackHelpers.invokeSafely(badConsumer, 1, null);
+        Callbacks.invokeSafely(badConsumer, 1, null);
         Assert.assertEquals("Unexpected number of callback invocations.", 0, invokeCount.get());
 
         // With callback that throws exceptions.
-        CallbackHelpers.invokeSafely(badConsumer, 1, ex -> {
+        Callbacks.invokeSafely(badConsumer, 1, ex -> {
             throw new IllegalArgumentException("intentional");
         });
 

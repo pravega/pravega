@@ -26,7 +26,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -59,7 +59,7 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @AllArgsConstructor
 public class MockController implements Controller {
@@ -91,7 +91,7 @@ public class MockController implements Controller {
         }
 
         if (!createdScopes.get(scopeName).isEmpty()) {
-            return FutureHelpers.failedFuture(new IllegalStateException("Scope is not empty."));
+            return Futures.failedFuture(new IllegalStateException("Scope is not empty."));
         }
 
         createdScopes.remove(scopeName);
@@ -107,7 +107,7 @@ public class MockController implements Controller {
         }
 
         if (createdScopes.get(streamConfig.getScope()) == null) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("Scope does not exit."));
+            return Futures.failedFuture(new IllegalArgumentException("Scope does not exit."));
         }
 
         createdStreams.put(stream, streamConfig);
@@ -268,7 +268,7 @@ public class MockController implements Controller {
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(commitTxSegment(txId, segment));            
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
     
     private CompletableFuture<Void> commitTxSegment(UUID txId, Segment segment) {
@@ -310,7 +310,7 @@ public class MockController implements Controller {
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(abortTxSegment(txId, segment));            
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
     
     private CompletableFuture<Void> abortTxSegment(UUID txId, Segment segment) {
@@ -360,7 +360,7 @@ public class MockController implements Controller {
         for (Segment segment : currentSegments.getSegments()) {
             futures.add(createSegmentTx(txId, segment));            
         }
-        return FutureHelpers.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
+        return Futures.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
     }
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {

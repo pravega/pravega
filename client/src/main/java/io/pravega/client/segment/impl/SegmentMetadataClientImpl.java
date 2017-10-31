@@ -16,7 +16,7 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -129,7 +129,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             c = connection;
             connection = null;
         }
-        if (c != null && FutureHelpers.isSuccessful(c)) {
+        if (c != null && Futures.isSuccessful(c)) {
             try {
                 c.getNow(null).close();
             } catch (Exception e) {
@@ -240,7 +240,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
                                    .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
-        return FutureHelpers.getThrowingException(future).getSegmentLength();
+        return Futures.getThrowingException(future).getSegmentLength();
     }
 
     @Override
@@ -250,7 +250,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                                    .throwingOn(InvalidStreamException.class)
                                    .runAsync(() -> getPropertyAsync(attribute.getValue()),
                                              connectionFactory.getInternalExecutor());
-        return FutureHelpers.getThrowingException(future).getValue();
+        return Futures.getThrowingException(future).getValue();
     }
 
     @Override
@@ -260,7 +260,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                                    .throwingOn(InvalidStreamException.class)
                                    .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue),
                                              connectionFactory.getInternalExecutor());
-        return FutureHelpers.getThrowingException(future).isSuccess();
+        return Futures.getThrowingException(future).isSuccess();
     }
 
     @Override
