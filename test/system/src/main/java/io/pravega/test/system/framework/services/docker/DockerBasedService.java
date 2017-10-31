@@ -23,7 +23,7 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
@@ -105,8 +105,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     CompletableFuture<Void> waitUntilServiceRunning() {
         log.debug("IS RUNNING {}", isRunning());
-        return FutureHelpers.loop(() -> !isRunning(), //condition
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+        return Futures.loop(() -> !isRunning(), //condition
+                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
     }
 

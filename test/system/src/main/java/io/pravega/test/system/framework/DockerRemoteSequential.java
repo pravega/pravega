@@ -20,7 +20,7 @@ import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Assert;
@@ -89,8 +89,8 @@ public class DockerRemoteSequential implements TestExecutor {
     }
 
     private CompletableFuture<Void> waitForJobCompletion() {
-        return FutureHelpers.loop(() -> isTestRunning(),
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(3), executorService),
+        return Futures.loop(() -> isTestRunning(),
+                () -> Futures.delayedFuture(Duration.ofSeconds(3), executorService),
                 executorService);
     }
 
