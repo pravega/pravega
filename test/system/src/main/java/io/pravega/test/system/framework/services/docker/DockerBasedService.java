@@ -15,13 +15,13 @@ import com.google.common.collect.ImmutableList;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
-import com.spotify.docker.client.messages.Container;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.FutureHelpers;
 import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
@@ -68,17 +68,33 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     @Override
     public boolean isRunning() {
         boolean value = false;
+        int taskRunningCount = 0;
         try {
+            //list the service with filter 'serviceName'
             Service.Criteria criteria1 = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList1 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria1));
-            log.info("service list size in isRunning  {}", serviceList1.size());
+            log.info("service list size {}", serviceList1.size());
+            com.spotify.docker.client.messages.swarm.Task.Criteria taskCriteria1 = com.spotify.docker.client.messages.swarm.Task.Criteria.builder().serviceName(serviceName).build();
+            List<com.spotify.docker.client.messages.swarm.Task> taskList1 = Exceptions.handleInterrupted(() ->  dockerClient.listTasks(taskCriteria1));
+            log.info("task list size {}", taskList1.size());
+
+            if (!taskList1.isEmpty()) {
+                for (int j = 0; j < taskList1.size(); j++) {
+                    log.info("task {}", taskList1.get(j).name());
+                    String state = taskList1.get(j).status().state();
+                    log.info("task state {}", state);
+                    if (state.equals(TaskStatus.TASK_STATE_RUNNING)) {
+                        taskRunningCount++;
+                    }
+                }
+            }
+
             if (!serviceList1.isEmpty()) {
                 long replicas = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList1.get(0).id()).spec().mode().replicated().replicas());
                 log.info("replicas {}", replicas);
-                List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
-                log.info("container list size in isRunning {}", containerList.size());
-                if (containerList.size() == replicas) {
-                    value = true;
+                log.info("task running count {}", taskRunningCount);
+                if (((long) taskRunningCount) == replicas) {
+                    return true;
                 }
             }
         } catch (DockerException e) {
@@ -103,16 +119,19 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         Service.Criteria criteria2 = Service.Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
-            List<Service> serviceList2 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria2));
-            log.info("service list size in getServiceDetails  {}", serviceList2.size());
-            if (!serviceList2.isEmpty()) {
-                ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList2.get(0).id()).spec().endpointSpec().ports());
-                List<Container> containerList = Exceptions.handleInterrupted(() -> dockerClient.listContainers(DockerClient.ListContainersParam.withLabel("com.docker.swarm.service.name", serviceName)));
-                log.info("container size in getServiceDetails {}", containerList.size());
-                for (int i = 0; i < containerList.size(); i++) {
-                    String[] uriArray = containerList.get(i).networkSettings().networks().get("docker-network").ipAddress().split("/");
-                    log.info("uri array {}", uriArray[0]);
-                    log.info("port list size {}", numPorts.size());
+            com.spotify.docker.client.messages.swarm.Task.Criteria taskCriteria2 = com.spotify.docker.client.messages.swarm.Task.Criteria.builder().taskName(serviceName).build();
+            List<com.spotify.docker.client.messages.swarm.Task> taskList2 = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria2));
+            log.info("task size {}", taskList2.size());
+
+            if (!taskList2.isEmpty()) {
+                log.info("network addresses {}", taskList2.get(0).networkAttachments().get(0).addresses().get(0));
+                List<Service> serviceList2 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria2));
+                log.info("service list size {}", serviceList2.size());
+                for (int i = 0; i < taskList2.size(); i++) {
+                    log.info("task {}", taskList2.get(i).name());
+                    if (taskList2.get(i).status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
+                    String[] uriArray = taskList2.get(i).networkAttachments().get(0).addresses().get(0).split("/");
+                    ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList2.get(0).id()).endpoint().spec().ports());
                     for (int k = 0; k < numPorts.size(); k++) {
                         int port = numPorts.get(k).publishedPort();
                         log.info("port {}", port);
@@ -120,8 +139,10 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                         URI uri = URI.create("tcp://" + uriArray[0] + ":" + port);
                         uriList.add(uri);
                     }
+
                 }
             }
+        }
         } catch (DockerException e) {
             log.error("Unable to list service details", e);
         }

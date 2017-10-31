@@ -591,9 +591,9 @@ abstract class AbstractFailoverTests {
         return controllerURI;
     }
 
-    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) {
+    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final URI hdfsUri) {
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI)
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI, hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
@@ -603,14 +603,16 @@ abstract class AbstractFailoverTests {
         log.debug("Pravega Segmentstore service  details: {}", segUris);
     }
 
-    static void startHDFSInstances() {
+    static URI startHDFSInstances() {
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
         log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+            return hdfsService.getServiceDetails().get(0);
         }
+      return null;
     }
 
     static class TxnNotCompleteException extends RuntimeException {

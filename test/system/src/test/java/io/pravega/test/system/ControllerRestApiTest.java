@@ -126,12 +126,14 @@ public class ControllerRestApiTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         //3. start controller
@@ -147,7 +149,7 @@ public class ControllerRestApiTest {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

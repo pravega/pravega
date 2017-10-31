@@ -11,45 +11,32 @@
 
 CLUSTER_NAME=${1:-null}
 echo "Cluster Name is $CLUSTER_NAME"
-MASTER_IP=${2:-127.0.0.1}
-echo "IP for local docker execution is $MASTER_IP"
-MASTER_1=${3:-null}
-echo "Master IP of jarvis cluster is $MASTER_1"
-
+MASTER=${2:-null}
+echo "Master IP of jarvis cluster is $MASTER"
+NUM_SLAVES=${3:-null}
 DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
 echo "Docker API version is $DOCKER_VERSION"
-if [ $DOCKER_VERSION < 1.3.0 ]; then
+
+TOKEN=null
+if [ $DOCKER_VERSION < 1.2.5 ]; then
 exit
 fi
-if [ $CLUSTER_NAME = null ]; then
-  docker swarm init --advertise-addr 127.0.0.1
-  docker network create --driver overlay docker-network
-else
-  jarvis save $CLUSTER_NAME
-    if [ $MASTER_1 != null ]; then
+if [ $CLUSTER_NAME != null ]; then
+    jarvis save $CLUSTER_NAME
+    if [ $MASTER != null ]; then
       #master
-      jarvis ssh master-1 "bash -s" -- < ./Change_Docker_Config.sh
-      jarvis ssh master-1 'docker swarm init --advertise-addr $MASTER_1; TOKEN = `docker swarm join-token worker`; echo $TOKEN; exit'
+      jarvis ssh $CLUSTER_NAME "bash -s" -- < ./Change_Docker_Config_Master.sh $MASTER
+      jarvis scp master-1:/home/nautilus/token.sh .
 
-      #slave-1
-      jarvis ssh slave-1 "bash -s" -- < ./Change_Docker_Config.sh
-      jarvis ssh slave-1 'sed -i 's/"live-restore": true/"live-restore": false/' /etc/docker/daemon.json;
-      cat /etc/docker/daemon.json; sudo service docker restart; echo $TOKEN; exit'
+      #slaves
+      jarvis ssh slave-1 "bash -s" -- < ./Change_Docker_Config_Slave.sh
+      jarvis ssh slave-1 "bash -s" -- < ./token.sh
 
-      #slave-2
-      jarvis ssh slave-2 "bash -s" -- < ./Change_Docker_Config.sh
-      jarvis ssh slave-2 'sed -i 'echo $TOKEN; exit'
+      jarvis ssh slave-2 "bash -s" -- < ./Change_Docker_Config_Slave.sh
+      jarvis ssh slave-2 "bash -s" -- < ./token.sh
 
-      #slave-3
-      jarvis ssh slave-3 "bash -s" -- < ./Change_Docker_Config.sh
-      jarvis ssh slave-3 'sed -i 'echo $TOKEN; exit'
+      jarvis ssh slave-3 "bash -s" -- < ./Change_Docker_Config_Slave.sh
+      jarvis ssh slave-3 "bash -s" -- < ./token.sh
 
-      #slave-4
-      jarvis ssh slave-4 "bash -s" -- < ./Change_Docker_Config.sh
-      jarvis ssh slave-4 'sed -i 'echo $TOKEN; exit'
-
-      #slave-5
-     jarvis ssh slave-5 "bash -s" -- < ./Change_Docker_Config.sh
-     jarvis ssh slave-5 'sed -i 'echo $TOKEN; exit'
     fi
 fi

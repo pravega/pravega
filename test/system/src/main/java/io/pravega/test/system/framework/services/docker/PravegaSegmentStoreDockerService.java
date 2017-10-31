@@ -49,11 +49,13 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private final double mem = 1000.0;
     private URI zkUri;
     private URI conUri;
+    private URI hdfsUri;
 
-    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final  URI conUri) {
+    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final  URI conUri, final  URI hdfsUri) {
         super(serviceName);
         this.zkUri = zkUri;
         this.conUri = conUri;
+        this.hdfsUri = hdfsUri;
     }
 
     @Override
@@ -103,7 +105,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         List<String> envList = new ArrayList<>();
         envList.add(env1);
         envList.add(env2);
-        getCustomEnvVars(envList, SEGMENTSTORE_EXTRA_ENV);
+        getCustomEnvVars(envList, SEGMENTSTORE_EXTRA_ENV, hdfsUri);
         String env3 = "ZK_URL=" + zk;
         String env4 = "BK_ZK_URL=" + zk;
         String env5 = "CONTROLLER_URL=" + conUri.toString();
@@ -127,12 +129,12 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                 .build();
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .endpointSpec(EndpointSpec.builder().ports(PortConfig.builder().
-                        publishedPort(SEGMENTSTORE_PORT).build())
+                        publishedPort(SEGMENTSTORE_PORT).targetPort(SEGMENTSTORE_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())
                         .build()).build();
         return spec;
     }
 
-    private void getCustomEnvVars(List<String> stringList, String segmentstoreExtraEnv) {
+    private void getCustomEnvVars(List<String> stringList, String segmentstoreExtraEnv, final URI hdfsUri) {
         log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
         if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
             Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {
@@ -145,7 +147,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
             });
         } else {
             // Set HDFS as the default for Tier2.
-            stringList.add("HDFS_URL=" + "hdfs://hdfs:8020/");
+            stringList.add("HDFS_URL=" + hdfsUri.getHost() + ":8020");
             stringList.add("TIER2_STORAGE=HDFS");
         }
     }

@@ -39,10 +39,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -52,11 +54,12 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
-    private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+    private Service controllerService1 = null;
+    private URI controllerURIDirect = null;
 
     @Environment
-    public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.isDockerLocalExecEnabled() ?
@@ -82,12 +85,14 @@ public class ControllerFailoverTest {
         log.debug("bookkeeper service details: {}", bkUris);
 
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         //3. start controller
@@ -97,24 +102,26 @@ public class ControllerFailoverTest {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-
-        //4. start test controller instances
-        Service testControllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, zkUri)
-                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, zkUri);
-        if (!testControllerService.isRunning()) {
-            testControllerService.start(true);
-        }
-
+        controllerService.scaleService(2, true);
         List<URI> conUris = controllerService.getServiceDetails();
-        log.debug("Pravega Controller service instance details: {}", conUris);
-
-        List<URI> testConUris = testControllerService.getServiceDetails();
-        log.debug("Pravega test Controller service instance details: {}", testConUris);
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
+        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -124,31 +131,40 @@ public class ControllerFailoverTest {
         log.debug("pravega host service details: {}", segUris);
     }
 
-    private static URI getTestControllerServiceURI() {
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null)
-                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
-        return ctlURIs.get(0);
+
+    @Before
+    public void setup() {
+        Service zkService = Utils.isDockerLocalExecEnabled()
+                ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
+        Assert.assertTrue(zkService.isRunning());
+        List<URI> zkUris = zkService.getServiceDetails();
+        log.info("zookeeper service details: {}", zkUris);
+
+        controllerService1 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
+                : new PravegaControllerService("controller", zkUris.get(0));
+        if (!controllerService1.isRunning()) {
+            controllerService1.start(true);
+        }
+        //controllerService1.scaleService(3, true);
+        List<URI> conUris = controllerService1.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
-
-    private static URI getControllerURI() {
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", null)
-                : new PravegaControllerService("controller", null);
-        List<URI> ctlURIs = controllerService.getServiceDetails();
-        return ctlURIs.get(0);
-    }
-
-
-    private static void stopTestControllerService() {
-        log.info("Stopping test controller service");
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService(TEST_CONTROLLER_SERVICE_NAME, null)
-                : new PravegaControllerService(TEST_CONTROLLER_SERVICE_NAME, null);
-        controllerService.stop();
-    }
-
+    
     @Test(timeout = 180000)
     public void failoverTest() throws URISyntaxException, InterruptedException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
@@ -163,8 +179,7 @@ public class ControllerFailoverTest {
         long scaleGracePeriod = 30000;
 
         // Connect with first controller instance.
-        URI controllerUri = getTestControllerServiceURI();
-        final Controller controller1 = new ControllerImpl(controllerUri,
+        final Controller controller1 = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -189,12 +204,12 @@ public class ControllerFailoverTest {
         Assert.assertTrue(!scaleStatus);
 
         // Now stop the controller instance executing scale operation.
-        stopTestControllerService();
+        controllerService1.scaleService(1, true);
         log.info("Successfully stopped test controller service");
 
         // Connect to another controller instance.
-        controllerUri = getControllerURI();
-        final Controller controller2 = new ControllerImpl(controllerUri,
+        //controllerUri = getControllerURI();
+        final Controller controller2 = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
 
         // Fetch status of transaction.
@@ -207,7 +222,7 @@ public class ControllerFailoverTest {
         if (status == Transaction.Status.OPEN) {
             // Abort the ongoing transaction.
             log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
-                    controllerUri);
+                    controllerURIDirect);
             controller2.abortTransaction(stream1, txnSegments.getTxnId()).join();
         }
 

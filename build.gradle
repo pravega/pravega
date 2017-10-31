@@ -525,10 +525,11 @@ project('test:system') {
             }
         }
         from sourceSets.test.output
+        exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
     }
 
     task testJarForDocker(type: Jar) {
-        archiveName = "test-collection.jar"
+        archiveName = "test-docker-collection.jar"
         from {
             (configurations.runtime).collect {
                 it.isDirectory() ? it : zipTree(it)
@@ -578,12 +579,16 @@ project('test:system') {
         onlyIf { dockerRegistryUrl && repoUrl }
     }
 
+    task execShellScript(type: Exec) {
+        commandLine "./preTestScript.sh"
+        args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
+    }
+
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
 
-        doFirst {
-            tasks.testJarForDocker.execute()
-        }
+            dependsOn 'testJarForDocker', 'execShellScript'
+
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 
         description 'Used to invoke docker based system tests, example usage: gradle startSystemTests -DmasterIP=xx.xx.xx.xx'

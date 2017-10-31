@@ -115,11 +115,13 @@ public class ReaderCheckpointTest {
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
             log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
@@ -135,7 +137,7 @@ public class ReaderCheckpointTest {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

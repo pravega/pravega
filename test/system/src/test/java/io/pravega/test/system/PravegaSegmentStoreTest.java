@@ -53,13 +53,16 @@ public class PravegaSegmentStoreTest {
             bk.start(true);
         }
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
         log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
+
         Service con = Utils.isDockerLocalExecEnabled()
                 ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
                 : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
@@ -67,7 +70,7 @@ public class PravegaSegmentStoreTest {
             con.start(true);
         }
         Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0));
         if (!seg.isRunning()) {
             seg.start(true);
@@ -83,7 +86,7 @@ public class PravegaSegmentStoreTest {
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
         Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", null, null)
+                new PravegaSegmentStoreDockerService("segmentstore", null, null, null)
                 : new PravegaSegmentStoreService("segmentstore", null, null,  0, 0.0, 0.0);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);

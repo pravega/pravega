@@ -22,6 +22,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -68,9 +69,9 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        startHDFSInstances();
+        URI hdfsUri = startHDFSInstances();
         URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, hdfsUri);
     }
 
     @Before
@@ -84,6 +85,17 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
+
+        // Verify hdfs is running.
+        URI hdfsUri = null;
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+        }
 
         // Verify controller is running.
         controllerInstance = Utils.isDockerLocalExecEnabled()
@@ -102,7 +114,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect)
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURIDirect, hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());

@@ -23,7 +23,6 @@ import io.pravega.test.system.framework.services.marathon.PravegaControllerServi
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -44,10 +43,7 @@ import org.junit.runner.RunWith;
 public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
-    private Service controllerServiceInstance1 = null;
-    private Service controllerServiceInstance2 = null;
-    private Service controllerServiceInstance3 = null;
-
+    private Service controllerService1 = null;
     private URI controllerURIDirect = null;
     private URI controllerURIDiscover = null;
 
@@ -67,31 +63,28 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        // Start multiple instances of the controller.
-        Service controller1 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller1", zkUris.get(0))
-                : new PravegaControllerService("multicontroller1", zkUris.get(0));
-        if (!controller1.isRunning()) {
-            controller1.start(true);
+        Service controllerService = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
+                : new PravegaControllerService("controller", zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
-        List<URI> conUris1 = controller1.getServiceDetails();
-        log.info("Pravega Controller service instance 1 details: {}", conUris1);
-        Service controller2 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller2", zkUris.get(0))
-                :  new PravegaControllerService("multicontroller2", zkUris.get(0));
-        if (!controller2.isRunning()) {
-            controller2.start(true);
+        controllerService.scaleService(3, true);
+        List<URI> conUris = controllerService.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
         }
-        List<URI> conUris2 = controller2.getServiceDetails();
-        log.info("Pravega Controller service instance 2 details: {}", conUris2);
-        Service controller3 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller3", zkUris.get(0))
-                : new PravegaControllerService("multicontroller3", zkUris.get(0));
-        if (!controller3.isRunning()) {
-            controller3.start(true);
-        }
-        List<URI> conUris3 = controller3.getServiceDetails();
-        log.info("Pravega Controller service instance 3 details: {}", conUris3);
+        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURI);
     }
 
     @Before
@@ -103,28 +96,26 @@ public class MultiControllerTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        // Fetch the controller instances.
-        List<URI> conUris = new ArrayList<>();
-        controllerServiceInstance1 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller1", zkUris.get(0))
-                : new PravegaControllerService("multicontroller1", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance1.isRunning());
-        conUris.addAll(controllerServiceInstance1.getServiceDetails());
-        controllerServiceInstance2 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller2", zkUris.get(0))
-                : new PravegaControllerService("multicontroller2", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance2.isRunning());
-        conUris.addAll(controllerServiceInstance2.getServiceDetails());
-        controllerServiceInstance3 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("multicontroller3", zkUris.get(0))
-                : new PravegaControllerService("multicontroller3", zkUris.get(0));
-        Assert.assertTrue(controllerServiceInstance3.isRunning());
-        conUris.addAll(controllerServiceInstance3.getServiceDetails());
-        log.info("Pravega Controller service instance details: {}", conUris);
+        controllerService1 = Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUris.get(0))
+                : new PravegaControllerService("controller", zkUris.get(0));
+        if (!controllerService1.isRunning()) {
+            controllerService1.start(true);
+        }
 
+        List<URI> conUris = controllerService1.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
+        log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ?  uri.getPort() == 9090 : uri.getPort() == 9092).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
@@ -134,17 +125,9 @@ public class MultiControllerTest {
     @After
     public void tearDown() {
         EXECUTOR_SERVICE.shutdownNow();
-        if (controllerServiceInstance1 != null && controllerServiceInstance1.isRunning()) {
-            controllerServiceInstance1.stop();
-            controllerServiceInstance1.clean();
-        }
-        if (controllerServiceInstance2 != null && controllerServiceInstance2.isRunning()) {
-            controllerServiceInstance2.stop();
-            controllerServiceInstance2.clean();
-        }
-        if (controllerServiceInstance3 != null && controllerServiceInstance3.isRunning()) {
-            controllerServiceInstance3.stop();
-            controllerServiceInstance3.clean();
+        if (controllerService1 != null && controllerService1.isRunning()) {
+            controllerService1.stop();
+            controllerService1.clean();
         }
     }
 
@@ -156,43 +139,82 @@ public class MultiControllerTest {
      */
     @Test(timeout = 300000)
     public void multiControllerTest() throws ExecutionException, InterruptedException {
+
+        List<URI> conUris;
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with all 3 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
                 "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
-        log.info("Test pravega:// with all 3 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        if (!Utils.isDockerLocalExecEnabled()) {
+            log.info("Test pravega:// with all 3 controller instances running");
+            Assert.assertTrue(createScopeWithSimpleRetry(
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        }
 
-        controllerServiceInstance1.stop();
+        controllerService1.scaleService(2, true);
+        conUris = controllerService1.getServiceDetails();
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
+        controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
+        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
+
         log.info("Test tcp:// with 2 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
                 "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
-        log.info("Test pravega:// with 2 controller instances running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        if (!Utils.isDockerLocalExecEnabled()) {
+            log.info("Test pravega:// with 2 controller instances running");
+            Assert.assertTrue(createScopeWithSimpleRetry(
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        }
 
-        controllerServiceInstance2.stop();
+        controllerService1.scaleService(1, true);
+        conUris = controllerService1.getServiceDetails();
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
+        controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
+        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
+
         log.info("Test tcp:// with only 1 controller instance running");
         Assert.assertTrue(createScopeWithSimpleRetry(
                 "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
-        log.info("Test pravega:// with only 1 controller instance running");
-        Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        if (!Utils.isDockerLocalExecEnabled()) {
+            log.info("Test pravega:// with only 1 controller instance running");
+            Assert.assertTrue(createScopeWithSimpleRetry(
+                    "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+        }
 
         // All APIs should throw exception and fail.
-        controllerServiceInstance3.stop();
+        controllerService1.scaleService(0, true);
+
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
                 createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
-        log.info("Test pravega:// with no controller instances running");
-        AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover),
-                throwable -> throwable instanceof RetriesExhaustedException);
-
+        if (!Utils.isDockerLocalExecEnabled()) {
+            log.info("Test pravega:// with no controller instances running");
+            AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
+                    createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover),
+                    throwable -> throwable instanceof RetriesExhaustedException);
+        }
         log.info("multiControllerTest execution completed");
     }
 

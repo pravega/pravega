@@ -86,12 +86,14 @@ public class MultiSegmentStoreTest {
         log.info("bookkeeper service details: {}", bkUris);
 
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         // 3. Start controller.
@@ -107,7 +109,7 @@ public class MultiSegmentStoreTest {
 
         // 4. Start segment store.
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
@@ -126,6 +128,16 @@ public class MultiSegmentStoreTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
+        URI hdfsUri = null;
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+        }
+
         // Verify controller is running.
         this.controllerInstance = Utils.isDockerLocalExecEnabled()
                 ? new PravegaControllerDockerService("controller", zkUris.get(0))
@@ -136,7 +148,7 @@ public class MultiSegmentStoreTest {
 
         // Verify segment stores is running.
         this.segmentServiceInstance = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conURIs.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conURIs.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conURIs.get(0));
         Assert.assertTrue(this.segmentServiceInstance.isRunning());
         Assert.assertEquals(1, this.segmentServiceInstance.getServiceDetails().size());

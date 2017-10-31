@@ -101,12 +101,14 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
         //start HDFS
+        URI hdfsUri = null;
         if (Utils.isDockerLocalExecEnabled()) {
             Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
         //3. start controller
@@ -121,7 +123,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //4.start host
         Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0))
+                new PravegaSegmentStoreDockerService("segmentstore", zkUris.get(0), conUris.get(0), hdfsUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);

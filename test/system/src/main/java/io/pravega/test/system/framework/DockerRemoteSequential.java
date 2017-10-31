@@ -45,7 +45,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private final static String IMAGE = "java:8";
     public final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
     public String id;
-    final String expectedDockerApiVersion = "1.26";
+    final String expectedDockerApiVersion = "1.25";
 
 
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -154,7 +154,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType", "LOCAL") + " -cp /data/build/libs/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
+                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType", "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
                         className + "#" + methodName + " > " + className + "#" + methodName + "server.log 2>&1")
                 .labels(labels)
                 .build();

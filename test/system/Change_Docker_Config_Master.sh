@@ -8,9 +8,14 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-
+MASTER=${1:-null}
+sed -i '1i {"hosts":["tcp://0.0.0.0:2375","unix:///var/run/docker.sock"]}' /etc/docker/daemon.json
 sed -i 's/"live-restore": true,/"live-restore": false,/' /etc/docker/daemon.json
 cat /etc/docker/daemon.json
 service docker stop
 service docker start
+docker swarm init --advertise-addr $MASTER
+docker network create -d overlay --attachable docker-network
+docker swarm join-token worker > token.sh
+mv token.sh /home/nautilus
 exit
