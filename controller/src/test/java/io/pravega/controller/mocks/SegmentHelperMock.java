@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.mocks;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 
@@ -64,25 +64,25 @@ public class SegmentHelperMock {
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).sealSegment(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).sealSegment(
                 anyString(), anyString(), anyInt(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).createSegment(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).deleteSegment(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
                 anyString(), anyString(), anyInt(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).createTransaction(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).abortTransaction(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).commitTransaction(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
                 anyString(), anyString(), anyInt(), any(), any(), any());
 
-        doReturn(FutureHelpers.failedFuture(new RuntimeException())).when(helper).updatePolicy(
+        doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyInt(), any(), any());
 
         return helper;

@@ -13,7 +13,7 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -152,7 +152,7 @@ public class SegmentMetadataClientTest {
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
         Mockito.when(cf.establishConnection(Mockito.eq(endpoint), Mockito.any()))
-               .thenReturn(FutureHelpers.failedFuture(new ConnectionFailedException()))
+               .thenReturn(Futures.failedFuture(new ConnectionFailedException()))
                .thenReturn(CompletableFuture.completedFuture(connection1))
                .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
                    @Override

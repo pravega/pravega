@@ -12,13 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -110,7 +109,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
         MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
-        ServiceHelpers.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
+        Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
     }
@@ -127,7 +126,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(Services.stopAsync(this, this.executor));
 
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
@@ -147,8 +146,8 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Initiate recovery.
         CompletableFuture.supplyAsync(this::performRecovery, this.executor)
-                .thenCompose(anyItemsRecovered -> ServiceHelpers.startAsync(this.operationProcessor, this.executor)
-                        .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
+                .thenCompose(anyItemsRecovered -> Services.startAsync(this.operationProcessor, this.executor)
+                                                          .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
                 .thenRunAsync(() -> {
                     // If we got here, all is good. We were able to start successfully.
                     log.info("{}: Started.", this.traceObjectId);
@@ -161,7 +160,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                         this.operationProcessor.stopAsync();
                     }
 
-                    notifyFailed(ExceptionHelpers.getRealException(ex));
+                    notifyFailed(Exceptions.unwrap(ex));
                     return null;
                 });
     }
@@ -170,7 +169,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
-        ServiceHelpers.stopAsync(this.operationProcessor, this.executor)
+        Services.stopAsync(this.operationProcessor, this.executor)
                 .whenCompleteAsync((r, ex) -> {
                     cancelTailReads();
 
@@ -502,7 +501,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                tr.future.complete(FutureHelpers.runOrFail(
+                tr.future.complete(Futures.runOrFail(
                         () -> this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount),
                         tr.future));
             }
@@ -533,7 +532,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         TailRead(long afterSequenceNumber, int maxCount, Duration timeout, ScheduledExecutorService executor) {
             this.afterSequenceNumber = afterSequenceNumber;
             this.maxCount = maxCount;
-            this.future = FutureHelpers.futureWithTimeout(timeout, executor);
+            this.future = Futures.futureWithTimeout(timeout, executor);
         }
 
         @Override

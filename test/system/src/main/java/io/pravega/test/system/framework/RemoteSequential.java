@@ -10,7 +10,7 @@
 package io.pravega.test.system.framework;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
 import io.pravega.test.system.framework.metronome.MetronomeException;
@@ -84,8 +84,8 @@ public class RemoteSequential implements TestExecutor {
     }
 
     private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
-        return FutureHelpers.loop(() -> isTestRunning(jobId),
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(3), executorService),
+        return Futures.loop(() -> isTestRunning(jobId),
+                () -> Futures.delayedFuture(Duration.ofSeconds(3), executorService),
                 executorService);
     }
 

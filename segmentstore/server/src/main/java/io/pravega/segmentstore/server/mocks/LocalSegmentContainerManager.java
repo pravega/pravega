@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.mocks;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerManager;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -88,7 +88,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
             }
 
             // Wait for all the containers to be closed.
-            FutureHelpers.await(FutureHelpers.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
+            Futures.await(Futures.allOf(results), CLOSE_TIMEOUT_PER_CONTAINER.toMillis());
         }
     }
 
@@ -107,7 +107,7 @@ public class LocalSegmentContainerManager implements SegmentContainerManager {
                                      .thenAccept(this::registerHandle));
         }
 
-        FutureHelpers.allOf(futures).join();
+        Futures.allOf(futures).join();
         LoggerHelpers.traceLeave(log, "initialize", traceId);
     }
 

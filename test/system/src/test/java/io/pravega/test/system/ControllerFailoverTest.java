@@ -164,7 +164,7 @@ public class ControllerFailoverTest {
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
-    
+
     @Test(timeout = 180000)
     public void failoverTest() throws URISyntaxException, InterruptedException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);

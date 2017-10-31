@@ -11,7 +11,7 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -223,7 +223,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 })
                 .thenRun(() -> validateResults(eventData.get(), eventsReadFromPravega));
 
-        FutureHelpers.getAndHandleExceptions(testResult
+        Futures.getAndHandleExceptions(testResult
                 .whenComplete((r, e) -> {
                     recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
                 }), RuntimeException::new);

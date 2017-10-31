@@ -10,7 +10,6 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.lang.ProcessStarter;
@@ -98,7 +97,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
             startAllSegmentStores();
             Thread.sleep(3000);
         } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
+            if (!Exceptions.mustRethrow(ex)) {
                 close();
             }
 

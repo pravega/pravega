@@ -41,7 +41,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -160,7 +160,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
-        if (!FutureHelpers.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
+        if (!Futures.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
             throw new InvalidStreamException("Segment does not exist: " + segment);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);

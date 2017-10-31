@@ -24,7 +24,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
@@ -241,7 +241,7 @@ abstract class AbstractFailoverTests {
 
     void waitForTxnsToComplete() {
         log.info("Wait for txns to complete");
-        if (!FutureHelpers.await(FutureHelpers.allOf(testState.txnStatusFutureList))) {
+        if (!Futures.await(Futures.allOf(testState.txnStatusFutureList))) {
             log.error("Transaction futures did not complete with exceptions");
         }
         // check for exceptions during transaction commits
@@ -387,7 +387,7 @@ abstract class AbstractFailoverTests {
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     writerFutureList.add(writerFuture);
                 } else  {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
@@ -397,16 +397,16 @@ abstract class AbstractFailoverTests {
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
                     writerList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
-                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    Futures.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     writerFutureList.add(txnWriteFuture);
                 }
 
             }
         }).thenRun(() -> {
             testState.writers.addAll(writerFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(writerFutureList),
+            Futures.completeAfter(() -> Futures.allOf(writerFutureList),
                     testState.writersListComplete.get(0));
-            FutureHelpers.exceptionListener(testState.writersListComplete.get(0),
+            Futures.exceptionListener(testState.writersListComplete.get(0),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
@@ -434,13 +434,13 @@ abstract class AbstractFailoverTests {
                         ReaderConfig.builder().build());
                 readerList.add(reader);
                 final CompletableFuture<Void> readerFuture = startReading(reader);
-                FutureHelpers.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
+                Futures.exceptionListener(readerFuture, t -> log.error("Error while reading events:", t));
                 readerFutureList.add(readerFuture);
             }
         }).thenRun(() -> {
             testState.readers.addAll(readerFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(readerFutureList), testState.readersComplete);
-            FutureHelpers.exceptionListener(testState.readersComplete,
+            Futures.completeAfter(() -> Futures.allOf(readerFutureList), testState.readersComplete);
+            Futures.exceptionListener(testState.readersComplete,
                     t -> log.error("Exception while waiting for all readers to complete", t));
         });
     }
@@ -462,7 +462,7 @@ abstract class AbstractFailoverTests {
                                     .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
-                    FutureHelpers.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
+                    Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                     newWritersFutureList.add(writerFuture);
                 } else  {
                     final EventStreamWriter<Long> tmpWriter = clientFactory.createEventWriter(stream,
@@ -472,14 +472,14 @@ abstract class AbstractFailoverTests {
                                     .transactionTimeoutTime(59000).transactionTimeoutScaleGracePeriod(60000).build());
                     newlyAddedWriterList.add(tmpWriter);
                     final CompletableFuture<Void> txnWriteFuture = startWritingIntoTxn(tmpWriter);
-                    FutureHelpers.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
+                    Futures.exceptionListener(txnWriteFuture, t -> log.error("Error while writing events into transaction:", t));
                     newWritersFutureList.add(txnWriteFuture);
                 }
             }
         }).thenRun(() -> {
             testState.writers.addAll(newWritersFutureList);
-            FutureHelpers.completeAfter(() -> FutureHelpers.allOf(newWritersFutureList), testState.writersListComplete.get(1));
-            FutureHelpers.exceptionListener(testState.writersListComplete.get(1),
+            Futures.completeAfter(() -> Futures.allOf(newWritersFutureList), testState.writersListComplete.get(1));
+            Futures.exceptionListener(testState.writersListComplete.get(1),
                     t -> log.error("Exception while waiting for writers to complete", t));
         });
     }
@@ -490,7 +490,7 @@ abstract class AbstractFailoverTests {
         testState.stopWriteFlag.set(true);
 
         log.info("Wait for writers execution to complete");
-        if (!FutureHelpers.await(FutureHelpers.allOf(testState.writersListComplete))) {
+        if (!Futures.await(Futures.allOf(testState.writersListComplete))) {
             log.error("Writers stopped with exceptions");
         }
 
@@ -507,7 +507,7 @@ abstract class AbstractFailoverTests {
         testState.stopReadFlag.set(true);
 
         log.info("Wait for readers execution to complete");
-        if (!FutureHelpers.await(testState.readersComplete)) {
+        if (!Futures.await(testState.readersComplete)) {
             log.error("Readers stopped with exceptions");
         }
         //check for exceptions during read

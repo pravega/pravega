@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -384,7 +384,7 @@ public class PravegaRequestProcessorTest {
     }
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
-        return FutureHelpers.await(store.append(streamSegmentName,
+        return Futures.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
                 null,
                 PravegaRequestProcessor.TIMEOUT));

@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.stream.tables.State;
@@ -407,7 +407,7 @@ public class ZkStreamTest {
         final String streamName = "testTx";
         store.createScope(SCOPE).get();
         final Predicate<Throwable> operationNotAllowedPredicate =
-                ex -> ExceptionHelpers.getRealException(ex) instanceof StoreException.IllegalStateException;
+                ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                 .scope(SCOPE)

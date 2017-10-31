@@ -10,9 +10,8 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CircularBuffer;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -126,7 +125,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
-            if (FutureHelpers.getAndHandleExceptions(outstandingRequest, e -> issueRequestIfNeeded(), timeout) == null) {
+            if (Futures.getAndHandleExceptions(outstandingRequest, e -> issueRequestIfNeeded(), timeout) == null) {
                 return null;
             }
             handleRequest();
@@ -153,7 +152,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     private boolean dataWaitingToGoInBuffer() {
-        return outstandingRequest != null && FutureHelpers.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
+        return outstandingRequest != null && Futures.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
     }
 
     private void handleRequest() {
@@ -186,8 +185,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             if (outstandingRequest == null) {
                 outstandingRequest = asyncInput.read(offset + buffer.dataAvailable(), readLength);
             } else if (outstandingRequest.isCompletedExceptionally()) {
-                Throwable e = FutureHelpers.getException(outstandingRequest);
-                Throwable realException = ExceptionHelpers.getRealException(e);
+                Throwable e = Futures.getException(outstandingRequest);
+                Throwable realException = Exceptions.unwrap(e);
                 if (!(realException instanceof Error || realException instanceof InterruptedException
                         || realException instanceof CancellationException)) {
                     log.warn("Encountered an exception while reading for " + asyncInput.getSegmentId(), e);
@@ -218,7 +217,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Override
     @Synchronized
     public boolean canReadWithoutBlocking() {
-        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && FutureHelpers.isSuccessful(outstandingRequest)
+        boolean result = buffer.dataAvailable() > 0 || (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)
                 && outstandingRequest.join().getData().hasRemaining());
         log.trace("canReadWithoutBlocking {}", result);
         return result;

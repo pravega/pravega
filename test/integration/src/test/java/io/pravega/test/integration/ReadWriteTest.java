@@ -27,7 +27,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -171,13 +171,13 @@ public class ReadWriteTest {
             }
 
             //wait for writers completion
-            FutureHelpers.allOf(writerList).get();
+            Futures.allOf(writerList).get();
 
             //set stop read flag to true
             stopReadFlag.set(true);
 
             //wait for readers completion
-            FutureHelpers.allOf(readerList).get();
+            Futures.allOf(readerList).get();
 
             //delete readergroup
             log.info("Deleting readergroup {}", readerGroupName);

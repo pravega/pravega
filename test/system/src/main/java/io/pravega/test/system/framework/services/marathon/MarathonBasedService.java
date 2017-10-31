@@ -10,7 +10,7 @@
 package io.pravega.test.system.framework.services.marathon;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.marathon.AuthEnabledMarathonClient;
 import java.net.URI;
@@ -129,8 +129,8 @@ public abstract class MarathonBasedService implements Service {
     }
 
     CompletableFuture<Void> waitUntilServiceRunning() {
-        return FutureHelpers.loop(() -> !isRunning(), //condition
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+        return Futures.loop(() -> !isRunning(), //condition
+                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
     }
 
@@ -192,8 +192,8 @@ public abstract class MarathonBasedService implements Service {
     }
 
     private CompletableFuture<Void> waitUntilDeploymentPresent(final String deploymentID) {
-        return FutureHelpers.loop(() -> isDeploymentPresent(deploymentID), //condition
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(5), executorService),
+        return Futures.loop(() -> isDeploymentPresent(deploymentID), //condition
+                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
     }
 }

@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
@@ -86,7 +86,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
             close();
             throw ex;
         } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
+            if (!Exceptions.mustRethrow(ex)) {
                 // Make sure we close anything we may have opened.
                 close();
             }

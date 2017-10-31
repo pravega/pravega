@@ -18,8 +18,8 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -165,9 +165,9 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletionStage<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
         AtomicBoolean isDone = new AtomicBoolean(false);
-        return FutureHelpers.loop(() -> !isDone.get(),
-                () -> FutureHelpers.delayedFuture(condition, 100, executor)
-                        .thenAccept(isDone::set), executor);
+        return Futures.loop(() -> !isDone.get(),
+                () -> Futures.delayedFuture(condition, 100, executor)
+                             .thenAccept(isDone::set), executor);
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
@@ -324,7 +324,7 @@ public class StreamMetadataTasks extends TaskBase {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
                             if (e != null) {
-                                Throwable cause = ExceptionHelpers.getRealException(e);
+                                Throwable cause = Exceptions.unwrap(e);
                                 if (cause instanceof ScaleOperationExceptions.ScalePreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
@@ -361,7 +361,7 @@ public class StreamMetadataTasks extends TaskBase {
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
                             if (ex != null) {
-                                Throwable e = ExceptionHelpers.getRealException(ex);
+                                Throwable e = Exceptions.unwrap(ex);
                                 if (e instanceof StoreException.DataNotFoundException) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
                                 } else {
@@ -526,7 +526,7 @@ public class StreamMetadataTasks extends TaskBase {
                 }, executor)
                 .handle((result, ex) -> {
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
@@ -564,7 +564,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Integer> segmentNumbers) {
-        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(segmentNumbers
+        return Futures.toVoid(Futures.allOfWithResults(segmentNumbers
                 .stream()
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy()))
@@ -572,29 +572,29 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> notifyNewSegment(String scope, String stream, int segmentNumber, ScalingPolicy policy) {
-        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
+        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
                 stream, segmentNumber, policy, hostControllerStore, this.connectionFactory), executor));
     }
 
     public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, int count) {
-        return FutureHelpers.allOf(IntStream.range(0, count)
-                .parallel()
-                .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment))
-                .collect(Collectors.toList()));
+        return Futures.allOf(IntStream.range(0, count)
+                                      .parallel()
+                                      .mapToObj(segment -> notifyDeleteSegment(scope, stream, segment))
+                                      .collect(Collectors.toList()));
     }
 
     public CompletableFuture<Void> notifyDeleteSegment(String scope, String stream, int segmentNumber) {
-        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
+        return Futures.toVoid(withRetries(() -> segmentHelper.deleteSegment(scope,
                 stream, segmentNumber, hostControllerStore, this.connectionFactory), executor));
     }
 
     public CompletableFuture<Void> notifyTruncateSegment(String scope, String stream, Map.Entry<Integer, Long> segmentCut) {
-        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope,
+        return Futures.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope,
                 stream, segmentCut.getKey(), segmentCut.getValue(), hostControllerStore, this.connectionFactory), executor));
     }
 
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Integer> sealedSegments) {
-        return FutureHelpers.allOf(
+        return Futures.allOf(
                 sealedSegments
                         .stream()
                         .parallel()
@@ -604,7 +604,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> notifySealedSegment(final String scope, final String stream, final int sealedSegment) {
 
-        return FutureHelpers.toVoid(withRetries(() -> segmentHelper.sealSegment(
+        return Futures.toVoid(withRetries(() -> segmentHelper.sealSegment(
                 scope,
                 stream,
                 sealedSegment,
@@ -614,7 +614,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyPolicyUpdates(String scope, String stream, List<Segment> activeSegments,
                                                         ScalingPolicy policy) {
-        return FutureHelpers.toVoid(FutureHelpers.allOfWithResults(activeSegments
+        return Futures.toVoid(Futures.allOfWithResults(activeSegments
                 .stream()
                 .parallel()
                 .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.getNumber()))
@@ -639,7 +639,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private UpdateStreamStatus.Status handleUpdateStreamError(Throwable ex) {
-        Throwable cause = ExceptionHelpers.getRealException(ex);
+        Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
@@ -649,7 +649,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private DeleteStreamStatus.Status handleDeleteStreamError(Throwable ex) {
-        Throwable cause = ExceptionHelpers.getRealException(ex);
+        Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else {

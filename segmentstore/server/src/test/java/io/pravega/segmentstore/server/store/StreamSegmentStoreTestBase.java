@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
@@ -205,7 +205,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        return FutureHelpers.allOf(segmentFutures);
+        return Futures.allOf(segmentFutures);
     }
 
     private CompletableFuture<Void> mergeTransactions(HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths,
@@ -227,7 +227,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        return FutureHelpers.allOf(mergeFutures);
+        return Futures.allOf(mergeFutures);
     }
 
     private CompletableFuture<Void> sealSegments(Collection<String> segmentNames, StreamSegmentStore store) {
@@ -236,7 +236,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             result.add(store.sealStreamSegment(segmentName, TIMEOUT));
         }
 
-        return FutureHelpers.allOf(result);
+        return Futures.allOf(result);
     }
 
     private CompletableFuture<Void> deleteSegments(Collection<String> segmentNames, StreamSegmentStore store) {
@@ -245,7 +245,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             result.add(store.deleteStreamSegment(segmentName, TIMEOUT));
         }
 
-        return FutureHelpers.allOf(result);
+        return Futures.allOf(result);
     }
 
     private ArrayList<String> createSegments(StreamSegmentStore store) {
@@ -257,7 +257,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             futures.add(store.createStreamSegment(segmentName, null, TIMEOUT));
         }
 
-        FutureHelpers.allOf(futures).join();
+        Futures.allOf(futures).join();
         return segmentNames;
     }
 
@@ -270,7 +270,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        FutureHelpers.allOf(futures).join();
+        Futures.allOf(futures).join();
 
         // Get the Transaction names and index them by parent segment names.
         HashMap<String, ArrayList<String>> transactions = new HashMap<>();
@@ -456,7 +456,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             try {
                 sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             } catch (Exception ex) {
-                if (!(ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException)) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
                 }
             }
@@ -494,13 +494,13 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             segmentsCompletion.add(waitForSegmentInStorage(sp, storage));
         }
 
-        return FutureHelpers.allOf(segmentsCompletion);
+        return Futures.allOf(segmentsCompletion);
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
-        return FutureHelpers.loop(
+        return Futures.loop(
                 tryAgain::get,
                 () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)
                              .thenCompose(storageProps -> {
@@ -511,10 +511,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                  }
 
                                  if (tryAgain.get() && !timer.hasRemaining()) {
-                                     return FutureHelpers.<Void>failedFuture(new TimeoutException(
+                                     return Futures.<Void>failedFuture(new TimeoutException(
                                              String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
                                  } else {
-                                     return FutureHelpers.delayedFuture(Duration.ofMillis(100), executorService());
+                                     return Futures.delayedFuture(Duration.ofMillis(100), executorService());
                                  }
                              }), executorService());
     }

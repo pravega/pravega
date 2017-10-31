@@ -21,7 +21,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -181,8 +181,8 @@ public class AutoScaleTest extends AbstractScaleTests {
         CompletableFuture<Void> scaleup = scaleUpTest();
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
-        FutureHelpers.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
-                .whenComplete((r, e) -> {
+        Futures.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
+                                                        .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
                     recordResult(scaleDown, "ScaleDown");
                     recordResult(scalewithTxn, "ScaleWithTxn");
