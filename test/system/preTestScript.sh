@@ -29,14 +29,10 @@ if [ $CLUSTER_NAME != null ]; then
       jarvis scp master-1:/home/nautilus/token.sh .
 
       #slaves
-      jarvis ssh slave-1 "bash -s" -- < ./Change_Docker_Config_Slave.sh
-      jarvis ssh slave-1 "bash -s" -- < ./token.sh
-
-      jarvis ssh slave-2 "bash -s" -- < ./Change_Docker_Config_Slave.sh
-      jarvis ssh slave-2 "bash -s" -- < ./token.sh
-
-      jarvis ssh slave-3 "bash -s" -- < ./Change_Docker_Config_Slave.sh
-      jarvis ssh slave-3 "bash -s" -- < ./token.sh
-
+      for i in `seq 1 $NUM_SLAVES`
+      do
+      jarvis ssh slave-$i "bash -s" -- < ./Change_Docker_Config_Slave.sh
+      jarvis ssh slave-$i "bash -s" -- < ./token.sh
+      done
     fi
 fi
