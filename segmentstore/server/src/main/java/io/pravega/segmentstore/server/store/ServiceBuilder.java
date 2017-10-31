@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
@@ -222,11 +221,6 @@ public class ServiceBuilder implements AutoCloseable {
         return this.executorService;
     }
 
-    @VisibleForTesting
-    StorageFactory getStorageFactory() {
-        return this.storageFactory.get();
-    }
-
     //endregion
 
     //region Component Builders
@@ -340,12 +334,12 @@ public class ServiceBuilder implements AutoCloseable {
         } else {
             // Components that are required for general SegmentStore.
             builder = new ServiceBuilder(builderConfig, serviceConfig, executorService)
-                    .withCacheFactory(setup -> new InMemoryCacheFactory())
-                    .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()));
+                    .withCacheFactory(setup -> new InMemoryCacheFactory());
         }
 
         // Components that are required for all types of SegmentStore.
         return builder
+                .withDataLogFactory(setup -> new InMemoryDurableDataLogFactory(setup.getExecutor()))
                 .withContainerManager(setup -> new LocalSegmentContainerManager(
                         setup.getContainerRegistry(), setup.getSegmentToContainerMapper()))
                 .withStorageFactory(setup -> new InMemoryStorageFactory(setup.getExecutor()))
