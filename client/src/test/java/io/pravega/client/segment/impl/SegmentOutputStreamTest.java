@@ -133,7 +133,6 @@ public class SegmentOutputStreamTest {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
         output.reconnect();
         verify(connection).send(new SetupAppend(1, cid, SEGMENT));
-
     }
 
     @Test(timeout = 1000)
