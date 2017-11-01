@@ -61,6 +61,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -410,12 +411,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, operationProcessor);
 
-        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
-        AssertExtensions.assertThrows(
-                "No operations failed.",
-                OperationWithCompletion.allOf(completionFutures)::join,
-                super::isExpectedExceptionForDataCorruption);
-
         // Wait for the store to fail (and make sure it failed).
         AssertExtensions.assertThrows(
                 "Operation Processor did not shut down with failure.",
@@ -544,30 +539,26 @@ public class OperationProcessorTests extends OperationLogTestBase {
     private void performLogOperationChecks(Collection<OperationWithCompletion> operations, SequencedItemList<Operation> memoryLog,
                                            DurableDataLog dataLog, TruncationMarkerRepository truncationMarkers, int maxCount) throws Exception {
         // Log Operation based checks
+        val successfulOps = operations.stream()
+                                      .filter(oc -> !oc.completion.isCompletedExceptionally())
+                                      .map(oc -> oc.operation)
+                                      .filter(Operation::canSerialize)
+                                      .limit(maxCount)
+                                      .collect(Collectors.toList());
+
         @Cleanup
         DataFrameReader<Operation> dataFrameReader = new DataFrameReader<>(dataLog, new OperationFactory(), CONTAINER_ID);
         long lastSeqNo = -1;
+        if (successfulOps.size() > 0) {
+            // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
+            // We check periodically until the last item has been written.
+            await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10);
+        }
+
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
         OperationComparer memoryLogComparer = new OperationComparer(true);
-        int count = 0;
-        for (OperationWithCompletion oc : operations) {
-            if (++count > maxCount) {
-                break;
-            }
-
-            if (oc.completion.isCompletedExceptionally()) {
-                // We expect this operation to not have been processed.
-                continue;
-            }
-
-            if (!oc.operation.canSerialize()) {
-                // We do not expect this operation in the log; skip it.
-                continue;
-            }
-
+        for (Operation expectedOp : successfulOps) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
-            Operation expectedOp = oc.operation;
-            //System.out.println("E: "+expectedOp);
             AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
             lastSeqNo = expectedOp.getSequenceNumber();
 

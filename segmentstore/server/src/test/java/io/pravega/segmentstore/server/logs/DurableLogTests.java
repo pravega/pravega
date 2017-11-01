@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -439,12 +440,6 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Process all generated operations.
         List<OperationWithCompletion> completionFutures = processOperations(operations, durableLog);
-
-        // Wait for all such operations to complete. We are expecting exceptions, so verify that we do.
-        AssertExtensions.assertThrows(
-                "No operations failed.",
-                OperationWithCompletion.allOf(completionFutures)::join,
-                super::isExpectedExceptionForDataCorruption);
 
         // Wait for the service to fail (and make sure it failed).
         AssertExtensions.assertThrows(
@@ -1249,25 +1244,24 @@ public class DurableLogTests extends OperationLogTestBase {
 
     //region Helpers
 
-    private void performLogOperationChecks(Collection<OperationWithCompletion> operations, DurableLog durableLog) {
+    private void performLogOperationChecks(List<OperationWithCompletion> operations, DurableLog durableLog) {
         // Log Operation based checks
         long lastSeqNo = -1;
+        val successfulOperations = operations.stream()
+                                             .filter(oc -> !oc.completion.isCompletedExceptionally())
+                                             .map(oc -> oc.operation)
+                                             .filter(Operation::canSerialize)
+                                             .collect(Collectors.toList());
+
+        // Writing to the DurableLog is done asynchronously, so wait for the last operation to arrive there before reading.
+        durableLog.read(successfulOperations.get(successfulOperations.size() - 1).getSequenceNumber() - 1, 1, TIMEOUT).join();
+
+        // Issue the read for the entire log now.
         Iterator<Operation> logIterator = durableLog.read(-1L, operations.size() + 1, TIMEOUT).join();
         verifyFirstItemIsMetadataCheckpoint(logIterator);
         OperationComparer comparer = new OperationComparer(true);
-        for (OperationWithCompletion oc : operations) {
-            if (oc.completion.isCompletedExceptionally()) {
-                // We expect this operation to not have been processed.
-                continue;
-            }
-
-            if (!oc.operation.canSerialize()) {
-                // We do not expect this operation in the log; skip it.
-                continue;
-            }
-
+        for (Operation expectedOp : successfulOperations) {
             // Verify that the operations have been completed and assigned sequential Sequence Numbers.
-            Operation expectedOp = oc.operation;
             AssertExtensions.assertGreaterThan("Operations were not assigned sequential Sequence Numbers.", lastSeqNo, expectedOp.getSequenceNumber());
             lastSeqNo = expectedOp.getSequenceNumber();
 

@@ -138,7 +138,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     @Override
     protected void errorHandler(Throwable ex) {
         ex = Exceptions.unwrap(ex);
-        closeQueue(ex);
         if (!isShutdownException(ex)) {
             // Shutdown exceptions means we are already stopping, so no need to do anything else. For all other cases,
             // record the failure and then stop the OperationProcessor.
