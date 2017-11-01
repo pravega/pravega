@@ -13,6 +13,7 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -20,6 +21,9 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.test.common.InlineExecutor;
+import lombok.Cleanup;
+
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -146,7 +150,10 @@ public class SegmentMetadataClientTest {
     public void testExceptionOnSend() throws Exception {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
         ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
+        Mockito.when(cf.getInternalExecutor()).thenReturn(executor);
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
