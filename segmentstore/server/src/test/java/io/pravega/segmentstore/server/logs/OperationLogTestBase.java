@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
@@ -315,6 +316,7 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         return ex instanceof DataCorruptionException
                 || ex instanceof IllegalContainerStateException
                 || ex instanceof ObjectClosedException
+                || ex instanceof CancellationException
                 || (ex instanceof IOException && (ex.getCause() instanceof DataCorruptionException || ex.getCause() instanceof IllegalContainerStateException));
     }
 
