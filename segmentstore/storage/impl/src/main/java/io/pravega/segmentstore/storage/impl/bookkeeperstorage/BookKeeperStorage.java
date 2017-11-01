@@ -65,7 +65,7 @@ class BookKeeperStorage implements Storage {
     private final AtomicBoolean closed;
     private final LogStorageManager manager;
     private final CuratorFramework zkClient;
-    private AtomicBoolean initialized;
+    private final AtomicBoolean initialized;
 
     //endregion
 
@@ -87,6 +87,7 @@ class BookKeeperStorage implements Storage {
         this.zkClient = zkClient;
         this.executor = executor;
         manager = new LogStorageManager(config, zkClient, executor);
+        initialized = new AtomicBoolean(false);
     }
 
     //endregion

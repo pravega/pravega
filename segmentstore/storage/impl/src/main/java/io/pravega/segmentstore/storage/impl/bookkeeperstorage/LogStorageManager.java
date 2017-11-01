@@ -218,7 +218,7 @@ class LogStorageManager {
 
         return getOrRetrieveStorageLedger(segmentName, true)
                 .thenCompose(ledger -> {
-                    Preconditions.checkArgument(offset + length < ledger.getLength(), segmentName);
+                    Preconditions.checkArgument(offset + length <= ledger.getLength(), segmentName);
                     /** Loop till the data is read completely. */
                     return Futures.loop(
                             () -> currentLength.get() != 0,
@@ -231,9 +231,9 @@ class LogStorageManager {
                                 /** Update the remaining lengths and offsets. */
                                 .thenAccept(dataRead -> {
                                       Preconditions.checkState(dataRead != 0, "No data read");
-                                      currentLength.accumulateAndGet(-dataRead, (integer, integer2) -> null);
-                                      currentOffset.accumulateAndGet((long) dataRead, (integer, integer2) -> null);
-                                      currentBufferOffset.accumulateAndGet(dataRead, (integer, integer2) -> null);
+                                      currentLength.accumulateAndGet(-dataRead, (integer, integer2) -> integer + integer2);
+                                      currentOffset.accumulateAndGet((long) dataRead, (integer, integer2) -> integer + integer2);
+                                      currentBufferOffset.accumulateAndGet(dataRead, (integer, integer2) -> integer + integer2);
                                 }),
                     executor);
                 })
