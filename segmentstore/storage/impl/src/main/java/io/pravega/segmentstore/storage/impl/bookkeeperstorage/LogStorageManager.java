@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -25,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -62,7 +63,7 @@ class LogStorageManager {
     private BookKeeper bookkeeper;
     private long containerEpoch;
 
-    public LogStorageManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
+    LogStorageManager(BookKeeperStorageConfig config, CuratorFramework zkClient, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
         Preconditions.checkNotNull(zkClient, "zkClient");
@@ -87,7 +88,7 @@ class LogStorageManager {
     public CompletableFuture<LedgerData> create(String streamSegmentName, Duration timeout) {
         LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, false);
 
-        /** Create the node for the segment in the ZK. */
+        /* Create the node for the segment in the ZK. */
         return zkClient.create()
                        .forPath(getZkPath(streamSegmentName), logStorage.serialize())
                        .toCompletableFuture()
@@ -128,10 +129,8 @@ class LogStorageManager {
         return getOrRetrieveStorageLedger(streamSegmentName, false)
                 /** check whether fencing is required. */
                 .thenCompose(ledger -> {
-                    CompletableFuture<LogStorage> retVal = new CompletableFuture<LogStorage>();
                     if (ledger.getContainerEpoch() == containerEpoch) {
-                        retVal.complete(ledger);
-                        return retVal;
+                        return CompletableFuture.completedFuture(ledger);
                     } else if (ledger.getContainerEpoch() > containerEpoch) {
                         throw new CompletionException(new StorageNotPrimaryException(streamSegmentName));
                     } else {
@@ -142,7 +141,7 @@ class LogStorageManager {
                                        .withVersion(ledger.getUpdateVersion())
                                        .forPath(getZkPath(streamSegmentName), ledger.serialize())
                                        .exceptionally(exc -> {
-                                           if (exc instanceof KeeperException.BadVersionException) {
+                                           if (Exceptions.unwrap(exc) instanceof KeeperException.BadVersionException) {
                                                //Need to retry as data we had was out of sync
                                                tryAgain.set(true);
                                            } else {
@@ -150,8 +149,8 @@ class LogStorageManager {
                                            }
                                            return null;
                                        }).thenApply(stat -> {
-                                    ledger.setUpdateVersion(stat.getVersion());
-                                    return ledger;
+                                        ledger.setUpdateVersion(stat.getVersion());
+                                        return ledger;
                                 });
                     }
                 })
@@ -161,9 +160,7 @@ class LogStorageManager {
                         log.info("Fencing all the ledgers for {}", streamSegmentName);
                         return fenceLedgersAndCreateOneAtEnd(streamSegmentName, ledger);
                     } else {
-                        CompletableFuture<LogStorage> future = new CompletableFuture<>();
-                        future.complete(ledger);
-                        return future;
+                        return CompletableFuture.completedFuture(ledger);
                     }
                 });
     }
@@ -190,11 +187,9 @@ class LogStorageManager {
         try {
             bookkeeper = new BookKeeper(config);
         } catch (Exception e) {
-            throw  new CompletionException(e);
+            throw new CompletionException(e);
         }
     }
-
-
 
     /**
      * API to detect the existance of a stream segment.
@@ -223,27 +218,24 @@ class LogStorageManager {
 
         return getOrRetrieveStorageLedger(segmentName, true)
                 .thenCompose(ledger -> {
-                    if (offset + length > ledger.getLength()) {
-                        throw new CompletionException(new IllegalArgumentException(segmentName));
-                    }
+                    Preconditions.checkArgument(offset + length < ledger.getLength(), segmentName);
                     /** Loop till the data is read completely. */
                     return Futures.loop(
-                            () -> {
-                                return currentLength.get() != 0;
-                            },
-                            /** Get the BK ledger which contains the offset. */
-                            () -> ledger.getLedgerDataForReadAt(currentOffset.get())
-                                        /** Read data from the BK ledger. */
-                                        .thenCompose(ledgerData -> readDataFromLedger(ledgerData, currentOffset.get(),
-                                                buffer, currentBufferOffset.get(), currentLength.get()))
-                                        /** Update the remaining lengths and offsets. */
-                                        .thenApply(dataRead -> {
-                                            currentLength.set(currentLength.get() - dataRead);
-                                            currentOffset.set(currentOffset.get() + dataRead);
-                                            currentBufferOffset.set(currentBufferOffset.get() + dataRead);
-                                            return null;
-                                        }),
-                            executor);
+                            () -> currentLength.get() != 0,
+                            /* Get the BK ledger which contains the offset. */
+                            () ->
+                                /** Read data from the BK ledger. */
+                                readDataFromLedger(ledger.getLedgerDataForReadAt(currentOffset.get()),
+                                        currentOffset.get(),
+                                        buffer, currentBufferOffset.get(), currentLength.get())
+                                /** Update the remaining lengths and offsets. */
+                                .thenAccept(dataRead -> {
+                                      Preconditions.checkState(dataRead != 0, "No data read");
+                                      currentLength.accumulateAndGet(-dataRead, (integer, integer2) -> null);
+                                      currentOffset.accumulateAndGet((long) dataRead, (integer, integer2) -> null);
+                                      currentBufferOffset.accumulateAndGet(dataRead, (integer, integer2) -> null);
+                                }),
+                    executor);
                 })
                 .thenApply(v -> length);
     }
@@ -267,19 +259,16 @@ class LogStorageManager {
                     if (ledger.isSealed()) {
                         throw new CompletionException(new StreamSegmentSealedException(segmentName));
                     }
-                    /** Get the last ledger where data can be appended. */
+                    /* Get the last ledger where data can be appended. */
                     return getORCreateLHForOffset(ledger, offset);
-                }).thenCompose(ledgerData -> {
-                    CompletableFuture<Integer> retVal = writeDataAt(ledgerData.getLedgerHandle(), offset, data, length, segmentName)
-                            .thenApply(v -> {
-                                /** Update lengths in the cache. The lengths are not persisted. */
-                                ledgerData.increaseLengthBy(length);
-                                ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
-                                ledgers.get(segmentName).increaseLengthBy(length);
-                                return length;
-                            });
-                    return retVal;
-                });
+                }).thenCompose(ledgerData -> writeDataAt(ledgerData.getLedgerHandle(), offset, data, length, segmentName)
+                        .thenApply(v -> {
+                            /* Update lengths in the cache. The lengths are not persisted. */
+                            ledgerData.increaseLengthBy(length);
+                            ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
+                            ledgers.get(segmentName).increaseLengthBy(length);
+                            return length;
+                        }));
     }
 
     /**
@@ -290,7 +279,7 @@ class LogStorageManager {
     public CompletableFuture<Void> seal(String segmentName) {
         return this.getOrRetrieveStorageLedger(segmentName, false)
                    .thenCompose(ledger -> {
-                       /** Check whether you are the current owner. */
+                       /** Check whether this segmentstore is the current owner. */
                        if (ledger.getContainerEpoch() > this.containerEpoch) {
                            throw new CompletionException(new StorageNotPrimaryException(segmentName));
                        }
@@ -314,11 +303,11 @@ class LogStorageManager {
     }
 
     /**
-     * Concatenates the sourceSegment in to the target segments at offset.
+     * Concatenates the sourceSegment in to the target segment at offset.
      *
      * The concatenation involves updating the metadata in a single ZK transaction.
      * The operations are:
-     * 1. Add the ledgers of the source segments to the target metadata at their new offset.
+     * 1. Add the ledgers of the source segment to the target metadata at their new offset.
      * 2. Remove them from the source metadata.
      * 3. Update the target version to ensure CAS.
      *
@@ -338,25 +327,22 @@ class LogStorageManager {
                                                           translateZKException(segmentName, exc);
                                                           return null;
                                                       })
-                                                      .thenCompose(results -> {
-                                                          return getOrRetrieveStorageLedger(segmentName, false)
-                                                                  .thenCompose(logStorage -> {
-                                                                      logStorage.setUpdateVersion(logStorage.getUpdateVersion() + 1);
-                                                                      /** Fence all the ledgers and add one at the end. */
-                                                                      return fenceLedgersAndCreateOneAtEnd(segmentName, logStorage);
-                                                                  })
-                                                                  .thenApply(logStorage -> null);
-                                                      }))
+                                                      .thenCompose(results -> getOrRetrieveStorageLedger(segmentName, false)
+                                                              .thenCompose(logStorage -> {
+                                                                  logStorage.setUpdateVersion(logStorage.getUpdateVersion() + 1);
+                                                                  /* Fence all the ledgers and add one at the end. */
+                                                                  return fenceLedgersAndCreateOneAtEnd(segmentName, logStorage);
+                                                              })
+                                                              .thenApply(logStorage -> null)))
                    /** Delete metadata and cache for the source once the operation is complete. */
                    .thenCompose(v -> this.zkClient.delete()
-                                                  .withOptions(new HashSet<>(
+                                                  .withOptions(Sets.newHashSet(
                                                           Arrays.asList(DeleteOption.guaranteed,
                                                                   DeleteOption.deletingChildrenIfNeeded)))
                                                   .forPath(getZkPath(sourceSegment))
                                                   .toCompletableFuture()
-                                                  .thenApply(ret -> {
+                                                  .thenAccept(ret -> {
                                                       ledgers.remove(sourceSegment);
-                                                      return null;
                                                   }));
     }
 
@@ -372,17 +358,16 @@ class LogStorageManager {
                            throw new CompletionException(new StorageNotPrimaryException(segmentName));
                        }
                        return this.zkClient.delete()
-                                           .withOptions(new HashSet<>(
+                                           .withOptions(Sets.newHashSet(
                                                    Arrays.asList(DeleteOption.guaranteed,
                                                            DeleteOption.deletingChildrenIfNeeded)))
                                            .forPath(getZkPath(segmentName))
                                            .toCompletableFuture()
-                                           .thenApply(v -> {
+                                           .thenCompose(v -> {
                                                ledgers.remove(segmentName);
-                                               return ledger;
+                                               return ledger.deleteAllLedgers();
                                            });
-                   })
-                   .thenCompose(ledger -> ledger.deleteAllLedgers());
+                   });
     }
 
     //endregion
@@ -441,7 +426,8 @@ class LogStorageManager {
 
         return getOrRetrieveStorageLedger(streamSegmentName, readOnly)
                 .thenApply(ledger -> StreamSegmentInformation.builder()
-                                                             .name(streamSegmentName).length(ledger.getLength())
+                                                             .name(streamSegmentName)
+                                                             .length(ledger.getLength())
                                                              .sealed(ledger.isSealed())
                                                              .lastModified(ledger.getLastModified())
                                                              .build());
@@ -535,9 +521,7 @@ class LogStorageManager {
                            if (readOnly) {
                                return getBKLEdgerDetails(streamSegmentName, storageLog);
                            } else {
-                               CompletableFuture<LogStorage> retVal = new CompletableFuture<>();
-                               retVal.complete(storageLog);
-                               return retVal;
+                               return CompletableFuture.completedFuture(storageLog);
                            }
                        });
     }
@@ -686,15 +670,11 @@ class LogStorageManager {
                                                                                   .thenApply(v -> null);
                                                                }
                                                                ledger.addToList(offset, ledgerData);
-                                                               CompletableFuture<LedgerData> retval = new CompletableFuture<LedgerData>();
-                                                               retval.complete(ledgerData);
-                                                               return retval;
+                                                               return CompletableFuture.completedFuture(ledgerData);
                                                            });
                                                })
                                                .toArray(CompletableFuture[]::new);
-                                       return CompletableFuture.allOf(futures).thenApply(v -> {
-                                           return ledger;
-                                       });
+                                       return CompletableFuture.allOf(futures).thenApply(v -> ledger);
                                    }
                                });
     }
@@ -760,9 +740,7 @@ class LogStorageManager {
                    )
                    .thenCombine(this.getOrRetrieveStorageLedger(sourceSegment, false),
                            (target, source) -> {
-                               if (!source.isSealed()) {
-                                   throw new IllegalStateException("source must be sealed");
-                               }
+                               Preconditions.checkState(source.isSealed(), "source must be sealed");
                                if (source.getContainerEpoch() != this.containerEpoch) {
                                    throw new CompletionException(new StorageNotPrimaryException(target.getName()));
                                }
@@ -771,8 +749,8 @@ class LogStorageManager {
                                if (lastLedger.getLedgerHandle().getLength() == 0) {
                                    operations.add(createLedgerDeleteOp(lastLedger, target));
                                }
-                               List<CuratorOp> retVal = target.addLedgerDataFrom(source);
-                               operations.addAll(retVal);
+                               List<CuratorOp> targetOps = target.addLedgerDataFrom(source);
+                               operations.addAll(targetOps);
                                // Update the segment also to ensure fencing has not happened
                                operations.add(createLedgerUpdateOp(target));
                                return operations;

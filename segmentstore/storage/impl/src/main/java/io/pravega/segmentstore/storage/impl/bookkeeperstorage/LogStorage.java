@@ -12,10 +12,12 @@ package io.pravega.segmentstore.storage.impl.bookkeeperstorage;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -44,18 +46,18 @@ class LogStorage {
     @Getter
     private long containerEpoch;
 
-    @GuardedBy("$lock")
+    @GuardedBy("this")
     @Getter
     private boolean sealed;
 
-    @GuardedBy("$lock")
+    @GuardedBy("this")
     @Getter
     private long length;
 
     @Getter
     private ImmutableDate lastModified;
 
-    public LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
+    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
         this.manager = logStorageManager;
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
@@ -69,7 +71,7 @@ class LogStorage {
      * @param offset offset from which writes start.
      * @return The metadata of the ledger.
      */
-    public CompletableFuture<LedgerData> getLedgerDataForWriteAt(long offset) {
+    CompletableFuture<LedgerData> getLedgerDataForWriteAt(long offset) {
         CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
         if (offset != length) {
             retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
@@ -79,7 +81,7 @@ class LogStorage {
         if (ledgerData != null && !ledgerData.getLedgerHandle().isClosed()) {
             retVal.complete(ledgerData);
         } else {
-            /** If there is no ledger, create a new one. */
+            // If there is no ledger, create a new one.
             retVal = manager.createLedgerAt(this.name, (int) offset).thenApply(data -> {
                 this.dataMap.put((int) offset, data);
                 return data;
@@ -93,9 +95,9 @@ class LogStorage {
      * @param offset The starting offset represented by the ledger.
      * @param ledgerData metadata of the ledger.
      */
-    public synchronized void addToList(int offset, LedgerData ledgerData) {
+    synchronized void addToList(int offset, LedgerData ledgerData) {
 
-        /** If we are replacing an existing ledger, adjust the length */
+        // If we are replacing an existing ledger, adjust the length
 
         LedgerData older = this.dataMap.put(offset, ledgerData);
         if (older != null) {
@@ -110,24 +112,24 @@ class LogStorage {
      *
      * @param size size of data written.
      */
-    public synchronized void increaseLengthBy(int size) {
+    synchronized void increaseLengthBy(int size) {
         this.length += size;
     }
 
-    public synchronized CompletableFuture<Void> deleteAllLedgers() {
+    synchronized CompletableFuture<Void> deleteAllLedgers() {
         return CompletableFuture.allOf(
                 this.dataMap.entrySet().stream().map(entry -> manager.deleteLedger(entry.getValue().getLedgerHandle())).toArray(CompletableFuture[]::new));
     }
 
-    public LedgerData getLastLedgerData() {
+    LedgerData getLastLedgerData() {
         if (this.dataMap.isEmpty()) {
             return null;
         } else {
-            return this.dataMap.entrySet().stream().max((entry1, entry2) -> entry1.getKey() - entry2.getKey()).get().getValue();
+            return this.dataMap.entrySet().stream().max(Comparator.comparingInt(Map.Entry::getKey)).get().getValue();
         }
     }
 
-    public synchronized void markSealed() {
+    synchronized void markSealed() {
         sealed = true;
     }
 
@@ -136,7 +138,7 @@ class LogStorage {
      * @param source Name of the source ledger.
      * @return list of curator operations.
      */
-    public synchronized List<CuratorOp> addLedgerDataFrom(LogStorage source) {
+    synchronized List<CuratorOp> addLedgerDataFrom(LogStorage source) {
         List<CuratorOp> retVal = source.dataMap.entrySet().stream().map(entry -> {
             int newKey = (int) (entry.getKey() + this.length);
             this.dataMap.put(newKey, entry.getValue());
@@ -147,19 +149,16 @@ class LogStorage {
         return retVal;
     }
 
-    public synchronized CompletableFuture<LedgerData> getLedgerDataForReadAt(long offset) {
-        CompletableFuture<LedgerData> retVal = new CompletableFuture<>();
+    synchronized LedgerData getLedgerDataForReadAt(long offset) {
         if (offset >= length) {
-            retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
-            return retVal;
+            throw new CompletionException( new BadOffsetException(this.getName(), length, offset));
         }
         Optional<Map.Entry<Integer, LedgerData>> found = dataMap.entrySet().stream().filter(entry -> (entry.getKey() <= offset) && (offset < (entry.getKey() + entry.getValue().getLength()))).findFirst();
         if (found.isPresent()) {
-            retVal.complete(found.get().getValue());
+            return found.get().getValue();
         } else {
-            retVal.completeExceptionally(new BadOffsetException(this.getName(), length, offset));
+            throw new CompletionException(new BadOffsetException(this.getName(), length, offset));
         }
-        return retVal;
     }
 
     public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
@@ -167,7 +166,7 @@ class LogStorage {
         return new LogStorage(manager, segmentName, version, bb.getLong(), false);
     }
 
-    public void setContainerEpoch(long containerEpoch) {
+    void setContainerEpoch(long containerEpoch) {
         this.containerEpoch = containerEpoch;
     }
 
@@ -179,7 +178,7 @@ class LogStorage {
         return bb.array();
     }
 
-    public synchronized void setUpdateVersion(int version) {
+    synchronized void setUpdateVersion(int version) {
         this.updateVersion = version;
     }
 }

@@ -18,7 +18,7 @@ import org.apache.bookkeeper.client.LedgerHandle;
  * Stores metadata about a single BookKeeper Ledger.
  */
 @Data
-public class LedgerData {
+class LedgerData {
     // Retrieved from ZK
     private final LedgerHandle ledgerHandle;
     //Retrieved from ZK
@@ -30,14 +30,16 @@ public class LedgerData {
 
     // Temporary variables. These are not persisted to ZK.
     //These are interpreted from bookkeeper and may be updated inproc.
-    @GuardedBy("$lock")
+    @GuardedBy("this")
     private long length;
     private boolean isReadonly;
+
+    @GuardedBy("this")
     private long lastAddConfirmed = -1;
 
-    @GuardedBy("$lock")
+    @GuardedBy("this")
     private long lastReadOffset = 0;
-    @GuardedBy("$lock")
+    @GuardedBy("this")
     private long lastReadEntry = 0;
 
     public byte[] serialize() {
@@ -49,19 +51,27 @@ public class LedgerData {
         return bb.array();
     }
 
-    public synchronized void increaseLengthBy(int size) {
+    synchronized void increaseLengthBy(int size) {
         this.length += size;
     }
 
-    public synchronized long getNearestEntryIDToOffset( long offset) {
+    synchronized long getNearestEntryIDToOffset(long offset) {
         if (this.lastReadOffset < offset) {
             return lastReadEntry;
         }
         return 0;
     }
 
-    public synchronized void saveLastReadOffset(Long offset, long entryId) {
+    synchronized void saveLastReadOffset(long offset, long entryId) {
         this.lastReadOffset = offset;
         this.lastReadEntry = entryId;
+    }
+
+    synchronized void setLastAddConfirmed(long lastAddConfirmed) {
+        this.lastAddConfirmed = lastAddConfirmed;
+    }
+
+    synchronized long getLastAddConfirmed() {
+        return this.lastAddConfirmed;
     }
 }
