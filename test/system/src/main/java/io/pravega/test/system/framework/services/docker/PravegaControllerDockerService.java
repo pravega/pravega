@@ -27,21 +27,20 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
+import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
+import static io.pravega.test.system.framework.Utils.REST_PORT;
+import static org.junit.Assert.assertNotNull;
 import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
 
-    static final int CONTROLLER_PORT = 9090;
-    private static final int REST_PORT = 9091;
     private final int instances = 1;
     private final double cpu = 0.1;
     private final double mem = 700.0;
-    private URI zkUri;
+    private final URI zkUri;
 
     public PravegaControllerDockerService(final String serviceName, final URI zkUri) {
         super(serviceName);
@@ -68,7 +67,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
-            assertThat(serviceCreateResponse.id(), is(notNullValue()));
+            assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
             log.error("Unable to create service", e);
         }
@@ -79,8 +78,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", serviceName) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(DOCKER_CONTROLLER_PORT)) +
+                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(DOCKER_CONTROLLER_PORT)) +
                 setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
@@ -109,7 +108,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
                 .ports(Arrays.asList(PortConfig.builder()
-                        .publishedPort(CONTROLLER_PORT).targetPort(CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
+                        .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
                         PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
                 build())
                 .build();

@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.services.docker;
 
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.spotify.docker.client.DefaultDockerClient;
@@ -25,6 +24,7 @@ import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import com.spotify.docker.client.messages.Network;
+import com.spotify.docker.client.messages.swarm.Task;
 
 @Slf4j
 public abstract class DockerBasedService implements io.pravega.test.system.framework.services.Service {
@@ -42,7 +43,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
-    static final String DOCKER_NETWORK = "docker-network";
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -74,8 +74,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Service.Criteria criteria1 = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList1 = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria1));
             log.info("service list size {}", serviceList1.size());
-            com.spotify.docker.client.messages.swarm.Task.Criteria taskCriteria1 = com.spotify.docker.client.messages.swarm.Task.Criteria.builder().serviceName(serviceName).build();
-            List<com.spotify.docker.client.messages.swarm.Task> taskList1 = Exceptions.handleInterrupted(() ->  dockerClient.listTasks(taskCriteria1));
+            Task.Criteria taskCriteria1 = Task.Criteria.builder().serviceName(serviceName).build();
+            List<Task> taskList1 = Exceptions.handleInterrupted(() ->  dockerClient.listTasks(taskCriteria1));
             log.info("task list size {}", taskList1.size());
 
             if (!taskList1.isEmpty()) {
@@ -119,8 +119,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         Service.Criteria criteria2 = Service.Criteria.builder().serviceName(this.serviceName).build();
         List<URI> uriList = new ArrayList<>();
         try {
-            com.spotify.docker.client.messages.swarm.Task.Criteria taskCriteria2 = com.spotify.docker.client.messages.swarm.Task.Criteria.builder().taskName(serviceName).build();
-            List<com.spotify.docker.client.messages.swarm.Task> taskList2 = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria2));
+            Task.Criteria taskCriteria2 = Task.Criteria.builder().taskName(serviceName).build();
+            List<Task> taskList2 = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria2));
             log.info("task size {}", taskList2.size());
 
             if (!taskList2.isEmpty()) {
@@ -172,7 +172,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     @Override
     public void stop() {
         try {
-            List<Network> networkList = Exceptions.handleInterrupted(() -> dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName(DOCKER_NETWORK)));
+            List<Network> networkList = Exceptions.handleInterrupted(() -> dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName(Utils.DOCKER_NETWORK)));
             Exceptions.handleInterrupted(() -> dockerClient.removeNetwork(networkList.get(0).id()));
             Exceptions.handleInterrupted(() -> dockerClient.leaveSwarm(true));
         } catch (DockerException e) {

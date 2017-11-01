@@ -579,11 +579,11 @@ abstract class AbstractFailoverTests {
         // Fetch all the RPC endpoints and construct the client URIs.
         List<String> uris;
         if (Utils.isDockerLocalExecEnabled()) {
-            uris = conUris.stream().filter(uri -> uri.getPort() == 9090).map(URI::getAuthority)
+            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
                     .collect(Collectors.toList());
             log.info("uris {}", uris);
         } else {
-            uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                     .collect(Collectors.toList());
         }
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));

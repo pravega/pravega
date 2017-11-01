@@ -14,6 +14,11 @@ package io.pravega.test.system.framework;
  */
 public class Utils {
 
+    public static final int DOCKER_CONTROLLER_PORT = 9090;
+    public static final int MARATHON_CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 9091;
+    public static final String DOCKER_NETWORK = "docker-network";
+
     /**
      * Get Configuration from environment or system property.
      * @param key Configuration key

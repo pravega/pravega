@@ -16,13 +16,11 @@ import com.spotify.docker.client.VersionCompare;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ContainerCreation;
-import com.spotify.docker.client.messages.ContainerInfo;
 import com.spotify.docker.client.messages.HostConfig;
 import com.spotify.docker.client.messages.PortBinding;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.NotImplementedException;
 import org.junit.Assert;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -35,6 +33,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.getConfig;
 import static org.junit.Assert.assertFalse;
 
@@ -43,11 +43,9 @@ public class DockerRemoteSequential implements TestExecutor {
 
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
-    public final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
-    public String id;
-    final String expectedDockerApiVersion = "1.25";
-
-
+    final AtomicReference<String> id = new AtomicReference();
+    private final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
+    private final String expectedDockerApiVersion = "1.25";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -71,7 +69,7 @@ public class DockerRemoteSequential implements TestExecutor {
         }).thenCompose(v2 -> waitForJobCompletion())
                 .<Void>thenApply(v1 -> {
                     try {
-                        if (Exceptions.handleInterrupted(() -> client.inspectContainer(id).state().exitCode() != 0)) {
+                        if (Exceptions.handleInterrupted(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
@@ -83,9 +81,12 @@ public class DockerRemoteSequential implements TestExecutor {
     }
 
 
-    @Override
-    public CompletableFuture<Void> stopTestExecution(String testID) {
-        throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
+    public void stopTestExecution() {
+        try {
+            Exceptions.handleInterrupted(() -> client.stopContainer(id.get(), 0));
+        } catch (DockerException e) {
+            log.error("Unable to stop the test execution", e);
+        }
     }
 
     private CompletableFuture<Void> waitForJobCompletion() {
@@ -97,7 +98,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private boolean isTestRunning() {
         boolean value = false;
         try {
-            if (client.inspectContainer(this.id).state().running()) {
+            if (client.inspectContainer(this.id.get()).state().running()) {
                 value = true;
             }
         } catch (DockerException | InterruptedException e) {
@@ -109,35 +110,32 @@ public class DockerRemoteSequential implements TestExecutor {
     private String startTest(String containerName, String className, String methodName) {
 
         try {
-            client.pull(IMAGE);
+            Exceptions.handleInterrupted(() -> client.pull(IMAGE));
 
-            ContainerCreation containerCreation = client.createContainer(setContainerConfig(methodName, className), containerName);
+            ContainerCreation containerCreation = Exceptions.handleInterrupted(() -> client.createContainer(setContainerConfig(methodName, className), containerName));
             assertFalse(containerCreation.id().toString().equals(null));
 
-            id = containerCreation.id();
+            id.set(containerCreation.id());
 
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
-                client.copyToContainer(dockerDirectory, id, "/data");
+                client.copyToContainer(dockerDirectory, id.get(), "/data");
             } catch (IOException | DockerException | InterruptedException e) {
                 log.error("Exception while copying test jar to the container ", e);
                 Assert.fail("Unable to copy test jar to the container.Test failure");
             }
 
-            String networkId = client.listNetworks(DockerClient.ListNetworksParam.byNetworkName("docker-network")).get(0).id();
-            client.connectToNetwork(id, networkId);
-
-            // Inspect container
-            final ContainerInfo info = client.inspectContainer(id);
+            String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.byNetworkName(DOCKER_NETWORK)).get(0).id());
+            Exceptions.handleInterrupted(() -> client.connectToNetwork(id.get(), networkId));
 
             // Start container
-            client.startContainer(id);
+            Exceptions.handleInterrupted(() -> client.startContainer(id.get()));
 
-        } catch (DockerException | InterruptedException e) {
+        } catch (DockerException  e) {
             log.error("Exception in starting container ", e);
             Assert.fail("Unable to start the container to invoke the test.Test failure");
         }
-        return id;
+        return id.get();
     }
 
     private ContainerConfig setContainerConfig(String methodName, String className) {

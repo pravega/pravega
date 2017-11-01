@@ -33,9 +33,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class PravegaSegmentStoreDockerService extends DockerBasedService {
@@ -47,9 +46,9 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private final long instances = 1;
     private final double cpu = 0.1;
     private final double mem = 1000.0;
-    private URI zkUri;
-    private URI conUri;
-    private URI hdfsUri;
+    private final URI zkUri;
+    private final URI conUri;
+    private final URI hdfsUri;
 
     public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final  URI conUri, final  URI hdfsUri) {
         super(serviceName);
@@ -78,7 +77,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
-            assertThat(serviceCreateResponse.id(), is(notNullValue()));
+            assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
             log.error("Unable to create service", e);
         }

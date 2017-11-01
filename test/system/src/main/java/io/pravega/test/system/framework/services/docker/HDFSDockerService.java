@@ -30,9 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
-import static org.junit.Assert.assertThat;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
+import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class HDFSDockerService extends DockerBasedService {
@@ -66,7 +65,7 @@ public class HDFSDockerService extends DockerBasedService {
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
-            assertThat(serviceCreateResponse.id(), is(notNullValue()));
+            assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
             log.error("Unable to create service", e);
         }
