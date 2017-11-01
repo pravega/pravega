@@ -10,13 +10,8 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-
 import io.netty.buffer.ByteBufInputStream;
-
-import java.io.DataInput;
-import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  * The various types of commands that can be sent over the wire.
