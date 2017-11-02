@@ -29,7 +29,7 @@ public final class StreamSegmentNameUtils {
     private static final String HEADER_SUFFIX = "$header";
 
     /**
-     * This is appended to the end of the Segment/Transaction name to indicate it represents a SubSegment.
+     * This is appended to the end of the Segment/Transaction name to indicate it represents a SegmentChunk.
      */
     private static final String OFFSET_SUFFIX = "$offset.";
 
@@ -124,14 +124,14 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
-     * Gets the name of the SubSegment for the given Segment and Offset.
+     * Gets the name of the SegmentChunk for the given Segment and Offset.
      *
-     * @param segmentName The name of the Segment to get the SubSegment name for.
-     * @param offset      The starting offset of the SubSegment.
-     * @return The SubSegment name.
+     * @param segmentName The name of the Segment to get the SegmentChunk name for.
+     * @param offset      The starting offset of the SegmentChunk.
+     * @return The SegmentChunk name.
      */
-    public static String getSubSegmentName(String segmentName, long offset) {
-        Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SubSegment name");
+    public static String getSegmentChunkName(String segmentName, long offset) {
+        Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
         return segmentName + OFFSET_SUFFIX + Long.toString(offset);
     }
 }

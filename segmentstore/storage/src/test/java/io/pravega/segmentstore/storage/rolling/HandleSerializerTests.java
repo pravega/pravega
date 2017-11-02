@@ -39,8 +39,8 @@ public class HandleSerializerTests {
      */
     @Test
     public void testNormalSerialization() {
-        final int subSegmentCount = 1000;
-        val source = newHandle(subSegmentCount);
+        final int chunkCount = 1000;
+        val source = newHandle(chunkCount);
         val serialization = serialize(source);
         val newHandle = HandleSerializer.deserialize(serialization, source.getHeaderHandle());
         assertHandleEquals(source, newHandle, source.getHeaderHandle());
@@ -53,31 +53,31 @@ public class HandleSerializerTests {
      */
     @Test
     public void testConcat() throws IOException {
-        final int subSegmentCount = 10;
+        final int chunkCount = 10;
         final int concatCount = 15;
         final int failConcatEvery = 2;
-        final int addSubSegmentAfterEveryConcat = 3;
-        val source = newHandle(subSegmentCount);
+        final int addChunkAfterEveryConcat = 3;
+        val source = newHandle(chunkCount);
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         os.write(serialize(source));
         for (int i = 0; i < concatCount; i++) {
-            os.write(HandleSerializer.serializeConcat(subSegmentCount, source.length()));
+            os.write(HandleSerializer.serializeConcat(chunkCount, source.length()));
             if (i % failConcatEvery != 0) {
 
                 // Create a handle for the concat segment, and add its info both to the base handle and serialize it.
-                val concatHandle = newHandle("concat" + i, subSegmentCount);
+                val concatHandle = newHandle("concat" + i, chunkCount);
                 os.write(serialize(concatHandle));
-                source.addSubSegments(concatHandle.subSegments().stream()
+                source.addChunks(concatHandle.chunks().stream()
                         .map(s -> s.withNewOffset(s.getStartOffset() + source.length())).collect(Collectors.toList()));
             }
 
-            // Every now and then, add a new SubSegment to the source, to verify how deserializing Concats (whether successful
+            // Every now and then, add a new SegmentChunk to the source, to verify how deserializing Concats (whether successful
             // or not) works with this.
-            if (i % addSubSegmentAfterEveryConcat == 0) {
-                val subSegment = new SubSegment(StreamSegmentNameUtils.getSubSegmentName(source.getSegmentName(), source.length()), source.length());
-                subSegment.setLength(i + 1);
-                source.addSubSegments(Collections.singletonList(subSegment));
-                os.write(HandleSerializer.serializeSubSegment(subSegment));
+            if (i % addChunkAfterEveryConcat == 0) {
+                val chunk = new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(source.getSegmentName(), source.length()), source.length());
+                chunk.setLength(i + 1);
+                source.addChunks(Collections.singletonList(chunk));
+                os.write(HandleSerializer.serializeChunk(chunk));
             }
         }
 
@@ -89,13 +89,13 @@ public class HandleSerializerTests {
 
     private void assertHandleEquals(RollingSegmentHandle expected, RollingSegmentHandle actual, SegmentHandle headerHandle) {
         Assert.assertEquals("getSegmentName", expected.getSegmentName(), actual.getSegmentName());
-        AssertExtensions.assertListEquals("subSegments", expected.subSegments(), actual.subSegments(), this::subSegmentsEqual);
+        AssertExtensions.assertListEquals("chunks", expected.chunks(), actual.chunks(), this::chunkEquals);
         Assert.assertEquals("getRollingPolicy", expected.getRollingPolicy().getMaxLength(), actual.getRollingPolicy().getMaxLength());
         Assert.assertEquals("getHeaderHandle", headerHandle, actual.getHeaderHandle());
         Assert.assertEquals("isReadOnly", headerHandle.isReadOnly(), expected.isReadOnly());
     }
 
-    private boolean subSegmentsEqual(SubSegment s1, SubSegment s2) {
+    private boolean chunkEquals(SegmentChunk s1, SegmentChunk s2) {
         return s1.getName().equals(s2.getName())
                 && s1.getStartOffset() == s2.getStartOffset();
     }
@@ -106,26 +106,26 @@ public class HandleSerializerTests {
         return StreamHelpers.readAll(s.getReader(), s.getLength());
     }
 
-    private RollingSegmentHandle newHandle(int subSegmentCount) {
-        return newHandle(SEGMENT_NAME, subSegmentCount);
+    private RollingSegmentHandle newHandle(int chunkCount) {
+        return newHandle(SEGMENT_NAME, chunkCount);
     }
 
-    private RollingSegmentHandle newHandle(String segmentName, int subSegmentCount) {
-        val subSegments = new ArrayList<SubSegment>();
+    private RollingSegmentHandle newHandle(String segmentName, int chunkCount) {
+        val chunks = new ArrayList<SegmentChunk>();
         long offset = 0;
         val rnd = new Random(0);
-        for (int i = 0; i < subSegmentCount; i++) {
-            val subSegment = new SubSegment(StreamSegmentNameUtils.getSubSegmentName(segmentName, offset), offset);
-            subSegment.setLength(MathHelpers.abs(rnd.nextInt()));
-            if (i < subSegmentCount - 1) {
-                subSegment.markSealed();
+        for (int i = 0; i < chunkCount; i++) {
+            val chunk = new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(segmentName, offset), offset);
+            chunk.setLength(MathHelpers.abs(rnd.nextInt()));
+            if (i < chunkCount - 1) {
+                chunk.markSealed();
             }
-            subSegments.add(subSegment);
-            offset += subSegment.getLength();
+            chunks.add(chunk);
+            offset += chunk.getLength();
         }
 
         return new RollingSegmentHandle(new TestHandle(StreamSegmentNameUtils.getHeaderSegmentName(segmentName), false),
-                DEFAULT_ROLLING_POLICY, subSegments);
+                DEFAULT_ROLLING_POLICY, chunks);
     }
 
     @Data

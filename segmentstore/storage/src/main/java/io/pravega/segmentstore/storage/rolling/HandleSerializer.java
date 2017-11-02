@@ -56,7 +56,7 @@ final class HandleSerializer {
         SegmentRollingPolicy policy = null;
         OffsetAdjuster om = new OffsetAdjuster();
         long lastOffset = 0;
-        ArrayList<SubSegment> subSegments = new ArrayList<>();
+        ArrayList<SegmentChunk> segmentChunks = new ArrayList<>();
         while (st.hasMoreTokens()) {
             val entry = parse(st.nextToken());
             if (entry.getKey().equalsIgnoreCase(KEY_POLICY_MAX_SIZE)) {
@@ -73,15 +73,15 @@ final class HandleSerializer {
                 // Regular offset->file entry.
                 Preconditions.checkArgument(isValidLong(entry.getKey()), "Invalid key value for '%s'.", entry);
                 long offset = om.adjustOffset(Long.parseLong(entry.getKey()));
-                SubSegment s = new SubSegment(entry.getValue(), offset);
+                SegmentChunk s = new SegmentChunk(entry.getValue(), offset);
                 Preconditions.checkArgument(lastOffset <= s.getStartOffset(),
-                        "SubSegment Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
-                subSegments.add(s);
+                        "SegmentChunk Entry '%s' has out-of-order offset (previous=%s).", s, lastOffset);
+                segmentChunks.add(s);
                 lastOffset = s.getStartOffset();
             }
         }
 
-        RollingSegmentHandle h = new RollingSegmentHandle(headerHandle, policy, subSegments);
+        RollingSegmentHandle h = new RollingSegmentHandle(headerHandle, policy, segmentChunks);
         h.setHeaderLength(serialization.length);
         return h;
     }
@@ -97,31 +97,31 @@ final class HandleSerializer {
         try (EnhancedByteArrayOutputStream os = new EnhancedByteArrayOutputStream()) {
             //1. Policy Max Size.
             os.write(combine(KEY_POLICY_MAX_SIZE, Long.toString(handle.getRollingPolicy().getMaxLength())));
-            //2. SubSegments.
-            handle.subSegments().forEach(subSegment -> os.write(serializeSubSegment(subSegment)));
+            //2. Chunks.
+            handle.chunks().forEach(chunk -> os.write(serializeChunk(chunk)));
             return os.getData();
         }
     }
 
     /**
-     * Serializes a single SubSegment.
+     * Serializes a single SegmentChunk.
      *
-     * @param subSegment The SubSegment to serialize.
+     * @param segmentChunk The SegmentChunk to serialize.
      * @return A byte array containing the serialization.
      */
-    static byte[] serializeSubSegment(SubSegment subSegment) {
-        return combine(Long.toString(subSegment.getStartOffset()), subSegment.getName());
+    static byte[] serializeChunk(SegmentChunk segmentChunk) {
+        return combine(Long.toString(segmentChunk.getStartOffset()), segmentChunk.getName());
     }
 
     /**
-     * Serializes an entry that indicates a number of SubSegments are concatenated at a specified offset.
+     * Serializes an entry that indicates a number of SegmentChunks are concatenated at a specified offset.
      *
-     * @param subSegmentCount The number of SubSegments to concat.
-     * @param concatOffset    The concat offset.
+     * @param chunkCount   The number of SegmentChunks to concat.
+     * @param concatOffset The concat offset.
      * @return A byte array containing the serialization.
      */
-    static byte[] serializeConcat(int subSegmentCount, long concatOffset) {
-        return combine(KEY_CONCAT, subSegmentCount + CONCAT_SEPARATOR + concatOffset);
+    static byte[] serializeConcat(int chunkCount, long concatOffset) {
+        return combine(KEY_CONCAT, chunkCount + CONCAT_SEPARATOR + concatOffset);
     }
 
     private static byte[] combine(String key, String value) {
@@ -167,7 +167,7 @@ final class HandleSerializer {
     //region OffsetAdjuster
 
     /**
-     * Helps adjust offsets when deserializing SubSegments from the Header.
+     * Helps adjust offsets when deserializing SegmentChunks from the Header.
      */
     private static class OffsetAdjuster {
         private long offsetAdjustment;

@@ -36,8 +36,8 @@ public class RollingSegmentHandleTests {
     public void testMainFeatures() {
         val headerHandle = new TestHandle(HEADER_NAME, true);
         val h = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
-        Assert.assertNull("Unexpected lastSubSegment for empty handle.", h.lastSubSegment());
-        Assert.assertEquals("Unexpected contents in subSegments() for empty handle.", 0, h.subSegments().size());
+        Assert.assertNull("Unexpected lastChunk for empty handle.", h.lastChunk());
+        Assert.assertEquals("Unexpected contents in chunks() for empty handle.", 0, h.chunks().size());
         Assert.assertEquals("Unexpected value for length() for empty handle.", 0, h.length());
         Assert.assertEquals("Unexpected value for getHeaderLength() for empty handle.", 0, h.getHeaderLength());
         Assert.assertEquals("Unexpected value for getHeaderHandle().", headerHandle, h.getHeaderHandle());
@@ -49,25 +49,25 @@ public class RollingSegmentHandleTests {
 
         // Active handles.
         AssertExtensions.assertThrows(
-                "setActiveSubSegmentHandle accepted a handle when no SubSegments are registered.",
-                () -> h.setActiveSubSegmentHandle(new TestHandle("foo", false)),
+                "setActiveChunkHandle accepted a handle when no SegmentChunks are registered.",
+                () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalStateException);
 
-        val subSegmentName = "SubSegments";
-        h.addSubSegment(new SubSegment(subSegmentName, 0L), new TestHandle(subSegmentName, false));
+        val chunkName = "Chunk";
+        h.addChunk(new SegmentChunk(chunkName, 0L), new TestHandle(chunkName, false));
         AssertExtensions.assertThrows(
-                "setActiveSubSegmentHandle accepted a handle that does not match the last SubSegments name.",
-                () -> h.setActiveSubSegmentHandle(new TestHandle("foo", false)),
+                "setActiveChunkHandle accepted a handle that does not match the last SegmentChunk's name.",
+                () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "setActiveSubSegmentHandle accepted a read-only handle.",
-                () -> h.setActiveSubSegmentHandle(new TestHandle(subSegmentName, true)),
+                "setActiveChunkHandle accepted a read-only handle.",
+                () -> h.setActiveChunkHandle(new TestHandle(chunkName, true)),
                 ex -> ex instanceof IllegalArgumentException);
 
-        val activeHandle = new TestHandle(subSegmentName, false);
-        h.setActiveSubSegmentHandle(activeHandle);
-        Assert.assertEquals("Unexpected value from getActiveSubSegmentHandle.", activeHandle, h.getActiveSubSegmentHandle());
+        val activeHandle = new TestHandle(chunkName, false);
+        h.setActiveChunkHandle(activeHandle);
+        Assert.assertEquals("Unexpected value from getActiveChunkHandle.", activeHandle, h.getActiveChunkHandle());
 
         // Header length.
         h.setHeaderLength(10);
@@ -84,89 +84,89 @@ public class RollingSegmentHandleTests {
     }
 
     /**
-     * Tests the ability to add a single SubSegment.
+     * Tests the ability to add a single SegmentChunk.
      */
     @Test
-    public void testAddSubSegment() {
+    public void testAddChunk() {
         val headerHandle = new TestHandle(HEADER_NAME, true);
         val h = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
 
         AssertExtensions.assertThrows(
-                "addSubSegment allowed adding a null ActiveSegmentHandle.",
-                () -> h.addSubSegment(new SubSegment("s", 0L), null),
+                "addChunk allowed adding a null ActiveSegmentHandle.",
+                () -> h.addChunk(new SegmentChunk("s", 0L), null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
-                "addSubSegment allowed adding a read-only ActiveSegmentHandle.",
-                () -> h.addSubSegment(new SubSegment("s", 0L), new TestHandle("s", true)),
+                "addChunk allowed adding a read-only ActiveSegmentHandle.",
+                () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s", true)),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows(
-                "addSubSegment allowed adding an ActiveSegmentHandle with different name..",
-                () -> h.addSubSegment(new SubSegment("s", 0L), new TestHandle("s2", false)),
+                "addChunk allowed adding an ActiveSegmentHandle with different name..",
+                () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s2", false)),
                 ex -> ex instanceof IllegalArgumentException);
-        Assert.assertEquals("Not expecting any SubSegments to be added.", 0, h.subSegments().size());
-        Assert.assertNull("Not expecting the Active SubSegment handle to be set.", h.getActiveSubSegmentHandle());
+        Assert.assertEquals("Not expecting any SegmentChunks to be added.", 0, h.chunks().size());
+        Assert.assertNull("Not expecting the Active SegmentChunk handle to be set.", h.getActiveChunkHandle());
 
-        val subSegment = new SubSegment("s1", 100L);
-        h.addSubSegment(subSegment, new TestHandle("s1", false));
-        subSegment.setLength(123L);
-        Assert.assertEquals("Unexpected value for length() after adding one SubSegment.",
-                subSegment.getStartOffset() + subSegment.getLength(), h.length());
-        AssertExtensions.assertListEquals("Unexpected contents for subSegments().",
-                Collections.singletonList(subSegment), h.subSegments(), Object::equals);
-        Assert.assertEquals("Unexpected lastSubSegment.", subSegment, h.lastSubSegment());
+        val chunk = new SegmentChunk("s1", 100L);
+        h.addChunk(chunk, new TestHandle("s1", false));
+        chunk.setLength(123L);
+        Assert.assertEquals("Unexpected value for length() after adding one SegmentChunk.",
+                chunk.getStartOffset() + chunk.getLength(), h.length());
+        AssertExtensions.assertListEquals("Unexpected contents for chunks().",
+                Collections.singletonList(chunk), h.chunks(), Object::equals);
+        Assert.assertEquals("Unexpected lastChunk.", chunk, h.lastChunk());
 
-        AssertExtensions.assertThrows("addSubSegment allowed adding a SubSegment that is not contiguous.",
-                () -> h.addSubSegment(new SubSegment("s2", subSegment.getLastOffset() + 1), new TestHandle("s2", false)),
+        AssertExtensions.assertThrows("addChunk allowed adding a SegmentChunk that is not contiguous.",
+                () -> h.addChunk(new SegmentChunk("s2", chunk.getLastOffset() + 1), new TestHandle("s2", false)),
                 ex -> ex instanceof IllegalArgumentException);
 
-        subSegment.markInexistent();
-        val subSegment2 = new SubSegment("s2", subSegment.getLastOffset());
-        subSegment2.setLength(234L);
-        h.addSubSegment(subSegment2, new TestHandle("s2", false));
-        Assert.assertEquals("Unexpected number of registered SubSegments.", 2, h.subSegments().size());
-        Assert.assertEquals("Unexpected value for length() after adding two SubSegment.",
-                subSegment2.getStartOffset() + subSegment2.getLength(), h.length());
-        Assert.assertEquals("Unexpected lastSubSegment.", subSegment2, h.lastSubSegment());
-        h.lastSubSegment().markInexistent();
-        Assert.assertFalse("Unexpected value from isDeleted after last SubSegment marked as inexistent.", h.isDeleted());
+        chunk.markInexistent();
+        val chunk2 = new SegmentChunk("s2", chunk.getLastOffset());
+        chunk2.setLength(234L);
+        h.addChunk(chunk2, new TestHandle("s2", false));
+        Assert.assertEquals("Unexpected number of registered SegmentChunks.", 2, h.chunks().size());
+        Assert.assertEquals("Unexpected value for length() after adding two SegmentChunk.",
+                chunk2.getStartOffset() + chunk2.getLength(), h.length());
+        Assert.assertEquals("Unexpected lastChunk.", chunk2, h.lastChunk());
+        h.lastChunk().markInexistent();
+        Assert.assertFalse("Unexpected value from isDeleted after last SegmentChunk marked as inexistent.", h.isDeleted());
     }
 
 
     /**
-     * Tests the ability to add multiple SubSegments at once, atomically.
+     * Tests the ability to add multiple SegmentChunks at once, atomically.
      */
     @Test
-    public void testAddSubSegments() {
+    public void testAddChunks() {
         val headerHandle = new TestHandle(HEADER_NAME, true);
         val h = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, new ArrayList<>());
 
         val firstBadList = Arrays.asList(
-                new SubSegment("s1", 0L),
-                new SubSegment("s2", 10L));
+                new SegmentChunk("s1", 0L),
+                new SegmentChunk("s2", 10L));
         firstBadList.get(0).setLength(9);
         AssertExtensions.assertThrows(
-                "addSubSegments allowed an incontiguous list of SubSegments to be added.",
-                () -> h.addSubSegments(firstBadList),
+                "addChunks allowed an incontiguous list of SegmentChunks to be added.",
+                () -> h.addChunks(firstBadList),
                 ex -> ex instanceof IllegalArgumentException);
-        Assert.assertEquals("Not expecting any SubSegments to be added.", 0, h.subSegments().size());
+        Assert.assertEquals("Not expecting any SegmentChunks to be added.", 0, h.chunks().size());
         Assert.assertEquals("Unexpected length().", 0, h.length());
 
         val validList = Arrays.asList(
-                new SubSegment("s1", 0L),
-                new SubSegment("s2", 10L));
+                new SegmentChunk("s1", 0L),
+                new SegmentChunk("s2", 10L));
         validList.get(0).setLength(10);
         validList.get(1).setLength(5);
-        h.addSubSegments(validList);
-        AssertExtensions.assertListEquals("Unexpected list of SubSegments.", validList, h.subSegments(), Object::equals);
+        h.addChunks(validList);
+        AssertExtensions.assertListEquals("Unexpected list of SegmentChunks.", validList, h.chunks(), Object::equals);
         Assert.assertEquals("Unexpected length.", 15, h.length());
 
         val secondBadList = Arrays.asList(
-                new SubSegment("s3", h.length() - 1),
-                new SubSegment("s4", h.length() + 1));
+                new SegmentChunk("s3", h.length() - 1),
+                new SegmentChunk("s4", h.length() + 1));
         secondBadList.get(0).setLength(2);
         AssertExtensions.assertThrows(
-                "addSubSegments allowed an incontiguous list of SubSegments to be added.",
-                () -> h.addSubSegments(secondBadList),
+                "addChunks allowed an incontiguous list of SegmentChunks to be added.",
+                () -> h.addChunks(secondBadList),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -177,21 +177,21 @@ public class RollingSegmentHandleTests {
     public void testRefresh() {
         val headerHandle = new TestHandle(HEADER_NAME, true);
         val target = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY,
-                Collections.singletonList(new SubSegment("s1", 0L)));
+                Collections.singletonList(new SegmentChunk("s1", 0L)));
 
         val source = new RollingSegmentHandle(headerHandle, DEFAULT_ROLLING_POLICY, Arrays.asList(
-                new SubSegment("s1", 0L),
-                new SubSegment("s2", 100L)));
-        source.subSegments().get(0).setLength(100);
+                new SegmentChunk("s1", 0L),
+                new SegmentChunk("s2", 100L)));
+        source.chunks().get(0).setLength(100);
         source.markSealed();
         source.setHeaderLength(1000);
-        source.setActiveSubSegmentHandle(new TestHandle(source.lastSubSegment().getName(), false));
+        source.setActiveChunkHandle(new TestHandle(source.lastChunk().getName(), false));
 
         target.refresh(source);
         Assert.assertEquals("Unexpected getHeaderLength()", source.getHeaderLength(), target.getHeaderLength());
-        AssertExtensions.assertListEquals("Unexpected subSegments()", source.subSegments(), target.subSegments(), Object::equals);
+        AssertExtensions.assertListEquals("Unexpected chunks()", source.chunks(), target.chunks(), Object::equals);
         Assert.assertTrue("Unexpected isSealed.", target.isSealed());
-        Assert.assertNull("Not expecting any ActiveSegmentHandle to be copied.", target.getActiveSubSegmentHandle());
+        Assert.assertNull("Not expecting any ActiveSegmentHandle to be copied.", target.getActiveChunkHandle());
     }
 
     @Data

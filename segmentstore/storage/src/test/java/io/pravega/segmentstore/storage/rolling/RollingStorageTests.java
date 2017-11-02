@@ -62,15 +62,15 @@ public class RollingStorageTests extends RollingStorageTestBase {
         Assert.assertEquals("Unexpected segment length.", writtenData.length, s.getStreamSegmentInfo(SEGMENT_NAME).getLength());
         int checkedLength = 0;
         while (checkedLength < writtenData.length) {
-            String subSegmentName = StreamSegmentNameUtils.getSubSegmentName(SEGMENT_NAME, checkedLength);
-            Assert.assertTrue("Inexistent SubSegment: " + subSegmentName, baseStorage.exists(subSegmentName));
-            val subSegmentInfo = baseStorage.getStreamSegmentInfo(subSegmentName);
+            String chunkName = StreamSegmentNameUtils.getSegmentChunkName(SEGMENT_NAME, checkedLength);
+            Assert.assertTrue("Inexistent SegmentChunk: " + chunkName, baseStorage.exists(chunkName));
+            val chunkInfo = baseStorage.getStreamSegmentInfo(chunkName);
             int expectedLength = (int) Math.min(DEFAULT_ROLLING_POLICY.getMaxLength(), writtenData.length - checkedLength);
-            Assert.assertEquals("Unexpected SubSegment length for: " + subSegmentName, expectedLength, subSegmentInfo.getLength());
+            Assert.assertEquals("Unexpected SegmentChunk length for: " + chunkName, expectedLength, chunkInfo.getLength());
             checkedLength += expectedLength;
 
             if (checkedLength < writtenData.length) {
-                Assert.assertTrue("Expected SubSegment to be sealed: " + subSegmentName, subSegmentInfo.isSealed());
+                Assert.assertTrue("Expected SegmentChunk to be sealed: " + chunkName, chunkInfo.isSealed());
             }
         }
 
@@ -102,19 +102,19 @@ public class RollingStorageTests extends RollingStorageTestBase {
             // Verify we can still read properly.
             checkWrittenData(writtenData, truncateOffset, readHandle, s);
 
-            // Verify each SubSegment's existence.
-            for (SubSegment subSegment : writeHandle.subSegments()) {
-                boolean expectedExists = subSegment.getLastOffset() > truncateOffset
-                        || (subSegment.getStartOffset() == subSegment.getLastOffset() && subSegment.getLastOffset() == truncateOffset);
-                Assert.assertEquals("Unexpected SubSegment truncation status for " + subSegment + ", truncation offset = " + truncateOffset,
-                        expectedExists, subSegment.exists());
-                boolean existsInStorage = baseStorage.exists(subSegment.getName());
-                Assert.assertEquals("Expected SubSegment deletion status for " + subSegment + ", truncation offset = " + truncateOffset,
+            // Verify each SegmentChunk's existence.
+            for (SegmentChunk segmentChunk : writeHandle.chunks()) {
+                boolean expectedExists = segmentChunk.getLastOffset() > truncateOffset
+                        || (segmentChunk.getStartOffset() == segmentChunk.getLastOffset() && segmentChunk.getLastOffset() == truncateOffset);
+                Assert.assertEquals("Unexpected SegmentChunk truncation status for " + segmentChunk + ", truncation offset = " + truncateOffset,
+                        expectedExists, segmentChunk.exists());
+                boolean existsInStorage = baseStorage.exists(segmentChunk.getName());
+                Assert.assertEquals("Expected SegmentChunk deletion status for " + segmentChunk + ", truncation offset = " + truncateOffset,
                         expectedExists, existsInStorage);
                 if (!expectedExists) {
                     AssertExtensions.assertThrows(
-                            "Not expecting a read from a truncated SubSegment to work.",
-                            () -> s.read(readHandle, subSegment.getLastOffset() - 1, new byte[1], 0, 1),
+                            "Not expecting a read from a truncated SegmentChunk to work.",
+                            () -> s.read(readHandle, segmentChunk.getLastOffset() - 1, new byte[1], 0, 1),
                             ex -> ex instanceof StreamSegmentTruncatedException);
                 }
             }
@@ -175,7 +175,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
     }
 
     /**
-     * Tests the case when Delete worked partially (only some SubSegments were deleted, or all SubSegments were deleted
+     * Tests the case when Delete worked partially (only some SegmentChunks were deleted, or all SegmentChunks were deleted
      * but the Header still exists).
      */
     @Test
@@ -191,7 +191,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         populate(s, writeHandle, null);
 
         // Simulate a deletion failure that is not a StreamSegmentNotExistsException.
-        String failOnDelete = writeHandle.subSegments().get(failAtIndex).getName();
+        String failOnDelete = writeHandle.chunks().get(failAtIndex).getName();
         baseStorage.deleteFailure = sn -> sn.equals(failOnDelete) ? new IntentionalException() : null;
         AssertExtensions.assertThrows(
                 "delete() did not propagate proper exception on failure.",
@@ -199,17 +199,17 @@ public class RollingStorageTests extends RollingStorageTestBase {
                 ex -> ex instanceof IntentionalException);
 
         Assert.assertTrue("Not expecting segment to be deleted yet.", s.exists(SEGMENT_NAME));
-        Assert.assertFalse("Expected first SubSegment to be marked as deleted.", writeHandle.subSegments().get(failAtIndex - 1).exists());
-        Assert.assertTrue("Expected failed-to-delete SubSegment to not be marked as deleted.", writeHandle.subSegments().get(failAtIndex).exists());
-        Assert.assertTrue("Expected subsequent SubSegment to not be marked as deleted.", writeHandle.subSegments().get(failAtIndex + 1).exists());
+        Assert.assertFalse("Expected first SegmentChunk to be marked as deleted.", writeHandle.chunks().get(failAtIndex - 1).exists());
+        Assert.assertTrue("Expected failed-to-delete SegmentChunk to not be marked as deleted.", writeHandle.chunks().get(failAtIndex).exists());
+        Assert.assertTrue("Expected subsequent SegmentChunk to not be marked as deleted.", writeHandle.chunks().get(failAtIndex + 1).exists());
 
-        // Clear the intentional failure, but do delete the SubSegment, to verify it properly handles missing SubSegments.
+        // Clear the intentional failure, but do delete the SegmentChunk, to verify it properly handles missing SegmentChunks.
         baseStorage.deleteFailure = null;
         baseStorage.delete(baseStorage.openRead(failOnDelete));
         s.delete(writeHandle);
         Assert.assertFalse("Expecting the segment to be deleted.", s.exists(SEGMENT_NAME));
         Assert.assertTrue("Expected the handle to be marked as deleted.", writeHandle.isDeleted());
-        Assert.assertFalse("Expected all SubSegments to be marked as deleted.", writeHandle.subSegments().stream().anyMatch(SubSegment::exists));
+        Assert.assertFalse("Expected all SegmentChunks to be marked as deleted.", writeHandle.chunks().stream().anyMatch(SegmentChunk::exists));
     }
 
     /**
@@ -286,7 +286,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
     /**
      * Tests the ability to concat using the header file for those cases when native concat cannot be used because the
-     * source Segment has a single SubSegment, but it's too large to fit into the Target's active SubSegment.
+     * source Segment has a single SegmentChunk, but it's too large to fit into the Target's active SegmentChunk.
      */
     @Test
     public void testConcatHeaderSingleFile() throws Exception {
@@ -317,7 +317,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
     /**
      * Tests the ability to concat using the header file for those cases when native concat cannot be used because the
-     * source Segment has multiple SubSegments.
+     * source Segment has multiple SegmentChunks.
      */
     @Test
     public void testConcatHeaderMultiFile() throws Exception {
@@ -341,7 +341,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
         // Concat and verify the handle has been updated accordingly.
         s.concat(targetHandle, initialTargetLength, sourceSegmentName);
-        checkConcatResult(s, targetHandle, sourceSegmentName, 1 + sourceHandle.subSegments().size(), initialTargetLength + (int) sourceHandle.length());
+        checkConcatResult(s, targetHandle, sourceSegmentName, 1 + sourceHandle.chunks().size(), initialTargetLength + (int) sourceHandle.length());
         checkWrittenData(writeStream.toByteArray(), s.openRead(SEGMENT_NAME), s);
     }
 
@@ -381,7 +381,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         // Clear the intentional failure and try again, after which check the results.
         baseStorage.concatFailure = null;
         s.concat(targetHandle, initialTargetLength, sourceSegmentName);
-        checkConcatResult(s, targetHandle, sourceSegmentName, 1 + sourceHandle.subSegments().size(), initialTargetLength + (int) sourceHandle.length());
+        checkConcatResult(s, targetHandle, sourceSegmentName, 1 + sourceHandle.chunks().size(), initialTargetLength + (int) sourceHandle.length());
         checkWrittenData(writeStream.toByteArray(), s.openRead(SEGMENT_NAME), s);
     }
 
@@ -462,7 +462,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
         // Verify concat() with Source as Header Segment, but Target as a non-Header Segment.
         baseStorage.create(nonHeaderName); // We reuse this Segment Name since it should have been gone by now.
-        populate(s, withHeaderHandle, os); // Need to create a few SubSegments to force a Header concat.
+        populate(s, withHeaderHandle, os); // Need to create a few SegmentChunks to force a Header concat.
         s.seal(withHeaderHandle);
         s.concat(s.openWrite(nonHeaderName), 0, withHeaderName);
         Assert.assertFalse("NonHeader source still exists after concat to Header Segment.", s.exists(withHeaderName));
@@ -508,14 +508,14 @@ public class RollingStorageTests extends RollingStorageTestBase {
         }
     }
 
-    private void checkConcatResult(RollingStorage s, RollingSegmentHandle targetHandle, String sourceSegmentName, int expectedSubSegmentCount, int expectedLength) throws Exception {
+    private void checkConcatResult(RollingStorage s, RollingSegmentHandle targetHandle, String sourceSegmentName, int expectedChunkCount, int expectedLength) throws Exception {
         Assert.assertFalse("Expecting the source segment to not exist anymore.", s.exists(sourceSegmentName));
-        Assert.assertEquals("Unexpected number of SubSegments in target.", expectedSubSegmentCount, targetHandle.subSegments().size());
+        Assert.assertEquals("Unexpected number of SegmentChunks in target.", expectedChunkCount, targetHandle.chunks().size());
         Assert.assertEquals("Unexpected target length.", expectedLength, targetHandle.length());
 
         // Reload the handle and verify nothing strange happened in Storage.
         val targetHandle2 = (RollingSegmentHandle) s.openWrite(SEGMENT_NAME);
-        Assert.assertEquals("Unexpected number of SubSegments in reloaded target handle.", expectedSubSegmentCount, targetHandle2.subSegments().size());
+        Assert.assertEquals("Unexpected number of SegmentChunks in reloaded target handle.", expectedChunkCount, targetHandle2.chunks().size());
         Assert.assertEquals("Unexpected reloaded target length.", targetHandle.length(), targetHandle2.length());
     }
 

@@ -20,16 +20,16 @@ import lombok.Getter;
  * Represents a range of bytes within a Segment.
  */
 @ThreadSafe
-class SubSegment {
+class SegmentChunk {
     //region Private
 
     /**
-     * The name of the SubSegment.
+     * The name of the SegmentChunk.
      */
     @Getter
     private final String name;
     /**
-     * The offset within the owning Segment where this SubSegment starts.
+     * The offset within the owning Segment where this SegmentChunk starts.
      */
     @Getter
     private final long startOffset;
@@ -45,36 +45,36 @@ class SubSegment {
     //region Constructor
 
     /**
-     * Creates a new instance of the SubSegment class.
+     * Creates a new instance of the SegmentChunk class.
      *
-     * @param subSegmentName The name of this SubSegment (not of the owning Segment).
-     * @param startOffset    The offset within the owning Segment where this SubSegment starts at.
+     * @param chunkName   The name of this SegmentChunk (not of the owning Segment).
+     * @param startOffset The offset within the owning Segment where this SegmentChunk starts at.
      */
-    SubSegment(String subSegmentName, long startOffset) {
-        this.name = Exceptions.checkNotNullOrEmpty(subSegmentName, "subSegmentName");
+    SegmentChunk(String chunkName, long startOffset) {
+        this.name = Exceptions.checkNotNullOrEmpty(chunkName, "chunkName");
         Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
         this.startOffset = startOffset;
     }
 
     /**
-     * Creates a new instance of the SubSegment class.
+     * Creates a new instance of the SegmentChunk class.
      *
-     * @param segmentName The name of the owning Segment (not the name of this SubSegment).
-     * @param startOffset The offset within the owning Segment where this SubSegment starts at.
-     * @return A new SubSegment.
+     * @param segmentName The name of the owning Segment (not the name of this SegmentChunk).
+     * @param startOffset The offset within the owning Segment where this SegmentChunk starts at.
+     * @return A new SegmentChunk.
      */
-    static SubSegment forSegment(String segmentName, long startOffset) {
-        return new SubSegment(StreamSegmentNameUtils.getSubSegmentName(segmentName, startOffset), startOffset);
+    static SegmentChunk forSegment(String segmentName, long startOffset) {
+        return new SegmentChunk(StreamSegmentNameUtils.getSegmentChunkName(segmentName, startOffset), startOffset);
     }
 
     /**
-     * Creates a new instance of the SubSegment class with the same information as this one, but with a new offset.
+     * Creates a new instance of the SegmentChunk class with the same information as this one, but with a new offset.
      *
      * @param newOffset The new offset.
-     * @return A new SubSegment.
+     * @return A new SegmentChunk.
      */
-    SubSegment withNewOffset(long newOffset) {
-        SubSegment ns = new SubSegment(this.name, newOffset);
+    SegmentChunk withNewOffset(long newOffset) {
+        SegmentChunk ns = new SegmentChunk(this.name, newOffset);
         ns.setLength(getLength());
         if (isSealed()) {
             ns.markSealed();
@@ -92,62 +92,62 @@ class SubSegment {
     //region Properties
 
     /**
-     * Gets a value indicating whether this SubSegment has been sealed.
+     * Gets a value indicating whether this SegmentChunk has been sealed.
      */
     synchronized boolean isSealed() {
         return this.sealed;
     }
 
     /**
-     * Records the fact that this SubSegment has been sealed.
+     * Records the fact that this SegmentChunk has been sealed.
      */
     synchronized void markSealed() {
         this.sealed = true;
     }
 
     /**
-     * Gets a value indicating whether this SubSegment exists or not.
+     * Gets a value indicating whether this SegmentChunk exists or not.
      */
     synchronized boolean exists() {
         return this.exists;
     }
 
     /**
-     * Records the fact that this SubSegment no longer exists.
+     * Records the fact that this SegmentChunk no longer exists.
      */
     synchronized void markInexistent() {
         this.exists = false;
     }
 
     /**
-     * Gets a value indicating the current length of this SubSegment.
+     * Gets a value indicating the current length of this SegmentChunk.
      */
     synchronized long getLength() {
         return this.length;
     }
 
     /**
-     * Increases the length of the SubSegment by the given delta.
+     * Increases the length of the SegmentChunk by the given delta.
      * @param delta The value to increase by.
      */
     synchronized void increaseLength(long delta) {
-        Preconditions.checkState(!this.sealed, "Cannot increase the length of a sealed SubSegment.");
-        Preconditions.checkArgument(delta >= 0, "Cannot decrease the length of a SubSegment.");
+        Preconditions.checkState(!this.sealed, "Cannot increase the length of a sealed SegmentChunk.");
+        Preconditions.checkArgument(delta >= 0, "Cannot decrease the length of a SegmentChunk.");
         this.length += delta;
     }
 
     /**
-     * Sets the length of the SubSegment.
+     * Sets the length of the SegmentChunk.
      * @param length The new length.
      */
     synchronized void setLength(long length) {
-        Preconditions.checkState(!this.sealed, "Cannot increase the length of a sealed SubSegment.");
+        Preconditions.checkState(!this.sealed, "Cannot increase the length of a sealed SegmentChunk.");
         Preconditions.checkArgument(length >= 0, "length must be a non-negative number.");
         this.length = length;
     }
 
     /**
-     * Gets a value indicating the last Offset of this SubSegment.
+     * Gets a value indicating the last Offset of this SegmentChunk.
      */
     synchronized long getLastOffset() {
         return this.startOffset + this.length;

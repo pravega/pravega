@@ -45,13 +45,13 @@ class RollingSegmentHandle implements SegmentHandle {
     @GuardedBy("this")
     private int headerLength;
     @GuardedBy("this")
-    private List<SubSegment> subSegments;
+    private List<SegmentChunk> segmentChunks;
     @GuardedBy("this")
     private boolean sealed;
     @GuardedBy("this")
     private boolean deleted;
     @GuardedBy("this")
-    private SegmentHandle activeSubSegmentHandle;
+    private SegmentHandle activeChunkHandle;
 
     //endregion
 
@@ -60,17 +60,17 @@ class RollingSegmentHandle implements SegmentHandle {
     /**
      * Creates a new instance of the RollingSegmentHandle class.
      *
-     * @param headerHandle  A SegmentHandle for the Header SubSegment.
+     * @param headerHandle  A SegmentHandle for the Header SegmentChunk.
      * @param rollingPolicy The Rolling Policy to apply for this Segment.
-     * @param subSegments   A ordered list of initial SubSegments for this handle.
+     * @param segmentChunks   A ordered list of initial SegmentChunks for this handle.
      */
-    RollingSegmentHandle(SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SubSegment> subSegments) {
+    RollingSegmentHandle(SegmentHandle headerHandle, SegmentRollingPolicy rollingPolicy, List<SegmentChunk> segmentChunks) {
         this.headerHandle = Preconditions.checkNotNull(headerHandle, "headerHandle");
         this.readOnly = this.headerHandle.isReadOnly();
         this.segmentName = StreamSegmentNameUtils.getSegmentNameFromHeader(headerHandle.getSegmentName());
         Exceptions.checkNotNullOrEmpty(this.segmentName, "headerHandle.getSegmentName()");
         this.rollingPolicy = rollingPolicy == null ? SegmentRollingPolicy.NO_ROLLING : rollingPolicy;
-        this.subSegments = Preconditions.checkNotNull(subSegments, "subSegments");
+        this.segmentChunks = Preconditions.checkNotNull(segmentChunks, "segmentChunks");
     }
 
     RollingSegmentHandle(SegmentHandle segmentHandle) {
@@ -78,7 +78,7 @@ class RollingSegmentHandle implements SegmentHandle {
         this.readOnly = segmentHandle.isReadOnly();
         this.segmentName = Exceptions.checkNotNullOrEmpty(segmentHandle.getSegmentName(), "headerHandle.getSegmentName()");
         this.rollingPolicy = SegmentRollingPolicy.NO_ROLLING;
-        this.subSegments = Collections.singletonList(new SubSegment(segmentHandle.getSegmentName(), 0));
+        this.segmentChunks = Collections.singletonList(new SegmentChunk(segmentHandle.getSegmentName(), 0));
     }
 
     //endregion
@@ -91,7 +91,7 @@ class RollingSegmentHandle implements SegmentHandle {
     synchronized void refresh(RollingSegmentHandle source) {
         Preconditions.checkArgument(source.getSegmentName().equals(this.getSegmentName()), "SegmentName mismatch.");
         this.headerHandle = source.headerHandle;
-        this.subSegments = new ArrayList<>(source.subSegments());
+        this.segmentChunks = new ArrayList<>(source.chunks());
         setHeaderLength(source.getHeaderLength());
         if (source.isSealed()) {
             markSealed();
@@ -116,8 +116,8 @@ class RollingSegmentHandle implements SegmentHandle {
     synchronized void markSealed() {
         if (!this.sealed) {
             this.sealed = true;
-            this.subSegments = Collections.unmodifiableList(this.subSegments);
-            this.activeSubSegmentHandle = null;
+            this.segmentChunks = Collections.unmodifiableList(this.segmentChunks);
+            this.activeChunkHandle = null;
         }
     }
 
@@ -143,73 +143,73 @@ class RollingSegmentHandle implements SegmentHandle {
     }
 
     /**
-     * Gets a pointer to the last SubSegment.
+     * Gets a pointer to the last SegmentChunk.
      *
-     * @return The last SubSegment, or null if no SubSegments exist.
+     * @return The last SegmentChunk, or null if no SegmentChunks exist.
      */
-    synchronized SubSegment lastSubSegment() {
-        return this.subSegments.size() == 0 ? null : this.subSegments.get(this.subSegments.size() - 1);
+    synchronized SegmentChunk lastChunk() {
+        return this.segmentChunks.size() == 0 ? null : this.segmentChunks.get(this.segmentChunks.size() - 1);
     }
 
     /**
-     * Gets an unmodifiable List of all current SubSegments for this Handle. If the Segment is not sealed, a copy of the
-     * current SubSegments is returned (since they may change in the future).
+     * Gets an unmodifiable List of all current SegmentChunks for this Handle. If the Segment is not sealed, a copy of the
+     * current SegmentChunks is returned (since they may change in the future).
      *
-     * @return A List with SubSegments.
+     * @return A List with SegmentChunks.
      */
-    synchronized List<SubSegment> subSegments() {
+    synchronized List<SegmentChunk> chunks() {
         if (this.sealed) {
-            return this.subSegments; // This is already an unmodifiable list.
+            return this.segmentChunks; // This is already an unmodifiable list.
         } else {
-            return Collections.unmodifiableList(this.subSegments.subList(0, this.subSegments.size()));
+            return Collections.unmodifiableList(this.segmentChunks.subList(0, this.segmentChunks.size()));
         }
     }
 
     /**
-     * Adds a new SubSegment.
+     * Adds a new SegmentChunk.
      *
-     * @param subSegment             The SubSegment to add. This SubSegment must be in continuity of any existing SubSegments.
-     * @param activeSubSegmentHandle The newly added SubSegment's write handle.
+     * @param segmentChunk      The SegmentChunk to add. This SegmentChunk must be in continuity of any existing SegmentChunks.
+     * @param activeChunkHandle The newly added SegmentChunk's write handle.
      */
-    synchronized void addSubSegment(SubSegment subSegment, SegmentHandle activeSubSegmentHandle) {
-        Preconditions.checkState(!this.sealed, "Cannot add SubSegments for a Sealed Handle.");
-        if (this.subSegments.size() > 0) {
-            long expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
-            Preconditions.checkArgument(subSegment.getStartOffset() == expectedOffset,
-                    "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, subSegment.getStartOffset());
+    synchronized void addChunk(SegmentChunk segmentChunk, SegmentHandle activeChunkHandle) {
+        Preconditions.checkState(!this.sealed, "Cannot add SegmentChunks for a Sealed Handle.");
+        if (this.segmentChunks.size() > 0) {
+            long expectedOffset = this.segmentChunks.get(this.segmentChunks.size() - 1).getLastOffset();
+            Preconditions.checkArgument(segmentChunk.getStartOffset() == expectedOffset,
+                    "Invalid SegmentChunk StartOffset. Expected %s, given %s.", expectedOffset, segmentChunk.getStartOffset());
         }
 
-        // Update the SubSegment and its Handle atomically.
-        Preconditions.checkNotNull(activeSubSegmentHandle, "activeSubSegmentHandle");
-        Preconditions.checkArgument(!activeSubSegmentHandle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
-        Preconditions.checkArgument(activeSubSegmentHandle.getSegmentName().equals(subSegment.getName()),
-                "Active SubSegment handle must be for the last SubSegment.");
-        this.activeSubSegmentHandle = activeSubSegmentHandle;
-        this.subSegments.add(subSegment);
+        // Update the SegmentChunk and its Handle atomically.
+        Preconditions.checkNotNull(activeChunkHandle, "activeChunkHandle");
+        Preconditions.checkArgument(!activeChunkHandle.isReadOnly(), "Active SegmentChunk handle cannot be readonly.");
+        Preconditions.checkArgument(activeChunkHandle.getSegmentName().equals(segmentChunk.getName()),
+                "Active SegmentChunk handle must be for the last SegmentChunk.");
+        this.activeChunkHandle = activeChunkHandle;
+        this.segmentChunks.add(segmentChunk);
     }
 
     /**
-     * Adds multiple SubSegments.
+     * Adds multiple SegmentChunks.
      *
-     * @param subSegments The SubSegments to add. These SubSegments must be in continuity of any existing SubSegments.
+     * @param segmentChunks The SegmentChunks to add. These SegmentChunks must be in continuity of any existing SegmentChunks.
      */
-    synchronized void addSubSegments(List<SubSegment> subSegments) {
-        Preconditions.checkState(!this.sealed, "Cannot add SubSegments for a Sealed Handle.");
+    synchronized void addChunks(List<SegmentChunk> segmentChunks) {
+        Preconditions.checkState(!this.sealed, "Cannot add SegmentChunks for a Sealed Handle.");
         long expectedOffset = 0;
-        if (this.subSegments.size() > 0) {
-            expectedOffset = this.subSegments.get(this.subSegments.size() - 1).getLastOffset();
-        } else if (subSegments.size() > 0) {
-            expectedOffset = subSegments.get(0).getStartOffset();
+        if (this.segmentChunks.size() > 0) {
+            expectedOffset = this.segmentChunks.get(this.segmentChunks.size() - 1).getLastOffset();
+        } else if (segmentChunks.size() > 0) {
+            expectedOffset = segmentChunks.get(0).getStartOffset();
         }
 
-        for (SubSegment s : subSegments) {
+        for (SegmentChunk s : segmentChunks) {
             Preconditions.checkArgument(s.getStartOffset() == expectedOffset,
-                    "Invalid SubSegment StartOffset. Expected %s, given %s.", expectedOffset, s.getStartOffset());
+                    "Invalid SegmentChunk StartOffset. Expected %s, given %s.", expectedOffset, s.getStartOffset());
             expectedOffset += s.getLength();
         }
 
-        this.subSegments.addAll(subSegments);
-        this.activeSubSegmentHandle = null;
+        this.segmentChunks.addAll(segmentChunks);
+        this.activeChunkHandle = null;
     }
 
     /**
@@ -218,31 +218,31 @@ class RollingSegmentHandle implements SegmentHandle {
      * @return The length.
      */
     synchronized long length() {
-        SubSegment lastSubSegment = lastSubSegment();
-        return lastSubSegment == null ? 0L : lastSubSegment.getLastOffset();
+        SegmentChunk lastSegmentChunk = lastChunk();
+        return lastSegmentChunk == null ? 0L : lastSegmentChunk.getLastOffset();
     }
 
     /**
-     * Gets a pointer to the Active SubSegment Handle.
+     * Gets a pointer to the Active SegmentChunk Handle.
      *
      * @return The handle.
      */
-    synchronized SegmentHandle getActiveSubSegmentHandle() {
-        return this.activeSubSegmentHandle;
+    synchronized SegmentHandle getActiveChunkHandle() {
+        return this.activeChunkHandle;
     }
 
     /**
-     * Sets the Active SubSegment handle.
+     * Sets the Active SegmentChunk handle.
      *
-     * @param handle The handle. Must not be read-only and for the last SubSegment.
+     * @param handle The handle. Must not be read-only and for the last SegmentChunk.
      */
-    synchronized void setActiveSubSegmentHandle(SegmentHandle handle) {
-        Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SubSegment handle cannot be readonly.");
-        SubSegment last = lastSubSegment();
-        Preconditions.checkState(last != null, "Cannot set an Active SubSegment handle when there are no SubSegments.");
+    synchronized void setActiveChunkHandle(SegmentHandle handle) {
+        Preconditions.checkArgument(handle == null || !handle.isReadOnly(), "Active SegmentChunk handle cannot be readonly.");
+        SegmentChunk last = lastChunk();
+        Preconditions.checkState(last != null, "Cannot set an Active SegmentChunk handle when there are no SegmentChunks.");
         Preconditions.checkArgument(handle == null || handle.getSegmentName().equals(last.getName()),
-                "Active SubSegment handle must be for the last SubSegment.");
-        this.activeSubSegmentHandle = handle;
+                "Active SegmentChunk handle must be for the last SegmentChunk.");
+        this.activeChunkHandle = handle;
     }
 
     /**
@@ -271,8 +271,8 @@ class RollingSegmentHandle implements SegmentHandle {
         if (this.deleted) {
             return String.format("%s (Deleted)", this.segmentName);
         } else {
-            return String.format("%s (%s, %s, SubSegments=%d)", this.segmentName, this.sealed ? "Sealed" : "Not Sealed",
-                    isReadOnly() ? "R" : "RW", this.subSegments.size());
+            return String.format("%s (%s, %s, SegmentChunks=%d)", this.segmentName, this.sealed ? "Sealed" : "Not Sealed",
+                    isReadOnly() ? "R" : "RW", this.segmentChunks.size());
         }
     }
 
