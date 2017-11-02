@@ -24,12 +24,14 @@ import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Setter;
 
 /**
  * Test Storage. Wraps around an existing Storage, and allows controlling behavior for each method, such as injecting
  * errors, simulating non-availability, etc.
  */
+@NotThreadSafe
 public class TestStorage implements Storage {
     private final Storage wrappedStorage;
     private final HashMap<String, Long> truncationOffsets;

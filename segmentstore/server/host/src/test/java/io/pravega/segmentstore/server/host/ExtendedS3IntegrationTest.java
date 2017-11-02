@@ -41,7 +41,7 @@ import org.junit.Before;
 public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final int BOOKIE_COUNT = 1;
+    private static final int BOOKIE_COUNT = 3;
     private String endpoint;
     private BookKeeperRunner bookkeeper = null;
     private String baseDir;

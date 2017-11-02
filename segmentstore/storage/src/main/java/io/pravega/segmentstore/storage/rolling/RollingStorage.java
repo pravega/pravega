@@ -44,7 +44,7 @@ import lombok.val;
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
  * them at various offsets.
  *
- * Every Segment that is created using this Storage is made up of a Header and zero or more SubSegments
+ * Every Segment that is created using this Storage is made up of a Header and zero or more SubSegments.
  * * The Header contains the Segment's Rolling Policy, as well as an ordered list of Offset-to-SubSegment pointers for
  * all the SubSegments in the Segment.
  * * The SubSegments contain data that their Segment is made of. A SubSegment starting at offset N with length L contains
