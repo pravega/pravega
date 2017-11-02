@@ -10,6 +10,8 @@
 package io.pravega.client.state;
 
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -61,8 +63,10 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * local state.
      * @param updateGenerator A function that given the current state can supply updates that should be applied.
      */
-    void updateState(Function<StateT, List<? extends Update<StateT>>> updateGenerator);
-
+    void updateState(BiConsumer<StateT, List<Update<StateT>>> updateGenerator);
+    
+    <ReturnT> ReturnT updateState(BiFunction<StateT, List<Update<StateT>>, ReturnT> updateGenerator);   
+    
     /**
      * Persists the provided update. To ensure consistent ordering of updates across hosts the
      * update is not applied locally until {@link #fetchUpdates()} is called.

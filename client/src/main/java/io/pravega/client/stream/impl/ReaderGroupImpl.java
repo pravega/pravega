@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -40,7 +39,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -162,13 +160,13 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     public void resetReadersToCheckpoint(Checkpoint checkpoint) {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
-        synchronizer.updateState(state -> {
+        synchronizer.updateState((state, updates) -> {
             ReaderGroupConfig config = state.getConfig();
             Map<Segment, Long> positions = new HashMap<>();
             for (StreamCut cut : checkpoint.asImpl().getPositions().values()) {
                 positions.putAll(cut.getPositions());
             }
-            return Collections.singletonList(new ReaderGroupStateInit(config, positions));
+            updates.add(new ReaderGroupStateInit(config, positions));
         });
     }
 
