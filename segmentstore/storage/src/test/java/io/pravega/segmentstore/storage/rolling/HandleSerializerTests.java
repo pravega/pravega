@@ -32,7 +32,7 @@ import org.junit.Test;
  */
 public class HandleSerializerTests {
     private static final String SEGMENT_NAME = "Segment";
-    private static final SegmentRollingPolicy DEFAULT_ROLLING_POLICY = new SegmentRollingPolicy(1234);
+    private static final SegmentRollingPolicy TEST_ROLLING_POLICY = new SegmentRollingPolicy(1234);
 
     /**
      * Tests the basic Serialization-Deserialization for a Handle with no concat executed on it.
@@ -125,7 +125,7 @@ public class HandleSerializerTests {
         }
 
         return new RollingSegmentHandle(new TestHandle(StreamSegmentNameUtils.getHeaderSegmentName(segmentName), false),
-                DEFAULT_ROLLING_POLICY, chunks);
+                TEST_ROLLING_POLICY, chunks);
     }
 
     @Data
