@@ -135,7 +135,7 @@ public class SegmentOutputStreamTest {
         verify(connection).send(new SetupAppend(1, cid, SEGMENT));
     }
 
-    @Test(timeout = 1000)
+    @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
