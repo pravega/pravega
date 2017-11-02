@@ -8,7 +8,6 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-
 CLUSTER_NAME=${1:-null}
 echo "Cluster Name is $CLUSTER_NAME"
 MASTER=${2:-null}

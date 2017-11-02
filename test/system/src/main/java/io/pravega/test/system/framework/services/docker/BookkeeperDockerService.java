@@ -71,7 +71,7 @@ public class BookkeeperDockerService extends DockerBasedService {
             }
             assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
-            log.error("Unable to create service", e);
+            throw new AssertionError("Unable to create Bookkeeper service", e);
         }
     }
 

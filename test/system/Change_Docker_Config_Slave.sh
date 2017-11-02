@@ -8,6 +8,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+set -e
 sed -i 's/"live-restore": true,/"live-restore": false,/' /etc/docker/daemon.json
 cat /etc/docker/daemon.json
 service docker stop

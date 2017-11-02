@@ -8,6 +8,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+set -e
 MASTER=${1:-null}
 sed -i '1i {"hosts":["tcp://0.0.0.0:2375","unix:///var/run/docker.sock"]}' /etc/docker/daemon.json
 sed -i 's/"live-restore": true,/"live-restore": false,/' /etc/docker/daemon.json

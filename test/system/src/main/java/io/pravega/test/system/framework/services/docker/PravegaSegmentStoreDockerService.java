@@ -79,7 +79,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
             }
             assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
-            log.error("Unable to create service", e);
+            throw new AssertionError("Unable to create Pravega Segmentstore service", e);
         }
     }
 
@@ -140,6 +140,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
                 String[] pair = str.split(KEY_VALUE_SEPARATOR);
                 if (pair.length != 2) {
                     log.warn("Key Value not present {}", str);
+                    throw new RuntimeException("No key value pair to set Tier2 storage env");
                 } else {
                     stringList.add(pair[0].toString() + "=" + pair[1].toString());
                 }

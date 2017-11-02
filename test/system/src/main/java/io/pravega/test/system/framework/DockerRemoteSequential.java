@@ -22,7 +22,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -98,10 +97,10 @@ public class DockerRemoteSequential implements TestExecutor {
     private boolean isTestRunning() {
         boolean value = false;
         try {
-            if (client.inspectContainer(this.id.get()).state().running()) {
+            if (Exceptions.handleInterrupted(() -> client.inspectContainer(this.id.get()).state().running())) {
                 value = true;
             }
-        } catch (DockerException | InterruptedException e) {
+        } catch (DockerException e) {
             log.error("Unable to list docker services", e);
         }
         return value;
@@ -119,10 +118,9 @@ public class DockerRemoteSequential implements TestExecutor {
 
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
-                client.copyToContainer(dockerDirectory, id.get(), "/data");
-            } catch (IOException | DockerException | InterruptedException e) {
-                log.error("Exception while copying test jar to the container ", e);
-                Assert.fail("Unable to copy test jar to the container.Test failure");
+                Exceptions.handleInterrupted(() -> client.copyToContainer(dockerDirectory, id.get(), "/data"));
+            } catch (Exception e) {
+                throw new AssertionError("Unable to copy test jar to the container.Test failure", e);
             }
 
             String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.byNetworkName(DOCKER_NETWORK)).get(0).id());

@@ -165,7 +165,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get());
             }
         } catch (ExecutionException | DockerException e) {
-            log.error("Unable to scale service", e);
+            throw new AssertionError("Unable to scale service to given instances.Test Failure", e);
         }
     }
 
@@ -176,7 +176,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Exceptions.handleInterrupted(() -> dockerClient.removeNetwork(networkList.get(0).id()));
             Exceptions.handleInterrupted(() -> dockerClient.leaveSwarm(true));
         } catch (DockerException e) {
-            log.error("Unable to leave swarm", e);
+           throw new AssertionError("Unable to leave Swarm. Test Failure", e);
         }
         dockerClient.close();
     }
