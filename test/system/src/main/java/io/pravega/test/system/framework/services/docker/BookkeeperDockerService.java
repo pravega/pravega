@@ -54,7 +54,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         try {
             Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
         } catch (DockerException e) {
-            log.error("Unable to remove service", e);
+            throw new AssertionError("Unable to remove service.", e);
         }
     }
 
@@ -71,7 +71,7 @@ public class BookkeeperDockerService extends DockerBasedService {
             }
             assertNotNull(serviceCreateResponse.id());
         } catch (Exception e) {
-            throw new AssertionError("Unable to create Bookkeeper service", e);
+            throw new AssertionError("Unable to create Bookkeeper service.", e);
         }
     }
 

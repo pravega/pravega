@@ -54,7 +54,7 @@ public class DockerRemoteSequential implements TestExecutor {
                 throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
             }
         } catch (DockerException e) {
-            log.error("Unable to find docker client version", e);
+            throw new AssertionError("Unable to find docker client version.Cannot continue test execution.", e);
         }
 
         log.debug("Starting test execution for method: {}", testMethod);
@@ -73,7 +73,7 @@ public class DockerRemoteSequential implements TestExecutor {
                                     + className + "#" + methodName);
                         }
                     } catch (DockerException e) {
-                        log.error("Unable to get container exit status", e);
+                        throw new AssertionError("Unable to get container exit status and test result.", e);
                     }
                     return null;
                 });
