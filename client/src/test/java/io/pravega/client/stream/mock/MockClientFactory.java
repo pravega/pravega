@@ -10,6 +10,8 @@
 package io.pravega.client.stream.mock;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.batch.BatchClient;
+import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -77,5 +79,10 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public void close() {
         this.connectionFactory.close();
+    }
+
+    @Override
+    public BatchClient createBatchClient() {
+        return new BatchClientImpl(controller, connectionFactory);
     }
 }

@@ -11,6 +11,7 @@ package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.CorruptedFrameException;
 import java.io.DataInput;
@@ -65,7 +66,7 @@ public final class WireCommands {
 
     @FunctionalInterface
     interface Constructor {
-        <T extends InputStream & DataInput> WireCommand readFrom(T in, int length) throws IOException;
+        WireCommand readFrom(ByteBufInputStream in, int length) throws IOException;
     }
 
     @Data

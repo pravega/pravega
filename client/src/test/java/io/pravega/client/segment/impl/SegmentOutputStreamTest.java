@@ -144,18 +144,21 @@ public class SegmentOutputStreamTest {
 
     protected void implementAsDirectExecutor(ScheduledExecutorService executor) {
         doAnswer(new Answer<Object>() {
+            @Override
             public Object answer(InvocationOnMock invocation) throws Exception {
                 ((Runnable) invocation.getArguments()[0]).run();
                 return null;
             }
         }).when(executor).execute(any(Runnable.class));
         doAnswer(new Answer<Object>() {
+            @Override
             public Object answer(InvocationOnMock invocation) throws Exception {
                 ((Runnable) invocation.getArguments()[0]).run();
                 return null;
             }
         }).when(executor).schedule(any(Runnable.class), Mockito.anyLong(), any(TimeUnit.class));
         doAnswer(new Answer<Object>() {
+            @Override
             public Object answer(InvocationOnMock invocation) throws Exception {
                 ((Callable) invocation.getArguments()[0]).call();
                 return null;
