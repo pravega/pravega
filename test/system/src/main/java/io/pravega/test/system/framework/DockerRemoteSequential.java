@@ -73,12 +73,11 @@ public class DockerRemoteSequential implements TestExecutor {
                                     + className + "#" + methodName);
                         }
                     } catch (DockerException e) {
-                        throw new AssertionError("Unable to get container exit status and test result.", e);
+                        throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get container exit status and test result.", e);
                     }
                     return null;
                 });
     }
-
 
     public void stopTestExecution() {
         try {
@@ -118,12 +117,14 @@ public class DockerRemoteSequential implements TestExecutor {
 
             final Path dockerDirectory = Paths.get(System.getProperty("user.dir"));
             try {
+                //Copy the test.jar with all the dependencies into the container.
                 Exceptions.handleInterrupted(() -> client.copyToContainer(dockerDirectory, id.get(), "/data"));
             } catch (Exception e) {
                 throw new AssertionError("Unable to copy test jar to the container.Test failure", e);
             }
 
             String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.byNetworkName(DOCKER_NETWORK)).get(0).id());
+            //Container should be connect to the user-defined overlay network to communicate with all the services deployed.
             Exceptions.handleInterrupted(() -> client.connectToNetwork(id.get(), networkId));
 
             // Start container

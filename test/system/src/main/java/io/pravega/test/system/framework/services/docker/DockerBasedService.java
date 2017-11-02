@@ -98,7 +98,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 }
             }
         } catch (DockerException e) {
-            log.error("Unable to list docker services", e);
+            throw new AssertionError("Unable to list docker services", e);
         }
         return value;
     }
