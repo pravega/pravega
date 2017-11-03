@@ -158,7 +158,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         } else {
             list = new ArrayList<>();
         }
-        String scopedStreamName = String.format("%s/%s", scope, stream);
+        String scopedStreamName = getScopedStreamName(scope, stream);
         list.add(scopedStreamName);
         bucketedStreams.put(bucket, list);
 
@@ -166,24 +166,23 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         streamPolicyMap.put(scopedStreamName, retentionPolicy);
 
-        return CompletableFuture.completedFuture(null)
-                .thenAccept(x -> listeners.computeIfPresent(bucket, (b, listener) -> {
-                    if (isUpdate) {
-                        listener.notify(new BucketListener.StreamNotification(scope, stream,
-                                BucketListener.StreamNotification.NotificationType.StreamUpdated));
-                    } else {
-                        listener.notify(new BucketListener.StreamNotification(scope, stream,
-                                BucketListener.StreamNotification.NotificationType.StreamAdded));
-                    }
-                    return listener;
-                }));
+        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
+            if (isUpdate) {
+                listener.notify(new BucketListener.StreamNotification(scope, stream,
+                        BucketListener.StreamNotification.NotificationType.StreamUpdated));
+            } else {
+                listener.notify(new BucketListener.StreamNotification(scope, stream,
+                        BucketListener.StreamNotification.NotificationType.StreamAdded));
+            }
+            return listener;
+        }), executor);
     }
 
     @Synchronized
     @Override
     public CompletableFuture<Void> deleteStreamFromAutoRetention(String scope, String stream, OperationContext context, Executor executor) {
         int bucket = getBucket(scope, stream);
-        String scopedStreamName = String.format("%s/%s", scope, stream);
+        String scopedStreamName = getScopedStreamName(scope, stream);
 
         bucketedStreams.computeIfPresent(bucket, (b, list) -> {
             list.remove(scopedStreamName);
@@ -192,12 +191,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         streamPolicyMap.remove(scopedStreamName);
 
-        return CompletableFuture.completedFuture(null)
-                .thenAccept(x -> listeners.computeIfPresent(bucket, (b, listener) -> {
-                    listener.notify(new BucketListener.StreamNotification(scope, stream,
-                            BucketListener.StreamNotification.NotificationType.StreamRemoved));
-                    return listener;
-                }));
+        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
+            listener.notify(new BucketListener.StreamNotification(scope, stream,
+                    BucketListener.StreamNotification.NotificationType.StreamRemoved));
+            return listener;
+        }), executor);
     }
 
     @Override

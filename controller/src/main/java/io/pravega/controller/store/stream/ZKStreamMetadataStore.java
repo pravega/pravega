@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -81,14 +82,14 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
         return storeHelper.getChildren(String.format(ZKStoreHelper.BUCKET_PATH, bucket))
-                .thenApply(list -> list.stream().map(x -> x.replace("#", "/")).collect(Collectors.toList()));
+                .thenApply(list -> list.stream().map(this::decodedScopedStreamName).collect(Collectors.toList()));
     }
 
     @Override
     public CompletableFuture<Void> addUpdateStreamForAutoRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
                                                                    final OperationContext context, final Executor executor) {
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, scope, stream);
+        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
         byte[] serialize = SerializationUtils.serialize(retentionPolicy);
 
         return storeHelper.getData(retentionPath)
@@ -111,7 +112,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Void> deleteStreamFromAutoRetention(final String scope, final String stream,
                                                                  final OperationContext context, final Executor executor) {
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, scope, stream);
+        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
 
         return storeHelper.deleteNode(retentionPath)
                 .exceptionally(e -> {
@@ -121,5 +122,14 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                         throw new CompletionException(e);
                     }
                 });
+    }
+
+    private String encodedScopedStreamName(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
+    }
+
+    private String decodedScopedStreamName(String encodedScopedStreamName) {
+        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
     }
 }

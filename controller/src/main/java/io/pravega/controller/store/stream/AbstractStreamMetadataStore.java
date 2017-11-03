@@ -747,9 +747,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
     }
 
-    protected int getBucket(String scope, String stream) {
-        String scopedStreamName = String.format("%s/%s", scope, stream);
+    int getBucket(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
         return scopedStreamName.hashCode() % bucketCount;
+    }
+
+    String getScopedStreamName(String scope, String stream) {
+        return String.format("%s/%s", scope, stream);
     }
 }
 

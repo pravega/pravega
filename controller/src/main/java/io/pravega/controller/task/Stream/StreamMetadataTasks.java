@@ -263,7 +263,7 @@ public class StreamMetadataTasks extends TaskBase {
 
         final long generationTime = System.currentTimeMillis();
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                .thenCompose(activeSegments -> FutureHelpers.allOfWithResults(activeSegments
+                .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
                         .stream()
                         .parallel()
                         .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber())))))
