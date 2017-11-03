@@ -9,17 +9,26 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.batch.SegmentInfo;
+
 /**
  * A client for looking at and editing the metadata related to a specific segment.
  */
 public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
+     * Returns info for the current segment.
+     * 
+     * @return Metadata about the segment.
+     */
+    abstract SegmentInfo getSegmentInfo();
+    
+    /**
      * Returns the length of the current segment. i.e. the total length of all data written to the segment.
      *
      * @return The length of the current segment.
      */
-    abstract long fetchCurrentStreamLength();
+    abstract long fetchCurrentSegmentLength();
 
     /**
      * Gets the current value of the provided attribute.

@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.eventProcessor.impl;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
@@ -95,7 +95,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         assertTrue(collect.indexOf(2) < collect.indexOf(3));
 
         s1e1.complete();
-        FutureHelpers.await(s1p1);
+        Futures.await(s1p1);
 
         stream1Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1"));
         assertTrue(stream1Queue.size() >= 1);
@@ -105,7 +105,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         // now make sure that we have concurrently run for two streams
         s2e1.complete();
-        FutureHelpers.await(s2p1);
+        Futures.await(s2p1);
 
         stream2Queue = requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream2"));
         assertTrue(stream2Queue.size() >= 1);
@@ -115,15 +115,15 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         // now complete all processing
         s2e2.complete();
-        FutureHelpers.await(s2p2);
+        Futures.await(s2p2);
 
         s2e3.complete();
 
         s1e2.complete();
-        FutureHelpers.await(s1p2);
+        Futures.await(s1p2);
 
-        FutureHelpers.await(s1p3);
-        FutureHelpers.await(s2p3);
+        Futures.await(s1p3);
+        Futures.await(s2p3);
 
         assertTrue(orderOfProcessing.get(s1e1.getKey()).get(0) == 1 &&
                 orderOfProcessing.get(s1e1.getKey()).get(1) == 2 &&
@@ -132,9 +132,9 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
                 orderOfProcessing.get(s2e1.getKey()).get(1) == 2 &&
                 orderOfProcessing.get(s2e1.getKey()).get(2) == 3);
 
-        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
+        Futures.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream1")) == null,
                 () -> CompletableFuture.completedFuture(null), executorService());
-        FutureHelpers.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream2")) == null,
+        Futures.loop(() -> requestHandler.getEventQueueForKey(getKeyForStream("scope", "stream2")) == null,
                 () -> CompletableFuture.completedFuture(null), executorService());
 
         // now that we have drained all the work from the processor.
@@ -146,7 +146,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         assertNotNull(stream1Queue);
 
         s1e4.complete();
-        FutureHelpers.await(s1p4);
+        Futures.await(s1p4);
 
         assertTrue(orderOfProcessing.get(s1e1.getKey()).get(3) == 4);
     }
@@ -161,7 +161,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
             @Override
             public CompletableFuture<Void> processEvent(TestEvent event) {
                 if (!event.future.isDone()) {
-                    return FutureHelpers.failedFuture(new TestPostponeException());
+                    return Futures.failedFuture(new TestPostponeException());
                 }
                 return event.getFuture();
             }
@@ -207,7 +207,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
         s1e3.complete();
         // verify that s1p3 completes.
-        assertTrue(FutureHelpers.await(s1p3));
+        assertTrue(Futures.await(s1p3));
         // verify that s1e1 and s1e2 are still not complete.
         assertTrue(!s1e1.getFuture().isDone());
         assertTrue(!s1p1.isDone());
@@ -217,10 +217,10 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         // Allow completion
         allowCompletion.set(true);
 
-        assertFalse(FutureHelpers.await(s1p1));
-        assertFalse(FutureHelpers.await(s1p2));
-        AssertExtensions.assertThrows("", s1p1::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
-        AssertExtensions.assertThrows("", s1p2::join, e -> ExceptionHelpers.getRealException(e) instanceof TestPostponeException);
+        assertFalse(Futures.await(s1p1));
+        assertFalse(Futures.await(s1p2));
+        AssertExtensions.assertThrows("", s1p1::join, e -> Exceptions.unwrap(e) instanceof TestPostponeException);
+        AssertExtensions.assertThrows("", s1p2::join, e -> Exceptions.unwrap(e) instanceof TestPostponeException);
         assertTrue(postponeS1e1Count.get() == 2);
         assertTrue(postponeS1e2Count.get() > 0);
         stop.set(true);
@@ -231,7 +231,7 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
             while (!stop.get()) {
                 TestEvent event = new TestEvent("scope", streamName, 0);
                 event.complete();
-                FutureHelpers.await(requestHandler.process(event));
+                Futures.await(requestHandler.process(event));
             }
         });
     }

@@ -443,7 +443,7 @@ public class EventStreamWriterTest {
         writer.flush();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
@@ -486,7 +486,7 @@ public class EventStreamWriterTest {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 
@@ -529,7 +529,7 @@ public class EventStreamWriterTest {
         });
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertTrue(outputStream2.isClosed());
         //the connection to outputStream is closed with the failConnection during SegmentSealed Callback.
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
@@ -570,7 +570,7 @@ public class EventStreamWriterTest {
         writer.close();
 
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
-        assertTrue(outputStream2.fetchCurrentStreamLength() > 0);
+        assertTrue(outputStream2.fetchCurrentSegmentLength() > 0);
         assertEquals(serializer.serialize("Foo"), outputStream2.read());
     }
 

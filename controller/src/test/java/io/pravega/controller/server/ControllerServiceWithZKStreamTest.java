@@ -13,7 +13,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -145,8 +145,8 @@ public class ControllerServiceWithZKStreamTest {
                 .get();
         assertEquals(Controller.ScaleResponse.ScaleStreamStatus.STARTED, scaleStatus.getStatus());
         AtomicBoolean done = new AtomicBoolean(false);
-        FutureHelpers.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch())
-                .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
+        Futures.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch())
+                                                      .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
         //After scale the current number of segments is 3;
         List<Controller.SegmentRange> currentSegmentsAfterScale = consumer.getCurrentSegments(SCOPE, STREAM).get();
         assertEquals(3, currentSegmentsAfterScale.size());

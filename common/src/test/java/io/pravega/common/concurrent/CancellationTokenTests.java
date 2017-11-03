@@ -44,7 +44,7 @@ public class CancellationTokenTests {
         token.requestCancellation();
         for (int i = 0; i < futures.size(); i++) {
             if (isAlreadyCompleted.test(i)) {
-                Assert.assertTrue("Already completed future was cancelled.", FutureHelpers.isSuccessful(futures.get(i)));
+                Assert.assertTrue("Already completed future was cancelled.", Futures.isSuccessful(futures.get(i)));
             } else {
                 AssertExtensions.assertThrows(
                         "Future was not cancelled.",
@@ -76,7 +76,7 @@ public class CancellationTokenTests {
         token.requestCancellation();
         for (int i = 0; i < futures.size(); i++) {
             if (isAlreadyCompleted.test(i)) {
-                Assert.assertTrue("Already completed future was cancelled.", FutureHelpers.isSuccessful(futures.get(i)));
+                Assert.assertTrue("Already completed future was cancelled.", Futures.isSuccessful(futures.get(i)));
             } else {
                 Assert.assertFalse("Non-completed future was completed.", futures.get(i).isDone());
             }

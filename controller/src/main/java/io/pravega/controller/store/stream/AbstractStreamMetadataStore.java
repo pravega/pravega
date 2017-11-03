@@ -13,7 +13,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -242,7 +242,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
-            return FutureHelpers.allOfWithResults(
+            return Futures.allOfWithResults(
                     streams.stream()
                             .map(s -> getStream(scopeName, s, null).getConfiguration())
                             .collect(Collectors.toList()));
@@ -348,8 +348,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             }
                         }, executor)
                         .thenComposeAsync(currentSegments ->
-                                FutureHelpers.allOfWithResults(currentSegments.stream().map(stream::getSegment)
-                                        .collect(Collectors.toList())), executor),
+                                Futures.allOfWithResults(currentSegments.stream().map(stream::getSegment)
+                                                                        .collect(Collectors.toList())), executor),
                 executor);
     }
 
@@ -368,7 +368,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                               final Executor executor) {
         final Stream streamObj = getStream(scope, stream, context);
         return withCompletion(streamObj.getActiveSegments(epoch).thenComposeAsync(segments -> {
-            return FutureHelpers.allOfWithResults(segments
+            return Futures.allOfWithResults(segments
                     .stream()
                     .map(streamObj::getSegment)
                     .collect(Collectors.toList()));
@@ -456,9 +456,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         return stream.latestScaleData()
                                 .thenCompose(pair -> {
                                     List<Integer> segmentsSealed = pair.getLeft();
-                                    return FutureHelpers.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
-                                            .collect(Collectors.toList()))
-                                            .thenApply(segmentsCreated ->
+                                    return Futures.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
+                                                                        .collect(Collectors.toList()))
+                                                  .thenApply(segmentsCreated ->
                                                     new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
                                 });
                     } else {

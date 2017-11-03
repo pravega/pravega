@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -53,7 +53,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context)
                 .whenCompleteAsync((res, e) -> {
                     if (e != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(e);
+                        Throwable cause = Exceptions.unwrap(e);
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }

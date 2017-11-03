@@ -24,7 +24,7 @@ import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
@@ -198,7 +198,7 @@ public class LocalController implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges)
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
-                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                        cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         final boolean started = startScaleResponse.getStatus().equals(ScaleResponse.ScaleStreamStatus.STARTED);
 
@@ -292,7 +292,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        return FutureHelpers.toVoidExpecting(
+        return Futures.toVoidExpecting(
                 controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
                 PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                 PingFailedException::new);

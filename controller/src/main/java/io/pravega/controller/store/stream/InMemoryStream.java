@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
@@ -196,7 +196,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getConfigurationData(boolean ignoreCached) {
         synchronized (lock) {
             if (this.configuration == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
             return CompletableFuture.completedFuture(copy(this.configuration));
         }
@@ -265,7 +265,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getStateData(boolean ignoreCached) {
         synchronized (lock) {
             if (this.state == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
 
             return CompletableFuture.completedFuture(copy(state));
@@ -293,7 +293,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getSegmentTable() {
         synchronized (lock) {
             if (this.segmentTable == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
 
             return CompletableFuture.completedFuture(copy(this.segmentTable));
@@ -343,7 +343,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getIndexTable() {
         synchronized (lock) {
             if (this.indexTable == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
             return CompletableFuture.completedFuture(copy(indexTable));
         }
@@ -412,7 +412,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getHistoryTable() {
         synchronized (lock) {
             if (this.historyTable == null) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
             }
 
             return CompletableFuture.completedFuture(copy(historyTable));
@@ -486,7 +486,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
                     .map(Map.Entry::getKey);
         }
         return epoch.map(CompletableFuture::completedFuture)
-                .orElseGet(() -> FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                .orElseGet(() -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString())));
     }
 
@@ -494,7 +494,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getActiveTx(int epoch, UUID txId) {
         synchronized (txnsLock) {
             if (!activeTxns.containsKey(txId.toString())) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             }
 
@@ -557,7 +557,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         Preconditions.checkNotNull(txId);
         synchronized (txnsLock) {
             if (!completedTxns.containsKey(txId.toString())) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             }
             return CompletableFuture.completedFuture(copy(completedTxns.get(txId.toString())));
@@ -633,7 +633,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Data<Integer>> getMarkerData(int segmentNumber) {
         synchronized (markersLock) {
             if (!markers.containsKey(segmentNumber)) {
-                return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Segment: " + segmentNumber));
             }
             return CompletableFuture.completedFuture(copy(markers.get(segmentNumber)));

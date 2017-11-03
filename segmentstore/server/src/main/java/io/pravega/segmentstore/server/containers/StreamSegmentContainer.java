@@ -12,12 +12,11 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -129,7 +128,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
             this.durableLog.close();
@@ -148,11 +147,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStart");
         log.info("{}: Starting.", this.traceObjectId);
 
-        ServiceHelpers.startAsync(this.durableLog, this.executor)
+        Services.startAsync(this.durableLog, this.executor)
                 .thenRunAsync(() -> this.storage.initialize(this.metadata.getContainerEpoch()), this.executor)
                 .thenCompose(v -> CompletableFuture.allOf(
-                        ServiceHelpers.startAsync(this.metadataCleaner, this.executor),
-                        ServiceHelpers.startAsync(this.writer, this.executor)))
+                        Services.startAsync(this.metadataCleaner, this.executor),
+                        Services.startAsync(this.writer, this.executor)))
                 .thenRun(() -> {
                     log.info("{}: Started.", this.traceObjectId);
                     LoggerHelpers.traceLeave(log, traceObjectId, "doStart", traceId);
@@ -182,9 +181,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
         CompletableFuture.allOf(
-                ServiceHelpers.stopAsync(this.metadataCleaner, this.executor),
-                ServiceHelpers.stopAsync(this.writer, this.executor),
-                ServiceHelpers.stopAsync(this.durableLog, this.executor))
+                Services.stopAsync(this.metadataCleaner, this.executor),
+                Services.stopAsync(this.writer, this.executor),
+                Services.stopAsync(this.durableLog, this.executor))
                 .whenCompleteAsync((r, ex) -> {
                     Throwable failureCause = getFailureCause(this.durableLog, this.writer, this.metadataCleaner);
                     if (failureCause == null) {
@@ -215,7 +214,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Throwable result = null;
         for (Service s : services) {
             if (s.state() == State.FAILED) {
-                Throwable realEx = ExceptionHelpers.getRealException(s.failureCause());
+                Throwable realEx = Exceptions.unwrap(s.failureCause());
                 if (result == null) {
                     result = realEx;
                 } else {
@@ -352,7 +351,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
                     .thenComposeAsync(v -> this.stateStore.remove(toDelete.getName(), timer.getRemaining()), this.executor)
                     .exceptionally(ex -> {
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         if (ex instanceof StreamSegmentNotExistsException && toDelete.isTransaction()) {
                             // We are ok if transactions are not found; they may have just been merged in and the metadata
                             // did not get a chance to get updated.
@@ -364,7 +363,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         notifyMetadataRemoved(deletedSegments);
-        return FutureHelpers.allOf(deletionFutures);
+        return Futures.allOf(deletionFutures);
     }
 
     @Override
@@ -493,7 +492,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 stopAsync();
             }
         };
-        ServiceHelpers.onStop(component, stoppedHandler, failedHandler, this.executor);
+        Services.onStop(component, stoppedHandler, failedHandler, this.executor);
     }
 
     //endregion

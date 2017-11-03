@@ -11,7 +11,7 @@ package io.pravega.controller.eventProcessor.impl;
 
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.impl.PositionInternal;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.controller.event.ControllerEvent;
@@ -69,7 +69,7 @@ public class ConcurrentEventProcessorTest {
 
         @Override
         public CompletableFuture<Void> process(TestEvent testEvent) {
-            return FutureHelpers.failedFuture(exception);
+            return Futures.failedFuture(exception);
         }
     }
 
@@ -82,7 +82,7 @@ public class ConcurrentEventProcessorTest {
             return CompletableFuture.runAsync(() -> {
                         switch (testEvent.getNumber()) {
                             case 3:
-                                FutureHelpers.getAndHandleExceptions(latch, RuntimeException::new);
+                                Futures.getAndHandleExceptions(latch, RuntimeException::new);
                                 if (checkpoint.get() > 2) {
                                     result.completeExceptionally(new RuntimeException("3 still running yet checkpoint moved ahead"));
                                 }
@@ -148,7 +148,7 @@ public class ConcurrentEventProcessorTest {
             }
         });
         result.get();
-        assertTrue(FutureHelpers.await(result));
+        assertTrue(Futures.await(result));
         processor.afterStop();
     }
 
@@ -182,8 +182,8 @@ public class ConcurrentEventProcessorTest {
 
         processor.process(request, new TestPosition(0));
 
-        assertTrue(FutureHelpers.await(writerTest));
-        assertTrue(FutureHelpers.await(checkpointTest));
+        assertTrue(Futures.await(writerTest));
+        assertTrue(Futures.await(checkpointTest));
         processor.afterStop();
     }
 
@@ -214,7 +214,7 @@ public class ConcurrentEventProcessorTest {
 
         processor.process(request, new TestPosition(0));
 
-        assertTrue(FutureHelpers.await(checkpointTest));
+        assertTrue(Futures.await(checkpointTest));
         assertTrue(!writerTest.isDone());
         processor.afterStop();
     }
@@ -242,7 +242,7 @@ public class ConcurrentEventProcessorTest {
 
         processor.process(request, new TestPosition(0));
 
-        assertTrue(FutureHelpers.await(writerTest));
+        assertTrue(Futures.await(writerTest));
         assertTrue(!checkpointTest.isDone());
         processor.afterStop();
     }

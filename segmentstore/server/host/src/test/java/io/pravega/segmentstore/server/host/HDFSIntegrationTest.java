@@ -34,7 +34,7 @@ import org.junit.Before;
 public class HDFSIntegrationTest extends StreamSegmentStoreTestBase {
     //region Test Configuration and Setup
 
-    private static final int BOOKIE_COUNT = 3;
+    private static final int BOOKIE_COUNT = 1;
     private File baseDir = null;
     private MiniDFSCluster hdfsCluster = null;
     private BookKeeperRunner bookkeeper = null;

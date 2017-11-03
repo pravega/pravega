@@ -31,16 +31,16 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the FutureHelpers class.
+ * Unit tests for the Futures class.
  */
-public class FutureHelpersTests {
+public class FuturesTests {
     /**
      * Tests the failedFuture() method.
      */
     @Test
     public void testFailedFuture() {
         Throwable ex = new IntentionalException();
-        CompletableFuture<Void> cf = FutureHelpers.failedFuture(ex);
+        CompletableFuture<Void> cf = Futures.failedFuture(ex);
         Assert.assertTrue("failedFuture() did not create a failed future.", cf.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "failedFuture() did not complete the future with the expected exception.",
@@ -55,14 +55,14 @@ public class FutureHelpersTests {
     public void testExceptionListener() {
         AtomicReference<Throwable> thrownException = new AtomicReference<>();
         CompletableFuture<Void> cf = new CompletableFuture<>();
-        FutureHelpers.exceptionListener(cf, thrownException::set);
+        Futures.exceptionListener(cf, thrownException::set);
         cf.complete(null);
         Assert.assertNull("exceptionListener invoked the callback when the future was completed normally.", thrownException.get());
 
         thrownException.set(null);
         cf = new CompletableFuture<>();
         Exception ex = new IntentionalException();
-        FutureHelpers.exceptionListener(cf, thrownException::set);
+        Futures.exceptionListener(cf, thrownException::set);
         cf.completeExceptionally(ex);
         Assert.assertNotNull("exceptionListener did not invoke the callback when the future was completed exceptionally.", thrownException.get());
         Assert.assertEquals("Unexpected exception was passed to the callback from exceptionListener when the future was completed exceptionally.", ex, thrownException.get());
@@ -75,18 +75,18 @@ public class FutureHelpersTests {
     public void testExceptionallyCompose() {
         // When applied to a CompletableFuture that completes normally.
         val successfulFuture = new CompletableFuture<Integer>();
-        val f1 = FutureHelpers.exceptionallyCompose(successfulFuture, ex -> CompletableFuture.completedFuture(2));
+        val f1 = Futures.exceptionallyCompose(successfulFuture, ex -> CompletableFuture.completedFuture(2));
         successfulFuture.complete(1);
         Assert.assertEquals("Unexpected completion value for successful future.", 1, (int) f1.join());
 
         // When applied to a CompletableFuture that completes exceptionally.
         val failedFuture = new CompletableFuture<Integer>();
-        val f2 = FutureHelpers.exceptionallyCompose(failedFuture, ex -> CompletableFuture.completedFuture(2));
+        val f2 = Futures.exceptionallyCompose(failedFuture, ex -> CompletableFuture.completedFuture(2));
         failedFuture.completeExceptionally(new IntentionalException());
         Assert.assertEquals("Unexpected completion value for failed future that handled the exception.", 2, (int) f2.join());
 
         // When applied to a CompletableFuture that completes exceptionally and the handler also throws.
-        val f3 = FutureHelpers.exceptionallyCompose(failedFuture, ex -> {
+        val f3 = Futures.exceptionallyCompose(failedFuture, ex -> {
             throw new IntentionalException();
         });
         AssertExtensions.assertThrows(
@@ -105,12 +105,12 @@ public class FutureHelpersTests {
         // Already completed futures.
         List<CompletableFuture<Integer>> futures = createNumericFutures(count);
         completeFutures(futures);
-        CompletableFuture<Void> allFuturesComplete = FutureHelpers.allOf(futures);
+        CompletableFuture<Void> allFuturesComplete = Futures.allOf(futures);
         Assert.assertTrue("allOf() did not create a completed future when all futures were previously complete.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
 
         // Not completed futures.
         futures = createNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOf(futures);
+        allFuturesComplete = Futures.allOf(futures);
         Assert.assertFalse("allOf() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue("The result of allOf() complete when all its futures completed.", allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
@@ -118,14 +118,14 @@ public class FutureHelpersTests {
         // At least one failed & completed future.
         futures = createNumericFutures(count);
         failRandomFuture(futures);
-        allFuturesComplete = FutureHelpers.allOf(futures);
+        allFuturesComplete = Futures.allOf(futures);
         Assert.assertFalse("allOf() created a completed future when not all of the futures were previously complete (but one failed).", allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue("The result of allOf() did not complete exceptionally when at least one of the futures failed.", allFuturesComplete.isCompletedExceptionally());
 
         // At least one failed future.
         futures = createNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOf(futures);
+        allFuturesComplete = Futures.allOf(futures);
         failRandomFuture(futures);
         Assert.assertFalse("The result of allOf() completed when not all the futures completed (except one that failed).", allFuturesComplete.isDone());
         completeFutures(futures);
@@ -142,14 +142,14 @@ public class FutureHelpersTests {
         // Already completed futures.
         List<CompletableFuture<Integer>> futures = createNumericFutures(count);
         completeFutures(futures);
-        CompletableFuture<List<Integer>> allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        CompletableFuture<List<Integer>> allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
         // Not completed futures.
         futures = createNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.", allFuturesComplete.isDone());
         completeFutures(futures);
         Assert.assertTrue("The result of allOfWithResults() complete when all its futures completed.",
@@ -159,7 +159,7 @@ public class FutureHelpersTests {
         // At least one failed & completed future.
         futures = createNumericFutures(count);
         failRandomFuture(futures);
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
@@ -168,7 +168,7 @@ public class FutureHelpersTests {
 
         // At least one failed future.
         futures = createNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         failRandomFuture(futures);
         Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
@@ -187,14 +187,14 @@ public class FutureHelpersTests {
         // Already completed futures.
         Map<Integer, CompletableFuture<Integer>> futures = createMappedNumericFutures(count);
         completeFutures(futures);
-        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertTrue("allOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkResults(allFuturesComplete.join());
 
         // Not completed futures.
         futures = createMappedNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertFalse("allOfWithResults() created a completed future when none of the futures were previously complete.",
                 allFuturesComplete.isDone());
         completeFutures(futures);
@@ -205,7 +205,7 @@ public class FutureHelpersTests {
         // At least one failed & completed future.
         futures = createMappedNumericFutures(count);
         failRandomFuture(new ArrayList<>(futures.values()));
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         Assert.assertFalse("allOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeFutures(futures);
@@ -214,7 +214,7 @@ public class FutureHelpersTests {
 
         // At least one failed future.
         futures = createMappedNumericFutures(count);
-        allFuturesComplete = FutureHelpers.allOfWithResults(futures);
+        allFuturesComplete = Futures.allOfWithResults(futures);
         failRandomFuture(new ArrayList<>(futures.values()));
         Assert.assertFalse("The result of allOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
@@ -233,14 +233,14 @@ public class FutureHelpersTests {
         // Already completed futures.
         Map<CompletableFuture<Integer>, Integer> futures = createMappedNumericKeyFutures(count);
         completeKeyFutures(futures);
-        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        CompletableFuture<Map<Integer, Integer>> allFuturesComplete = Futures.keysAllOfWithResults(futures);
         Assert.assertTrue("keysAllOfWithResults() did not create a completed future when all futures were previously complete.",
                 allFuturesComplete.isDone() && !allFuturesComplete.isCompletedExceptionally());
         checkKeyResults(allFuturesComplete.join());
 
         // Not completed futures.
         futures = createMappedNumericKeyFutures(count);
-        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        allFuturesComplete = Futures.keysAllOfWithResults(futures);
         Assert.assertFalse("keysAllOfWithResults() created a completed future when none of the futures were previously complete.",
                 allFuturesComplete.isDone());
         completeKeyFutures(futures);
@@ -251,7 +251,7 @@ public class FutureHelpersTests {
         // At least one failed & completed future.
         futures = createMappedNumericKeyFutures(count);
         failRandomFuture(new ArrayList<>(futures.keySet()));
-        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        allFuturesComplete = Futures.keysAllOfWithResults(futures);
         Assert.assertFalse("keysAllOfWithResults() created a completed future when not all of the futures were previously complete (but one failed).",
                 allFuturesComplete.isDone());
         completeKeyFutures(futures);
@@ -260,7 +260,7 @@ public class FutureHelpersTests {
 
         // At least one failed future.
         futures = createMappedNumericKeyFutures(count);
-        allFuturesComplete = FutureHelpers.keysAllOfWithResults(futures);
+        allFuturesComplete = Futures.keysAllOfWithResults(futures);
         failRandomFuture(new ArrayList<>(futures.keySet()));
         Assert.assertFalse("The result of keysAllOfWithResults() completed when not all the futures completed (except one that failed).",
                 allFuturesComplete.isDone());
@@ -270,7 +270,7 @@ public class FutureHelpersTests {
     }
 
     /**
-     * Test method for FutureHelpers.filter.
+     * Test method for Futures.filter.
      *
      * @throws InterruptedException when future is interrupted
      * @throws ExecutionException   when future is interrupted
@@ -282,25 +282,25 @@ public class FutureHelpersTests {
         Predicate<Integer> evenFilter = (Integer x) -> x % 2 == 0;
         Function<Integer, CompletableFuture<Boolean>> futureEvenFilter = x -> CompletableFuture.completedFuture(x % 2 == 0);
 
-        CompletableFuture<List<Integer>> filteredList = FutureHelpers.filter(list, futureEvenFilter);
+        CompletableFuture<List<Integer>> filteredList = Futures.filter(list, futureEvenFilter);
 
         Assert.assertEquals("Unexpected filtered list size.", filteredList.get().size(), 3);
         Assert.assertEquals("Unexpected filtered list contents.", filteredList.get(), list.stream().filter(evenFilter).collect(Collectors.toList()));
     }
 
     /**
-     * Test method for FutureHelpers.filter when the FuturePredicate completes exceptionally in future.
+     * Test method for Futures.filter when the FuturePredicate completes exceptionally in future.
      */
     @Test
     public void testFilterException() {
         List<Integer> list = Arrays.asList(1, 2, 3, 4, 5, 6, 7);
 
         Function<Integer, CompletableFuture<Boolean>> futureEvenFilter =
-                x -> FutureHelpers.failedFuture(new IntentionalException("intentional"));
+                x -> Futures.failedFuture(new IntentionalException("intentional"));
 
         AssertExtensions.assertThrows(
                 "Unexpected behavior when filter threw an exception.",
-                () -> FutureHelpers.filter(list, futureEvenFilter),
+                () -> Futures.filter(list, futureEvenFilter),
                 ex -> ex instanceof IntentionalException);
     }
 
@@ -308,7 +308,7 @@ public class FutureHelpersTests {
     public void testCompleteAfter() {
         // Async exceptions (before call to completeAfter).
         val toFail1 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> FutureHelpers.failedFuture(new IntentionalException()), toFail1);
+        Futures.completeAfter(() -> Futures.failedFuture(new IntentionalException()), toFail1);
         Assert.assertTrue("Async exceptions were not propagated properly (before).", toFail1.isCompletedExceptionally());
         AssertExtensions.assertThrows(
                 "Unexpected async exception got propagated (before).",
@@ -318,7 +318,7 @@ public class FutureHelpersTests {
         // Async exceptions (after call to completeAfter).
         val sourceToFail2 = new CompletableFuture<Integer>();
         val toFail2 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> sourceToFail2, toFail2);
+        Futures.completeAfter(() -> sourceToFail2, toFail2);
         sourceToFail2.completeExceptionally(new IntentionalException());
         Assert.assertTrue("Async exceptions were not propagated properly (after).", toFail2.isCompletedExceptionally());
         AssertExtensions.assertThrows(
@@ -330,7 +330,7 @@ public class FutureHelpersTests {
         val toFail3 = new CompletableFuture<Integer>();
         AssertExtensions.assertThrows(
                 "Sync exception did not get rethrown.",
-                () -> FutureHelpers.completeAfter(() -> {
+                () -> Futures.completeAfter(() -> {
                     throw new IntentionalException();
                 }, toFail3),
                 ex -> ex instanceof IntentionalException);
@@ -342,16 +342,16 @@ public class FutureHelpersTests {
 
         // Normal completion (before call to completeAfter).
         val toComplete1 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1);
-        Assert.assertTrue("Normal completion did not happen (before).", FutureHelpers.isSuccessful(toComplete1));
+        Futures.completeAfter(() -> CompletableFuture.completedFuture(1), toComplete1);
+        Assert.assertTrue("Normal completion did not happen (before).", Futures.isSuccessful(toComplete1));
         Assert.assertEquals("Unexpected value from normal completion (before).", 1, (int) toComplete1.join());
 
         // Normal completion (after call to completeAfter).
         val sourceToComplete2 = new CompletableFuture<Integer>();
         val toComplete2 = new CompletableFuture<Integer>();
-        FutureHelpers.completeAfter(() -> sourceToComplete2, toComplete2);
+        Futures.completeAfter(() -> sourceToComplete2, toComplete2);
         sourceToComplete2.complete(2);
-        Assert.assertTrue("Normal completion did not happen (after).", FutureHelpers.isSuccessful(toComplete2));
+        Assert.assertTrue("Normal completion did not happen (after).", Futures.isSuccessful(toComplete2));
         Assert.assertEquals("Unexpected value from normal completion (after).", 2, (int) toComplete2.join());
     }
 
@@ -363,7 +363,7 @@ public class FutureHelpersTests {
         AtomicInteger accumulator = new AtomicInteger();
 
         // 1. With no specific accumulator.
-        FutureHelpers.loop(
+        Futures.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> {
                     accumulator.addAndGet(loopCounter.get());
@@ -375,7 +375,7 @@ public class FutureHelpersTests {
         //2. With specific accumulator.
         loopCounter.set(0);
         accumulator.set(0);
-        FutureHelpers.loop(
+        Futures.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> CompletableFuture.completedFuture(loopCounter.get()),
                 accumulator::addAndGet,
@@ -385,7 +385,7 @@ public class FutureHelpersTests {
         //3. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
-        CompletableFuture<Void> loopFuture = FutureHelpers.loop(
+        CompletableFuture<Void> loopFuture = Futures.loop(
                 () -> loopCounter.incrementAndGet() < maxLoops,
                 () -> {
                     if (loopCounter.get() % 3 == 0) {
@@ -412,7 +412,7 @@ public class FutureHelpersTests {
         AtomicInteger accumulator = new AtomicInteger();
 
         // 1. Verify this is actually a do-while loop vs a regular while loop.
-        FutureHelpers.doWhileLoop(
+        Futures.doWhileLoop(
                 () -> {
                     accumulator.incrementAndGet();
                     return CompletableFuture.completedFuture(0);
@@ -425,7 +425,7 @@ public class FutureHelpersTests {
         // 2. Successful execution.
         loopCounter.set(0);
         accumulator.set(0);
-        FutureHelpers.doWhileLoop(
+        Futures.doWhileLoop(
                 () -> {
                     int i = loopCounter.get();
                     accumulator.addAndGet(i);
@@ -440,7 +440,7 @@ public class FutureHelpersTests {
         // 3. With exceptions.
         loopCounter.set(0);
         accumulator.set(0);
-        CompletableFuture<Void> loopFuture = FutureHelpers.doWhileLoop(
+        CompletableFuture<Void> loopFuture = Futures.doWhileLoop(
                 () -> {
                     if (loopCounter.incrementAndGet() % 3 == 0) {
                         throw new IntentionalException();

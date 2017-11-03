@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.netty.buffer.Unpooled;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -167,7 +167,7 @@ public class AppendProcessorTest {
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
         processor.append(new Append(streamSegmentName, clientId, 1, Unpooled.wrappedBuffer(data), null));
 
-        result = FutureHelpers.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0));
+        result = Futures.failedFuture(new BadOffsetException(streamSegmentName, data.length, 0));
         when(store.append(streamSegmentName, 0, data, updateEventNumber(clientId, 2, 1, 1),
                           AppendProcessor.TIMEOUT)).thenReturn(result);
 

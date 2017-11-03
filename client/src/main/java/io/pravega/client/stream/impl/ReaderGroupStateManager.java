@@ -43,7 +43,7 @@ import lombok.Getter;
 import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * Manages the state of the reader group on behalf of a reader.
@@ -293,6 +293,7 @@ public class ReaderGroupStateManager {
         AtomicReference<Map<Segment, Long>> result = new AtomicReference<>();
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
+            result.set(Collections.emptyMap());
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
                 return null;
@@ -302,7 +303,6 @@ public class ReaderGroupStateManager {
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                result.set(Collections.emptyMap());
                 return null;
             }
             Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();

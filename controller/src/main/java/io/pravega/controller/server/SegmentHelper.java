@@ -14,7 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -472,7 +472,7 @@ public class SegmentHelper {
                 }
             }
         }).exceptionally(e -> {
-            Throwable cause = ExceptionHelpers.getRealException(e);
+            Throwable cause = Exceptions.unwrap(e);
             if (cause instanceof WireCommandFailedException) {
                 resultFuture.completeExceptionally(cause);
             } else if (cause instanceof ConnectionFailedException) {

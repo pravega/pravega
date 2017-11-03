@@ -11,7 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -153,8 +153,8 @@ public class ControllerEventProcessorsTest {
                 hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, system, executor);
         processors.startAsync();
         processors.awaitRunning();
-        assertTrue(FutureHelpers.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
-        assertTrue(FutureHelpers.await(processors.handleFailedProcess("host1")));
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        assertTrue(Futures.await(processors.handleFailedProcess("host1")));
         processors.shutDown();
     }
 }

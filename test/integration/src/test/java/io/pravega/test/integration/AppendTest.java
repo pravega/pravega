@@ -32,7 +32,7 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -98,7 +98,7 @@ public class AppendTest {
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         UUID uuid = UUID.randomUUID();
@@ -113,6 +113,7 @@ public class AppendTest {
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
@@ -136,7 +137,7 @@ public class AppendTest {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
-
+        @Cleanup
         EmbeddedChannel channel = createChannel(store);
 
         SegmentCreated created = (SegmentCreated) sendRequest(channel, new CreateSegment(1, segment, CreateSegment.NO_SCALE, 0));
@@ -199,10 +200,12 @@ public class AppendTest {
         String scope = "scope";
         String stream = "stream";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
         server.startListening();
 
+        @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(false);
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
@@ -210,8 +213,8 @@ public class AppendTest {
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
-        Segment segment = FutureHelpers.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
-        @Cleanup("close")
+        Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
+        @Cleanup
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());
         CompletableFuture<Boolean> ack = new CompletableFuture<>();
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
@@ -230,9 +233,11 @@ public class AppendTest {
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("Scope", endpoint, port);
+        @Cleanup
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
@@ -254,6 +259,7 @@ public class AppendTest {
         MockClientFactory clientFactory = streamManager.getClientFactory();
         streamManager.createScope("Scope");
         streamManager.createStream("Scope", streamName, null);
+        @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
         long nonBlockingTime = timeWrites(testString, 1000, producer, false);

@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -54,7 +54,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     if (!sealed) {
                         log.warn("{}/{} stream not sealed", scope, stream);
 
-                        return FutureHelpers.failedFuture(new RuntimeException("Stream not sealed"));
+                        return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return notifyAndDelete(context, scope, stream);
                 }, executor)

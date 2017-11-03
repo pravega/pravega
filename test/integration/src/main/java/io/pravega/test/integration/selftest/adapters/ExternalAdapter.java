@@ -12,7 +12,7 @@ package io.pravega.test.integration.selftest.adapters;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
@@ -74,7 +74,7 @@ class ExternalAdapter extends ClientAdapterBase {
             this.streamManager.get().deleteStream(SCOPE, testStreamName);
             log("Client initialized; using scope '%s'.", SCOPE);
         } catch (Throwable ex) {
-            if (!ExceptionHelpers.mustRethrow(ex)) {
+            if (!Exceptions.mustRethrow(ex)) {
                 close();
             }
 

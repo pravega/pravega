@@ -10,8 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.Cache;
@@ -94,7 +94,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         return store.getChildren(activeTxRoot).thenCompose(list ->
-                FutureHelpers.allOfWithResults(list.stream().map(epoch ->
+                Futures.allOfWithResults(list.stream().map(epoch ->
                         getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
                 .thenApply(list -> list.stream().reduce(0, Integer::sum));
     }
@@ -166,6 +166,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
      *
      * @return A future either returning a result or an exception.
      */
+    @Override
     public CompletableFuture<Void> checkScopeExists() {
         return store.checkExists(scopePath)
                 .thenAccept(x -> {
@@ -261,7 +262,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         if (cause instanceof StoreException.DataNotFoundException) {
                             result.complete(null);
                         } else {
@@ -287,7 +288,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
         return getActiveEpoch(false)
                 .thenCompose(epoch -> store.getChildren(getEpochPath(epoch.getKey()))
-                        .thenCompose(txIds -> FutureHelpers.allOfWithResults(txIds.stream().collect(
+                        .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
                                 Collectors.toMap(txId -> txId, txId -> cache.getCachedData(getActiveTxPath(epoch.getKey(), txId))))
                         )));
     }
@@ -302,8 +303,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
         createNewTransactionNode(txId, timestamp, leaseExpiryTime, maxExecutionExpiryTime, scaleGracePeriod)
                 .whenComplete((value, ex) -> {
                     if (ex != null) {
-                        if (ExceptionHelpers.getRealException(ex) instanceof StoreException.DataNotFoundException) {
-                            FutureHelpers.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
+                        if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                            Futures.completeAfter(() -> createNewTransactionNode(txId, timestamp, leaseExpiryTime,
                                     maxExecutionExpiryTime, scaleGracePeriod), future);
                         } else {
                             future.completeExceptionally(ex);
@@ -339,7 +340,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 String activeTxnPath = getActiveTxPath(epoch, txId.toString());
                 map.put(str, store.checkExists(activeTxnPath));
             }
-            return FutureHelpers.allOfWithResults(map);
+            return Futures.allOfWithResults(map);
         }).thenApply(map -> {
             Optional<Map.Entry<String, Boolean>> opt = map.entrySet().stream().filter(Map.Entry::getValue).findFirst();
             if (opt.isPresent()) {
