@@ -526,7 +526,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {
-                             state.failConnection(e1);
                              throw Lombok.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {

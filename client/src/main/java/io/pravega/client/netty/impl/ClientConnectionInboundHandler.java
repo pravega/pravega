@@ -19,7 +19,9 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -29,6 +31,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -39,12 +42,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
+    private static final long CHANNEL_ACTIVE_TIMEOUT = TimeUnit.SECONDS.toMillis(20);
     private final String connectionName;
     private final ReplyProcessor processor;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
+    private final ReusableLatch channelRegisteredLatch = new ReusableLatch();
 
     ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor, AppendBatchSizeTracker batchSizeTracker) {
         Preconditions.checkNotNull(processor);
@@ -59,6 +64,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
+        channelRegisteredLatch.release();
         log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
@@ -73,6 +79,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        channelRegisteredLatch.reset();
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -128,8 +135,10 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
-        Channel ch = channel.get();
-        if (ch == null) {
+        Channel ch;
+        try {
+            ch = getChannel();
+        } catch (ConnectionFailedException e) {
             callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
             return;
         }
@@ -158,12 +167,26 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
     }
 
+    /**
+     * This method ensures io.pravega.client.netty.impl.ClientConnectionInboundHandler#channelActive(io.netty.channel.ChannelHandlerContext)
+     * is invoked before attempting to return the channel.
+     *
+     * @return io.netty.channel.Channel
+     * @throws ConnectionFailedException incase channelActive() is not invoked or channel is null due to
+     * channelInactive() invocation.
+     */
     private Channel getChannel() throws ConnectionFailedException {
-        Channel ch = channel.get();
-        if (ch == null) {
-            throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
+        try {
+            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_ACTIVE_TIMEOUT));
+            Channel ch = channel.get();
+            if (ch == null) {
+                throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
+            }
+            return ch;
+        } catch (TimeoutException e) {
+            throw new ConnectionFailedException("Channel is not active. Connection to " + connectionName + "is not " +
+                    "established.");
         }
-        return ch;
     }
     
     private final class KeepAliveTask implements Runnable {

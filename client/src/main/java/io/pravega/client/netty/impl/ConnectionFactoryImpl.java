@@ -12,6 +12,7 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.base.Preconditions;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
@@ -119,6 +120,9 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                 @Override
                 public void operationComplete(ChannelFuture future) {
                     if (future.isSuccess()) {
+                        Channel ch = future.channel();
+                        log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
+                                ch.id(), ch.localAddress(), ch.remoteAddress());
                         result.complete(handler);
                     } else {
                         result.completeExceptionally(new ConnectionFailedException(future.cause()));

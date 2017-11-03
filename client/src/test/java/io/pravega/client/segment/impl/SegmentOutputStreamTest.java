@@ -54,7 +54,6 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -112,27 +111,6 @@ public class SegmentOutputStreamTest {
         cf.getProcessor(uri).connectionDropped(); // simulate a connection dropped
         //Ensure setup Append is invoked on the executor.
         verify(connection).send(new SetupAppend(2, cid, SEGMENT));
-    }
-
-    @Test(timeout = 10000)
-    public void testNettyConnectionFailure() throws Exception {
-        UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
-        cf.setExecutor(executor);
-
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
-        ClientConnection connection = mock(ClientConnection.class);
-        //simulate a Netty Exception and ensure retry happens.
-        doThrow(new ConnectionFailedException("Netty Exception")).doNothing().when(connection).send(any(SetupAppend
-                .class));
-        cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE);
-        output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT));
     }
 
     @Test(timeout = 10000)
