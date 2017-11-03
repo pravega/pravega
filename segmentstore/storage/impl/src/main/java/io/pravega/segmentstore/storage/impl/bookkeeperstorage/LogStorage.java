@@ -57,11 +57,16 @@ class LogStorage {
     @Getter
     private ImmutableDate lastModified;
 
-    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, boolean readOnly) {
+    LogStorage(LogStorageManager logStorageManager, String streamSegmentName, int updateVersion, long containerEpoch, int sealed, boolean readOnly) {
         this.manager = logStorageManager;
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
         this.readOnlyHandle = readOnly;
+        if( sealed == 1) {
+            this.sealed = true;
+        } else {
+            this.sealed = false;
+        }
         this.containerEpoch = containerEpoch;
         this.updateVersion = updateVersion;
     }
@@ -130,7 +135,7 @@ class LogStorage {
     }
 
     synchronized void markSealed() {
-        sealed = true;
+        this.sealed = true;
     }
 
     /**
@@ -163,7 +168,10 @@ class LogStorage {
 
     public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
-        return new LogStorage(manager, segmentName, version, bb.getLong(), false);
+        long epoc = bb.getLong();
+        int sealed = bb.getInt();
+
+        return new LogStorage(manager, segmentName, version, epoc, sealed, false);
     }
 
     void setContainerEpoch(long containerEpoch) {
@@ -171,9 +179,14 @@ class LogStorage {
     }
 
     public byte[] serialize() {
-        int size = Long.SIZE;
+        int size = Long.SIZE + Integer.SIZE;
         ByteBuffer bb = ByteBuffer.allocate(size);
         bb.putLong(this.containerEpoch);
+        if( this.sealed) {
+            bb.putInt(1);
+        } else {
+            bb.putInt(0);
+        }
 
         return bb.array();
     }

@@ -86,7 +86,7 @@ class LogStorageManager {
      * @Param zkClient
      */
     public CompletableFuture<LedgerData> create(String streamSegmentName, Duration timeout) {
-        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, false);
+        LogStorage logStorage = new LogStorage(this, streamSegmentName, 0, this.containerEpoch, 0, false);
 
         /* Create the node for the segment in the ZK. */
         return zkClient.create()
@@ -287,7 +287,7 @@ class LogStorageManager {
                        /** Update the details in ZK.*/
                        return zkClient.setData()
                                       .withVersion(ledger.getUpdateVersion())
-                                      .forPath(getZkPath(segmentName))
+                                      .forPath(getZkPath(segmentName), ledger.serialize())
                                       .toCompletableFuture()
                                       .exceptionally(exc -> {
                                           translateZKException(segmentName, exc);
@@ -746,7 +746,7 @@ class LogStorageManager {
                                }
                                List<CuratorOp> operations = new ArrayList<>();
                                LedgerData lastLedger = target.getLastLedgerData();
-                               if (lastLedger.getLedgerHandle().getLength() == 0) {
+                               if (lastLedger != null && lastLedger.getLedgerHandle().getLength() == 0) {
                                    operations.add(createLedgerDeleteOp(lastLedger, target));
                                }
                                List<CuratorOp> targetOps = target.addLedgerDataFrom(source);

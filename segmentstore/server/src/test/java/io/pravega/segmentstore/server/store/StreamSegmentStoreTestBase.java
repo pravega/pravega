@@ -62,7 +62,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
     private static final int THREADPOOL_SIZE_TEST = 3;
-    private static final int SEGMENT_COUNT = 10;
+    private static final int SEGMENT_COUNT = 2;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -499,7 +499,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
-        AtomicBoolean tryAgain = new AtomicBoolean(true);
+        final AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
                 () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)
