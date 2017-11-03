@@ -9,13 +9,18 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.controller.store.index.ZKHostIndex;
+import io.pravega.controller.store.stream.tables.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * ZK stream metadata store.
@@ -59,5 +64,62 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.listScopes();
+    }
+
+    @Override
+    public void registerBucketListener(int bucket, BucketListener listener) {
+        listeners.putIfAbsent(bucket, listener);
+        // TODO: shivesh add watch
+    }
+
+    @Override
+    public void unregisterBucketListener(int bucket) {
+        listeners.remove(bucket);
+        // TODO: shivesh remove watch
+    }
+
+    @Override
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, OperationContext context, Executor executor) {
+        return storeHelper.getChildren(String.format(ZKStoreHelper.BUCKET_PATH, bucket))
+                .thenApply(list -> list.stream().map(x -> x.replace("#", "/")).collect(Collectors.toList()));
+    }
+
+    @Override
+    public CompletableFuture<Void> addUpdateStreamForAutoRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
+                                                                   final OperationContext context, final Executor executor) {
+        int bucket = getBucket(scope, stream);
+        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, scope, stream);
+        byte[] serialize = SerializationUtils.serialize(retentionPolicy);
+
+        return storeHelper.getData(retentionPath)
+                .exceptionally(e -> {
+                    if (e instanceof StoreException.DataNotFoundException) {
+                        return null;
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                }).thenCompose(data -> {
+                    if (data == null) {
+                        return storeHelper.createZNodeIfNotExist(retentionPath, serialize);
+                    } else {
+                        return storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion()));
+                    }
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamFromAutoRetention(final String scope, final String stream,
+                                                                 final OperationContext context, final Executor executor) {
+        int bucket = getBucket(scope, stream);
+        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, scope, stream);
+
+        return storeHelper.deleteNode(retentionPath)
+                .exceptionally(e -> {
+                    if (e instanceof StoreException.DataNotFoundException) {
+                        return null;
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                });
     }
 }

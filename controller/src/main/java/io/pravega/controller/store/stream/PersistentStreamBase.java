@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.IndexRecord;
+import io.pravega.controller.store.stream.tables.RetentionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
@@ -38,6 +39,7 @@ import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,7 +58,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     private final String scope;
     private final String name;
 
-    PersistentStreamBase(String scope, final String name) {
+    PersistentStreamBase(final String scope, final String name) {
         this.scope = scope;
         this.name = name;
     }
@@ -117,6 +119,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
                         .thenCompose((Void v) -> createIndexTableIfAbsent(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
+                        .thenCompose((Void v) -> createRetentionSet(SerializationUtils.serialize(new RetentionRecord(Collections.emptyList()))))
                         .thenApply((Void v) -> createStreamResponse));
     }
 
@@ -894,6 +897,42 @@ public abstract class PersistentStreamBase<T> implements Stream {
         return verifyLegalState().thenCompose(v -> removeMarkerData(segmentNumber));
     }
 
+    @Override
+    public CompletableFuture<Void> addStreamCutToRetentionSet(StreamCutRecord streamCut) {
+        return getRetentionSet()
+                .thenCompose(data -> {
+                    RetentionRecord retention = SerializationUtils.deserialize(data.getData());
+                    if (retention.getStreamCuts().contains(streamCut)) {
+                        return CompletableFuture.completedFuture(null);
+                    } else {
+                        RetentionRecord update = RetentionRecord.addStreamCutIfLatest(retention, streamCut);
+                        return updateRetentionSet(new Data<>(SerializationUtils.serialize(update), data.getVersion()));
+                    }
+                });
+    }
+
+    public CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts() {
+        return getRetentionSet()
+                .thenApply(data -> (RetentionRecord) SerializationUtils.deserialize(data.getData()))
+                .thenApply(RetentionRecord::getStreamCuts);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamCutBefore(StreamCutRecord streamCut) {
+        return getRetentionSet()
+                .thenCompose(data -> {
+                    RetentionRecord retention = SerializationUtils.deserialize(data.getData());
+
+                    if (!retention.getStreamCuts().contains(streamCut)) {
+                        return CompletableFuture.completedFuture(null);
+                    } else {
+                        RetentionRecord update = RetentionRecord.removeStreamCutBefore(retention, streamCut);
+                        return updateRetentionSet(
+                                new Data<>(SerializationUtils.serialize(update), data.getVersion()));
+                    }
+                });
+    }
+
     private <U> CompletableFuture<U> verifyState(Supplier<CompletableFuture<U>> future, List<State> states) {
         return getState(false)
                 .thenCompose(state -> {
@@ -1149,4 +1188,10 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 
     abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
+
+    abstract CompletableFuture<Void> createRetentionSet(byte[] retention);
+
+    abstract CompletableFuture<Data<T>> getRetentionSet();
+
+    abstract CompletableFuture<Void> updateRetentionSet(Data<T> retention);
 }

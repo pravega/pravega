@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -711,4 +712,33 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor);
 
+    /**
+     * Method to register listeners for changes to the bucket.
+     * @param bucket   bucket
+     * @param listener listener
+     */
+    void registerBucketListener(int bucket, BucketListener listener);
+
+    /**
+     * Method to unregister listeners for changes to the bucket.
+     * @param bucket bucket
+     */
+    void unregisterBucketListener(int bucket);
+
+    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final OperationContext context, final Executor executor);
+
+    CompletableFuture<Void> addUpdateStreamForAutoRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
+                                                            final OperationContext context, final Executor executor);
+
+    CompletableFuture<Void> deleteStreamFromAutoRetention(final String scope, final String stream,
+                                                          final OperationContext context, final Executor executor);
+
+    CompletableFuture<Void> addStreamCutToRetentionSet(final String scope, final String stream, final StreamCutRecord streamCut,
+                                                       final OperationContext context, final Executor executor);
+
+    CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String stream,
+                                                                           final OperationContext context, final Executor executor);
+
+    CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String stream, final StreamCutRecord streamCut,
+                                                  final OperationContext context, final Executor executor);
 }

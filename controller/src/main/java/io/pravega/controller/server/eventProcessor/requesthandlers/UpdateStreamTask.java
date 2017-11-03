@@ -65,6 +65,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     private CompletableFuture<Void> processUpdate(String scope, String stream, StreamProperty<StreamConfiguration> configProperty,
                                                   OperationContext context) {
         return FutureHelpers.toVoid(streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor)
+                .thenCompose(x -> streamMetadataStore.addUpdateStreamForAutoRetention(scope, stream,
+                        configProperty.getProperty().getRetentionPolicy(), context, executor))
                 .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getProperty()))
                 .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, context, executor))
                 .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));

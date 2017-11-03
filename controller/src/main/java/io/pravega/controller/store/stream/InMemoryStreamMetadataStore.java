@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.FutureHelpers;
 import io.pravega.controller.store.index.InMemoryHostIndex;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<String, RetentionPolicy> streamPolicyMap = new HashMap<>();
 
     private final Executor executor;
 
@@ -120,6 +128,76 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return FutureHelpers.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
+    }
+
+    @Synchronized
+    @Override
+    public void registerBucketListener(int bucket, BucketListener listener) {
+        listeners.put(bucket, listener);
+    }
+
+    @Synchronized
+    @Override
+    public void unregisterBucketListener(int bucket) {
+        listeners.remove(bucket);
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, OperationContext context, Executor executor) {
+        return CompletableFuture.completedFuture(Collections.unmodifiableList(bucketedStreams.get(bucket)));
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<Void> addUpdateStreamForAutoRetention(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
+        int bucket = getBucket(scope, stream);
+        List<String> list;
+        if (bucketedStreams.containsKey(bucket)) {
+            list = bucketedStreams.get(bucket);
+        } else {
+            list = new ArrayList<>();
+        }
+        String scopedStreamName = String.format("%s/%s", scope, stream);
+        list.add(scopedStreamName);
+        bucketedStreams.put(bucket, list);
+
+        final boolean isUpdate = streamPolicyMap.containsKey(scopedStreamName);
+
+        streamPolicyMap.put(scopedStreamName, retentionPolicy);
+
+        return CompletableFuture.completedFuture(null)
+                .thenAccept(x -> listeners.computeIfPresent(bucket, (b, listener) -> {
+                    if (isUpdate) {
+                        listener.notify(new BucketListener.StreamNotification(scope, stream,
+                                BucketListener.StreamNotification.NotificationType.StreamUpdated));
+                    } else {
+                        listener.notify(new BucketListener.StreamNotification(scope, stream,
+                                BucketListener.StreamNotification.NotificationType.StreamAdded));
+                    }
+                    return listener;
+                }));
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<Void> deleteStreamFromAutoRetention(String scope, String stream, OperationContext context, Executor executor) {
+        int bucket = getBucket(scope, stream);
+        String scopedStreamName = String.format("%s/%s", scope, stream);
+
+        bucketedStreams.computeIfPresent(bucket, (b, list) -> {
+            list.remove(scopedStreamName);
+            return list;
+        });
+
+        streamPolicyMap.remove(scopedStreamName);
+
+        return CompletableFuture.completedFuture(null)
+                .thenAccept(x -> listeners.computeIfPresent(bucket, (b, listener) -> {
+                    listener.notify(new BucketListener.StreamNotification(scope, stream,
+                            BucketListener.StreamNotification.NotificationType.StreamRemoved));
+                    return listener;
+                }));
     }
 
     @Override
