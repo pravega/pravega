@@ -217,6 +217,7 @@ public class S3ProxyImpl extends S3ImplBase {
             super(s3Config);
         }
 
+        @Override
         public CopyPartResult copyPart(CopyPartRequest request) {
             Range range = request.getSourceRange();
             if (range.getLast() == -1) {
