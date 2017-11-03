@@ -44,7 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
-    private static final long CHANNEL_ACTIVE_TIMEOUT_MS = Long.parseLong(
+    private static final long CHANNEL_REGISTERED_TIMEOUT_MS = Long.parseLong(
             System.getProperty("pravega.client.netty.channel.timeout.millis", valueOf(SECONDS.toMillis(20))));
     private final String connectionName;
     private final ReplyProcessor processor;
@@ -180,7 +180,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     private Channel getChannel() throws ConnectionFailedException {
         try {
-            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_ACTIVE_TIMEOUT_MS));
+            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_REGISTERED_TIMEOUT_MS));
             Channel ch = channel.get();
             if (ch == null) {
                 throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
