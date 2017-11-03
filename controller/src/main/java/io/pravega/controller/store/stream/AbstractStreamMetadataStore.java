@@ -21,6 +21,7 @@ import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -116,7 +117,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         this.hostIndex = hostIndex;
-        this.bucketCount = 1;
+        this.bucketCount = Config.BUCKET_COUNT;
         this.listeners = new ConcurrentHashMap<>();
     }
 

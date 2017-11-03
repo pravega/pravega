@@ -68,18 +68,18 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public void registerBucketListener(int bucket, BucketListener listener) {
+        // TODO: add watch on children nodes of the bucket
         listeners.putIfAbsent(bucket, listener);
-        // TODO: shivesh add watch
     }
 
     @Override
     public void unregisterBucketListener(int bucket) {
+        // TODO: remove watch on children nodes of the bucket
         listeners.remove(bucket);
-        // TODO: shivesh remove watch
     }
 
     @Override
-    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, OperationContext context, Executor executor) {
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
         return storeHelper.getChildren(String.format(ZKStoreHelper.BUCKET_PATH, bucket))
                 .thenApply(list -> list.stream().map(x -> x.replace("#", "/")).collect(Collectors.toList()));
     }

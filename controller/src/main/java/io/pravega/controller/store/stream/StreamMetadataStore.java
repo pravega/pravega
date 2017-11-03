@@ -725,7 +725,7 @@ public interface StreamMetadataStore {
      */
     void unregisterBucketListener(int bucket);
 
-    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final OperationContext context, final Executor executor);
+    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final Executor executor);
 
     CompletableFuture<Void> addUpdateStreamForAutoRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
                                                             final OperationContext context, final Executor executor);

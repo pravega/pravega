@@ -661,12 +661,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
         synchronized (lock) {
-            if (this.retentionSet != null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, getName()));
-            } else {
-                this.retentionSet = new Data<>(retention, 0);
-                result.complete(null);
-            }
+            this.retentionSet = new Data<>(retention, 0);
+            result.complete(null);
         }
         return result;
     }

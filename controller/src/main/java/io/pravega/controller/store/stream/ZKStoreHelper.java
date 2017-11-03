@@ -30,7 +30,7 @@ import org.apache.zookeeper.KeeperException;
 public class ZKStoreHelper {
     static final String BUCKET_ROOT_PATH = "/buckets";
     static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
-    static final String RETENTION_PATH = BUCKET_PATH + "/%s#%s/retention";
+    static final String RETENTION_PATH = BUCKET_PATH + "/%s#%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
     private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";

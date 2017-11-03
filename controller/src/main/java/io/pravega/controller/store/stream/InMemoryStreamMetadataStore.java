@@ -144,7 +144,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, OperationContext context, Executor executor) {
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
         return CompletableFuture.completedFuture(Collections.unmodifiableList(bucketedStreams.get(bucket)));
     }
 

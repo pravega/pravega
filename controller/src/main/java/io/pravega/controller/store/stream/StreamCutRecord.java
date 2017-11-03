@@ -11,10 +11,11 @@ package io.pravega.controller.store.stream;
 
 import lombok.Data;
 
+import java.io.Serializable;
 import java.util.Map;
 
 @Data
-public class StreamCutRecord {
+public class StreamCutRecord implements Serializable {
     final long recordingTime;
     final long recordingSize;
     final Map<Integer, Long> streamCut;

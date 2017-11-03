@@ -44,6 +44,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -188,60 +189,60 @@ public class StreamMetadataTasks extends TaskBase {
      * @param scope scope
      * @param stream stream
      * @param policy retention policy
+     * @param recordingTime time of recording
      * @param contextOpt operation context
      * @return future.
      */
     public CompletableFuture<Void> autoRetention(final String scope, final String stream, final RetentionPolicy policy,
-                                                                   final OperationContext contextOpt) {
+                                                 final long recordingTime, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)
                 .thenCompose(retentionSet -> {
                     StreamCutRecord latestCut = retentionSet.stream()
                             .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
-                    return checkGenerateStreamCut(scope, stream, context, policy, latestCut)
-                            .thenCompose(x -> truncate(scope, stream, policy, context, retentionSet));
+                    return checkGenerateStreamCut(scope, stream, context, policy, latestCut, recordingTime)
+                            .thenCompose(x -> truncate(scope, stream, policy, context, retentionSet, recordingTime));
                 });
 
     }
 
-    private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context, List<StreamCutRecord> retentionSet) {
-        return findTruncationRecord(policy, retentionSet)
-                    .map(record -> startTruncation(scope, stream, record.getStreamCut(), context)
-                            .thenCompose(started -> {
-                                if (started) {
-                                    return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
-                                } else {
-                                    throw new RuntimeException("Could not start truncation");
-                                }
-                            })
-                    ).orElse(CompletableFuture.completedFuture(null));
-    }
-
-    private Optional<StreamCutRecord> findTruncationRecord(RetentionPolicy policy, List<StreamCutRecord> retentionSet) {
-        switch (policy.getType()) {
-            case TIME:
-                long now = System.currentTimeMillis();
-                return retentionSet.stream().filter(x -> x.getRecordingTime() < now - policy.getValue())
-                    .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
-            case SIZE:
-            default:
-                throw new NotImplementedException("Size based retention");
-        }
-    }
-
     private CompletableFuture<Void> checkGenerateStreamCut(String scope, String stream, OperationContext context,
-                                                                      RetentionPolicy policy, StreamCutRecord latestCut) {
+                                                           RetentionPolicy policy, StreamCutRecord latestCut, long recordingTime) {
         switch (policy.getType()) {
             case TIME:
-                long now = System.currentTimeMillis();
-                if (now - latestCut.getRecordingTime() > Duration.ofMinutes(30).toMillis()) {
+                if (latestCut == null || recordingTime - latestCut.getRecordingTime() > Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis()) {
                     return generateStreamCut(scope, stream, context)
                             .thenCompose(newRecord ->
                                     streamMetadataStore.addStreamCutToRetentionSet(scope, stream, newRecord, context, executor));
                 } else {
                     return  CompletableFuture.completedFuture(null);
                 }
+            case SIZE:
+            default:
+                throw new NotImplementedException("Size based retention");
+        }
+    }
+
+    private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
+                                             List<StreamCutRecord> retentionSet, long recordingTime) {
+        return findTruncationRecord(policy, retentionSet, recordingTime)
+                .map(record -> startTruncation(scope, stream, record.getStreamCut(), context)
+                        .thenCompose(started -> {
+                            if (started) {
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
+                            } else {
+                                throw new RuntimeException("Could not start truncation");
+                            }
+                        })
+                ).orElse(CompletableFuture.completedFuture(null));
+    }
+
+    private Optional<StreamCutRecord> findTruncationRecord(RetentionPolicy policy, List<StreamCutRecord> retentionSet, long recordingTime) {
+        switch (policy.getType()) {
+            case TIME:
+                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getValue())
+                        .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
             case SIZE:
             default:
                 throw new NotImplementedException("Size based retention");
