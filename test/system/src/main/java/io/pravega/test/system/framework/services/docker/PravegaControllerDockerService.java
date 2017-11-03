@@ -11,7 +11,6 @@ package io.pravega.test.system.framework.services.docker;
 
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
@@ -30,9 +29,7 @@ import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_CONTROLLER_PORT;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.REST_PORT;
-import static org.junit.Assert.assertNotNull;
 import lombok.extern.slf4j.Slf4j;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class PravegaControllerDockerService extends DockerBasedService {
@@ -62,15 +59,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
 
     @Override
     public void start(final boolean wait) {
-        try {
-            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
-            if (wait) {
-                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
-            }
-            assertNotNull(serviceCreateResponse.id());
-        } catch (Exception e) {
-            throw new AssertionError("Unable to create Pravega Controller service", e);
-        }
+        start(wait, setServiceSpec());
     }
 
     private ServiceSpec setServiceSpec() {

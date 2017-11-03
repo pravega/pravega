@@ -39,16 +39,8 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.BookkeeperService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
-import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -103,9 +95,7 @@ public class ControllerRestApiTest {
     public static void setup() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
-        Service zkService = Utils.isDockerLocalExecEnabled()
-                ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -115,9 +105,7 @@ public class ControllerRestApiTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService =  Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri)
-                : new BookkeeperService("bookkeeper", zkUri);
+        Service bkService =  Utils.createServiceInstance("bookkeeper", zkUri, null, null);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -137,9 +125,7 @@ public class ControllerRestApiTest {
         }
 
         //3. start controller
-        Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
-                : new PravegaControllerService("controller", zkUri);
+        Service conService = Utils.createServiceInstance("controller", zkUri, null, null);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -148,9 +134,7 @@ public class ControllerRestApiTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0), hdfsUri)
-                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -162,9 +146,7 @@ public class ControllerRestApiTest {
     @Test(timeout = 300000)
     public void restApiTests() {
 
-        Service conService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", null)
-                : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service conService = Utils.createServiceInstance("controller", null, null, null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerRESTUri = ctlURIs.get(1);
         Invocation.Builder builder;

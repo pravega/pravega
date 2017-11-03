@@ -27,16 +27,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.BookkeeperService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
-import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -546,7 +537,7 @@ abstract class AbstractFailoverTests {
 
 
     static URI startZookeeperInstance() {
-        Service zkService = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -556,8 +547,7 @@ abstract class AbstractFailoverTests {
     }
 
     static void startBookkeeperInstances(final URI zkUri) {
-        Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri) : new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -566,9 +556,7 @@ abstract class AbstractFailoverTests {
     }
 
     static URI startPravegaControllerInstances(final URI zkUri) {
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
-                : new PravegaControllerService("controller", zkUri);
+        Service controllerService = Utils.createServiceInstance("controller", zkUri, null, null);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -592,9 +580,7 @@ abstract class AbstractFailoverTests {
     }
 
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final URI hdfsUri) {
-        Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, controllerURI, hdfsUri)
-                : new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
+        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }

@@ -21,16 +21,8 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.BookkeeperService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
-import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -62,9 +54,7 @@ public class ControllerFailoverTest {
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
 
         //1. check if zk is running, if not start it
-        Service zkService = Utils.isDockerLocalExecEnabled() ?
-                new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -74,9 +64,7 @@ public class ControllerFailoverTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zkUri)
-                : new BookkeeperService("bookkeeper", zkUri);
+        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -96,9 +84,7 @@ public class ControllerFailoverTest {
         }
 
         //3. start controller
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUri)
-                : new PravegaControllerService("controller", zkUri);
+        Service controllerService = Utils.createServiceInstance("controller", zkUri, null, null);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -120,9 +106,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start host
-        Service segService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, conUris.get(0), hdfsUri)
-                : new PravegaSegmentStoreService("segmentstore", zkUri, conUris.get(0));
+        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -134,16 +118,12 @@ public class ControllerFailoverTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.isDockerLocalExecEnabled()
-                ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUris.get(0))
-                : new PravegaControllerService("controller", zkUris.get(0));
+        controllerService1 = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }

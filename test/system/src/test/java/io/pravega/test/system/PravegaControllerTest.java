@@ -12,11 +12,7 @@ package io.pravega.test.system;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.Test;
@@ -36,15 +32,11 @@ public class PravegaControllerTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.isDockerLocalExecEnabled()
-                ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
-                : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
+        Service con = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
         if (!con.isRunning()) {
             con.start(true);
         }
@@ -58,9 +50,7 @@ public class PravegaControllerTest {
     @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
-        Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", null)
-                : new PravegaControllerService("controller", null, 0, 0.0, 0.0);
+        Service con = Utils.createServiceInstance("controller", null, null, null);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {

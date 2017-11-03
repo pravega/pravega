@@ -13,7 +13,6 @@ package io.pravega.test.system.framework.services.docker;
 import com.google.common.base.Strings;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
@@ -32,9 +31,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
-import static org.junit.Assert.assertNotNull;
 
 @Slf4j
 public class PravegaSegmentStoreDockerService extends DockerBasedService {
@@ -72,15 +69,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
     @Override
     public void start(final boolean wait) {
-        try {
-            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(setServiceSpec()));
-            if (wait) {
-                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
-            }
-            assertNotNull(serviceCreateResponse.id());
-        } catch (Exception e) {
-            throw new AssertionError("Unable to create Pravega Segmentstore service", e);
-        }
+        start(wait, setServiceSpec());
     }
 
     private ServiceSpec setServiceSpec() {

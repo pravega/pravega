@@ -12,16 +12,8 @@ package io.pravega.test.system;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.BookkeeperService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
-import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.Test;
@@ -41,14 +33,11 @@ public class PravegaSegmentStoreTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0))
-                : new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
+        Service bk = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -63,15 +52,11 @@ public class PravegaSegmentStoreTest {
         log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
-        Service con = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zk.getServiceDetails().get(0))
-                : new PravegaControllerService("controller", zk.getServiceDetails().get(0));
+        Service con = Utils.createServiceInstance("controller", zk.getServiceDetails().get(0), null, null);
         if (!con.isRunning()) {
             con.start(true);
         }
-        Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0), hdfsUri)
-                : new PravegaSegmentStoreService("segmentstore", zk.getServiceDetails().get(0), con.getServiceDetails().get(0));
+        Service seg = Utils.createServiceInstance("segmentstore", zk.getServiceDetails().get(0), hdfsUri, con.getServiceDetails().get(0));
         if (!seg.isRunning()) {
             seg.start(true);
         }
@@ -85,9 +70,7 @@ public class PravegaSegmentStoreTest {
     @Test(timeout = 5 * 60 * 1000)
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
-        Service seg = Utils.isDockerLocalExecEnabled() ?
-                new PravegaSegmentStoreDockerService("segmentstore", null, null, null)
-                : new PravegaSegmentStoreService("segmentstore", null, null,  0, 0.0, 0.0);
+        Service seg = Utils.createServiceInstance("segmentstore", null, null, null);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
         for (int i = 0; i < segUri.size(); i++) {

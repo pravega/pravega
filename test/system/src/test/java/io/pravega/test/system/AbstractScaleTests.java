@@ -17,8 +17,6 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.List;
@@ -45,9 +43,7 @@ abstract class AbstractScaleTests {
             ControllerImplConfig.builder().build(), getConnectionFactory().getInternalExecutor());
 
     private URI createControllerURI() {
-        Service conService = Utils.isDockerLocalExecEnabled() ?
-                new PravegaControllerDockerService("controller", null)
-                : new PravegaControllerService("controller", null);
+        Service conService = Utils.createServiceInstance("controller", null, null, null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

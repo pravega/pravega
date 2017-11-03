@@ -9,6 +9,18 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
+import io.pravega.test.system.framework.services.marathon.BookkeeperService;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
+import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+
+import java.net.URI;
+
 /**
  * Utility methods used inside the TestFramework.
  */
@@ -27,6 +39,34 @@ public class Utils {
      */
     public static String getConfig(final String key, final String defaultValue) {
         return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
+    }
+
+    public static Service createServiceInstance(final String serviceType, final URI zkUri, final URI hdfsUri, final  URI contUri) {
+        Service service;
+        switch (serviceType) {
+            case "zookeeper" :
+                service = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                        : new ZookeeperService("zookeeper");
+                break;
+            case "bookkeper" :
+                service = Utils.isDockerLocalExecEnabled() ?
+                        new BookkeeperDockerService("bookkeeper", zkUri) :
+                        new BookkeeperService("bookkeeper", zkUri);
+                break;
+            case "controller" :
+                service = Utils.isDockerLocalExecEnabled()
+                        ? new PravegaControllerDockerService("controller", zkUri)
+                        : new PravegaControllerService("controller", zkUri);
+                break;
+            case "segmentstore" :
+                service = Utils.isDockerLocalExecEnabled() ?
+                        new PravegaSegmentStoreDockerService("segmentstore", zkUri, contUri, hdfsUri)
+                        : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid service type");
+        }
+        return service;
     }
 
     /**

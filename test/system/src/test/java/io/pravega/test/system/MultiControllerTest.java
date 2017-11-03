@@ -17,11 +17,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -54,18 +50,14 @@ public class MultiControllerTest {
      */
     @Environment
     public static void initialize() throws MarathonException {
-        Service zkService = Utils.isDockerLocalExecEnabled()
-                ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        Service controllerService = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUris.get(0))
-                : new PravegaControllerService("controller", zkUris.get(0));
+        Service controllerService = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -89,16 +81,12 @@ public class MultiControllerTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.isDockerLocalExecEnabled()
-                ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.isDockerLocalExecEnabled()
-                ? new PravegaControllerDockerService("controller", zkUris.get(0))
-                : new PravegaControllerService("controller", zkUris.get(0));
+        controllerService1 = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }

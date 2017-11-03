@@ -13,8 +13,6 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
@@ -36,8 +34,7 @@ public class ZookeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zk.isRunning()) {
             zk.start(true);
         }
@@ -51,8 +48,7 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-        Service zk = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
                 CuratorFrameworkFactory.newClient(zkUri.getHost() +":2181", new RetryOneTime(5000));

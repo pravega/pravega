@@ -12,11 +12,7 @@ package io.pravega.test.system;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
-import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
 import org.junit.Test;
@@ -35,14 +31,11 @@ public class BookkeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.isDockerLocalExecEnabled() ?
-                new ZookeeperDockerService("zookeeper") : new ZookeeperService("zookeeper");
+        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = Utils.isDockerLocalExecEnabled() ?
-                new BookkeeperDockerService("bookkeeper", zk.getServiceDetails().get(0)) :
-                new BookkeeperService("bookkeeper", zk.getServiceDetails().get(0));
+        Service bk = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -56,8 +49,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = Utils.isDockerLocalExecEnabled() ? new BookkeeperDockerService("bookkeeper", null)
-                : new BookkeeperService("bookkeeper", null, 0, 0.0, 0.0);
+        Service bk = Utils.createServiceInstance("bookkeeper", null, null, null);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

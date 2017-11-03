@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
 import com.spotify.docker.client.exceptions.DockerException;
+import com.spotify.docker.client.messages.ServiceCreateResponse;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.Service;
@@ -24,6 +25,7 @@ import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
+import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
@@ -34,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import com.spotify.docker.client.messages.Network;
 import com.spotify.docker.client.messages.swarm.Task;
 
@@ -179,6 +182,18 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
            throw new AssertionError("Unable to leave Swarm. Test Failure", e);
         }
         dockerClient.close();
+    }
+
+    public void start(final boolean wait, final ServiceSpec serviceSpec) {
+        try {
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(serviceSpec));
+            if (wait) {
+                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
+            }
+            assertNotNull(serviceCreateResponse.id());
+        } catch (Exception e) {
+            throw new AssertionError("Unable to create Zookeeper service", e);
+        }
     }
 
     long setNanoCpus(final double cpu) {
