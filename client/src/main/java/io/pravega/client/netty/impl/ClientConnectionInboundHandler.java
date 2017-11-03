@@ -10,6 +10,9 @@
 
 package io.pravega.client.netty.impl;
 
+import static java.lang.String.valueOf;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -30,7 +33,6 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +44,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
-    private static final long CHANNEL_ACTIVE_TIMEOUT = TimeUnit.SECONDS.toMillis(20);
+    private static final long CHANNEL_ACTIVE_TIMEOUT_MS = Long.parseLong(
+            System.getProperty("pravega.client.netty.channel.timeout.millis", valueOf(SECONDS.toMillis(20))));
     private final String connectionName;
     private final ReplyProcessor processor;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
@@ -67,7 +70,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         channelRegisteredLatch.release();
         log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -177,7 +180,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     private Channel getChannel() throws ConnectionFailedException {
         try {
-            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_ACTIVE_TIMEOUT));
+            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_ACTIVE_TIMEOUT_MS));
             Channel ch = channel.get();
             if (ch == null) {
                 throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
