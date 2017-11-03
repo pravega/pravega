@@ -393,7 +393,7 @@ Streams, monitor the health of the Pravega cluster, gather metrics etc.  There
 are usually multiple (recommended at least 3) Controller instances running in a
 cluster for high availability.  
 
-The Segment Store implements the Pravega data plane.
+The [Segment Store](segment-store-service.md) implements the Pravega data plane.
  Pravega Servers provide the API to read and write data in Streams.  Data
 storage is comprised of two tiers: Tier 1 Storage, which provides short term,
 low-latency, data storage,  guaranteeing the durability of data written to
