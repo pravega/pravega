@@ -60,6 +60,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.times;
 
+
 public class SegmentOutputStreamTest {
 
     private static final String SEGMENT = "test/0";
