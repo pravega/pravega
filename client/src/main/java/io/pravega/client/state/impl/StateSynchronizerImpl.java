@@ -21,8 +21,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
@@ -104,7 +102,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
 
     @Override
-    public void updateState(BiConsumer<StateT, List<Update<StateT>>> updateGenerator) {
+    public void updateState(UpdateGenerator<StateT> updateGenerator) {
         conditionallyWrite(state -> {
             List<Update<StateT>> update = new ArrayList<>();
             updateGenerator.accept(state, update);
@@ -113,7 +111,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     }
 
     @Override
-    public <ReturnT> ReturnT updateState(BiFunction<StateT, List<Update<StateT>>, ReturnT> updateGenerator) {
+    public <ReturnT> ReturnT updateState(UpdateGeneratorFunction<StateT, ReturnT> updateGenerator) {
         AtomicReference<ReturnT> result = new AtomicReference<>();
         conditionallyWrite(state -> {
             List<Update<StateT>> update = new ArrayList<>();

@@ -51,21 +51,53 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     void fetchUpdates();
 
     /**
+     * A function which given a state object populates a list of updates that should be applied.
+     * 
+     * @param <StateT> The type of state it generates updates for.
+     */
+    @FunctionalInterface
+    interface UpdateGenerator<StateT extends Revisioned>
+            extends BiConsumer<StateT, List<Update<StateT>>> {
+    }
+    
+    /**
+     * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
+     *
+     * @param <StateT> The type of state it generates updates for.
+     * @param <ReturnT> The type of the result returned.
+     */
+    @FunctionalInterface
+    interface UpdateGeneratorFunction<StateT extends Revisioned, ReturnT>
+            extends BiFunction<StateT, List<Update<StateT>>, ReturnT> {
+    }
+
+    /**
      * Creates a new update for the latest state object and applies it atomically.
      * 
-     * The function provided will be passed the latest state object, it returns what if any updates
-     * should be applied to the state object. These updates are recorded and applied conditionally
-     * on the state object that was passed to the function being up to date. If another process was
-     * applying an update in parallel, the state is updated and updateGenerator will be called again
-     * with the new state object so that it may generate a new update. (Which may be different from
-     * the one it previously generated) By re-creating the updates in this way, consistency is
-     * guaranteed. When this function returns the generated updates will have been applied to the
-     * local state.
-     * @param updateGenerator A function that given the current state can supply updates that should be applied.
+     * The UpdateGenerator provided will be passed the latest state object and a list which it can
+     * populate with any updates that should be applies.
+     * 
+     * These updates are recorded and applied conditionally on the state object that was passed to
+     * the function being up to date. If another process was applying an update in parallel, the
+     * state is updated and updateGenerator will be called again with the new state object so that
+     * it may generate new updates. (Which may be different from the one it previously generated)
+     * By re-creating the updates in this way, consistency is guaranteed. When this function returns
+     * the generated updates will have been applied to the local state.
+     * 
+     * @param updateGenerator A function that given the current state can supply updates that should
+     *            be applied.
      */
-    void updateState(BiConsumer<StateT, List<Update<StateT>>> updateGenerator);
+    void updateState(UpdateGenerator<StateT> updateGenerator);
     
-    <ReturnT> ReturnT updateState(BiFunction<StateT, List<Update<StateT>>, ReturnT> updateGenerator);   
+    /**
+     * Similar to {@link #updateState(UpdateGenerator)} but this version returns a result object
+     * supplied by the {@link UpdateGeneratorFunction}. This is useful if the calling code wishes to
+     * do something in response to the update.
+     * 
+     * @param updateGenerator A function which give the state can supply updates that should be applied.
+     * @return the result returned by the updateGenerator.
+     */
+    <ReturnT> ReturnT updateState(UpdateGeneratorFunction<StateT, ReturnT> updateGenerator);   
     
     /**
      * Persists the provided update. To ensure consistent ordering of updates across hosts the
