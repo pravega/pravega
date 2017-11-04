@@ -219,6 +219,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }
 
+    @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
         return this.storeExecutor.get() != null ? ExecutorServiceHelpers.getSnapshot(this.storeExecutor.get()) : null;
     }

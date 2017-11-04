@@ -34,6 +34,17 @@ plugins.withId('java') {
         classifier = 'sources'
         from sourceSets.main.java
     }
+    artifacts { archives sourceJar }
+
+    task generateJavadoc(type: Javadoc) {
+        source = sourceSets.main.allJava
+        failOnError = false
+    }
+    task javadocJar(type: Jar) {
+        classifier = 'javadoc'
+        from generateJavadoc
+    }
+    artifacts { archives javadocJar }
 
     task testJar(type: Jar) {
         classifier = 'tests'

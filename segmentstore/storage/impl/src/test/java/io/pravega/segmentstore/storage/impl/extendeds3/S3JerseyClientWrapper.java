@@ -63,6 +63,7 @@ public class S3JerseyClientWrapper extends S3JerseyClient {
         return proxy.getObjectAcl(bucketName, key);
     }
 
+    @Override
     public CopyPartResult copyPart(CopyPartRequest request) {
         return proxy.copyPart(request);
     }
