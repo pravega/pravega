@@ -95,6 +95,7 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * do something in response to the update.
      * 
      * @param updateGenerator A function which give the state can supply updates that should be applied.
+     * @param <ReturnT> They type of the result returned by the updateGenerator
      * @return the result returned by the updateGenerator.
      */
     <ReturnT> ReturnT updateState(UpdateGeneratorFunction<StateT, ReturnT> updateGenerator);   
