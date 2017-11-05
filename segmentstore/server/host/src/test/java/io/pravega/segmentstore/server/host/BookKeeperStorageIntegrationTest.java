@@ -76,7 +76,7 @@ public class BookKeeperStorageIntegrationTest extends StreamSegmentStoreTestBase
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
     }
 
-    private class LocalBookKeeperStorageFactory extends BookKeeperStorageFactory {
+    private static class LocalBookKeeperStorageFactory extends BookKeeperStorageFactory {
 
         private Storage storage = null;
 
