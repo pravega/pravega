@@ -499,7 +499,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, Storage storage) {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
-        AtomicBoolean tryAgain = new AtomicBoolean(true);
+        final AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
                 () -> storage.getStreamSegmentInfo(sp.getName(), TIMEOUT)

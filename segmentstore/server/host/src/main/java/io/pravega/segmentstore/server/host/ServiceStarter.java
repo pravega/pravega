@@ -19,8 +19,11 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
+import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageConfig;
+import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageFactory;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
 import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
@@ -161,27 +164,38 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             try {
+                StorageFactory storageFactory = null;
                 ServiceConfig.StorageTypes storageChoice = ServiceConfig.StorageTypes.valueOf(this.serviceConfig
                         .getStorageImplementation());
                 switch (storageChoice) {
                     case HDFS:
                         HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                        return new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                        storageFactory =  new HDFSStorageFactory(hdfsConfig, setup.getExecutor());
+                        break;
 
                     case FILESYSTEM:
                         FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                        return new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                        storageFactory = new FileSystemStorageFactory(fsConfig, setup.getExecutor());
+                        break;
 
                     case EXTENDEDS3:
                         ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                        return new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                        storageFactory = new ExtendedS3StorageFactory(extendedS3Config, setup.getExecutor());
+                        break;
+
+                    case BOOKKEEPER:
+                        BookKeeperStorageConfig bookKeeperStorageConfig = setup.getConfig(BookKeeperStorageConfig::builder);
+                        storageFactory = new BookKeeperStorageFactory(bookKeeperStorageConfig, this.zkClient, setup.getExecutor());
+                        break;
 
                     case INMEMORY:
-                        return new InMemoryStorageFactory(setup.getExecutor());
+                        storageFactory = new InMemoryStorageFactory(setup.getExecutor());
+                        break;
 
                     default:
                         throw new IllegalStateException("Undefined storage implementation");
                 }
+                return storageFactory;
             } catch (Exception ex) {
                 throw new CompletionException(ex);
             }

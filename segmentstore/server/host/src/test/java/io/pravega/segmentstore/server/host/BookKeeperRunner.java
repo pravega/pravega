@@ -33,6 +33,7 @@ public class BookKeeperRunner implements AutoCloseable {
     private BookKeeperServiceRunner bkRunner;
     @Getter
     private CuratorFramework zkClient;
+    private int zkPort;
 
     public BookKeeperRunner(ServiceBuilderConfig.Builder configBuilder, int bookieCount) {
         this.configBuilder = configBuilder;
@@ -42,7 +43,7 @@ public class BookKeeperRunner implements AutoCloseable {
     public void initialize() throws Exception {
         // BookKeeper
         // Pick random ports to reduce chances of collisions during concurrent test executions.
-        int zkPort = TestUtils.getAvailableListenPort();
+        zkPort = TestUtils.getAvailableListenPort();
         val bookiePorts = new ArrayList<Integer>();
         for (int i = 0; i < this.bookieCount; i++) {
             bookiePorts.add(TestUtils.getAvailableListenPort());
@@ -94,5 +95,9 @@ public class BookKeeperRunner implements AutoCloseable {
             zk.close();
             this.zkClient = null;
         }
+    }
+
+    public int getZkPort() {
+        return this.zkPort;
     }
 }

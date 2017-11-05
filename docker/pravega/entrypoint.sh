@@ -97,6 +97,10 @@ configure_tier2() {
     add_system_property "extendeds3.bucket" "${EXTENDEDS3_BUCKET}"
     add_system_property "extendeds3.namespace" "${EXTENDEDS3_NAMESPACE}"
     ;;
+
+    BOOKKEEPER)
+    add_system_property "bookkeeperstorage.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
+    ;;
     esac
 }
 configure_segmentstore() {

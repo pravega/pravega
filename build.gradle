@@ -189,6 +189,9 @@ project('segmentstore:storage') {
 project('segmentstore:storage:impl') {
     dependencies {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLog4j
+        // https://mvnrepository.com/artifact/org.apache.curator/curator-x-async
+        compile group: 'org.apache.curator', name: 'curator-x-async', version: '4.0.0'
+
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
