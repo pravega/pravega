@@ -33,6 +33,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
@@ -59,7 +60,8 @@ class LogStorageManager {
     private final ExecutorService executor;
     private final AsyncCuratorFramework zkClient;
 
-    private ConcurrentHashMap<String, LogStorage> ledgers;
+    @GuardedBy("ledgers")
+    private final ConcurrentHashMap<String, LogStorage> ledgers;
     private BookKeeper bookkeeper;
     private long containerEpoch;
 
@@ -98,14 +100,18 @@ class LogStorageManager {
                        })
                        /** Add the ledger to the local cache.*/
                        .thenApply(name -> {
-                           ledgers.put(streamSegmentName, logStorage);
+                           synchronized (ledgers) {
+                               ledgers.put(streamSegmentName, logStorage);
+                           }
                            return streamSegmentName;
                        })
                        /** Create the first ledger and add it to the local cache */
                        .thenCompose(t -> {
                            CompletableFuture<LedgerData> retval = createLedgerAt(streamSegmentName, 0);
                            return retval.thenApply(data -> {
-                               this.ledgers.get(streamSegmentName).addToList(0, data);
+                               synchronized (ledgers) {
+                                   this.ledgers.get(streamSegmentName).addToList(0, data);
+                               }
                                return data;
                            });
                        });
@@ -266,7 +272,9 @@ class LogStorageManager {
                             /* Update lengths in the cache. The lengths are not persisted. */
                             ledgerData.increaseLengthBy(length);
                             ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
-                            ledgers.get(segmentName).increaseLengthBy(length);
+                            synchronized (ledgers) {
+                                ledgers.get(segmentName).increaseLengthBy(length);
+                            }
                             return length;
                         }));
     }
@@ -456,7 +464,7 @@ class LogStorageManager {
                 lastLedgerData.getLedgerHandle().close();
                 future.complete(null);
             } catch (Exception e) {
-                future.completeExceptionally(e);
+                log.warn("Exception {} while closing the last ledger", e);
             }
         });
         return future;
@@ -488,7 +496,7 @@ class LogStorageManager {
     private CompletableFuture<LogStorage> getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
         CompletableFuture<LogStorage> retVal = new CompletableFuture<>();
 
-        synchronized (this) {
+        synchronized (ledgers) {
             if (ledgers.containsKey(streamSegmentName)) {
                 LogStorage ledger = ledgers.get(streamSegmentName);
                 if (!readOnly && ledger.isReadOnlyHandle()) {
@@ -513,20 +521,22 @@ class LogStorageManager {
                            return null;
                        })
                        .thenApply(bytes -> {
-                           LogStorage retval = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion());
-                           ledgers.put(streamSegmentName, retval);
-                           return retval;
+                           LogStorage retval = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion(), readOnly);
+                           synchronized (ledgers) {
+                                  ledgers.putIfAbsent(streamSegmentName, retval);
+                               }
+                               return retval;
                        })
                        .thenCompose(storageLog -> {
                            if (readOnly) {
-                               return getBKLEdgerDetails(streamSegmentName, storageLog);
+                               return getBKLedgerDetails(streamSegmentName, storageLog);
                            } else {
                                return CompletableFuture.completedFuture(storageLog);
                            }
                        });
     }
 
-    private CompletableFuture<LogStorage> getBKLEdgerDetails(String streamSegmentName, LogStorage logStorage) {
+    private CompletableFuture<LogStorage> getBKLedgerDetails(String streamSegmentName, LogStorage logStorage) {
         return zkClient.getChildren().forPath(getZkPath(streamSegmentName))
                        .toCompletableFuture()
                        .thenCompose(children -> {

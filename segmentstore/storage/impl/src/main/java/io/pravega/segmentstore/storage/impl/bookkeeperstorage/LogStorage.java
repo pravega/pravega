@@ -62,7 +62,7 @@ class LogStorage {
         this.dataMap = new ConcurrentHashMap<>();
         this.name = streamSegmentName;
         this.readOnlyHandle = readOnly;
-        if( sealed == 1) {
+        if ( sealed == 1) {
             this.sealed = true;
         } else {
             this.sealed = false;
@@ -166,12 +166,12 @@ class LogStorage {
         }
     }
 
-    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version) {
+    public static LogStorage deserialize(LogStorageManager manager, String segmentName, byte[] bytes, int version, boolean readOnly) {
         ByteBuffer bb = ByteBuffer.wrap(bytes);
         long epoc = bb.getLong();
         int sealed = bb.getInt();
 
-        return new LogStorage(manager, segmentName, version, epoc, sealed, false);
+        return new LogStorage(manager, segmentName, version, epoc, sealed, readOnly);
     }
 
     void setContainerEpoch(long containerEpoch) {
@@ -182,7 +182,7 @@ class LogStorage {
         int size = Long.SIZE + Integer.SIZE;
         ByteBuffer bb = ByteBuffer.allocate(size);
         bb.putLong(this.containerEpoch);
-        if( this.sealed) {
+        if (this.sealed) {
             bb.putInt(1);
         } else {
             bb.putInt(0);

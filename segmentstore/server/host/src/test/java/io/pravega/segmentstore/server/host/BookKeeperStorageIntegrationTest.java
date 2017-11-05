@@ -9,24 +9,19 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentStoreTestBase;
+import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeperstorage.BookKeeperStorageFactory;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSClusterHelpers;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
-import java.io.File;
-import java.nio.file.Files;
-import lombok.val;
-import org.apache.hadoop.hdfs.MiniDFSCluster;
+import java.util.concurrent.ScheduledExecutorService;
+import org.apache.curator.framework.CuratorFramework;
 import org.junit.After;
 import org.junit.Before;
 
@@ -75,10 +70,27 @@ public class BookKeeperStorageIntegrationTest extends StreamSegmentStoreTestBase
                 .newInMemoryBuilder(builderConfig)
                 .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
-                    StorageFactory f = new BookKeeperStorageFactory(setup.getConfig(BookKeeperStorageConfig::builder), bookkeeper.getZkClient(), setup.getExecutor());
+                    StorageFactory f = new LocalBookKeeperStorageFactory(setup.getConfig(BookKeeperStorageConfig::builder), bookkeeper.getZkClient(), setup.getExecutor());
                     return new ListenableStorageFactory(f);
                 })
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), bookkeeper.getZkClient(), setup.getExecutor()));
+    }
+
+    private class LocalBookKeeperStorageFactory extends BookKeeperStorageFactory {
+
+        private Storage storage = null;
+
+        public LocalBookKeeperStorageFactory(BookKeeperStorageConfig config, CuratorFramework zkClient, ScheduledExecutorService executor) {
+            super(config, zkClient, executor);
+        }
+
+        @Override
+        public synchronized Storage createStorageAdapter() {
+            if (storage == null) {
+                storage = super.createStorageAdapter();
+            }
+            return storage;
+        }
     }
 
     //endregion
