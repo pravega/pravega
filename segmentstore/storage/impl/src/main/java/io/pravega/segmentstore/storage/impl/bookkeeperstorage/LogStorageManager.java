@@ -60,7 +60,7 @@ class LogStorageManager {
     private final ExecutorService executor;
     private final AsyncCuratorFramework zkClient;
 
-    @GuardedBy("ledgers")
+    @GuardedBy("this")
     private final ConcurrentHashMap<String, LogStorage> ledgers;
     private BookKeeper bookkeeper;
     private long containerEpoch;
@@ -100,16 +100,16 @@ class LogStorageManager {
                        })
                        /** Add the ledger to the local cache.*/
                        .thenApply(name -> {
-                           synchronized (ledgers) {
+                           synchronized (this) {
                                ledgers.put(streamSegmentName, logStorage);
                            }
                            return streamSegmentName;
                        })
-                       /** Create the first ledger and add it to the local cache */
+                       // Create the first ledger and add it to the local cache
                        .thenCompose(t -> {
                            CompletableFuture<LedgerData> retval = createLedgerAt(streamSegmentName, 0);
                            return retval.thenApply(data -> {
-                               synchronized (ledgers) {
+                               synchronized (this) {
                                    this.ledgers.get(streamSegmentName).addToList(0, data);
                                }
                                return data;
@@ -272,7 +272,7 @@ class LogStorageManager {
                             /* Update lengths in the cache. The lengths are not persisted. */
                             ledgerData.increaseLengthBy(length);
                             ledgerData.setLastAddConfirmed(ledgerData.getLastAddConfirmed() + 1);
-                            synchronized (ledgers) {
+                            synchronized (this) {
                                 ledgers.get(segmentName).increaseLengthBy(length);
                             }
                             return length;
@@ -496,7 +496,7 @@ class LogStorageManager {
     private CompletableFuture<LogStorage> getOrRetrieveStorageLedger(String streamSegmentName, boolean readOnly) {
         CompletableFuture<LogStorage> retVal = new CompletableFuture<>();
 
-        synchronized (ledgers) {
+        synchronized (this) {
             if (ledgers.containsKey(streamSegmentName)) {
                 LogStorage ledger = ledgers.get(streamSegmentName);
                 if (!readOnly && ledger.isReadOnlyHandle()) {
@@ -522,7 +522,7 @@ class LogStorageManager {
                        })
                        .thenApply(bytes -> {
                            LogStorage retval = LogStorage.deserialize(this, streamSegmentName, bytes, stat.getVersion(), readOnly);
-                           synchronized (ledgers) {
+                           synchronized (this) {
                                   ledgers.putIfAbsent(streamSegmentName, retval);
                                }
                                return retval;
