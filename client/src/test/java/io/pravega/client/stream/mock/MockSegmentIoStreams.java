@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
@@ -66,8 +67,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return offsetList.get(readIndex);
     }
 
+    @Override
     @Synchronized
-    public long fetchCurrentStreamLength() {
+    public long fetchCurrentSegmentLength() {
         return writeOffset;
     }
 
@@ -151,6 +153,12 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     public boolean isClosed() {
         return close.get();
+    }
+
+    @Override
+    @Synchronized
+    public SegmentInfo getSegmentInfo() {
+        return new SegmentInfo(segment, writeOffset, false, System.currentTimeMillis());
     }
 
 }

@@ -9,6 +9,8 @@
  */
 package io.pravega.client;
 
+import com.google.common.annotations.Beta;
+import io.pravega.client.batch.BatchClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -128,6 +130,17 @@ public interface ClientFactory extends AutoCloseable {
                                                       Serializer<UpdateT> updateSerializer,
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
+    
+    /**
+     * Create a new batch client. A batch client can be used to perform bulk unordered reads without
+     * the need to create a reader group.
+     * 
+     * Please note this is an experimental API.
+     * 
+     * @return A batch client
+     */
+    @Beta
+    BatchClient createBatchClient();
     
     /**
      * Closes the client factory. This will close any connections created through it.
