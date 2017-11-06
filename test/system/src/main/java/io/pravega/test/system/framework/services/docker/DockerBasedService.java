@@ -110,10 +110,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 executorService);
     }
 
-    String setSystemProperty(final String propertyName, final String propertyValue) {
-        return new StringBuilder().append(" -D").append(propertyName).append("=").append(propertyValue).toString();
-    }
-
     @Override
     public List<URI> getServiceDetails() {
         Service.Criteria criteria2 = Service.Criteria.builder().serviceName(this.serviceName).build();

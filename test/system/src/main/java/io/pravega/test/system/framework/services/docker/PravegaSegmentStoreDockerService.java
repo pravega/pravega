@@ -74,13 +74,14 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
         String hostSystemProperties =
-                setSystemProperty("autoScale.muteInSeconds", "120") +
-                setSystemProperty("autoScale.cooldownInSeconds", "120") +
-                setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
-                setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
-                setSystemProperty("log.level", "DEBUG") +
-                setSystemProperty("curator-default-session-timeout", String.valueOf(30 * 1000))+
-                        setSystemProperty("hdfs.replaceDataNodesOnFailure", "false");
+                new StringBuilder().append("-D").append("autoScale.muteInSeconds").append("=").append("120").append(" ")
+                .append("-D").append("autoScale.cooldownInSeconds").append("=").append("120").append(" ")
+                .append("-D").append("autoScale.cacheExpiryInSeconds").append("=").append("120").append(" ")
+                .append("-D").append("autoScale.cacheCleanUpInSeconds").append("=").append("120").append(" ")
+                .append("-D").append("log.level").append("=").append("DEBUG").append(" ")
+                .append("-D").append("curator-default-session-timeout").append("=").append(String.valueOf(30 * 1000)).append(" ")
+                .append("-D").append("hdfs.replaceDataNodesOnFailure").append("=").append("false").toString();
+
         //set env
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx900m";
