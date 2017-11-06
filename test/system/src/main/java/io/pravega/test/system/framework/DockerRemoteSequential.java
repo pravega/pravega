@@ -12,7 +12,6 @@ package io.pravega.test.system.framework;
 import com.google.common.collect.ImmutableMap;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
-import com.spotify.docker.client.VersionCompare;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ContainerCreation;
@@ -22,6 +21,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static io.pravega.test.system.framework.Utils.getConfig;
@@ -48,7 +49,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
-        try {
+       /* try {
             final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
             if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
                 throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
@@ -56,7 +57,7 @@ public class DockerRemoteSequential implements TestExecutor {
         } catch (DockerException e) {
             throw new AssertionError("Unable to find docker client version.Cannot continue test execution.", e);
         }
-
+*/
         log.debug("Starting test execution for method: {}", testMethod);
 
         String className = testMethod.getDeclaringClass().getName();
@@ -76,7 +77,20 @@ public class DockerRemoteSequential implements TestExecutor {
                         throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get container exit status and test result.", e);
                     }
                     return null;
-                });
+                }).whenComplete((v, ex) -> {
+            try {
+                InputStream inputStream = Exceptions.handleInterrupted(() -> client.archiveContainer(id.get(), "/data"));
+            } catch (DockerException e) {
+                log.error("Unable to copy test logs", e);
+            }
+            executorService.shutdownNow();
+            if (ex != null) {
+                log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
+                        methodName);
+            }
+            //Wait for half a minute between test runs.
+            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(30));
+        });
     }
 
     public void stopTestExecution() {

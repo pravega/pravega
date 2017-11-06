@@ -80,7 +80,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
             if (!taskList1.isEmpty()) {
                 for (int j = 0; j < taskList1.size(); j++) {
-                    log.info("task {}", taskList1.get(j).name());
+                    log.info("task id {}", taskList1.get(j).id());
                     String state = taskList1.get(j).status().state();
                     log.info("task state {}", state);
                     if (state.equals(TaskStatus.TASK_STATE_RUNNING)) {
