@@ -70,6 +70,7 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                     streamMetadataStore.registerBucketChangeListener(bucketId, this);
                     Futures.loop(stop::get, this::processNotification, executor);
                 }));
+        notifyStarted();
     }
 
     private CompletableFuture<Void> processNotification() {
@@ -122,6 +123,7 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
         this.stop.set(true);
         retentionFutureMap.forEach((key, value) -> value.cancel(true));
         streamMetadataStore.unregisterBucketListener(bucketId);
+        notifyStopped();
     }
 
     @Override

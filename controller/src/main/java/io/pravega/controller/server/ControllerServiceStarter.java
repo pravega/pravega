@@ -152,6 +152,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             autoRetentionService = new AutoRetentionService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, controllerExecutor);
             log.info("starting auto retention service asynchronously");
             autoRetentionService.startAsync();
+            autoRetentionService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and

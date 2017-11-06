@@ -275,7 +275,7 @@ public class ZKStoreHelper {
                             result.completeExceptionally(e);
                         }
                     }, path);
-                createBuilder.inBackground(callback, executor).forPath(path, data);
+                createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }

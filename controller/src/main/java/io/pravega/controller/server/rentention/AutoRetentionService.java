@@ -45,6 +45,7 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
     protected void doStart() {
         Futures.await(Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
                 .thenAccept(x -> streamMetadataStore.registerBucketOwnershipListener(this)));
+        notifyStarted();
     }
 
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
@@ -56,7 +57,8 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                         AutoRetentionBucketService bucketService = new AutoRetentionBucketService(bucket, streamMetadataStore,
                                 streamMetadataTasks, executor);
                         buckets.add(bucketService);
-                        bucketService.doStart();
+                        bucketService.startAsync();
+                        bucketService.awaitRunning();
                     }
                 });
     }
@@ -65,6 +67,7 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
     protected void doStop() {
         buckets.forEach(AutoRetentionBucketService::doStop);
         streamMetadataStore.unregisterBucketOwnershipListener();
+        notifyStopped();
     }
 
     @Override
