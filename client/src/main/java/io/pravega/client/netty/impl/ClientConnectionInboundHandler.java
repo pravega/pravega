@@ -178,31 +178,34 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     /**
-     * This function completes the input future when the change is registered.
+     * This function completes the input future when the channel is registered.
      *
      * @param future CompletableFuture which will be completed once the channel is registered.
      */
     void completeWhenRegistered(final CompletableFuture<Void> future) {
+        Preconditions.checkNotNull(future, "future");
         if (isRegistered.get()) { // channelRegistered is already invoked, complete the future.
             future.complete(null);
         } else {
-            BinaryOperator<CompletableFuture<Void>> accumulate = (prev, current) -> {
-                if (prev == null) { // registeredFuture is null, set it with the new value.
-                    return current;
-                } else { // future is already registered, ensure the new future is chained with the old future.
-                    prev.whenComplete((aVoid, ex) -> {
-                        if (ex == null) {
-                            current.complete(null);
-                        } else {
-                            current.completeExceptionally(ex);
-                        }
-                    });
-                    return prev;
-                }
-            };
-            // set the accumulate function.
-            registeredFuture.getAndAccumulate(future, accumulate);
+            registeredFuture.getAndAccumulate(future, setAndChainFuture());
         }
+    }
+
+    private BinaryOperator<CompletableFuture<Void>> setAndChainFuture() {
+        return (previous, current) -> {
+                    if (previous == null) { // registeredFuture is null, set it with the new value.
+                        return current;
+                    } else { // future is already registered, ensure the new future is chained to the old future.
+                        previous.whenComplete((v, ex) -> {
+                            if (ex == null) {
+                                current.complete(null);
+                            } else {
+                                current.completeExceptionally(ex);
+                            }
+                        });
+                        return previous;
+                    }
+                };
     }
 
     private final class KeepAliveTask implements Runnable {
