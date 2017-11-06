@@ -57,13 +57,14 @@ allprojects {
             force "org.apache.commons:commons-lang3:" + commonsLang3Version
             force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
-            force "io.grpc:grpc-context:" + grpcVersion
+            force "io.grpc:grpc-netty:" + grpcVersion
+            force "io.grpc:grpc-protobuf:" + grpcVersion
+            force "io.grpc:grpc-stub:" + grpcVersion
             force "com.google.guava:guava:" + guavaVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
         }
     }
-
 }
 
 project('common') {
@@ -138,11 +139,13 @@ project('shared:protocol') {
 
 project('client') {
     dependencies {
+        compile "io.grpc:grpc-netty:" + grpcVersion
+        compile "io.grpc:grpc-protobuf:" + grpcVersion
+        compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')
@@ -416,7 +419,6 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
-        compile group: 'io.grpc', name: 'grpc-auth', version: grpcVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
