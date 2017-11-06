@@ -49,15 +49,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
-       /* try {
-            final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
-            if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
-                throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
-            }
-        } catch (DockerException e) {
-            throw new AssertionError("Unable to find docker client version.Cannot continue test execution.", e);
-        }
-*/
+
         log.debug("Starting test execution for method: {}", testMethod);
 
         String className = testMethod.getDeclaringClass().getName();
