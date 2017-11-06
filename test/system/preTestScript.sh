@@ -15,9 +15,10 @@ echo "Master IP of jarvis cluster is $MASTER"
 NUM_SLAVES=${3:-null}
 DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
 echo "Docker API version is $DOCKER_VERSION"
-
-if [ $DOCKER_VERSION < 1.22 ]; then
-exit
+DOCKER_API_MIN_VERSION=1.22
+if [ 1 -eq "$(echo "${DOCKER_VERSION} < ${DOCKER_API_MIN_VERSION}" | bc)" ]
+then
+   exit
 fi
 if [ $CLUSTER_NAME != null ]; then
     jarvis save $CLUSTER_NAME
