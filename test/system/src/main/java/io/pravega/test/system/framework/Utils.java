@@ -48,7 +48,7 @@ public class Utils {
                 service = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
                         : new ZookeeperService("zookeeper");
                 break;
-            case "bookkeper" :
+            case "bookkeeper" :
                 service = Utils.isDockerLocalExecEnabled() ?
                         new BookkeeperDockerService("bookkeeper", zkUri) :
                         new BookkeeperService("bookkeeper", zkUri);
