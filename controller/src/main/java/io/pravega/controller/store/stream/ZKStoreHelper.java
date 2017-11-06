@@ -17,6 +17,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.curator.framework.CuratorFramework;
@@ -29,6 +31,7 @@ import org.apache.zookeeper.KeeperException;
 @Slf4j
 public class ZKStoreHelper {
     static final String BUCKET_ROOT_PATH = "/buckets";
+    static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
     static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
     static final String RETENTION_PATH = BUCKET_PATH + "/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
@@ -39,6 +42,7 @@ public class ZKStoreHelper {
     static final String SCOPE_COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
     static final String COMPLETED_TX_PATH = SCOPE_COMPLETED_TX_PATH + "/%s";
 
+    @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
@@ -258,6 +262,27 @@ public class ZKStoreHelper {
         return result;
     }
 
+    CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(true),
+                    e -> {
+                        if (e instanceof StoreException.DataExistsException) {
+                            result.complete(false);
+                        } else {
+                            result.completeExceptionally(e);
+                        }
+                    }, path);
+                createBuilder.inBackground(callback, executor).forPath(path, data);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+
     CompletableFuture<Boolean> checkExists(final String path) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
@@ -279,7 +304,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    BackgroundCallback callback(Consumer<CuratorEvent> result, Consumer<Throwable> exception, String path) {
+    private BackgroundCallback callback(Consumer<CuratorEvent> result, Consumer<Throwable> exception, String path) {
         return (client, event) -> {
             if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
                 result.accept(event);

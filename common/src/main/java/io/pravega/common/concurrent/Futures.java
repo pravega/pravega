@@ -599,6 +599,21 @@ public final class Futures {
         return result;
     }
 
+    /**
+     * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.
+     * This method also introduce a delay between each iteration of the loop.
+     *
+     * @param condition      A Supplier that indicates whether to proceed with the loop or not.
+     * @param loopBody       A Supplier that returns a CompletableFuture which represents the body of the loop. This
+     *                       supplier is invoked every time the loopBody needs to execute.
+     * @param delay           Delay in milliseconds.
+     * @param executor       An Executor that is used to execute the condition and the loop support code.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * either the loopBody or condition throw/return Exceptions, these will be set as the result of this returned Future.
+     */
+    public static CompletableFuture<Void> loopWithDelay(Supplier<Boolean> condition, Supplier<CompletableFuture<Void>> loopBody, long delay, ScheduledExecutorService executor) {
+        return loop(condition, () -> delayedFuture(loopBody, delay, executor), executor);
+    }
     //endregion
 
     //region Loop Implementation

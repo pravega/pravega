@@ -15,6 +15,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.server.rentention.BucketChangeListener;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
@@ -638,9 +639,9 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        AtomicReference<BucketListener.StreamNotification> notificationRef = new AtomicReference<>();
+        AtomicReference<BucketChangeListener.StreamNotification> notificationRef = new AtomicReference<>();
 
-        store.registerBucketListener(0, notificationRef::set);
+        store.registerBucketChangeListener(0, notificationRef::set);
         store.unregisterBucketListener(0);
 
         store.addUpdateStreamForAutoRetention(scope, stream, retentionPolicy, null, executor).get();

@@ -9,19 +9,35 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.controller.server.rentention.BucketChangeListener;
+import io.pravega.controller.server.rentention.BucketOwnershipListener;
+import io.pravega.controller.server.rentention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.tables.Data;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
+import org.apache.curator.utils.ZKPaths;
 
+import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.server.rentention.BucketChangeListener.StreamNotification;
+import static io.pravega.controller.server.rentention.BucketChangeListener.StreamNotification.NotificationType;
 
 /**
  * ZK stream metadata store.
@@ -29,11 +45,15 @@ import java.util.stream.Collectors;
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final ZKStoreHelper storeHelper;
+    private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
+    private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor));
         initialize();
         storeHelper = new ZKStoreHelper(client, executor);
+        bucketCacheMap = new ConcurrentHashMap<>();
+        bucketOwnershipCacheRef = new AtomicReference<>();
     }
 
     private void initialize() {
@@ -68,15 +88,112 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public void registerBucketListener(int bucket, BucketListener listener) {
-        // TODO: add watch on children nodes of the bucket
-        listeners.putIfAbsent(bucket, listener);
+    @SneakyThrows
+    public void registerBucketOwnershipListener(BucketOwnershipListener listener) {
+        Preconditions.checkNotNull(listener);
+
+        PathChildrenCacheListener bucketListener = (client, event) -> {
+            switch (event.getType()) {
+                case CHILD_ADDED:
+                    // no action required
+                    break;
+                case CHILD_REMOVED:
+                    int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
+                    listener.notify(new BucketNotification(bucketId, BucketNotification.NotificationType.BucketAvailable));
+                    break;
+                case CONNECTION_LOST:
+                    listener.notify(new BucketNotification(Integer.MIN_VALUE, BucketNotification.NotificationType.ConnectivityError));
+                    break;
+                default:
+                    log.warn("Received unknown event {}", event.getType());
+            }
+        };
+
+        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), ZKStoreHelper.BUCKET_OWNERSHIP_PATH, true));
+
+        bucketOwnershipCacheRef.get().getListenable().addListener(bucketListener);
+        bucketOwnershipCacheRef.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+        log.info("bucket ownership listener registered");
+    }
+
+    @Override
+    public void unregisterBucketOwnershipListener() {
+        if (bucketOwnershipCacheRef.get() != null) {
+            try {
+                bucketOwnershipCacheRef.get().clear();
+                bucketOwnershipCacheRef.get().close();
+            } catch (IOException e) {
+                log.warn("unable to close listener for bucket ownership");
+            }
+        }
+    }
+
+    @Override
+    @SneakyThrows
+    public void registerBucketChangeListener(int bucket, BucketChangeListener listener) {
+        Preconditions.checkNotNull(listener);
+
+        PathChildrenCacheListener bucketListener = (client, event) -> {
+            StreamImpl stream;
+            switch (event.getType()) {
+                case CHILD_ADDED:
+                    stream = getStreamFromPath(event.getData().getPath());
+                    listener.notify(new StreamNotification(stream.getScope(), stream.getStreamName(), NotificationType.StreamAdded));
+                    break;
+                case CHILD_REMOVED:
+                    stream = getStreamFromPath(event.getData().getPath());
+                    listener.notify(new StreamNotification(stream.getScope(), stream.getStreamName(), NotificationType.StreamRemoved));
+                    break;
+                case CHILD_UPDATED:
+                    stream = getStreamFromPath(event.getData().getPath());
+                    listener.notify(new StreamNotification(stream.getScope(), stream.getStreamName(), NotificationType.StreamUpdated));
+                    break;
+                case CONNECTION_LOST:
+                    listener.notify(new StreamNotification(null, null, NotificationType.ConnectivityError));
+                    break;
+                default:
+                    log.warn("Received unknown event {}", event.getType());
+            }
+        };
+
+        String bucketRoot = String.format(ZKStoreHelper.BUCKET_PATH, bucket);
+
+        bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
+        PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
+        pathChildrenCache.getListenable().addListener(bucketListener);
+        pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
+        log.info("bucket {} change notification listener registered", bucket);
     }
 
     @Override
     public void unregisterBucketListener(int bucket) {
-        // TODO: remove watch on children nodes of the bucket
-        listeners.remove(bucket);
+        PathChildrenCache cache = bucketCacheMap.remove(bucket);
+        if (cache != null) {
+            try {
+                cache.clear();
+                cache.close();
+            } catch (IOException e) {
+                log.warn("unable to close watch on bucket {}", bucket);
+            }
+        }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        // try creating an ephemeral node
+        String bucketPath = ZKPaths.makePath(ZKStoreHelper.BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
+
+        return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
+                .thenCompose(created -> {
+                    if (!created) {
+                        // Note: data may disappear by the time we do a getData. Let exception be thrown from here
+                        // so that caller may retry.
+                        return storeHelper.getData(bucketPath)
+                                .thenApply(data -> (SerializationUtils.deserialize(data.getData())).equals(processId));
+                    } else {
+                        return CompletableFuture.completedFuture(true);
+                    }
+                });
     }
 
     @Override
@@ -131,5 +248,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private String decodedScopedStreamName(String encodedScopedStreamName) {
         return new String(Base64.getDecoder().decode(encodedScopedStreamName));
+    }
+
+    private StreamImpl getStreamFromPath(String path) {
+        ZKPaths.PathAndNode scopedStream = ZKPaths.getPathAndNode(path);
+        String stream = scopedStream.getNode();
+        String scope = ZKPaths.getNodeFromPath(scopedStream.getPath());
+        return new StreamImpl(scope, stream);
     }
 }

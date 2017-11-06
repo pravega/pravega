@@ -25,6 +25,7 @@ import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
+import io.pravega.controller.server.rentention.AutoRetentionService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -48,6 +49,8 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import io.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -66,6 +69,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private AutoRetentionService autoRetentionService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
@@ -144,6 +148,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     segmentHelper, controllerExecutor, host.getHostId(), connectionFactory);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory);
+
+            autoRetentionService = new AutoRetentionService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, controllerExecutor);
+            log.info("starting auto retention service asynchronously");
+            autoRetentionService.startAsync();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -253,6 +261,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Controller cluster listener shutdown");
             }
 
+            if (autoRetentionService != null) {
+                log.info("Awaiting termination of auto retention");
+                autoRetentionService.stopAsync();
+            }
+
             log.info("Closing stream metadata tasks");
             streamMetadataTasks.close();
 
@@ -283,6 +296,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (controllerClusterListener != null) {
                 log.info("Awaiting termination of controller cluster listener");
                 controllerClusterListener.awaitTerminated();
+            }
+
+            if (autoRetentionService != null) {
+                log.info("Awaiting termination of auto retention");
+                autoRetentionService.awaitTerminated();
             }
 
             // Next stop all executors

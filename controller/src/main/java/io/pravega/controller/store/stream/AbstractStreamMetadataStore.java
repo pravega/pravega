@@ -44,8 +44,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -75,7 +73,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     protected final int bucketCount;
-    protected final ConcurrentMap<Integer, BucketListener> listeners;
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
@@ -118,7 +115,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         this.hostIndex = hostIndex;
         this.bucketCount = Config.BUCKET_COUNT;
-        this.listeners = new ConcurrentHashMap<>();
     }
 
     /**

@@ -12,6 +12,8 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.rentention.BucketChangeListener;
+import io.pravega.controller.server.rentention.BucketOwnershipListener;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -25,7 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -46,11 +51,17 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @GuardedBy("$lock")
     private final Map<String, RetentionPolicy> streamPolicyMap = new HashMap<>();
 
+    private final AtomicReference<BucketOwnershipListener> ownershipListenerRef;
+
+    private final ConcurrentMap<Integer, BucketChangeListener> listeners;
+
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
         super(new InMemoryHostIndex());
+        this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
+        this.ownershipListenerRef = new AtomicReference<>();
     }
 
     @Override
@@ -132,7 +143,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public void registerBucketListener(int bucket, BucketListener listener) {
+    public void registerBucketChangeListener(int bucket, BucketChangeListener listener) {
         listeners.put(bucket, listener);
     }
 
@@ -140,6 +151,21 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public void unregisterBucketListener(int bucket) {
         listeners.remove(bucket);
+    }
+
+    @Override
+    public void registerBucketOwnershipListener(BucketOwnershipListener ownershipListener) {
+        this.ownershipListenerRef.set(ownershipListener);
+    }
+
+    @Override
+    public void unregisterBucketOwnershipListener() {
+        this.ownershipListenerRef.set(null);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        return CompletableFuture.completedFuture(true);
     }
 
     @Synchronized
@@ -168,11 +194,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
         return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
             if (isUpdate) {
-                listener.notify(new BucketListener.StreamNotification(scope, stream,
-                        BucketListener.StreamNotification.NotificationType.StreamUpdated));
+                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                        BucketChangeListener.StreamNotification.NotificationType.StreamUpdated));
             } else {
-                listener.notify(new BucketListener.StreamNotification(scope, stream,
-                        BucketListener.StreamNotification.NotificationType.StreamAdded));
+                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                        BucketChangeListener.StreamNotification.NotificationType.StreamAdded));
             }
             return listener;
         }), executor);
@@ -192,8 +218,8 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         streamPolicyMap.remove(scopedStreamName);
 
         return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
-            listener.notify(new BucketListener.StreamNotification(scope, stream,
-                    BucketListener.StreamNotification.NotificationType.StreamRemoved));
+            listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                    BucketChangeListener.StreamNotification.NotificationType.StreamRemoved));
             return listener;
         }), executor);
     }
