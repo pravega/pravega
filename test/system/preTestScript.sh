@@ -16,6 +16,11 @@ NUM_SLAVES=${3:-null}
 DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
 echo "Docker API version is $DOCKER_VERSION"
 DOCKER_API_MIN_VERSION=1.22
+st=`echo "${DOCKER_VERSION} < ${DOCKER_API_MIN_VERSION}" | bc`
+if [ 1 -eq $st ];
+then
+   exit
+fi
 if [ $CLUSTER_NAME != null ]; then
     jarvis save $CLUSTER_NAME
     if [ $MASTER != null ]; then
@@ -28,8 +33,9 @@ if [ $CLUSTER_NAME != null ]; then
 
       for i in `seq 1 $NUM_SLAVES`
       do
-      echo "slave-$i joining as a worker node"
+      echo "ssh into slave-$i"
       jarvis ssh slave-$i "bash -s" -- < ./Change_Docker_Config_Slave.sh
+      echo "slave-$i joining as a worker node"
       jarvis ssh slave-$i "bash -s" -- < ./token.sh
       done
     fi

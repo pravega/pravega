@@ -12,6 +12,7 @@ package io.pravega.test.system.framework;
 import com.google.common.collect.ImmutableMap;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.DockerClient;
+import com.spotify.docker.client.VersionCompare;
 import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.ContainerCreation;
@@ -50,6 +51,15 @@ public class DockerRemoteSequential implements TestExecutor {
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
+        try {
+            final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
+            if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
+                throw new AssertionError("Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
+            }
+        } catch (DockerException e) {
+            throw new AssertionError("Unable to find docker client version.Cannot continue test execution.", e);
+        }
+
         log.debug("Starting test execution for method: {}", testMethod);
 
         String className = testMethod.getDeclaringClass().getName();
@@ -75,7 +85,6 @@ public class DockerRemoteSequential implements TestExecutor {
             } catch (DockerException e) {
                 log.error("Unable to copy test logs", e);
             }
-            executorService.shutdownNow();
             if (ex != null) {
                 log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                         methodName);
