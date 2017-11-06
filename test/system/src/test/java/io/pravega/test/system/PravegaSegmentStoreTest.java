@@ -20,7 +20,6 @@ import java.net.URI;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 

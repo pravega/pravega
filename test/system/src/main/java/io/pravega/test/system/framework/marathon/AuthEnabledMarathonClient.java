@@ -21,7 +21,6 @@ import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
 import io.pravega.test.system.framework.LoginClient;
 import java.util.Calendar;
-
 import mesosphere.client.common.ModelUtils;
 import mesosphere.marathon.client.Marathon;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
