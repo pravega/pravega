@@ -99,7 +99,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            long endOffset = meta.fetchCurrentStreamLength();
+            long endOffset = meta.fetchCurrentSegmentLength();
             log.trace("Creating iterator from {} until {}", startOffset, endOffset);
             return new StreamIterator(startOffset, endOffset);
         }
@@ -108,7 +108,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchLatestRevision() {
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentStreamLength();
+            long streamLength = meta.fetchCurrentSegmentLength();
             return new RevisionImpl(segment, streamLength, 0);
         }
     }
