@@ -26,18 +26,15 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
 import static org.junit.Assert.assertNotNull;
-import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import com.spotify.docker.client.messages.Network;
 import com.spotify.docker.client.messages.swarm.Task;
 
 @Slf4j
@@ -153,7 +150,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     }
 
     @Override
-    public void scaleService(final int instanceCount, final boolean wait) {
+    public CompletableFuture<Void> scaleService(final int instanceCount) {
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
@@ -164,10 +161,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
             String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
             log.info("Update state {}", updateState);
-            if (wait) {
-                Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get());
-            }
-        } catch (ExecutionException | DockerException e) {
+            return  Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
+        } catch (DockerException e) {
             throw new AssertionError("Unable to scale service to given instances.Test Failure", e);
         }
     }
@@ -175,13 +170,15 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     @Override
     public void stop() {
         try {
-            List<Network> networkList = Exceptions.handleInterrupted(() -> dockerClient.listNetworks(DockerClient.ListNetworksParam.byNetworkName(Utils.DOCKER_NETWORK)));
-            Exceptions.handleInterrupted(() -> dockerClient.removeNetwork(networkList.get(0).id()));
-            Exceptions.handleInterrupted(() -> dockerClient.leaveSwarm(true));
+            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
+            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
+            for (int i = 0; i < serviceList.size(); i++) {
+                String serviceId = serviceList.get(i).id();
+                Exceptions.handleInterrupted(() -> dockerClient.removeService(serviceId));
+            }
         } catch (DockerException e) {
-           throw new AssertionError("Unable to leave Swarm. Test Failure", e);
+            throw new AssertionError("Unable to remove service.", e);
         }
-        dockerClient.close();
     }
 
     public void start(final boolean wait, final ServiceSpec serviceSpec) {

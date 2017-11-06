@@ -11,11 +11,13 @@ package io.pravega.test.system;
 
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
@@ -33,6 +35,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -61,7 +65,11 @@ public class MultiControllerTest {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        controllerService.scaleService(3, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService.scaleService(3).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -140,7 +148,11 @@ public class MultiControllerTest {
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
         }
 
-        controllerService1.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService1.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         conUris = controllerService1.getServiceDetails();
         List<String> uris;
         if (Utils.isDockerLocalExecEnabled()) {
@@ -165,7 +177,11 @@ public class MultiControllerTest {
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
         }
 
-        controllerService1.scaleService(1, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService1.scaleService(1).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         conUris = controllerService1.getServiceDetails();
         if (Utils.isDockerLocalExecEnabled()) {
             uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
@@ -190,7 +206,11 @@ public class MultiControllerTest {
         }
 
         // All APIs should throw exception and fail.
-        controllerService1.scaleService(0, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService1.scaleService(0).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",

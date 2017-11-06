@@ -68,6 +68,7 @@ public class DockerRemoteSequential implements TestExecutor {
         }).thenCompose(v2 -> waitForJobCompletion())
                 .<Void>thenApply(v1 -> {
                     try {
+                        executorService.shutdownNow();
                         if (Exceptions.handleInterrupted(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);

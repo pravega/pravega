@@ -18,9 +18,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -28,6 +30,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.utils.MarathonException;
@@ -38,6 +41,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -142,9 +146,13 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         testState.eventsReadFromPravega.clear();
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
-    }
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
+}
 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {

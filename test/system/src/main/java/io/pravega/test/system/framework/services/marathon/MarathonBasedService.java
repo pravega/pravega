@@ -101,24 +101,23 @@ public abstract class MarathonBasedService implements Service {
     }
 
     @Override
-    public void scaleService(final int instanceCount, final boolean wait) {
+    public CompletableFuture<Void> scaleService(final int instanceCount) {
         Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
         try {
             App updatedConfig = new App();
             updatedConfig.setInstances(instanceCount);
             marathonClient.updateApp(getID(), updatedConfig, true);
-            if (wait) {
-                waitUntilServiceRunning().get(); // wait until scale operation is complete.
-            }
+
+              return waitUntilServiceRunning(); // wait until scale operation is complete.
+
         } catch (MarathonException ex) {
             if (ex.getStatus() == CONFLICT.code()) {
                 log.error("Scaling operation failed as the application is locked by an ongoing deployment", ex);
                 throw new TestFrameworkException(RequestFailed, "Scaling operation failed", ex);
             }
             handleMarathonException(ex);
-        } catch (InterruptedException | ExecutionException ex) {
-            throw new TestFrameworkException(InternalError, "Exception during scale operation", ex);
         }
+        return null;
     }
 
     void handleMarathonException(MarathonException e) {

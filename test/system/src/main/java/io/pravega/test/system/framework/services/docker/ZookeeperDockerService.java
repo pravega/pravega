@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.services.docker;
 
-import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
@@ -17,14 +16,11 @@ import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
 import com.spotify.docker.client.messages.swarm.PortConfig;
 import com.spotify.docker.client.messages.swarm.ResourceRequirements;
 import com.spotify.docker.client.messages.swarm.Resources;
-import com.spotify.docker.client.messages.swarm.Service;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
-import io.pravega.common.Exceptions;
 import lombok.extern.slf4j.Slf4j;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
@@ -43,16 +39,7 @@ public class ZookeeperDockerService extends DockerBasedService {
 
     @Override
     public void stop() {
-        try {
-            Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
-            for (int i = 0; i < serviceList.size(); i++) {
-                String serviceId = serviceList.get(i).id();
-                Exceptions.handleInterrupted(() -> dockerClient.removeService(serviceId));
-            }
-        } catch (DockerException e) {
-            throw new AssertionError("Unable to remove service.", e);
-        }
+        super.stop();
     }
 
     @Override

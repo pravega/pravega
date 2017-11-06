@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -45,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
+
+import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -117,7 +120,11 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
@@ -131,7 +138,11 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount1 > currentReadCount2);
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
@@ -145,8 +156,12 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment  store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        try {
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
@@ -170,7 +185,11 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
@@ -178,7 +197,11 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
@@ -186,8 +209,12 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down segment store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        try {
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
+        } catch (ExecutionException  e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
@@ -560,7 +587,11 @@ abstract class AbstractFailoverTests {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        controllerService.scaleService(3, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService.scaleService(3).get());
+        } catch (ExecutionException  e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -584,7 +615,11 @@ abstract class AbstractFailoverTests {
         if (!segService.isRunning()) {
             segService.start(true);
         }
-        segService.scaleService(3, true);
+        try {
+            Exceptions.handleInterrupted(() -> segService.scaleService(3).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
     }

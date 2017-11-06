@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.services.docker;
 
-import com.spotify.docker.client.exceptions.DockerException;
 import com.spotify.docker.client.messages.ContainerConfig;
 import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
@@ -21,7 +20,6 @@ import com.spotify.docker.client.messages.swarm.Resources;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
-import io.pravega.common.Exceptions;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,11 +44,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
 
     @Override
     public void stop() {
-        try {
-            Exceptions.handleInterrupted(() -> dockerClient.removeService(getID()));
-        } catch (DockerException e) {
-            throw new AssertionError("Unable to remove service.", e);
-        }
+        super.stop();
     }
 
     @Override

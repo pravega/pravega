@@ -18,8 +18,10 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -29,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -39,6 +42,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 /**
  * Controller fail over system test.
@@ -88,7 +93,11 @@ public class ControllerFailoverTest {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        controllerService.scaleService(2, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService.scaleService(2).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -184,7 +193,11 @@ public class ControllerFailoverTest {
         Assert.assertTrue(!scaleStatus);
 
         // Now stop the controller instance executing scale operation.
-        controllerService1.scaleService(1, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerService1.scaleService(1).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
         log.info("Successfully stopped test controller service");
 
         // Connect to another controller instance.

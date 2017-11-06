@@ -25,6 +25,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -45,7 +46,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+
+import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -147,8 +151,12 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         controllerExecutorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
     }
 
     @Test
@@ -160,8 +168,13 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         performFailoverForTestsInvolvingTxns();
 
         //bring the instances back to 3 before performing failover during scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(3).get());
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(3).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
+
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //scale manually
@@ -199,8 +212,13 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         //bring the instances back to 3 before performing failover after scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
+        try {
+            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(3).get());
+            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(3).get());
+        } catch (ExecutionException e) {
+            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        }
+
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //run the failover test after scaling
