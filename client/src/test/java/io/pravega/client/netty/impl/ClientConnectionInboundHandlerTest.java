@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.netty.impl;
 
@@ -18,11 +18,9 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.CompletableFuture;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -37,11 +35,11 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import lombok.Cleanup;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ClientConnectionInboundHandlerTest {
@@ -93,31 +91,48 @@ public class ClientConnectionInboundHandlerTest {
     }
 
     @Test(expected = ConnectionFailedException.class)
-    public void sendError() throws ConnectionFailedException {
+    public void sendError() throws Exception {
         //Send function is invoked without channel registered being invoked.
         //this causes a connectionFailed exception.
         handler.send(appendCmd);
     }
 
+    @Test(expected = ConnectionFailedException.class)
+    public void sendErrorUnRegistered() throws Exception {
+        //any send after channelUnregistered should throw a ConnectionFailedException.
+        handler.channelRegistered(ctx);
+        handler.channelUnregistered(ctx);
+        handler.send(appendCmd);
+    }
+
     @Test
-    public void sendDelayedChannelRegistered() throws Exception {
-        //Simulate a delayed channel Regstered function.
-        @Cleanup("shutdownNow")
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(2);
+    public void completeWhenRegisteredNormal() throws Exception {
+        handler.channelRegistered(ctx);
+        CompletableFuture<Void> testFuture = new CompletableFuture<>();
+        handler.completeWhenRegistered(testFuture);
+        Assert.assertTrue(Futures.isSuccessful(testFuture));
+    }
 
-        Callable<Void> invokeSend = () -> {
-            handler.send(appendCmd);
-            return null;
-        };
+    @Test
+    public void completeWhenRegisteredDelayed() throws Exception {
+        CompletableFuture<Void> testFuture = new CompletableFuture<>();
+        handler.completeWhenRegistered(testFuture);
+        handler.channelRegistered(ctx);
+        Assert.assertTrue(Futures.isSuccessful(testFuture));
+    }
 
-        Callable<Void> invokeChannelRegistered = () -> {
-            handler.channelRegistered(ctx);
-            return null;
-        };
+    @Test
+    public void completeWhenRegisteredDelayedMultiple() throws Exception {
+        CompletableFuture<Void> testFuture = new CompletableFuture<>();
+        handler.completeWhenRegistered(testFuture);
 
-        Future<Void> result = executor.submit(invokeSend);
-        SECONDS.sleep(1); // introduce a delay.
-        executor.submit(invokeChannelRegistered);
-        result.get();
+        CompletableFuture<Void> testFuture1 = new CompletableFuture<>();
+        handler.completeWhenRegistered(testFuture1);
+
+        handler.channelRegistered(ctx);
+
+        Assert.assertTrue(Futures.isSuccessful(testFuture));
+        testFuture1.get(); //wait until additional future is complete.
+        Assert.assertTrue(Futures.isSuccessful(testFuture1));
     }
 }

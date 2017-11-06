@@ -114,25 +114,30 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
          });
 
         // Start the client.
-        CompletableFuture<ClientConnection> result = new CompletableFuture<>();
+        CompletableFuture<ClientConnection> connectionComplete = new CompletableFuture<>();
         try {
             b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) {
                     if (future.isSuccess()) {
+                        //since ChannelFuture is complete future.channel() is not a blocking call.
                         Channel ch = future.channel();
                         log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
-                        result.complete(handler);
+                        connectionComplete.complete(handler);
                     } else {
-                        result.completeExceptionally(new ConnectionFailedException(future.cause()));
+                        connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
                     }
                 }
             });
         } catch (Exception e) {
-            result.completeExceptionally(new ConnectionFailedException(e));
+            connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
-        return result;
+
+        CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //check if channel is registered.
+        handler.completeWhenRegistered(channelRegisteredFuture);
+
+        return connectionComplete.thenCombine(channelRegisteredFuture, (clientConnection, v) -> clientConnection);
     }
 
     @Override

@@ -10,9 +10,6 @@
 
 package io.pravega.client.netty.impl;
 
-import static java.lang.String.valueOf;
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,9 +19,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -33,9 +28,11 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BinaryOperator;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -44,15 +41,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter implements ClientConnection {
 
-    private static final long CHANNEL_REGISTERED_TIMEOUT_MS = Long.parseLong(
-            System.getProperty("pravega.client.netty.channel.timeout.millis", valueOf(SECONDS.toMillis(20))));
     private final String connectionName;
     private final ReplyProcessor processor;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
-    private final ReusableLatch channelRegisteredLatch = new ReusableLatch();
+    private final AtomicBoolean isRegistered = new AtomicBoolean();
+    private final AtomicReference<CompletableFuture<Void>> registeredFuture = new AtomicReference<>();
 
     ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor, AppendBatchSizeTracker batchSizeTracker) {
         Preconditions.checkNotNull(processor);
@@ -67,10 +63,13 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
-        channelRegisteredLatch.release();
+        isRegistered.set(true);
+        if (null != registeredFuture.get()) { //complete the pending future.
+            registeredFuture.get().complete(null);
+        }
         log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -82,7 +81,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-        channelRegisteredLatch.reset();
+        isRegistered.set(false);
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -170,28 +169,42 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
     }
 
-    /**
-     * This method ensures io.pravega.client.netty.impl.ClientConnectionInboundHandler#channelActive(io.netty.channel.ChannelHandlerContext)
-     * is invoked before attempting to return the channel.
-     *
-     * @return io.netty.channel.Channel
-     * @throws ConnectionFailedException incase channelActive() is not invoked or channel is null due to
-     * channelInactive() invocation.
-     */
     private Channel getChannel() throws ConnectionFailedException {
-        try {
-            Exceptions.handleInterrupted(() -> channelRegisteredLatch.await(CHANNEL_REGISTERED_TIMEOUT_MS));
-            Channel ch = channel.get();
-            if (ch == null) {
-                throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
-            }
-            return ch;
-        } catch (TimeoutException e) {
-            throw new ConnectionFailedException("Channel is not active. Connection to " + connectionName + "is not " +
-                    "established.");
+        Channel ch = channel.get();
+        if (ch == null) {
+            throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
+        }
+        return ch;
+    }
+
+    /**
+     * This function completes the input future when the change is registered.
+     *
+     * @param future CompletableFuture which will be completed once the channel is registered.
+     */
+    void completeWhenRegistered(final CompletableFuture<Void> future) {
+        if (isRegistered.get()) { // channelRegistered is already invoked, complete the future.
+            future.complete(null);
+        } else {
+            BinaryOperator<CompletableFuture<Void>> accumulate = (prev, current) -> {
+                if (prev == null) { // registeredFuture is null, set it with the new value.
+                    return current;
+                } else { // future is already registered, ensure the new future is chained with the old future.
+                    prev.whenComplete((aVoid, ex) -> {
+                        if (ex == null) {
+                            current.complete(null);
+                        } else {
+                            current.completeExceptionally(ex);
+                        }
+                    });
+                    return prev;
+                }
+            };
+            // set the accumulate function.
+            registeredFuture.getAndAccumulate(future, accumulate);
         }
     }
-    
+
     private final class KeepAliveTask implements Runnable {
         @Override
         public void run() {
