@@ -17,5 +17,5 @@ service docker stop
 service docker start
 docker swarm init --advertise-addr $MASTER
 docker network create -d overlay --attachable docker-network
-docker swarm join-token worker > token.sh && mv token.sh /home/nautilus
+docker swarm join-token worker > token.sh
 exit

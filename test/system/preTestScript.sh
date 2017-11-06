@@ -21,11 +21,14 @@ if [ $CLUSTER_NAME != null ]; then
     if [ $MASTER != null ]; then
       #master
       jarvis ssh $CLUSTER_NAME "bash -s" -- < ./Change_Docker_Config_Master.sh $MASTER
+      echo "Copying token to host machine"
       jarvis scp master-1:/home/nautilus/token.sh .
 
       #slaves
+
       for i in `seq 1 $NUM_SLAVES`
       do
+      echo "slave-$i joining as a worker node"
       jarvis ssh slave-$i "bash -s" -- < ./Change_Docker_Config_Slave.sh
       jarvis ssh slave-$i "bash -s" -- < ./token.sh
       done
