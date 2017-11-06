@@ -16,7 +16,7 @@ NUM_SLAVES=${3:-null}
 DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
 echo "Docker API version is $DOCKER_VERSION"
 
-if [ $DOCKER_VERSION < 1.2.2 ]; then
+if [ $DOCKER_VERSION < 1.22 ]; then
 exit
 fi
 if [ $CLUSTER_NAME != null ]; then

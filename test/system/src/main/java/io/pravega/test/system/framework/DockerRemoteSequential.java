@@ -44,7 +44,7 @@ public class DockerRemoteSequential implements TestExecutor {
     private final static String IMAGE = "java:8";
     final AtomicReference<String> id = new AtomicReference();
     private final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
-    private final String expectedDockerApiVersion = "1.25";
+    private final String expectedDockerApiVersion = "1.22";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
