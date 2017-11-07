@@ -614,7 +614,7 @@ project('test:system') {
         }
         if (System.getProperty("skipServiceInstallation") == null) {
             //skipServiceInstallation by default.
-            systemProperty "skipServiceInstallation", "true"
+            systemProperty "skipServiceInstallation", "false"
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
