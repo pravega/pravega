@@ -9,9 +9,8 @@
  */
 package io.pravega.common.io;
 
-import java.io.ByteArrayOutputStream;
-
 import io.pravega.common.util.ByteArraySegment;
+import java.io.ByteArrayOutputStream;
 
 /**
  * A ByteArrayOutputStream that exposes the contents as a ByteArraySegment, without requiring a memory copy.
@@ -25,4 +24,10 @@ public class EnhancedByteArrayOutputStream extends ByteArrayOutputStream {
     public ByteArraySegment getData() {
         return new ByteArraySegment(this.buf, 0, this.count, true);
     }
+
+    @Override
+    public void write(byte[] array) {
+        this.write(array, 0, array.length);
+    }
+
 }

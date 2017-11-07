@@ -9,22 +9,25 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -76,64 +79,82 @@ public class HDFSStorageTest extends StorageTestBase {
 
     //region Fencing tests
 
-    //TODO: fix this unit test. Maybe generalize for every Storage adapter.
-    @Test
-    public void testZombies() throws Exception {
-        final long epochCount = 1000;
-        final String segmentName = "Segment";
+    /**
+     * A special case Fencing test that verifies the HDFSStorage fencing mechanism when the "fenced-out" instance keeps
+     * trying to write continuously. This verifies that any ongoing writes are properly handled upon fencing.
+     * By having the "fenced-out" instance keep writing, we will exercise the case when we have an ongoing write while
+     * a HDFS file is being set as read-only (the HDFS behavior in this case is that the ongoing write will complete).
+     */
+    @Test(timeout = 60000)
+    public void testZombieFencing() throws Exception {
+        final long epochCount = 30;
         final int writeSize = 1000;
-        final AtomicLong length = new AtomicLong(0);
-        final ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+        final String segmentName = "Segment";
+        val writtenData = new EnhancedByteArrayOutputStream();
         final Random rnd = new Random(0);
         int currentEpoch = 1;
 
-        val currentAdapter = new AtomicReference<Storage>();
-        currentAdapter.set(createStorage());
-        currentAdapter.get().initialize(currentEpoch);
-        currentAdapter.get().create(segmentName, TIMEOUT).join();
+        // Create initial adapter.
+        val currentStorage = new AtomicReference<Storage>();
+        currentStorage.set(createStorage());
+        currentStorage.get().initialize(currentEpoch);
 
+        // Create the Segment and open it for the first time.
+        val currentHandle = new AtomicReference<SegmentHandle>(
+                currentStorage.get().create(segmentName, TIMEOUT)
+                        .thenCompose(v -> currentStorage.get().openWrite(segmentName))
+                        .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+
+        // Run a number of epochs.
         while (currentEpoch <= epochCount) {
-            val c = currentAdapter.get();
+            val oldStorage = currentStorage.get();
+            val handle = currentHandle.get();
             val writeBuffer = new byte[writeSize];
-            CompletableFuture<Void> appendFuture = c
-                    .openWrite(segmentName)
-                    .thenCompose(handle -> Futures.loop(
-                            () -> true,
-                            () -> {
-                                rnd.nextBytes(writeBuffer);
-                                return c.write(handle, length.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT)
-                                        .thenRun(() -> {
-                                            length.addAndGet(writeBuffer.length);
-                                            try {
-                                                writtenData.write(writeBuffer);
-                                            } catch (IOException ex) {
-                                            }
-                                        });
-                            },
-                            executorService()));
+            val appends = Futures.loop(
+                    () -> true,
+                    () -> {
+                        rnd.nextBytes(writeBuffer);
+                        return oldStorage.write(handle, writtenData.size(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT)
+                                .thenRun(() -> writtenData.write(writeBuffer));
+                    },
+                    executorService());
 
-            currentEpoch++;
-            System.out.println("Beginning epoch " + currentEpoch);
+            // Create a new Storage adapter with a new epoch and open-write the Segment, remembering its handle.
             val newStorage = createStorage();
-            newStorage.initialize(currentEpoch);
-            newStorage.openWrite(segmentName).join();
-            val oldStorage = currentAdapter.getAndSet(newStorage);
             try {
-                appendFuture.join();
-                Assert.fail();
+                newStorage.initialize(++currentEpoch);
+                currentHandle.set(newStorage.openWrite(segmentName).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
             } catch (Exception ex) {
-//                val cause = Exceptions.unwrap(ex);
-//                if(cause instanceof StorageNotPrimaryException) {
-                    System.out.println("Finished epoch " + (currentEpoch - 1));
-//                }else{
-//                    cause.printStackTrace();
-//                    Assert.fail("Unexpected exception "+cause);
-//                }
+                newStorage.close();
+                throw ex;
             }
 
-            oldStorage.close();
-            Thread.sleep(500);
+            currentStorage.set(newStorage);
+            try {
+                appends.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.fail("Continuous appends on older epoch Adapter did not fail.");
+            } catch (Exception ex) {
+                val cause = Exceptions.unwrap(ex);
+                if (!(cause instanceof StorageNotPrimaryException || cause instanceof StreamSegmentSealedException)) {
+                    // We only expect the appends to fail because they were fenced out or the Segment was sealed.
+                    Assert.fail("Unexpected exception " + cause);
+                }
+            } finally {
+                oldStorage.close();
+            }
         }
+
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] readData = new byte[expectedData.length];
+        @Cleanup
+        val readStorage = createStorage();
+        readStorage.initialize(++currentEpoch);
+        int bytesRead = readStorage
+                .openRead(segmentName)
+                .thenCompose(handle -> readStorage.read(handle, 0, readData, 0, readData.length, TIMEOUT))
+                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of bytes read.", readData.length, bytesRead);
+        Assert.assertArrayEquals("Unexpected data read back.", expectedData, readData);
     }
 
     /**

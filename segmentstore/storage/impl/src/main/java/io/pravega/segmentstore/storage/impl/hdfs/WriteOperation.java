@@ -54,7 +54,7 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
         FileDescriptor lastFile = handle.getLastFile();
 
         Timer timer = new Timer();
-        markWriteInProgress(lastFile, true);
+        markWriteInProgress(lastFile, true); // Set a flag on the file indicating we're about to write to it.
         try (FSDataOutputStream stream = this.context.fileSystem.append(lastFile.getPath())) {
             if (this.offset != lastFile.getLastOffset()) {
                 // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
@@ -88,6 +88,7 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             checkForFenceOut(handle.getSegmentName(), handle.getFiles().size(), handle.getLastFile());
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         } finally {
+            // Clear the write flag on the file; this will unblock any calls to makeReadOnly() that wait on it.
             markWriteInProgress(lastFile, false);
         }
 

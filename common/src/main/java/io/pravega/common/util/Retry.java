@@ -130,6 +130,11 @@ public final class Retry {
             Preconditions.checkNotNull(predicate);
             return new RetryConditionally(predicate, this);
         }
+
+        public <ExceptionT extends Exception> RetryWhile<ExceptionT> retryWhile(SupplierWithException<Boolean, ExceptionT> condition) {
+            Preconditions.checkNotNull(condition);
+            return new RetryWhile<>(condition, this);
+        }
     }
 
     /**
@@ -173,6 +178,11 @@ public final class Retry {
     @FunctionalInterface
     public interface Retryable<ReturnT, RetryableET extends Exception, NonRetryableET extends Exception> {
         ReturnT attempt() throws RetryableET, NonRetryableET;
+    }
+
+    @FunctionalInterface
+    public interface SupplierWithException<ReturnT, CheckedException extends Exception> {
+        ReturnT get() throws CheckedException;
     }
 
     public static abstract class RetryAndThrowBase<ThrowsT extends Exception> {
@@ -350,6 +360,39 @@ public final class Retry {
         boolean canRetry(final Throwable e) {
             consumer.accept(e);
             return true;
+        }
+    }
+
+    public static final class RetryWhile<ExceptionT extends Exception> {
+        final SupplierWithException<Boolean, ExceptionT> condition;
+        final RetryWithBackoff params;
+
+        private RetryWhile(SupplierWithException<Boolean, ExceptionT> condition, RetryWithBackoff params) {
+            this.condition = condition;
+            this.params = params;
+        }
+
+        public void run(Runnable r) throws ExceptionT {
+            Preconditions.checkNotNull(r);
+            long delay = params.initialMillis;
+            for (int attemptNumber = 1; attemptNumber <= params.attempts; attemptNumber++) {
+                r.run();
+                if (this.condition.get()) {
+                    // We're done.
+                    return;
+                }
+
+                if (attemptNumber < params.attempts) {
+                    // no need to sleep if it is the last attempt
+                    final long sleepFor = delay;
+                    Exceptions.handleInterrupted(() -> Thread.sleep(sleepFor));
+
+                    delay = Math.min(params.maxDelay, params.multiplier * delay);
+                    log.debug("Retrying command. Retry #{}, timestamp={}", attemptNumber, Instant.now());
+                }
+            }
+
+            throw new RetriesExhaustedException(new Exception("Maximum number of attempts reached without satisfying condition."));
         }
     }
 }
