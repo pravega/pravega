@@ -78,7 +78,7 @@ public class PravegaTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createServiceInstance("bookkkeper", zkUri, null, null);
+        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }

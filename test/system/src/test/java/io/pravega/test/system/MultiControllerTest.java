@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -44,7 +45,7 @@ public class MultiControllerTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
 
     private Service controllerService1 = null;
-    private URI controllerURIDirect = null;
+    private AtomicReference<URI> controllerURIDirect = new AtomicReference();
     private URI controllerURIDiscover = null;
 
     /**
@@ -112,7 +113,7 @@ public class MultiControllerTest {
             uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                     .collect(Collectors.toList());
         }
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
@@ -136,12 +137,11 @@ public class MultiControllerTest {
     @Test(timeout = 300000)
     public void multiControllerTest() throws ExecutionException, InterruptedException {
 
-        List<URI> conUris;
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with all 3 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
         if (!Utils.isDockerLocalExecEnabled()) {
             log.info("Test pravega:// with all 3 controller instances running");
             Assert.assertTrue(createScopeWithSimpleRetry(
@@ -153,24 +153,10 @@ public class MultiControllerTest {
         } catch (ExecutionException e) {
             throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
         }
-        conUris = controllerService1.getServiceDetails();
-        List<String> uris;
-        if (Utils.isDockerLocalExecEnabled()) {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-            log.info("uris {}", uris);
-        } else {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-        }
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURIDirect);
-        controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
-        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
 
         log.info("Test tcp:// with 2 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
         if (!Utils.isDockerLocalExecEnabled()) {
             log.info("Test pravega:// with 2 controller instances running");
             Assert.assertTrue(createScopeWithSimpleRetry(
@@ -182,23 +168,10 @@ public class MultiControllerTest {
         } catch (ExecutionException e) {
             throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
         }
-        conUris = controllerService1.getServiceDetails();
-        if (Utils.isDockerLocalExecEnabled()) {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-            log.info("uris {}", uris);
-        } else {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-        }
-        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURIDirect);
-        controllerURIDiscover = URI.create("pravega://" + String.join(",", uris));
-        log.info("Controller Service discovery URI: {}", controllerURIDiscover);
 
         log.info("Test tcp:// with only 1 controller instance running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()).get());
         if (!Utils.isDockerLocalExecEnabled()) {
             log.info("Test pravega:// with only 1 controller instance running");
             Assert.assertTrue(createScopeWithSimpleRetry(
@@ -214,7 +187,7 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect),
+                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         if (!Utils.isDockerLocalExecEnabled()) {
