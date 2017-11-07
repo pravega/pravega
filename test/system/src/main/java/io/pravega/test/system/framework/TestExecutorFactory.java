@@ -14,7 +14,7 @@ import org.apache.commons.lang3.NotImplementedException;
 
 public class TestExecutorFactory {
     @Getter(lazy = true)
-    private final TestExecutor marathonSequntialExecutor = new RemoteSequential();
+    private final TestExecutor marathonSequentialExecutor = new RemoteSequential();
 
     @Getter(lazy = true)
     private final TestExecutor dockerExecutor = new DockerRemoteSequential();
@@ -31,7 +31,7 @@ public class TestExecutorFactory {
             case DOCKER:
                 return getDockerExecutor();
             case REMOTE_SEQUENTIAL:
-                return getMarathonSequntialExecutor();
+                return getMarathonSequentialExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:
