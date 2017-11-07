@@ -9,10 +9,16 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import io.grpc.Attributes;
+import io.grpc.CallCredentials;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.MethodDescriptor;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.NettyChannelBuilder;
@@ -56,9 +62,11 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,6 +77,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -144,7 +153,35 @@ public class ControllerImpl implements Controller {
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         this.client = ControllerServiceGrpc.newStub(this.channel)
-                .withCallCredentials(MoreCallCredentials.from(GoogleCredentials));
+                .withCallCredentials(MoreCallCredentials.from(new Credentials() {
+                    @Override
+                    public String getAuthenticationType() {
+                        return "Custom";
+                    }
+
+                    @Override
+                    public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
+                        Map<String, List<String>> retVal = new HashMap<>();
+                        retVal.put("userName", Arrays.asList(new String[]{"arvind"}));
+                        retVal.put("password", Arrays.asList(new String[]{"password"}));
+                        return retVal;
+                    }
+
+                    @Override
+                    public boolean hasRequestMetadata() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean hasRequestMetadataOnly() {
+                        return true;
+                    }
+
+                    @Override
+                    public void refresh() throws IOException {
+
+                    }
+                }));
     }
 
     @Override

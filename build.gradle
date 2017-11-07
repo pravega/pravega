@@ -140,6 +140,7 @@ project('shared:protocol') {
 project('client') {
     dependencies {
         compile "io.grpc:grpc-netty:" + grpcVersion
+        compile "io.grpc:grpc-all:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
