@@ -9,15 +9,22 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.hadoop.conf.Configuration;
@@ -30,6 +37,7 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.protocol.AclException;
 import org.apache.hadoop.util.Progressable;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -67,6 +75,66 @@ public class HDFSStorageTest extends StorageTestBase {
     }
 
     //region Fencing tests
+
+    //TODO: fix this unit test. Maybe generalize for every Storage adapter.
+    @Test
+    public void testZombies() throws Exception {
+        final long epochCount = 1000;
+        final String segmentName = "Segment";
+        final int writeSize = 1000;
+        final AtomicLong length = new AtomicLong(0);
+        final ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+        final Random rnd = new Random(0);
+        int currentEpoch = 1;
+
+        val currentAdapter = new AtomicReference<Storage>();
+        currentAdapter.set(createStorage());
+        currentAdapter.get().initialize(currentEpoch);
+        currentAdapter.get().create(segmentName, TIMEOUT).join();
+
+        while (currentEpoch <= epochCount) {
+            val c = currentAdapter.get();
+            val writeBuffer = new byte[writeSize];
+            CompletableFuture<Void> appendFuture = c
+                    .openWrite(segmentName)
+                    .thenCompose(handle -> Futures.loop(
+                            () -> true,
+                            () -> {
+                                rnd.nextBytes(writeBuffer);
+                                return c.write(handle, length.get(), new ByteArrayInputStream(writeBuffer), writeBuffer.length, TIMEOUT)
+                                        .thenRun(() -> {
+                                            length.addAndGet(writeBuffer.length);
+                                            try {
+                                                writtenData.write(writeBuffer);
+                                            } catch (IOException ex) {
+                                            }
+                                        });
+                            },
+                            executorService()));
+
+            currentEpoch++;
+            System.out.println("Beginning epoch " + currentEpoch);
+            val newStorage = createStorage();
+            newStorage.initialize(currentEpoch);
+            newStorage.openWrite(segmentName).join();
+            val oldStorage = currentAdapter.getAndSet(newStorage);
+            try {
+                appendFuture.join();
+                Assert.fail();
+            } catch (Exception ex) {
+//                val cause = Exceptions.unwrap(ex);
+//                if(cause instanceof StorageNotPrimaryException) {
+                    System.out.println("Finished epoch " + (currentEpoch - 1));
+//                }else{
+//                    cause.printStackTrace();
+//                    Assert.fail("Unexpected exception "+cause);
+//                }
+            }
+
+            oldStorage.close();
+            Thread.sleep(500);
+        }
+    }
 
     /**
      * Tests fencing abilities. We create two different Storage objects with different owner ids.

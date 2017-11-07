@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.hdfs;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,6 +40,7 @@ abstract class FileSystemOperation<T> {
 
     static final String PART_SEPARATOR = "_";
     private static final String SEALED_ATTRIBUTE = "user.sealed";
+    private static final String WRITING_ATTRIBUTE = "user.writing";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s" + PART_SEPARATOR + "%s";
     private static final String EXAMPLE_NAME_FORMAT = String.format(NAME_FORMAT, "<segment-name>", "<offset>", "<epoch>");
     private static final String NUMBER_GLOB_REGEX = "[0-9]*";
@@ -328,6 +330,32 @@ abstract class FileSystemOperation<T> {
     }
 
     /**
+     * Sets/removes an attribute on the file represented by the given descriptor indicating that a write is in progress.
+     *
+     * @param file       The FileDescriptor of the file.
+     * @param inProgress If true, the attribute will be set. If false, it will be cleared.
+     * @throws IOException If an exception occurred.
+     */
+    void markWriteInProgress(FileDescriptor file, boolean inProgress) throws IOException {
+        if (inProgress) {
+            setBooleanAttributeValue(file.getPath(), WRITING_ATTRIBUTE, true);
+        } else {
+            this.context.fileSystem.removeXAttr(file.getPath(), WRITING_ATTRIBUTE);
+        }
+    }
+
+    /**
+     * Gets a value indicating whether there is a write in progress for the file represented by the given descriptor.
+     *
+     * @param file The FileDescriptor to check.
+     * @return True or false.
+     * @throws IOException If an exception occurred.
+     */
+    private boolean isWriteInProgress(FileDescriptor file) throws IOException {
+        return getBooleanAttributeValue(file.getPath(), WRITING_ATTRIBUTE);
+    }
+
+    /**
      * Determines whether the given FileStatus indicates the file is read-only.
      *
      * @param fs The FileStatus to check.
@@ -353,6 +381,12 @@ abstract class FileSystemOperation<T> {
         this.context.fileSystem.setPermission(file.getPath(), READONLY_PERMISSION);
         log.debug("MakeReadOnly '{}'.", file.getPath());
         file.markReadOnly();
+
+        while (isWriteInProgress(file)) {
+            // TODO: timeouts and smaller sleeps
+            System.err.println("Waiting for write in progress " + file.getPath());
+            Exceptions.handleInterrupted(() -> Thread.sleep(500));
+        }
         return true;
     }
 
