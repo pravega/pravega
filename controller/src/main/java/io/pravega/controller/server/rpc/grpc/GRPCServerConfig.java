@@ -23,6 +23,13 @@ public interface GRPCServerConfig {
     int getPort();
 
     /**
+     * Fetches the settings which indicates whether authorization is enabled.
+     *
+     * @return Whether this deployment has auth enabled.
+     */
+    boolean isAuthorizationEnabled();
+
+    /**
      * Fetches the RPC address which has to be registered with the cluster used for external access.
      *
      * @return The RPC address which has to be registered with the cluster used for external access.

@@ -9,6 +9,7 @@
  */
 package io.pravega.client;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -28,9 +29,8 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
-import java.net.URI;
-
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import java.net.URI;
 import lombok.val;
 
 /**
@@ -67,6 +67,14 @@ public interface ClientFactory extends AutoCloseable {
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);
     }
+
+    /**
+     * Sets the credentials for the ClientFactory.
+     *
+     * @param creds Credentials for authorization.
+     * @return A ClientFactory object with the given creds.
+     */
+    ClientFactory withCredentials(Credentials creds);
 
     /**
      * Creates a new writer that can write to the specified stream.

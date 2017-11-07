@@ -10,7 +10,11 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
+import io.grpc.Metadata;
 import io.grpc.Server;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
@@ -612,6 +616,12 @@ public class ControllerImplTest {
         serverPort = TestUtils.getAvailableListenPort();
         testGRPCServer = NettyServerBuilder.forPort(serverPort)
                 .addService(testServerImpl)
+                                           .intercept(new ServerInterceptor() {
+                                               @Override
+                                               public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+                                                   return next.startCall(call, headers);
+                                               }
+                                           })
                 .build()
                 .start();
         executor = Executors.newSingleThreadScheduledExecutor();

@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
@@ -60,6 +61,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentOutputStreamFactory outFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
+    private Credentials credentials;
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -106,6 +108,12 @@ public class ClientFactoryImpl implements ClientFactory {
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.metaFactory = metaFactory;
+    }
+
+    @Override
+    public ClientFactory withCredentials(Credentials creds) {
+        this.credentials = creds;
+        return this;
     }
 
     @Override
