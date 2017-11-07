@@ -20,6 +20,7 @@ import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -32,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BinaryOperator;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -47,8 +48,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
-    private final AtomicBoolean isRegistered = new AtomicBoolean();
-    private final AtomicReference<CompletableFuture<Void>> registeredFuture = new AtomicReference<>();
+    private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
 
     ClientConnectionInboundHandler(String connectionName, ReplyProcessor processor, AppendBatchSizeTracker batchSizeTracker) {
         Preconditions.checkNotNull(processor);
@@ -63,10 +63,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         super.channelRegistered(ctx);
         Channel c = ctx.channel();
         channel.set(c);
-        isRegistered.set(true);
-        if (null != registeredFuture.get()) { //complete the pending future.
-            registeredFuture.get().complete(null);
-        }
+        registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
@@ -81,7 +78,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-        isRegistered.set(false);
+        registeredFutureLatch.reset();
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -184,28 +181,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
      */
     void completeWhenRegistered(final CompletableFuture<Void> future) {
         Preconditions.checkNotNull(future, "future");
-        if (isRegistered.get()) { // channelRegistered is already invoked, complete the future.
-            future.complete(null);
-        } else {
-            registeredFuture.getAndAccumulate(future, setAndChainFuture());
-        }
-    }
-
-    private BinaryOperator<CompletableFuture<Void>> setAndChainFuture() {
-        return (previous, current) -> {
-                    if (previous == null) { // registeredFuture is null, set it with the new value.
-                        return current;
-                    } else { // future is already registered, ensure the new future is chained to the old future.
-                        previous.whenComplete((v, ex) -> {
-                            if (ex == null) {
-                                current.complete(null);
-                            } else {
-                                current.completeExceptionally(ex);
-                            }
-                        });
-                        return previous;
-                    }
-                };
+        registeredFutureLatch.register(future);
     }
 
     private final class KeepAliveTask implements Runnable {
