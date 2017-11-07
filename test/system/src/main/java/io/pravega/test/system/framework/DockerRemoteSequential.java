@@ -75,6 +75,7 @@ public class DockerRemoteSequential implements TestExecutor {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
+                        executorService.shutdown();
                     } catch (DockerException e) {
                         throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get container exit status and test result.", e);
                     }

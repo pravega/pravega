@@ -184,6 +184,11 @@ public class MultiControllerTest {
         } catch (ExecutionException e) {
             throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
         }
+        if (!controllerService1.getServiceDetails().isEmpty()) {
+            controllerURIDirect.set(controllerService1.getServiceDetails().get(0));
+        } else {
+            controllerURIDirect.set(URI.create("tcp://0.0.0.0:9090"));
+        }
 
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
