@@ -21,7 +21,7 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -53,7 +53,7 @@ public class ZookeeperService extends MarathonBasedService {
         try {
             marathonClient.createApp(createZookeeperApp());
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                waitUntilServiceRunning().get(10, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
@@ -86,7 +86,8 @@ public class ZookeeperService extends MarathonBasedService {
         app.getContainer().getDocker().setImage(ZK_IMAGE);
         app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        final HealthCheck hc = setHealthCheck(900, "TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
+        healthCheckList.add(hc);
         app.setHealthChecks(healthCheckList);
 
         return app;
