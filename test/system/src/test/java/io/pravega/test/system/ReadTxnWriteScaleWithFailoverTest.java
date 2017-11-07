@@ -30,7 +30,7 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;

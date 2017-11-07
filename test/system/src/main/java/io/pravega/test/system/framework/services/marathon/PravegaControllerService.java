@@ -28,7 +28,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -72,7 +72,7 @@ public class PravegaControllerService extends MarathonBasedService {
         try {
             marathonClient.createApp(createPravegaControllerApp());
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                waitUntilServiceRunning().get(10, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
@@ -128,10 +128,10 @@ public class PravegaControllerService extends MarathonBasedService {
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(CONTROLLER_PORT, REST_PORT));
+        app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
@@ -143,7 +143,7 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
                 setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
                 setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);
         app.setArgs(Arrays.asList("controller"));

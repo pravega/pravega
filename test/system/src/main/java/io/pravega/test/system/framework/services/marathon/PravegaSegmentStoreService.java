@@ -29,7 +29,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -70,7 +70,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         try {
             marathonClient.createApp(createPravegaSegmentStoreApp());
             if (wait) {
-                waitUntilServiceRunning().get(5, TimeUnit.MINUTES);
+                waitUntilServiceRunning().get(10, TimeUnit.MINUTES);
             }
         } catch (MarathonException e) {
             handleMarathonException(e);
@@ -119,17 +119,17 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         parameterList.add(element1);
         app.getContainer().getDocker().setParameters(parameterList);
         //set port
-        app.setPorts(Arrays.asList(SEGMENTSTORE_PORT));
+        app.setPortDefinitions(Arrays.asList(createPortDefinition(SEGMENTSTORE_PORT)));
         app.setRequirePorts(true);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, SEGMENTSTORE_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
 
         //Environment variables to configure SS service.
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("BK_ZK_URL", zk);
         map.put("CONTROLLER_URL", conUri.toString());
@@ -151,7 +151,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         return app;
     }
 
-    private void getCustomEnvVars(Map<String, String> map, String segmentstoreExtraEnv) {
+    private void getCustomEnvVars(Map<String, Object> map, String segmentstoreExtraEnv) {
         log.info("Extra segment store env variables are {}", segmentstoreExtraEnv);
         if (!Strings.isNullOrEmpty(segmentstoreExtraEnv)) {
             Arrays.stream(segmentstoreExtraEnv.split(ENV_SEPARATOR)).forEach(str -> {

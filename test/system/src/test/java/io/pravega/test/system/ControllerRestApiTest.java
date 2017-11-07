@@ -43,7 +43,7 @@ import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Assert;
