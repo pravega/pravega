@@ -12,19 +12,36 @@ package io.pravega.controller.server.rpc.grpc;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
+import io.grpc.Status;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
-public class PravegaAuthorizer implements io.grpc.ServerInterceptor {
-    private final String users;
-    private final String passwords;
+/**
+ * Implements a authorizer for open source Pravega. Currently it checks user id and password against
+ * a list of username and password stored in a configuration.
+ */
+class PravegaAuthorizer implements io.grpc.ServerInterceptor {
+    private final ConcurrentMap<String, String> userDb = new ConcurrentHashMap<>();
 
     public PravegaAuthorizer(String users, String passwords) {
-        this.users = users;
-        this.passwords = passwords;
+        String[] usersArray = users.split(",");
+        String[] passwordsArray = passwords.split(",");
+        int i = 0;
+        for (String s : usersArray) {
+            userDb.putIfAbsent(s, passwordsArray[ i++ / passwordsArray.length]);
+        }
     }
 
     @Override
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+        String userName = headers.get(Metadata.Key.of("userName", Metadata.ASCII_STRING_MARSHALLER));
+        String password = headers.get(Metadata.Key.of("password", Metadata.ASCII_STRING_MARSHALLER));
 
-         return next.startCall(call, headers);
+        if (userDb.containsKey(userName) && password.equals(userDb.get(userName))) {
+            return next.startCall(call, headers);
+        } else {
+            call.close( Status.fromCode( Status.Code.UNAUTHENTICATED), headers);
+            return null;
+        }
     }
 }
