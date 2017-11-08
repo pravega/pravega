@@ -434,7 +434,6 @@ abstract class FileSystemOperation<T> {
             // It turns out that the getXAttr() implementation in 'org.apache.hadoop.hdfs.DistributedFileSystem' throws a
             // generic IOException if the attribute is not found. Since there's no specific exception or flag to filter
             // this out, we're going to treat all IOExceptions (except FileNotFoundExceptions) as "attribute is not set".
-            // this out, we're going to treat all IOExceptions (except FileNotFoundExceptions) as "attribute is not set".
             return null;
         }
     }
