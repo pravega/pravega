@@ -40,7 +40,7 @@ class LogStorage {
 
     private final ConcurrentHashMap<Integer, LedgerData> dataMap;
 
-    @Getter
+    @GuardedBy("this")
     private int updateVersion;
 
     @Getter
@@ -193,5 +193,13 @@ class LogStorage {
 
     synchronized void setUpdateVersion(int version) {
         this.updateVersion = version;
+    }
+
+    synchronized int getUpdateVersion() {
+        return updateVersion;
+    }
+
+    synchronized void incrementUpdateVersion() {
+        updateVersion++;
     }
 }

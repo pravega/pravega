@@ -302,7 +302,7 @@ class LogStorageManager {
                                           return null;
                                       })
                                       .thenApply(stat -> {
-                                          ledger.setUpdateVersion(ledger.getUpdateVersion() + 1);
+                                          ledger.incrementUpdateVersion();
                                           return ledger;
                                       });
                    })
@@ -337,7 +337,7 @@ class LogStorageManager {
                                                       })
                                                       .thenCompose(results -> getOrRetrieveStorageLedger(segmentName, false)
                                                               .thenCompose(logStorage -> {
-                                                                  logStorage.setUpdateVersion(logStorage.getUpdateVersion() + 1);
+                                                                  logStorage.incrementUpdateVersion();
                                                                   /* Fence all the ledgers and add one at the end. */
                                                                   return fenceLedgersAndCreateOneAtEnd(segmentName, logStorage);
                                                               })
