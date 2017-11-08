@@ -18,11 +18,10 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -40,8 +39,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
-import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -64,7 +61,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     private StreamManager streamManager;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI hdfsUri = startHDFSInstances();
@@ -132,7 +129,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
         //interrupt writers and readers threads if they are still running.
@@ -146,12 +143,8 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         testState.eventsReadFromPravega.clear();
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
-        try {
-            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
-            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
 }
 
     @Test

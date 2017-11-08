@@ -11,13 +11,12 @@ package io.pravega.test.system;
 
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
@@ -37,8 +36,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
-
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest {
@@ -54,7 +51,7 @@ public class MultiControllerTest {
      * @throws MarathonException if error in setup
      */
     @Environment
-    public static void initialize() throws MarathonException {
+    public static void initialize() throws MarathonException, ExecutionException {
         Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
         if (!zkService.isRunning()) {
             zkService.start(true);
@@ -66,11 +63,8 @@ public class MultiControllerTest {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        try {
-            Exceptions.handleInterrupted(() -> controllerService.scaleService(3).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
+
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -148,11 +142,7 @@ public class MultiControllerTest {
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
         }
 
-        try {
-            Exceptions.handleInterrupted(() -> controllerService1.scaleService(2).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerService1.scaleService(2), ExecutionException::new);
 
         log.info("Test tcp:// with 2 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
@@ -163,11 +153,7 @@ public class MultiControllerTest {
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
         }
 
-        try {
-            Exceptions.handleInterrupted(() -> controllerService1.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
 
         log.info("Test tcp:// with only 1 controller instance running");
         Assert.assertTrue(createScopeWithSimpleRetry(
@@ -179,11 +165,8 @@ public class MultiControllerTest {
         }
 
         // All APIs should throw exception and fail.
-        try {
-            Exceptions.handleInterrupted(() -> controllerService1.scaleService(0).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerService1.scaleService(0), ExecutionException::new);
+
         if (!controllerService1.getServiceDetails().isEmpty()) {
             controllerURIDirect.set(controllerService1.getServiceDetails().get(0));
         } else {

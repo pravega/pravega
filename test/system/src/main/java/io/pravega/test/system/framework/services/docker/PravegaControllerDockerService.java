@@ -59,7 +59,8 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        String controllerSystemProperties = new StringBuilder("-D").append("ZK_URL").append("=").append(zk).append(" ").
+        StringBuilder systemPropertyBuilder = new StringBuilder();
+        systemPropertyBuilder.append("-D").append("ZK_URL").append("=").append(zk).append(" ").
                 append("-D").append("CONTROLLER_RPC_PUBLISHED_HOST").append("=").append(serviceName).append(" ").
                 append("-D").append("CONTROLLER_RPC_PUBLISHED_PORT").append("=").append(String.valueOf(DOCKER_CONTROLLER_PORT)).append(" ").
                 append("-D").append("CONTROLLER_SERVER_PORT").append("=").append(String.valueOf(DOCKER_CONTROLLER_PORT)).append(" ").
@@ -70,6 +71,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
                 append("-D").append("MAX_LEASE_VALUE").append("=").append(String.valueOf(60 * 1000)).append(" ").
                 append("-D").append("MAX_SCALE_GRACE_PERIOD").append("=").append(String.valueOf(60 * 1000)).toString();
 
+        String controllerSystemProperties = systemPropertyBuilder.toString();
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
         String env2 = "JAVA_OPTS=-Xmx512m";
         Map<String, String> labels = new HashMap<>();
@@ -91,10 +93,10 @@ public class PravegaControllerDockerService extends DockerBasedService {
         ServiceSpec spec = ServiceSpec.builder().name(serviceName).taskTemplate(taskSpec).mode(ServiceMode.withReplicas(instances))
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .endpointSpec(EndpointSpec.builder()
-                .ports(Arrays.asList(PortConfig.builder()
-                        .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
-                        PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
-                build())
+                        .ports(Arrays.asList(PortConfig.builder()
+                                        .publishedPort(DOCKER_CONTROLLER_PORT).targetPort(DOCKER_CONTROLLER_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build(),
+                                PortConfig.builder().publishedPort(REST_PORT).targetPort(REST_PORT).publishMode(PortConfig.PortConfigPublishMode.HOST).build())).
+                                build())
                 .build();
         return spec;
     }

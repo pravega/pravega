@@ -61,7 +61,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
             serviceId = serviceList.get(0).id();
         } catch (DockerException e) {
-            log.error("Unable to get service id", e);
+            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get service id", e);
         }
         return serviceId;
     }
@@ -76,7 +76,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(servicecriteria));
             log.info("Service list size {}", serviceList.size());
             Task.Criteria taskCriteria = Task.Criteria.builder().serviceName(serviceName).build();
-            List<Task> taskList = Exceptions.handleInterrupted(() ->  dockerClient.listTasks(taskCriteria));
+            List<Task> taskList = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria));
             log.info("Task list size {}", taskList.size());
             if (!taskList.isEmpty()) {
                 for (int j = 0; j < taskList.size(); j++) {
@@ -125,19 +125,19 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 for (int i = 0; i < taskList.size(); i++) {
                     log.info("task {}", taskList.get(i).name());
                     if (taskList.get(i).status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
-                    String[] uriArray = taskList.get(i).networkAttachments().get(0).addresses().get(0).split("/");
-                    ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().spec().ports());
-                    for (int k = 0; k < numPorts.size(); k++) {
-                        int port = numPorts.get(k).publishedPort();
-                        log.info("Port {}", port);
-                        log.info("Uri list {}", uriArray[0]);
-                        URI uri = URI.create("tcp://" + uriArray[0] + ":" + port);
-                        uriList.add(uri);
-                    }
+                        String[] uriArray = taskList.get(i).networkAttachments().get(0).addresses().get(0).split("/");
+                        ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().spec().ports());
+                        for (int k = 0; k < numPorts.size(); k++) {
+                            int port = numPorts.get(k).publishedPort();
+                            log.info("Port {}", port);
+                            log.info("Uri list {}", uriArray[0]);
+                            URI uri = URI.create("tcp://" + uriArray[0] + ":" + port);
+                            uriList.add(uri);
+                        }
 
+                    }
                 }
             }
-        }
         } catch (DockerException e) {
             log.error("Unable to list service details", e);
         }
@@ -156,7 +156,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
             String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
             log.info("Update state {}", updateState);
-            return  Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
+            return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to scale service to given instances.Test Failure", e);
         }

@@ -22,7 +22,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -81,18 +80,13 @@ public class DockerRemoteSequential implements TestExecutor {
                     }
                     return null;
                 }).whenComplete((v, ex) -> {
-            try {
-                InputStream inputStream = Exceptions.handleInterrupted(() -> client.archiveContainer(id.get(), "/data"));
-            } catch (DockerException e) {
-                log.error("Unable to copy test logs", e);
-            }
-            if (ex != null) {
-                log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
-                        methodName);
-            }
-            //Wait for half a minute between test runs.
-            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(30));
-        });
+                    if (ex != null) {
+                        log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
+                                methodName);
+                    }
+                    //Wait for half a minute between test runs.
+                    Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(30));
+                });
     }
 
     public void stopTestExecution() {
@@ -146,7 +140,7 @@ public class DockerRemoteSequential implements TestExecutor {
             // Start container
             Exceptions.handleInterrupted(() -> client.startContainer(id.get()));
 
-        } catch (DockerException  e) {
+        } catch (DockerException e) {
             log.error("Exception in starting container ", e);
             Assert.fail("Unable to start the container to invoke the test.Test failure");
         }

@@ -59,7 +59,7 @@ public class HDFSDockerService extends DockerBasedService {
         labels.put("com.docker.swarm.task.name", serviceName);
         Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
         String env1 = "SSH_PORT=2222";
-        String env2 = "HDFS_HOST="+serviceName;
+        String env2 = "HDFS_HOST=" + serviceName;
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())

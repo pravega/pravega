@@ -45,7 +45,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private final URI conUri;
     private final URI hdfsUri;
 
-    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final  URI conUri, final  URI hdfsUri) {
+    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI conUri, final URI hdfsUri) {
         super(serviceName);
         this.zkUri = zkUri;
         this.conUri = conUri;
@@ -73,14 +73,16 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
-        String hostSystemProperties =
-                new StringBuilder().append("-D").append("autoScale.muteInSeconds").append("=").append("120").append(" ")
+        StringBuilder systemPropertyBuilder = new StringBuilder();
+        systemPropertyBuilder.append("-D").append("autoScale.muteInSeconds").append("=").append("120").append(" ")
                 .append("-D").append("autoScale.cooldownInSeconds").append("=").append("120").append(" ")
                 .append("-D").append("autoScale.cacheExpiryInSeconds").append("=").append("120").append(" ")
                 .append("-D").append("autoScale.cacheCleanUpInSeconds").append("=").append("120").append(" ")
                 .append("-D").append("log.level").append("=").append("DEBUG").append(" ")
                 .append("-D").append("curator-default-session-timeout").append("=").append(String.valueOf(30 * 1000)).append(" ")
                 .append("-D").append("hdfs.replaceDataNodesOnFailure").append("=").append("false").toString();
+
+        String hostSystemProperties = systemPropertyBuilder.toString();
 
         //set env
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;

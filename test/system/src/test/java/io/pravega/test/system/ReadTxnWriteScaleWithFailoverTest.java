@@ -25,7 +25,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -48,8 +47,6 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
-
-import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -72,7 +69,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     private StreamManager streamManager;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI hdfsURI = startHDFSInstances();
@@ -138,7 +135,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
         //interrupt writers and readers threads if they are still running.
@@ -151,12 +148,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         controllerExecutorService.shutdownNow();
         testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
-        try {
-            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(1).get());
-            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
     @Test
@@ -168,12 +161,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         performFailoverForTestsInvolvingTxns();
 
         //bring the instances back to 3 before performing failover during scaling
-        try {
-            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(3).get());
-            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(3).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
 
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
@@ -212,13 +201,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         //bring the instances back to 3 before performing failover after scaling
-        try {
-            Exceptions.handleInterrupted(() -> controllerInstance.scaleService(3).get());
-            Exceptions.handleInterrupted(() -> segmentStoreInstance.scaleService(3).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
-
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //run the failover test after scaling

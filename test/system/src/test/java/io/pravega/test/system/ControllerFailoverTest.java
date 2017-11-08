@@ -18,10 +18,9 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -43,8 +42,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
-
 /**
  * Controller fail over system test.
  */
@@ -56,7 +53,7 @@ public class ControllerFailoverTest {
     private URI controllerURIDirect = null;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
 
         //1. check if zk is running, if not start it
         Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
@@ -93,11 +90,7 @@ public class ControllerFailoverTest {
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        try {
-            Exceptions.handleInterrupted(() -> controllerService.scaleService(2).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -136,7 +129,7 @@ public class ControllerFailoverTest {
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }
-        //controllerService1.scaleService(3, true);
+
         List<URI> conUris = controllerService1.getServiceDetails();
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
@@ -155,7 +148,7 @@ public class ControllerFailoverTest {
     }
 
     @Test(timeout = 180000)
-    public void failoverTest() throws URISyntaxException, InterruptedException {
+    public void failoverTest() throws URISyntaxException, InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
         int initialSegments = 2;
@@ -193,15 +186,24 @@ public class ControllerFailoverTest {
         Assert.assertTrue(!scaleStatus);
 
         // Now stop the controller instance executing scale operation.
-        try {
-            Exceptions.handleInterrupted(() -> controllerService1.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
+        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
+        log.info("Successfully stopped one instance of controller service");
+
+        List<URI> conUris = controllerService1.getServiceDetails();
+        // Fetch all the RPC endpoints and construct the client URIs.
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() ==  Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                    .collect(Collectors.toList());
         }
-        log.info("Successfully stopped test controller service");
+        controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
+        log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Connect to another controller instance.
-        //controllerUri = getControllerURI();
         final Controller controller2 = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().build(), EXECUTOR_SERVICE);
 

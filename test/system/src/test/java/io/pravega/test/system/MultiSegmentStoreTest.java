@@ -12,10 +12,9 @@ package io.pravega.test.system;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
@@ -44,8 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
-import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 /**
  * Test cases for deploying multiple segment stores.
@@ -139,49 +136,33 @@ public class MultiSegmentStoreTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         // Scale back the segment store instance count.
-        try {
-            Exceptions.handleInterrupted(() -> this.segmentServiceInstance.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(1), ExecutionException::new);
     }
 
     @Test(timeout = 600000)
-    public void testMultiSegmentStores() throws InterruptedException {
+    public void testMultiSegmentStores() throws InterruptedException, ExecutionException {
         // Test Sanity.
         log.info("Test with 1 segment store running");
         testReadWrite();
 
         // Scale up and test.
-        try {
-            Exceptions.handleInterrupted(() -> this.segmentServiceInstance.scaleService(3).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(3), ExecutionException::new);
         // Wait for all containers to be up and registered.
         Thread.sleep(60000);
         log.info("Test with 3 segment stores running");
         testReadWrite();
 
         // Rescale and verify.
-        try {
-            Exceptions.handleInterrupted(() -> this.segmentServiceInstance.scaleService(2).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(2), ExecutionException::new);
         // Wait for all containers to be up and registered.
         Thread.sleep(60000);
         log.info("Test with 2 segment stores running");
         testReadWrite();
 
         // Rescale to single instance and verify.
-        try {
-            Exceptions.handleInterrupted(() -> this.segmentServiceInstance.scaleService(1).get());
-        } catch (ExecutionException e) {
-            throw new TestFrameworkException(RequestFailed, "Scaling operation failed", e);
-        }
+        Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(1), ExecutionException::new);
         // Wait for all containers to be up and registered.
         Thread.sleep(60000);
         log.info("Test with 1 segment store running");
