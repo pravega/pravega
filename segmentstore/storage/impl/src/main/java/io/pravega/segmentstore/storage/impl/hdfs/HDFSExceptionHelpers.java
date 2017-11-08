@@ -9,11 +9,12 @@
  */
 package io.pravega.segmentstore.storage.impl.hdfs;
 
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import java.io.FileNotFoundException;
-
+import lombok.Lombok;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.hdfs.protocol.AclException;
@@ -25,32 +26,30 @@ import org.apache.hadoop.ipc.RemoteException;
 final class HDFSExceptionHelpers {
 
     /**
-     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions.
+     * Translates HDFS specific Exceptions to Pravega-equivalent Exceptions and re-throws them as such.
      *
      * @param segmentName Name of the stream segment on which the exception occurs.
      * @param e           The exception to be translated.
-     * @return The translated exception.
+     * @return Nothing. This method always throws.
      */
-    static Throwable translateFromException(String segmentName, Throwable e) {
-        Throwable retVal = e;
-
+    static <T> T throwException(String segmentName, Throwable e) throws StreamSegmentException {
         if (e instanceof RemoteException) {
-            retVal = e = ((RemoteException) e).unwrapRemoteException();
+            e = ((RemoteException) e).unwrapRemoteException();
         }
 
         if (e instanceof PathNotFoundException || e instanceof FileNotFoundException) {
-            retVal = new StreamSegmentNotExistsException(segmentName, e);
+            throw new StreamSegmentNotExistsException(segmentName, e);
         }
 
         if (e instanceof FileAlreadyExistsException) {
-            retVal = new StreamSegmentExistsException(segmentName, e);
+            throw new StreamSegmentExistsException(segmentName, e);
         }
 
         if (e instanceof AclException) {
-            retVal = new StreamSegmentSealedException(segmentName, e);
+            throw new StreamSegmentSealedException(segmentName, e);
         }
 
-        return retVal;
+        throw Lombok.sneakyThrow(e);
     }
 
     /**

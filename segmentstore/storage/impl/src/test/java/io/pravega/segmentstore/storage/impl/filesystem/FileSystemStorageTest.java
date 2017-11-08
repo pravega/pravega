@@ -12,20 +12,22 @@ package io.pravega.segmentstore.storage.impl.filesystem;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
+import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
@@ -33,9 +35,10 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  * Unit tests for FileSystemStorage.
  */
 public class FileSystemStorageTest extends IdempotentStorageTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
-    private FileSystemStorageFactory storageFactory;
 
     @Before
     public void setUp() throws Exception {
@@ -46,7 +49,6 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService());
     }
 
     @After
@@ -82,7 +84,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
             assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
-                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0,
+                    () -> s.write(createInexistentSegmentHandle(s, false), 0,
                             new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
@@ -132,18 +134,39 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return this.storageFactory.createStorageAdapter();
+        return new AsyncStorageWrapper(new FileSystemStorage(this.adapterConfig), executorService());
     }
 
-    @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        FileChannel channel = null;
-        if (readOnly) {
-            return FileSystemSegmentHandle.readHandle(segmentName);
-        } else {
-            return FileSystemSegmentHandle.writeHandle(segmentName);
+    //region RollingStorageTests
+
+    /**
+     * Tests the FileSystemStorage adapter with a RollingStorage wrapper.
+     */
+    public static class RollingStorageTests extends RollingStorageTestBase {
+        @Rule
+        public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+        private File baseDir = null;
+        private FileSystemStorageConfig adapterConfig;
+
+        @Before
+        public void setUp() throws Exception {
+            this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
+            this.adapterConfig = FileSystemStorageConfig
+                    .builder()
+                    .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                    .build();
+        }
+
+        @After
+        public void tearDown() {
+            FileHelpers.deleteFileOrDirectory(baseDir);
+        }
+
+        @Override
+        protected Storage createStorage() {
+            return wrap(new FileSystemStorage(this.adapterConfig));
         }
     }
 
-
+    //endregion
 }

@@ -138,13 +138,14 @@ public final class Exceptions {
      * argument has a size of zero.
      *
      * @param <T>     The type of elements in the provided collection.
+     * @param <V>     The actual type of the collection.
      * @param arg     The argument to check.
      * @param argName The name of the argument (to be included in the exception message).
      * @return The arg.
      * @throws NullPointerException     If arg is null.
      * @throws IllegalArgumentException If arg is not null, but has a length of zero.
      */
-    public static <T> Collection<T> checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
+    public static <T, V extends Collection<T>> V checkNotNullOrEmpty(V arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
         return arg;
