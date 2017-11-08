@@ -36,7 +36,7 @@ public class PravegaControllerTest {
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service con = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
+        Service con = Utils.createServiceInstance("controller", zk.getServiceDetails().get(0), null, null);
         if (!con.isRunning()) {
             con.start(true);
         }

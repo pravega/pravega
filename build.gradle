@@ -602,9 +602,8 @@ project('test:system') {
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
 
-
         if (System.getProperty("execType") == null) {
-            systemProperty "execType", "REMOTE_SEQUENTIAL"
+            systemProperty "execType", "DOCKER"
         }
         if (System.getProperty("masterIP") == null) {
             systemProperty "masterIP", "INVALID_MASTER_IP"

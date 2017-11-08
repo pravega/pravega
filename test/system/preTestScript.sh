@@ -8,6 +8,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+#The script is only for jarvis environments and jarvis client should be installed.
 CLUSTER_NAME=${1:-null}
 echo "Cluster Name is $CLUSTER_NAME"
 MASTER=${2:-null}
