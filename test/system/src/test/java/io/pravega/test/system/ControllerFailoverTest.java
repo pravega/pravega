@@ -120,7 +120,7 @@ public class ControllerFailoverTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.createBookkeeperService(null);
+        Service zkService = Utils.createZookeeperService();
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
