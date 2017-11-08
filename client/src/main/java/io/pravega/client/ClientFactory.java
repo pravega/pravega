@@ -69,6 +69,11 @@ public interface ClientFactory extends AutoCloseable {
                 connectionFactory.getInternalExecutor(), creds), connectionFactory, creds);
     }
 
+
+    static ClientFactory withScope(String scope, URI controllerUri) {
+        return withScope(scope, controllerUri, null);
+    }
+
     /**
      * Creates a new writer that can write to the specified stream.
      *
@@ -149,4 +154,5 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Override
     void close();
+
 }
