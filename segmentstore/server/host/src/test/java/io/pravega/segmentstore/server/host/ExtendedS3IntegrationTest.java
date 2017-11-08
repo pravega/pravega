@@ -113,7 +113,7 @@ public class ExtendedS3IntegrationTest extends StreamSegmentStoreTestBase {
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
-            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.executor);
+            return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), executorService());
         }
     }
     //endregion

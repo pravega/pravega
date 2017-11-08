@@ -154,7 +154,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Wait for all the data to move to Storage.
             waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            checkStorage(segmentContents, segmentStore, ((ListenableStorageFactory) builder.getStorageFactory()).getStorage());
+            checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
             checkReadsWhileTruncating(segmentContents, startOffsets, segmentStore);
             checkStorage(segmentContents, segmentStore, readOnlySegmentStore);
         }
@@ -506,15 +506,17 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                     sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
-            SegmentProperties metadataProps = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties metadataProps = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
             Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length,
                     storageProps.getLength());
             byte[] actualData = new byte[expectedData.length];
+            int actualLength = 0;
+            int expectedLength = actualData.length;
+
             try {
                 @Cleanup
-                val readResult = readOnlySegmentStore.read(segmentName, 0, actualData.length, TIMEOUT).join();
-                int actualLength = readResult.readRemaining(actualData, TIMEOUT);
-
+                ReadResult readResult = readOnlySegmentStore.read(segmentName, 0, actualData.length, TIMEOUT).join();
+                actualLength = readResult.readRemaining(actualData, TIMEOUT);
             } catch (Exception ex) {
                 ex = (Exception) Exceptions.unwrap(ex);
                 if (!(ex instanceof StreamSegmentTruncatedException) || metadataProps.getStartOffset() == 0) {
@@ -523,18 +525,19 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 }
 
                 // Read from the truncated point, except if the whole segment got truncated.
+                expectedLength = (int) (storageProps.getLength() - metadataProps.getStartOffset());
                 if (metadataProps.getStartOffset() < storageProps.getLength()) {
-                    actualLength = storage.read(readHandle, metadataProps.getStartOffset(), actualData, (int) metadataProps.getStartOffset(),
-                            actualData.length - (int) metadataProps.getStartOffset(), TIMEOUT).join();
+                    @Cleanup
+                    ReadResult readResult = readOnlySegmentStore.read(segmentName, metadataProps.getStartOffset(),
+                            expectedLength, TIMEOUT).join();
+                    actualLength = readResult.readRemaining(actualData, TIMEOUT);
                 }
-                actualLength += (int) metadataProps.getStartOffset();
             }
 
             Assert.assertEquals("Unexpected number of bytes read from Storage for segment " + segmentName,
-                    expectedData.length, actualLength);
+                    expectedLength, actualLength);
             AssertExtensions.assertArrayEquals("Unexpected data written to storage for segment " + segmentName,
-                    expectedData, (int) metadataProps.getStartOffset(), actualData, (int) metadataProps.getStartOffset(),
-                    actualLength - (int) metadataProps.getStartOffset());
+                    expectedData, expectedData.length - expectedLength, actualData, 0, expectedLength);
         }
     }
 
