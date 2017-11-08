@@ -226,7 +226,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> deleteStreamFromAutoRetention(final String scope, final String stream,
+    public CompletableFuture<Void> removeStreamFromAutoRetention(final String scope, final String stream,
                                                                  final OperationContext context, final Executor executor) {
         int bucket = getBucket(scope, stream);
         String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));

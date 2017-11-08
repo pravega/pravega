@@ -210,7 +210,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> deleteStreamFromAutoRetention(String scope, String stream, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> removeStreamFromAutoRetention(String scope, String stream, OperationContext context, Executor executor) {
         int bucket = getBucket(scope, stream);
         String scopedStreamName = getScopedStreamName(scope, stream);
 

@@ -773,7 +773,7 @@ public interface StreamMetadataStore {
                                                             final OperationContext context, final Executor executor);
 
     /**
-     * Delete stream from auto retention bucket.
+     * Remove stream from auto retention bucket.
      *
      * @param scope    scope
      * @param stream   stream
@@ -781,7 +781,7 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return future
      */
-    CompletableFuture<Void> deleteStreamFromAutoRetention(final String scope, final String stream,
+    CompletableFuture<Void> removeStreamFromAutoRetention(final String scope, final String stream,
                                                           final OperationContext context, final Executor executor);
 
     /**

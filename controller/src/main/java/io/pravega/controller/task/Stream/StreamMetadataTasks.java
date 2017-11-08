@@ -186,6 +186,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     /**
      * Method to check retention policy and generate new periodic cuts and/or truncate stream at an existing stream cut.
+     * 
      * @param scope scope
      * @param stream stream
      * @param policy retention policy

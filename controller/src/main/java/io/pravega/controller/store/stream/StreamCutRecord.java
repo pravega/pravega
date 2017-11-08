@@ -14,9 +14,23 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Map;
 
+
+/**
+ * This is data class for storing stream cut with time when the cut was computed.
+ * And the size of data being cut.
+ */
 @Data
 public class StreamCutRecord implements Serializable {
+    /**
+     * Time when this stream cut was recorded.
+     */
     final long recordingTime;
+    /**
+     * Amount of data in the stream preceeding this cut.
+     */
     final long recordingSize;
+    /**
+     * Actual Stream cut.
+     */
     final Map<Integer, Long> streamCut;
 }

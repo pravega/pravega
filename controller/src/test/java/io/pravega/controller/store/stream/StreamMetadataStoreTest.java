@@ -679,7 +679,7 @@ public abstract class StreamMetadataStoreTest {
         assertTrue(!list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
 
-        store.deleteStreamFromAutoRetention(scope, stream, null, executor).get();
+        store.removeStreamFromAutoRetention(scope, stream, null, executor).get();
         streams = store.getStreamsForBucket(0, executor).get();
         assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
     }
