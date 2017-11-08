@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -79,9 +80,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     private final SegmentSelector selector;
     private final Consumer<Segment> segmentSealedCallBack;
     private final ExecutorService retransmitPool;
+    private final TxnKeepAlive txnKeepAlive;
     
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
+                          Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
+                          ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(stream);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(outputStreamFactory);
@@ -94,6 +97,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         this.serializer = serializer;
         this.config = config;
         this.retransmitPool = retransmitPool;
+        this.txnKeepAlive = new TxnKeepAlive(config, stream, controller, connectionFactory.getInternalExecutor());
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
@@ -202,15 +206,17 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Controller controller;
         private final Stream stream;
+        private final TxnKeepAlive txnKeepAlive;
         private StreamSegments segments;
 
         TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, StreamSegments segments,
-                Controller controller, Stream stream) {
+                Controller controller, Stream stream, TxnKeepAlive txnKeepAlive) {
             this.txId = txId;
             this.inner = transactions;
             this.segments = segments;
             this.controller = controller;
             this.stream = stream;
+            this.txnKeepAlive = txnKeepAlive;
         }
         
         /**
@@ -222,6 +228,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             this.segments = null;
             this.controller = controller;
             this.stream = stream;
+            this.txnKeepAlive = null;
             this.closed.set(true);
         }
 
@@ -249,6 +256,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                 tx.close();
             }
             getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
+            txnKeepAlive.stopTxnKeepAlive(txId);
             closed.set(true);
         }
 
@@ -262,6 +270,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
+                txnKeepAlive.stopTxnKeepAlive(txId);
                 getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
                 closed.set(true);
             }
@@ -306,7 +315,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream);
+        txnKeepAlive.startTxnKeepAlive(txnId);
+        return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, txnKeepAlive);
     }
     
     @Override
@@ -324,7 +334,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
-        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream);
+        return new TransactionImpl<Type>(txId, transactions, segments, controller, stream, txnKeepAlive);
         
     }
 
@@ -360,6 +370,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         if (closed.getAndSet(true)) {
             return;
         }
+        txnKeepAlive.close();
         writeFlushLock.readLock().lock();
         try {
             boolean success = false;

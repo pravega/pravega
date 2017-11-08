@@ -98,7 +98,7 @@ public class EndToEndTxnWithScaleTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scope("test")
@@ -117,7 +117,10 @@ public class EndToEndTxnWithScaleTest {
                 EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
         Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
+        Stream stream1 = new StreamImpl("test1", "test");
+        Void pingResult = controller.pingTransaction(stream1, transaction.getTxnId(), 5000L).get();
         transaction.commit();
+
 
         // scale
         Stream stream = new StreamImpl("test", "test");
