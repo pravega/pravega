@@ -29,25 +29,30 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getException;
 
+/**
+ * TxnKeepAlive is used to send KeepAlives to renew the transaction lease for active transactions.
+ * It invokes io.pravega.client.stream.impl.Controller#pingTransaction() on the controller to renew the lease of active
+ * transactions. Incase of a controller instance not being reachable the controller client takes care of retrying on a
+ * different controller instance see io.pravega.client.stream.impl.ControllerResolverFactory for details.
+ */
 @Slf4j
 public class TxnKeepAlive implements AutoCloseable {
+    private static final double KEEP_ALIVE_INTERVAL_FACTOR = 0.7; //keepalive interval = factor * txn lease time.
 
-    private final List<UUID> txnList = new CopyOnWriteArrayList<>();
-    private final long txnLeaseMillis;
     private final Stream stream;
     private final Controller controller;
-    private final ScheduledExecutorService executor;
+    private final long txnLeaseMillis;
     private final long pingIntervalMillis;
+    private final ScheduledExecutorService executor;
+    private final List<UUID> txnList = new CopyOnWriteArrayList<>();
     private final AtomicBoolean isStarted = new AtomicBoolean();
     @GuardedBy("$lock")
     private ScheduledFuture<?> pingTxnTask;
 
-    private static final
-
-
-    public TxnKeepAlive(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService internalExecutor) {
+    TxnKeepAlive(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService
+            internalExecutor) {
         this.txnLeaseMillis = config.getTransactionTimeoutTime();
-        this.pingIntervalMillis = getPingInterval(txnLeaseMillis);
+        this.pingIntervalMillis = getKeepAliveInterval(txnLeaseMillis);
         this.stream = stream;
         this.controller = controller;
         this.executor = internalExecutor;
@@ -62,59 +67,48 @@ public class TxnKeepAlive implements AutoCloseable {
         txnList.remove(txnID);
     }
 
-    /*
-        Transaction pings are sent
-     */
-    private long getPingInterval(long txnLeaseMillis) {
+    private long getKeepAliveInterval(long txnLeaseMillis) {
+        double keepAliveInterval = txnLeaseMillis * KEEP_ALIVE_INTERVAL_FACTOR;
+        if (keepAliveInterval < TimeUnit.SECONDS.toMillis(10)) {
+            log.warn("Transaction Keep Alive interval is less than 10 seconds(lower bound)");
+        }
         //Ping interval cannot be less than KeepAlive task interval of 10seconds.
-        double ping = txnLeaseMillis * 0.7;
-        Longs.
-        //method to fetch the ping interval.
-        // all computation and boundary check will be performed here.
-
-        return txnLeaseMillis;
+        return Math.max(TimeUnit.SECONDS.toMillis(10), (long) keepAliveInterval);
     }
 
     @Synchronized
     private void startPeriodicPingTxn() {
         if (!isStarted.get()) {
+            log.info("Starting Transaction keep alive at an interval of {}ms ", this.pingIntervalMillis);
             pingTxnTask = executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis,
                     TimeUnit.MILLISECONDS);
             isStarted.set(true);
         }
     }
-    /*
-        Ping all the transactions present in the list.
-        Controller client performs retries in case of a failures. On a failure the particular transaction is removed
-        from the ping list.
-     */
 
+    /*
+        Ping all the transactions present in the list. Controller client performs retries in case of a failures. On a
+         failure the particular transaction it is removed from the ping list.
+     */
     private void pingTransactions() {
         Map<UUID, CompletableFuture<Void>> pingResult =
                 txnList.stream().collect(Collectors.toMap(Function.identity(),
                         uuid -> controller.pingTransaction(stream, uuid, txnLeaseMillis)));
         Futures.allOf(pingResult.values())
-               .thenRun(() -> pingResult.entrySet().stream().filter(e -> !Futures.isSuccessful(e.getValue()))
-                                        .forEach(e -> {
-                                            log.warn("Ping Transaction for txn ID:{} failed", e.getKey(), getException(e.getValue()));
-                                            txnList.remove(e.getKey()); //failed ping txn, remove it.
-                                        }));
+               .whenComplete((v, ex) -> pingResult.entrySet().stream()
+                                                  .filter(e -> !Futures.isSuccessful(e.getValue()))
+                                                  .forEach(e -> {
+                                                      log.warn("Ping Transaction for txn ID:{} failed", e.getKey(),
+                                                              getException(e.getValue()));
+                                                      txnList.remove(e.getKey()); //ping txn failed, remove it.
+                                                  }));
     }
 
     @Override
     public void close() {
-
-        //resource Cleanup.
-    }
-
-    /*
-    Questions
-    1. DO we need sychronized
-    2. Idempotent operations.
-    3. Do we need a close method. yes.
-
-     */
-
-    public static void main(String[] args) {
+        log.info("Closing Transaction keep alive periodic task");
+        if (pingTxnTask != null) {
+            pingTxnTask.cancel(true);
+        }
     }
 }
