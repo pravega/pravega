@@ -127,7 +127,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                         connectionComplete.complete(handler);
                     } else {
                         connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
-                        future.channel().close(); // close channel in case of failure.
                     }
                 }
             });
