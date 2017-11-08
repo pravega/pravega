@@ -21,20 +21,20 @@ ENV BOOKKEEPER_VERSION=4.5.0 \
 
 RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
 &&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bk_all
+&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bookkeeper
 
 # zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
 RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
 &&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zk
+&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zookeeper
 
 ENV bookiePort 3181
 
 EXPOSE $bookiePort
 
 # all execute-able bin, download from apache BK and ZK
-WORKDIR /opt/bk_all
+WORKDIR /opt/bookkeeper
 
 # After container up, Following instructions to build bookie cluster
-COPY entrypoint.sh /opt/bk_all/entrypoint.sh
-ENTRYPOINT /opt/bk_all/entrypoint.sh
+COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
+ENTRYPOINT /opt/bookkeeper/entrypoint.sh

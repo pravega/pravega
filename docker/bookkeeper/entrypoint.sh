@@ -9,8 +9,8 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-ZK_HOME=/opt/zk
-BK_HOME=/opt/bk_all
+ZK_HOME=/opt/zookeeper
+BK_HOME=/opt/bookkeeper
 
 PORT0=${PORT0:-$bookiePort}
 PORT0=${PORT0:-3181}
