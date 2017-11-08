@@ -12,6 +12,7 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.base.Preconditions;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
@@ -113,22 +114,31 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
          });
 
         // Start the client.
-        CompletableFuture<ClientConnection> result = new CompletableFuture<>();
+        CompletableFuture<ClientConnection> connectionComplete = new CompletableFuture<>();
         try {
             b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) {
                     if (future.isSuccess()) {
-                        result.complete(handler);
+                        //since ChannelFuture is complete future.channel() is not a blocking call.
+                        Channel ch = future.channel();
+                        log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
+                                ch.id(), ch.localAddress(), ch.remoteAddress());
+                        connectionComplete.complete(handler);
                     } else {
-                        result.completeExceptionally(new ConnectionFailedException(future.cause()));
+                        connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
+                        future.channel().close(); // close channel in case of failure.
                     }
                 }
             });
         } catch (Exception e) {
-            result.completeExceptionally(new ConnectionFailedException(e));
+            connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
-        return result;
+
+        CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //check if channel is registered.
+        handler.completeWhenRegistered(channelRegisteredFuture);
+
+        return connectionComplete.thenCombine(channelRegisteredFuture, (clientConnection, v) -> clientConnection);
     }
 
     @Override
