@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.auth.Credentials;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
@@ -44,6 +45,11 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
         this.connectionFactory = new ConnectionFactoryImpl(false);
         this.controller = controller;
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory);
+    }
+
+    @Override
+    public ClientFactory withCredentials(Credentials creds) {
+        return this;
     }
 
     @Override
