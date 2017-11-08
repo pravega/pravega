@@ -537,7 +537,7 @@ abstract class AbstractFailoverTests {
 
 
     static URI startZookeeperInstance() {
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -546,8 +546,8 @@ abstract class AbstractFailoverTests {
         return zkUris.get(0);
     }
 
-    static void startBookkeeperInstances(final URI zkUri) {
-        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
+    static void startBookkeeperInstances(final URI zkUri) throws ExecutionException {
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -556,7 +556,7 @@ abstract class AbstractFailoverTests {
     }
 
     static URI startPravegaControllerInstances(final URI zkUri) throws ExecutionException {
-        Service controllerService = Utils.createServiceInstance("controller", zkUri, null, null);
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -580,7 +580,7 @@ abstract class AbstractFailoverTests {
     }
 
     static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final URI hdfsUri) throws ExecutionException {
-        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, controllerURI);
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }

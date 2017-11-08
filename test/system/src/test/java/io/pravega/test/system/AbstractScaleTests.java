@@ -43,7 +43,7 @@ abstract class AbstractScaleTests {
             ControllerImplConfig.builder().build(), getConnectionFactory().getInternalExecutor());
 
     private URI createControllerURI() {
-        Service conService = Utils.createServiceInstance("controller", null, null, null);
+        Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         return ctlURIs.get(0);
     }

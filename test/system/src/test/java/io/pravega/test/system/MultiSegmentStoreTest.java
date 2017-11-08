@@ -58,7 +58,7 @@ public class MultiSegmentStoreTest {
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
 
         // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -67,7 +67,7 @@ public class MultiSegmentStoreTest {
         log.info("zookeeper service details: {}", zkUris);
         URI zkUri = zkUris.get(0);
         // 2. Check if bk is running, otherwise start it.
-        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -87,7 +87,7 @@ public class MultiSegmentStoreTest {
         }
 
         // 3. Start controller.
-        Service controllerService = Utils.createServiceInstance("controller", zkUri, null, null);
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -96,7 +96,7 @@ public class MultiSegmentStoreTest {
         log.info("Pravega Controller service instance details: {}", conUris);
 
         // 4. Start segment store.
-        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -107,7 +107,7 @@ public class MultiSegmentStoreTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
@@ -123,13 +123,13 @@ public class MultiSegmentStoreTest {
         }
 
         // Verify controller is running.
-        this.controllerInstance = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
+        this.controllerInstance = Utils.createPravegaControllerService(zkUris.get(0));
         Assert.assertTrue(this.controllerInstance.isRunning());
         List<URI> conURIs = this.controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Verify segment stores is running.
-        this.segmentServiceInstance = Utils.createServiceInstance("segmentstore", zkUris.get(0), hdfsUri, conURIs.get(0));
+        this.segmentServiceInstance = Utils.createPravegaSegmentStoreService(zkUris.get(0), hdfsUri, conURIs.get(0));
         Assert.assertTrue(this.segmentServiceInstance.isRunning());
         Assert.assertEquals(1, this.segmentServiceInstance.getServiceDetails().size());
         log.info("Pravega segment store instance details: {}", this.segmentServiceInstance.getServiceDetails());

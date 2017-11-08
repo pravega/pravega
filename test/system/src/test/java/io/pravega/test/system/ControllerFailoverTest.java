@@ -56,7 +56,7 @@ public class ControllerFailoverTest {
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
 
         //1. check if zk is running, if not start it
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -66,7 +66,7 @@ public class ControllerFailoverTest {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -86,7 +86,7 @@ public class ControllerFailoverTest {
         }
 
         //3. start controller
-        Service controllerService = Utils.createServiceInstance("controller", zkUri, null, null);
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -108,7 +108,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start host
-        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -120,12 +120,12 @@ public class ControllerFailoverTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createBookkeeperService(null);
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
+        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }

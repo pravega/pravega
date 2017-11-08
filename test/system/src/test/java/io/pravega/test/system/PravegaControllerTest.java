@@ -32,11 +32,11 @@ public class PravegaControllerTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service con = Utils.createServiceInstance("controller", zk.getServiceDetails().get(0), null, null);
+        Service con = Utils.createPravegaControllerService(zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }
@@ -50,7 +50,7 @@ public class PravegaControllerTest {
     @Test(timeout = 5 * 60 * 1000)
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
-        Service con = Utils.createServiceInstance("controller", null, null, null);
+        Service con = Utils.createPravegaControllerService(null);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
         for (int i = 0; i < conUri.size(); i++) {

@@ -37,7 +37,6 @@ public class ZookeeperDockerService extends DockerBasedService {
         super(serviceName);
     }
 
-    @Override
     public void stop() {
         super.stop();
     }

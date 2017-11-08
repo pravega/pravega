@@ -33,11 +33,11 @@ public class PravegaSegmentStoreTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
+        Service bk = Utils.createBookkeeperService(zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -52,11 +52,11 @@ public class PravegaSegmentStoreTest {
         log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
         }
 
-        Service con = Utils.createServiceInstance("controller", zk.getServiceDetails().get(0), null, null);
+        Service con = Utils.createPravegaControllerService(zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }
-        Service seg = Utils.createServiceInstance("segmentstore", zk.getServiceDetails().get(0), hdfsUri, con.getServiceDetails().get(0));
+        Service seg = Utils.createPravegaSegmentStoreService(zk.getServiceDetails().get(0), hdfsUri, con.getServiceDetails().get(0));
         if (!seg.isRunning()) {
             seg.start(true);
         }
@@ -70,7 +70,7 @@ public class PravegaSegmentStoreTest {
     @Test(timeout = 5 * 60 * 1000)
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
-        Service seg = Utils.createServiceInstance("segmentstore", null, null, null);
+        Service seg = Utils.createPravegaSegmentStoreService(null, null, null);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
         for (int i = 0; i < segUri.size(); i++) {

@@ -34,7 +34,7 @@ public class ZookeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
         }
@@ -48,7 +48,7 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zk = Utils.createZookeeperService();
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
                 CuratorFrameworkFactory.newClient(zkUri.getHost() +":2181", new RetryOneTime(5000));

@@ -45,14 +45,13 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
     private final URI conUri;
     private final URI hdfsUri;
 
-    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI conUri, final URI hdfsUri) {
+    public PravegaSegmentStoreDockerService(final String serviceName, final URI zkUri, final URI hdfsUri, final URI conUri) {
         super(serviceName);
         this.zkUri = zkUri;
-        this.conUri = conUri;
         this.hdfsUri = hdfsUri;
+        this.conUri = conUri;
     }
 
-    @Override
     public void stop() {
         super.stop();
     }
@@ -73,14 +72,18 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
+        Map<String, String> stringBuilderMap = new HashMap<>();
         StringBuilder systemPropertyBuilder = new StringBuilder();
-        systemPropertyBuilder.append("-D").append("autoScale.muteInSeconds").append("=").append("120").append(" ")
-                .append("-D").append("autoScale.cooldownInSeconds").append("=").append("120").append(" ")
-                .append("-D").append("autoScale.cacheExpiryInSeconds").append("=").append("120").append(" ")
-                .append("-D").append("autoScale.cacheCleanUpInSeconds").append("=").append("120").append(" ")
-                .append("-D").append("log.level").append("=").append("DEBUG").append(" ")
-                .append("-D").append("curator-default-session-timeout").append("=").append(String.valueOf(30 * 1000)).append(" ")
-                .append("-D").append("hdfs.replaceDataNodesOnFailure").append("=").append("false").toString();
+        stringBuilderMap.put("autoScale.muteInSeconds", "120");
+        stringBuilderMap.put("autoScale.cooldownInSeconds", "120");
+        stringBuilderMap.put("autoScale.cacheExpiryInSeconds", "120");
+        stringBuilderMap.put("autoScale.cacheCleanUpInSeconds", "120");
+        stringBuilderMap.put("log.level", "DEBUG");
+        stringBuilderMap.put("curator-default-session-timeout", String.valueOf(30 * 1000));
+        stringBuilderMap.put("hdfs.replaceDataNodesOnFailure", "fasle");
+        for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
+            systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue());
+        }
 
         String hostSystemProperties = systemPropertyBuilder.toString();
 

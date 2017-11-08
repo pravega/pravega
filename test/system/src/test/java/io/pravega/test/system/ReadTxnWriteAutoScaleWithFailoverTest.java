@@ -77,7 +77,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     @Before
     public void setup() {
         // Get zk details to verify if controller, segmentstore are running
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
@@ -94,7 +94,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         }
 
         // Verify controller is running.
-        controllerInstance = Utils.createServiceInstance("controller", zkUri, null, null);
+        controllerInstance = Utils.createPravegaControllerService(zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
@@ -108,7 +108,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, controllerURIDirect);
+        segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 

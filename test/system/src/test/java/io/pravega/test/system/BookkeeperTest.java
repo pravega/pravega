@@ -31,11 +31,11 @@ public class BookkeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
         }
-        Service bk = Utils.createServiceInstance("bookkeeper", zk.getServiceDetails().get(0), null, null);
+        Service bk = Utils.createBookkeeperService(zk.getServiceDetails().get(0));
         if (!bk.isRunning()) {
             bk.start(true);
         }
@@ -49,7 +49,7 @@ public class BookkeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void bkTest() {
         log.debug("Start execution of bkTest");
-        Service bk = Utils.createServiceInstance("bookkeeper", null, null, null);
+        Service bk = Utils.createBookkeeperService(null);
         List<URI> bkUri = bk.getServiceDetails();
         log.debug("Bk Service URI details: {} ", bkUri);
         for (int i = 0; i < bkUri.size(); i++) {

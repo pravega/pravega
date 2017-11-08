@@ -41,32 +41,27 @@ public class Utils {
         return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
     }
 
-    public static Service createServiceInstance(final String serviceType, final URI zkUri, final URI hdfsUri, final  URI contUri) {
-        Service service;
-        switch (serviceType) {
-            case "zookeeper" :
-                service = Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
-                        : new ZookeeperService("zookeeper");
-                break;
-            case "bookkeeper" :
-                service = Utils.isDockerLocalExecEnabled() ?
-                        new BookkeeperDockerService("bookkeeper", zkUri) :
-                        new BookkeeperService("bookkeeper", zkUri);
-                break;
-            case "controller" :
-                service = Utils.isDockerLocalExecEnabled()
-                        ? new PravegaControllerDockerService("controller", zkUri)
-                        : new PravegaControllerService("controller", zkUri);
-                break;
-            case "segmentstore" :
-                service = Utils.isDockerLocalExecEnabled() ?
-                        new PravegaSegmentStoreDockerService("segmentstore", zkUri, contUri, hdfsUri)
-                        : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid service type");
-        }
-        return service;
+    public static Service createZookeeperService() {
+        return Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
+    }
+
+    public static Service createBookkeeperService(final URI zkUri) {
+        return Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper", zkUri) :
+                new BookkeeperService("bookkeeper", zkUri);
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri) {
+        return Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUri)
+                : new PravegaControllerService("controller", zkUri);
+    }
+
+    public static Service createPravegaSegmentStoreService(final URI zkUri, final URI hdfsUri, final URI contUri) {
+        return Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
+                : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
     }
 
     /**

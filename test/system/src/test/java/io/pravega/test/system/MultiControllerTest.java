@@ -52,14 +52,14 @@ public class MultiControllerTest {
      */
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        Service controllerService = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
+        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -84,12 +84,12 @@ public class MultiControllerTest {
 
     @Before
     public void setup() {
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createServiceInstance("controller", zkUris.get(0), null, null);
+        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
         if (!controllerService1.isRunning()) {
             controllerService1.start(true);
         }

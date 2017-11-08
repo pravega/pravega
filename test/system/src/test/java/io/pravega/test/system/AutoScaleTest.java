@@ -71,7 +71,7 @@ public class AutoScaleTest extends AbstractScaleTests {
     public static void setup() {
 
         //1. check if zk is running, if not start it
-        Service zkService = Utils.createServiceInstance("zookeeper", null, null, null);
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -81,7 +81,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         //get the zk ip details and pass it to bk, host, controller
         URI zkUri = zkUris.get(0);
         //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createServiceInstance("bookkeeper", zkUri, null, null);
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -101,7 +101,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         }
 
         //3. start controller
-        Service conService = Utils.createServiceInstance("controller", zkUri, null, null);
+        Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -110,7 +110,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = Utils.createServiceInstance("segmentstore", zkUri, hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }

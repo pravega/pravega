@@ -42,7 +42,6 @@ public class PravegaControllerDockerService extends DockerBasedService {
         this.zkUri = zkUri;
     }
 
-    @Override
     public void stop() {
         super.stop();
     }
@@ -59,17 +58,21 @@ public class PravegaControllerDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
+        Map<String, String> stringBuilderMap = new HashMap<>();
+        stringBuilderMap.put("ZK_URL", zk);
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", serviceName);
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", String.valueOf(DOCKER_CONTROLLER_PORT));
+        stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(DOCKER_CONTROLLER_PORT));
+        stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
+        stringBuilderMap.put("log.level", "DEBUG");
+        stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
+        stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
+        stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
+        stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
         StringBuilder systemPropertyBuilder = new StringBuilder();
-        systemPropertyBuilder.append("-D").append("ZK_URL").append("=").append(zk).append(" ").
-                append("-D").append("CONTROLLER_RPC_PUBLISHED_HOST").append("=").append(serviceName).append(" ").
-                append("-D").append("CONTROLLER_RPC_PUBLISHED_PORT").append("=").append(String.valueOf(DOCKER_CONTROLLER_PORT)).append(" ").
-                append("-D").append("CONTROLLER_SERVER_PORT").append("=").append(String.valueOf(DOCKER_CONTROLLER_PORT)).append(" ").
-                append("-D").append("REST_SERVER_PORT").append("=").append(String.valueOf(REST_PORT)).append(" ").
-                append("-D").append("log.level").append("=").append("DEBUG").append(" ").
-                append("-D").append("curator-default-session-timeout").append("=").append(String.valueOf(10 * 1000)).append(" ").
-                append("-D").append("ZK_SESSION_TIMEOUT_MS").append("=").append(String.valueOf(30 * 1000)).append(" ").
-                append("-D").append("MAX_LEASE_VALUE").append("=").append(String.valueOf(60 * 1000)).append(" ").
-                append("-D").append("MAX_SCALE_GRACE_PERIOD").append("=").append(String.valueOf(60 * 1000)).toString();
+        for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
+            systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue());
+        }
 
         String controllerSystemProperties = systemPropertyBuilder.toString();
         String env1 = "PRAVEGA_CONTROLLER_OPTS=" + controllerSystemProperties;
