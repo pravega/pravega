@@ -45,7 +45,6 @@ public class RemoteSequential implements TestExecutor {
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
-
         log.debug("Starting test execution for method: {}", testMethod);
 
         String className = testMethod.getDeclaringClass().getName();
@@ -85,7 +84,7 @@ public class RemoteSequential implements TestExecutor {
 
     private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
         return Futures.loop(() -> isTestRunning(jobId),
-                () -> Futures.delayedFuture(Duration.ofSeconds(3), executorService),
+                () -> Futures.delayedFuture(Duration.ofSeconds(10), executorService),
                 executorService);
     }
 
