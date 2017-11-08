@@ -32,21 +32,20 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.Storage;
-import java.io.IOException;
+import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -78,24 +77,21 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
-public class ExtendedS3Storage implements Storage {
+public class ExtendedS3Storage implements SyncStorage {
 
     //region members
 
     private final ExtendedS3StorageConfig config;
     private final S3Client client;
-    private final ExecutorService executor;
     private final AtomicBoolean closed;
 
     //endregion
 
     //region constructor
 
-    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config, ExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        this.config = config;
-        this.client = client;
-        this.executor = executor;
+    public ExtendedS3Storage(S3Client client, ExtendedS3StorageConfig config) {
+        this.config = Preconditions.checkNotNull(config, "config");
+        this.client = Preconditions.checkNotNull(client, "client");
         this.closed = new AtomicBoolean(false);
 
     }
@@ -114,74 +110,82 @@ public class ExtendedS3Storage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-        return supplyAsync(streamSegmentName, () -> syncOpenRead(streamSegmentName));
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doOpenRead(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int
-            length, Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        return execute(handle.getSegmentName(), () -> doRead(handle, offset, buffer, bufferOffset, length));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncGetStreamSegmentInfo(streamSegmentName));
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doGetStreamSegmentInfo(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncExists(streamSegmentName));
+    @SneakyThrows(StreamSegmentException.class)
+    public boolean exists(String streamSegmentName) {
+        return execute(streamSegmentName, () -> doExists(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-        return supplyAsync(streamSegmentName, () -> syncOpenWrite(streamSegmentName));
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doOpenWrite(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncCreate(streamSegmentName));
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration
-            timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncWrite(handle, offset, data, length));
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doWrite(handle, offset, data, length));
     }
 
     @Override
-    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncSeal(handle));
+    public void seal(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doSeal(handle));
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration
-            timeout) {
-        return supplyAsync(targetHandle.getSegmentName(),
-                () -> syncConcat(targetHandle, offset, sourceSegment));
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
+        execute(targetHandle.getSegmentName(), () -> doConcat(targetHandle, offset, sourceSegment));
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
+    public void delete(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doDelete(handle));
+    }
+
+    @Override
+    public void truncate(SegmentHandle handle, long offset) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return false;
     }
 
     //endregion
 
     //region private sync implementation
-    private SegmentHandle syncOpenRead(String streamSegmentName) {
+
+    private SegmentHandle doOpenRead(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
 
-        StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
+        doGetStreamSegmentInfo(streamSegmentName);
         ExtendedS3SegmentHandle retHandle = ExtendedS3SegmentHandle.getReadHandle(streamSegmentName);
         LoggerHelpers.traceLeave(log, "openRead", traceId, streamSegmentName);
         return retHandle;
     }
 
-    private SegmentHandle syncOpenWrite(String streamSegmentName) {
+    private SegmentHandle doOpenWrite(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        StreamSegmentInformation info = syncGetStreamSegmentInfo(streamSegmentName);
+        StreamSegmentInformation info = doGetStreamSegmentInfo(streamSegmentName);
         ExtendedS3SegmentHandle retHandle;
         if (info.isSealed()) {
             retHandle = ExtendedS3SegmentHandle.getReadHandle(streamSegmentName);
@@ -193,7 +197,7 @@ public class ExtendedS3Storage implements Storage {
         return retHandle;
     }
 
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException, StreamSegmentNotExistsException {
+    private int doRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
 
         if (offset < 0 || bufferOffset < 0 || length < 0) {
@@ -221,7 +225,7 @@ public class ExtendedS3Storage implements Storage {
         }
     }
 
-    private StreamSegmentInformation syncGetStreamSegmentInfo(String streamSegmentName) {
+    private StreamSegmentInformation doGetStreamSegmentInfo(String streamSegmentName) {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         S3ObjectMetadata result = client.getObjectMetadata(config.getBucket(),
                 config.getRoot() + streamSegmentName);
@@ -239,10 +243,9 @@ public class ExtendedS3Storage implements Storage {
         return information;
     }
 
-    private boolean syncExists(String streamSegmentName) {
-        ListObjectsResult result = null;
+    private boolean doExists(String streamSegmentName) {
         try {
-            result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
+            ListObjectsResult result = client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName);
             return !result.getObjects().isEmpty();
         } catch (S3Exception e) {
             /*
@@ -262,7 +265,7 @@ public class ExtendedS3Storage implements Storage {
         }
     }
 
-    private SegmentProperties syncCreate(String streamSegmentName) throws StreamSegmentExistsException {
+    private SegmentProperties doCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
         if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
@@ -272,15 +275,10 @@ public class ExtendedS3Storage implements Storage {
         S3ObjectMetadata metadata = new S3ObjectMetadata();
         metadata.setContentLength((long) 0);
 
-        PutObjectRequest request = new PutObjectRequest(config.getBucket(),
-                config.getRoot() + streamSegmentName,
-                (Object) null);
+        PutObjectRequest request = new PutObjectRequest(config.getBucket(), config.getRoot() + streamSegmentName, null);
 
         AccessControlList acl = new AccessControlList();
-        acl.addGrants(new Grant[]{
-                new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()),
-                        Permission.FULL_CONTROL)
-        });
+        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.FULL_CONTROL));
         request.setAcl(acl);
 
         /* Default behavior of putObject is to overwrite an existing object. This behavior can cause data loss.
@@ -305,18 +303,15 @@ public class ExtendedS3Storage implements Storage {
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);
-        return syncGetStreamSegmentInfo(streamSegmentName);
+        return doGetStreamSegmentInfo(streamSegmentName);
     }
 
-    private Void syncWrite(SegmentHandle handle,
-                           long offset,
-                           InputStream data,
-                           int length) throws StreamSegmentSealedException, BadOffsetException {
+    private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
 
-        SegmentProperties si = syncGetStreamSegmentInfo(handle.getSegmentName());
+        SegmentProperties si = doGetStreamSegmentInfo(handle.getSegmentName());
 
         if (si.isSealed()) {
             throw new StreamSegmentSealedException(handle.getSegmentName());
@@ -332,16 +327,14 @@ public class ExtendedS3Storage implements Storage {
         return null;
     }
 
-    private Void syncSeal(SegmentHandle handle) {
+    private Void doSeal(SegmentHandle handle) {
         Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
 
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
 
-        AccessControlList acl = client.getObjectAcl(config.getBucket(),
-                config.getRoot() + handle.getSegmentName());
+        AccessControlList acl = client.getObjectAcl(config.getBucket(), config.getRoot() + handle.getSegmentName());
         acl.getGrants().clear();
-        acl.addGrants(new Grant[]{new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()),
-                Permission.READ)});
+        acl.addGrants(new Grant(new CanonicalUser(config.getAccessKey(), config.getAccessKey()), Permission.READ));
 
         client.setObjectAcl(
                 new SetObjectAclRequest(config.getBucket(), config.getRoot() + handle.getSegmentName()).withAcl(acl));
@@ -358,7 +351,7 @@ public class ExtendedS3Storage implements Storage {
      * completeMultiPartUpload call. Specifically, to concatenate, we are copying the target segment T and the
      * source segment S to T, so essentially we are doing T <- T + S.
      */
-    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
+    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentNotExistsException {
         Preconditions.checkArgument(!targetHandle.isReadOnly(), "target handle must not be read-only.");
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(), offset, sourceSegment);
 
@@ -367,11 +360,11 @@ public class ExtendedS3Storage implements Storage {
         String uploadId = client.initiateMultipartUpload(config.getBucket(), targetPath);
 
         // check whether the target exists
-        if (!syncExists(targetHandle.getSegmentName())) {
+        if (!doExists(targetHandle.getSegmentName())) {
             throw new StreamSegmentNotExistsException(targetHandle.getSegmentName());
         }
         // check whether the source is sealed
-        SegmentProperties si = syncGetStreamSegmentInfo(sourceSegment);
+        SegmentProperties si = doGetStreamSegmentInfo(sourceSegment);
         Preconditions.checkState(si.isSealed(), "Cannot concat segment '%s' into '%s' because it is not sealed.",
                 sourceSegment, targetHandle.getSegmentName());
 
@@ -411,76 +404,57 @@ public class ExtendedS3Storage implements Storage {
         return null;
     }
 
-    private Void syncDelete(SegmentHandle handle) {
+    private Void doDelete(SegmentHandle handle) {
         client.deleteObject(config.getBucket(), config.getRoot() + handle.getSegmentName());
         return null;
     }
 
-    private Throwable translateException(String segmentName, Throwable e) {
-        Throwable retVal = e;
-
+    private <T> T throwException(String segmentName, Exception e) throws StreamSegmentException {
         if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
             String errorCode = ((S3Exception) e).getErrorCode();
 
             if (errorCode.equals("NoSuchKey")) {
-                retVal = new StreamSegmentNotExistsException(segmentName);
+                throw new StreamSegmentNotExistsException(segmentName);
             }
 
             if (errorCode.equals("PreconditionFailed")) {
-                retVal = new StreamSegmentExistsException(segmentName);
+                throw new StreamSegmentExistsException(segmentName);
             }
 
             if (errorCode.equals("InvalidRange")
                     || errorCode.equals("InvalidArgument")
                     || errorCode.equals("MethodNotAllowed")) {
-                retVal = new IllegalArgumentException(segmentName, e);
+                throw new IllegalArgumentException(segmentName, e);
             }
             if (errorCode.equals("AccessDenied")) {
-                retVal = new StreamSegmentSealedException(segmentName, e);
+                throw new StreamSegmentSealedException(segmentName, e);
             }
 
         }
 
         if (e instanceof IndexOutOfBoundsException) {
-            retVal = new ArrayIndexOutOfBoundsException(e.getMessage());
+            throw new ArrayIndexOutOfBoundsException(e.getMessage());
         }
 
-        return retVal;
+        throw Lombok.sneakyThrow(e);
     }
 
-
     /**
-     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
+     * StreamSegmentExceptions.
      *
      * @param segmentName   Full name of the StreamSegment.
      * @param operation     The function to execute.
      * @param <R>           Return type of the operation.
      * @return              Instance of the return type of the operation.
      */
-    private  <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
+    private <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
         Exceptions.checkNotClosed(this.closed.get(), this);
-
-        CompletableFuture<R> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                result.complete(operation.call());
-            } catch (Throwable e) {
-                handleException(e, segmentName, result);
-            }
-        });
-
-        return result;
-    }
-
-    /**
-     * Method defining implementation specific handling of exceptions thrown during call to supplyAsync.
-     * @param e             The exception thrown during supplyAsync.
-     * @param segmentName   Full name of the StreamSegment.
-     * @param result        The CompletableFuture that needs to be responded to.
-     * @param <R>           Return type of the operation.
-     */
-    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
-        result.completeExceptionally(translateException(segmentName, e));
+        try {
+            return operation.call();
+        } catch (Exception e) {
+            return throwException(segmentName, e);
+        }
     }
 
     //endregion

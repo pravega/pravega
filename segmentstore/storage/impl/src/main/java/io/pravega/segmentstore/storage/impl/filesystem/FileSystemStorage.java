@@ -16,12 +16,13 @@ import io.pravega.common.Timer;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,13 +44,12 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.AccessControlException;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Lombok;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
@@ -75,13 +75,10 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
  * current owner. Once the earlier owner received this notification, it stops writing to the segment.
  */
 @Slf4j
-public class FileSystemStorage implements Storage {
-    private static final int NUM_RETRIES = 3;
-
+public class FileSystemStorage implements SyncStorage {
     //region members
 
     private final FileSystemStorageConfig config;
-    private final ExecutorService executor;
     private final AtomicBoolean closed;
 
     //endregion
@@ -92,14 +89,10 @@ public class FileSystemStorage implements Storage {
      * Creates a new instance of the FileSystemStorage class.
      *
      * @param config   The configuration to use.
-     * @param executor The executor to use for running async operations.
      */
-    public FileSystemStorage(FileSystemStorageConfig config, ExecutorService executor) {
-        Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
+    public FileSystemStorage(FileSystemStorageConfig config) {
+        this.config = Preconditions.checkNotNull(config, "config");
         this.closed = new AtomicBoolean(false);
-        this.config = config;
-        this.executor = executor;
     }
 
     //endregion
@@ -116,63 +109,65 @@ public class FileSystemStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-        return supplyAsync(streamSegmentName, () -> syncOpenRead(streamSegmentName));
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doOpenRead(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle handle,
-                                           long offset,
-                                           byte[] buffer,
-                                           int bufferOffset,
-                                           int length,
-                                           Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncRead(handle, offset, buffer, bufferOffset, length));
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        return execute(handle.getSegmentName(), () -> doRead(handle, offset, buffer, bufferOffset, length));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncGetStreamSegmentInfo(streamSegmentName));
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doGetStreamSegmentInfo(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncExists(streamSegmentName));
+    @SneakyThrows(StreamSegmentException.class)
+    public boolean exists(String streamSegmentName) {
+        return execute(streamSegmentName, () -> doExists(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-        return supplyAsync(streamSegmentName, () -> syncOpenWrite(streamSegmentName));
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doOpenWrite(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync(streamSegmentName, () -> syncCreate(streamSegmentName));
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle,
-                                         long offset,
-                                         InputStream data,
-                                         int length,
-                                         Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncWrite(handle, offset, data, length));
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doWrite(handle, offset, data, length));
     }
 
     @Override
-    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncSeal(handle));
+    public void seal(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doSeal(handle));
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment,
-                                          Duration timeout) {
-        return supplyAsync(targetHandle.getSegmentName(), () -> syncConcat(targetHandle, offset, sourceSegment));
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
+        execute(targetHandle.getSegmentName(), () -> doConcat(targetHandle, offset, sourceSegment));
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return supplyAsync(handle.getSegmentName(), () -> syncDelete(handle));
+    public void delete(SegmentHandle handle) throws StreamSegmentException {
+        execute(handle.getSegmentName(), () -> doDelete(handle));
+    }
+
+
+    @Override
+    public void truncate(SegmentHandle handle, long offset) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
+    }
+
+    @Override
+    public boolean supportsTruncation() {
+        return false;
     }
 
     //endregion
@@ -188,7 +183,7 @@ public class FileSystemStorage implements Storage {
 
     //region private sync implementation
 
-    private SegmentHandle syncOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
+    private SegmentHandle doOpenRead(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openRead", streamSegmentName);
         Path path = Paths.get(config.getRoot(), streamSegmentName);
 
@@ -200,7 +195,7 @@ public class FileSystemStorage implements Storage {
         return FileSystemSegmentHandle.readHandle(streamSegmentName);
     }
 
-    private SegmentHandle syncOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
+    private SegmentHandle doOpenWrite(String streamSegmentName) throws StreamSegmentNotExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         if (!Files.exists(path)) {
@@ -210,11 +205,11 @@ public class FileSystemStorage implements Storage {
             return FileSystemSegmentHandle.writeHandle(streamSegmentName);
         } else {
             LoggerHelpers.traceLeave(log, "openWrite", traceId);
-            return syncOpenRead(streamSegmentName);
+            return doOpenRead(streamSegmentName);
         }
     }
 
-    private int syncRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
+    private int doRead(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "read", handle.getSegmentName(), offset, bufferOffset, length);
         Timer timer = new Timer();
 
@@ -227,24 +222,23 @@ public class FileSystemStorage implements Storage {
         }
 
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ)) {
-            int bytesRead = 0;
-            long totalBytesRead = 0;
+            int totalBytesRead = 0;
 
             do {
                 ByteBuffer readBuffer = ByteBuffer.wrap(buffer, bufferOffset, length);
-                bytesRead = channel.read(readBuffer, offset);
+                int bytesRead = channel.read(readBuffer, offset);
                 bufferOffset += bytesRead;
                 totalBytesRead += bytesRead;
                 length -= bytesRead;
             } while (length != 0);
             FileSystemMetrics.READ_LATENCY.reportSuccessEvent(timer.getElapsed());
             FileSystemMetrics.READ_BYTES.add(totalBytesRead);
-            LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
-            return bytesRead;
+            LoggerHelpers.traceLeave(log, "read", traceId, totalBytesRead);
+            return totalBytesRead;
         }
     }
 
-    private SegmentProperties syncGetStreamSegmentInfo(String streamSegmentName) throws IOException {
+    private SegmentProperties doGetStreamSegmentInfo(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "getStreamSegmentInfo", streamSegmentName);
         PosixFileAttributes attrs = Files.readAttributes(Paths.get(config.getRoot(), streamSegmentName),
                 PosixFileAttributes.class);
@@ -259,11 +253,11 @@ public class FileSystemStorage implements Storage {
         return information;
     }
 
-    private boolean syncExists(String streamSegmentName) {
+    private boolean doExists(String streamSegmentName) {
         return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
-    private SegmentProperties syncCreate(String streamSegmentName) throws IOException {
+    private SegmentProperties doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         Set<PosixFilePermission> perms = new HashSet<>();
         // add permission as rw-r--r-- 644
@@ -277,17 +271,15 @@ public class FileSystemStorage implements Storage {
         Files.createDirectories(path.getParent());
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
-        return this.syncGetStreamSegmentInfo(streamSegmentName);
+        return this.doGetStreamSegmentInfo(streamSegmentName);
     }
 
-    private Void syncWrite(SegmentHandle handle, long offset, InputStream data, int length)
-            throws IOException, StreamSegmentSealedException, BadOffsetException {
+    private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, "write", handle.getSegmentName(), offset, length);
         Timer timer = new Timer();
 
         if (handle.isReadOnly()) {
-            throw new IllegalArgumentException("Write called on a readonly handle of segment "
-                    + handle.getSegmentName());
+            throw new IllegalArgumentException("Write called on a readonly handle of segment " + handle.getSegmentName());
         }
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
@@ -303,10 +295,13 @@ public class FileSystemStorage implements Storage {
             throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
         } else {
             long totalBytesWritten = 0;
-            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE);
-                 ReadableByteChannel sourceChannel = Channels.newChannel(data)) {
+            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+                // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
+                // the underlying InputStream, which is not desirable if it is to be reused.
+                ReadableByteChannel sourceChannel = Channels.newChannel(data);
                 while (length != 0) {
                     long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                    assert bytesWritten > 0 : "Unable to make any progress transferring data.";
                     offset += bytesWritten;
                     totalBytesWritten += bytesWritten;
                     length -= bytesWritten;
@@ -324,7 +319,7 @@ public class FileSystemStorage implements Storage {
         return attrs.permissions().contains(OWNER_WRITE);
     }
 
-    private Void syncSeal(SegmentHandle handle) throws IOException {
+    private Void doSeal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle.getSegmentName());
         if (handle.isReadOnly()) {
             throw new IllegalArgumentException(handle.getSegmentName());
@@ -349,7 +344,7 @@ public class FileSystemStorage implements Storage {
      * This option was preferred as other option (of having one file per transaction) will result in server side
      * fragmentation and corresponding slowdown in cluster performance.
      */
-    private Void syncConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
+    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
 
@@ -373,54 +368,49 @@ public class FileSystemStorage implements Storage {
         }
     }
 
-    private Void syncDelete(SegmentHandle handle) throws IOException {
+    private Void doDelete(SegmentHandle handle) throws IOException {
         Files.delete(Paths.get(config.getRoot(), handle.getSegmentName()));
         return null;
     }
 
     /**
-     * Executes the given supplier asynchronously and returns a Future that will be completed with the result.
+     * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
+     * StreamSegmentExceptions.
+     *
+     * @param segmentName   Full name of the StreamSegment.
+     * @param operation     The function to execute.
+     * @param <R>           Return type of the operation.
+     * @return Instance of the return type of the operation.
      */
-    private <R> CompletableFuture<R> supplyAsync(String segmentName, Callable<R> operation) {
+    private <R> R execute(String segmentName, Callable<R> operation) throws StreamSegmentException {
         Exceptions.checkNotClosed(this.closed.get(), this);
-
-        CompletableFuture<R> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                result.complete(operation.call());
-            } catch (Throwable e) {
-                handleException(e, segmentName, result);
-            }
-        });
-
-        return result;
+        try {
+            return operation.call();
+        } catch (Exception e) {
+            return throwException(segmentName, e);
+        }
     }
 
-    private <R> void handleException(Throwable e, String segmentName, CompletableFuture<R> result) {
-        result.completeExceptionally(translateException(segmentName, e));
-    }
-
-    private Throwable translateException(String segmentName, Throwable e) {
-        Throwable retVal = e;
+    private <T> T throwException(String segmentName, Exception e) throws StreamSegmentException {
         if (e instanceof NoSuchFileException || e instanceof FileNotFoundException) {
-            retVal = new StreamSegmentNotExistsException(segmentName);
+            throw new StreamSegmentNotExistsException(segmentName);
         }
 
         if (e instanceof FileAlreadyExistsException) {
-            retVal = new StreamSegmentExistsException(segmentName);
+            throw new StreamSegmentExistsException(segmentName);
         }
 
         if (e instanceof IndexOutOfBoundsException) {
-            retVal = new IllegalArgumentException(e.getMessage());
+            throw new IllegalArgumentException(e.getMessage());
         }
 
         if (e instanceof AccessControlException
                 || e instanceof AccessDeniedException
                 || e instanceof NonWritableChannelException) {
-            retVal = new StreamSegmentSealedException(segmentName, e);
+            throw new StreamSegmentSealedException(segmentName, e);
         }
 
-        return retVal;
+        throw Lombok.sneakyThrow(e);
     }
 
     //endregion
