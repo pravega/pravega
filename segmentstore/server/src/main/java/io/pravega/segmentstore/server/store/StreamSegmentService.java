@@ -138,7 +138,7 @@ public class StreamSegmentService implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+    public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),

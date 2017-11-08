@@ -21,10 +21,25 @@ public class StorageNotPrimaryException extends StreamSegmentException {
      * @param streamSegmentName The name of the segment for which the Storage is no longer primary.
      */
     public StorageNotPrimaryException(String streamSegmentName) {
-        this(streamSegmentName, null);
+        this(streamSegmentName, null, null);
+    }
+
+    /**
+     * Creates a new instance of the StorageNotPrimaryException class.
+     *
+     * @param streamSegmentName The name of the segment for which the Storage is no longer primary.
+     * @param cause             The causing exception.
+     */
+    public StorageNotPrimaryException(String streamSegmentName, Throwable cause) {
+        this(streamSegmentName, null, cause);
     }
 
     public StorageNotPrimaryException(String streamSegmentName, String message) {
-        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment." + (message == null ? "" : " ") + message);
+        this(streamSegmentName, message, null);
+    }
+
+    public StorageNotPrimaryException(String streamSegmentName, String message, Throwable cause) {
+        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment." + (message == null ? "" : " ") + message,
+                cause);
     }
 }
