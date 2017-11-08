@@ -42,4 +42,16 @@ public interface GRPCServerConfig {
      * @return The RPC port which has to be registered with the cluster used for external access.
      */
     Optional<Integer> getPublishedRPCPort();
+
+    /**
+     * Fetches the list of users in the user database currently stored in the config.
+     * @return Comma separated list of users.
+     */
+    String getUsers();
+
+    /**
+     * Fetches list of password tokens for the users.
+     * @return Comma separated list of passwords.
+     */
+    String getPasswords();
 }

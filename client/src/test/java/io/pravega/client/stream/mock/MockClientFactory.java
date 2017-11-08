@@ -48,11 +48,6 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     }
 
     @Override
-    public ClientFactory withCredentials(Credentials creds) {
-        return this;
-    }
-
-    @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return impl.createEventWriter(streamName, s, config);
     }

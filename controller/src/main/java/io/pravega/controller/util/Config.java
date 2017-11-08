@@ -9,17 +9,16 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.shared.metrics.MetricsConfig;
-import io.pravega.common.util.Property;
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
-import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigResolveOptions;
 import com.typesafe.config.ConfigValue;
+import io.pravega.common.util.Property;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
+import io.pravega.shared.metrics.MetricsConfig;
 import java.util.Map;
 import java.util.Set;
-
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -53,6 +52,9 @@ public final class Config {
     public static final boolean HOST_MONITOR_ENABLED = CONFIG.getBoolean("config.controller.server.hostMonitorEnabled");
     public static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
+    private static final boolean AUTHORIZATION_ENABLED = CONFIG.getBoolean("config.controller.server.authorizationEnabled");
+    private static final String USERS = CONFIG.getString("config.controller.server.users");
+    private static final String PASSWORDS = CONFIG.getString("config.controller.server.passwords");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -95,6 +97,9 @@ public final class Config {
                 .port(Config.RPC_SERVER_PORT)
                 .publishedRPCHost(publishHost)
                 .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
+                .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
+                .users(Config.USERS)
+                .passwords(Config.PASSWORDS)
                 .build();
     }
 

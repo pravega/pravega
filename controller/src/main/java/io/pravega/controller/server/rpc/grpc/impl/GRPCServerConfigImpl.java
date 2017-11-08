@@ -26,10 +26,11 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final boolean authorizationEnabled;
     private final Optional<String> publishedRPCHost;
     private final Optional<Integer> publishedRPCPort;
+    private final String users;
+    private final String passwords;
 
     @Builder
-    public GRPCServerConfigImpl(final int port, boolean authorizationEnabled, final String publishedRPCHost, final Integer publishedRPCPort) {
-        this.authorizationEnabled = authorizationEnabled;
+    public GRPCServerConfigImpl(final int port, boolean authorizationEnabled, final String publishedRPCHost, final Integer publishedRPCPort, String users, String passwords) {
         Preconditions.checkArgument(port > 0, "Invalid port.");
         if (publishedRPCHost != null) {
             Exceptions.checkNotNullOrEmpty(publishedRPCHost, "publishedRPCHost");
@@ -41,5 +42,8 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.port = port;
         this.publishedRPCHost = Optional.ofNullable(publishedRPCHost);
         this.publishedRPCPort = Optional.ofNullable(publishedRPCPort);
+        this.authorizationEnabled = authorizationEnabled;
+        this.users = users;
+        this.passwords = passwords;
     }
 }

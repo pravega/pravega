@@ -14,6 +14,14 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 
 public class PravegaAuthorizer implements io.grpc.ServerInterceptor {
+    private final String users;
+    private final String passwords;
+
+    public PravegaAuthorizer(String users, String passwords) {
+        this.users = users;
+        this.passwords = passwords;
+    }
+
     @Override
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
 

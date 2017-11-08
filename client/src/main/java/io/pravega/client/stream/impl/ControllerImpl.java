@@ -57,11 +57,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -101,10 +99,11 @@ public class ControllerImpl implements Controller {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
-    private final ControllerServiceGrpc.ControllerServiceStub client;
+    private ControllerServiceGrpc.ControllerServiceStub client;
 
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
+    private Credentials creds;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -119,11 +118,17 @@ public class ControllerImpl implements Controller {
      */
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
+        this(controllerURI, config, executor, null);
+    }
+
+    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
+                          final ScheduledExecutorService executor, Credentials creds) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
-                .nameResolverFactory(new ControllerResolverFactory())
-                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true), config, executor);
+                                .nameResolverFactory(new ControllerResolverFactory())
+                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
+                                .usePlaintext(true), config, executor);
+        this.creds = creds;
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -146,36 +151,10 @@ public class ControllerImpl implements Controller {
 
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        this.client = ControllerServiceGrpc.newStub(this.channel)
-                .withCallCredentials(MoreCallCredentials.from(new Credentials() {
-                    @Override
-                    public String getAuthenticationType() {
-                        return "Custom";
-                    }
-
-                    @Override
-                    public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
-                        Map<String, List<String>> retVal = new HashMap<>();
-                        retVal.put("userName", Arrays.asList(new String[]{"arvind"}));
-                        retVal.put("password", Arrays.asList(new String[]{"password"}));
-                        return retVal;
-                    }
-
-                    @Override
-                    public boolean hasRequestMetadata() {
-                        return true;
-                    }
-
-                    @Override
-                    public boolean hasRequestMetadataOnly() {
-                        return true;
-                    }
-
-                    @Override
-                    public void refresh() throws IOException {
-
-                    }
-                }));
+        this.client = ControllerServiceGrpc.newStub(this.channel);
+        if (this.creds != null) {
+          this.client = client.withCallCredentials(MoreCallCredentials.from(creds));
+        }
     }
 
     @Override

@@ -60,21 +60,14 @@ public interface ClientFactory extends AutoCloseable {
      *
      * @param scope The scope string.
      * @param controllerUri The URI for controller.
+     * @param creds Optional credentials to connect to controller.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri) {
+    static ClientFactory withScope(String scope, URI controllerUri, Credentials creds) {
         val connectionFactory = new ConnectionFactoryImpl(false);
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+                connectionFactory.getInternalExecutor(), creds), connectionFactory, creds);
     }
-
-    /**
-     * Sets the credentials for the ClientFactory.
-     *
-     * @param creds Credentials for authorization.
-     * @return A ClientFactory object with the given creds.
-     */
-    ClientFactory withCredentials(Credentials creds);
 
     /**
      * Creates a new writer that can write to the specified stream.
@@ -156,5 +149,4 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Override
     void close();
-
 }
