@@ -13,14 +13,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.SyncStorage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -75,10 +73,9 @@ import org.apache.hadoop.fs.FileSystem;
  * details in the code for each.
  */
 @Slf4j
-class HDFSStorage implements Storage {
+class HDFSStorage implements SyncStorage {
     //region Members
 
-    private final Executor executor;
     private final HDFSStorageConfig config;
     private final AtomicBoolean closed;
     private FileSystemOperation.OperationContext context;
@@ -91,13 +88,10 @@ class HDFSStorage implements Storage {
      * Creates a new instance of the HDFSStorage class.
      *
      * @param config   The configuration to use.
-     * @param executor The executor to use for running async operations.
      */
-    HDFSStorage(HDFSStorageConfig config, Executor executor) {
+    HDFSStorage(HDFSStorageConfig config) {
         Preconditions.checkNotNull(config, "config");
-        Preconditions.checkNotNull(executor, "executor");
         this.config = config;
-        this.executor = executor;
         this.closed = new AtomicBoolean(false);
     }
 
@@ -151,53 +145,66 @@ class HDFSStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
-        return supplyAsync(new CreateOperation(streamSegmentName, this.context));
+    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+        return call(new CreateOperation(streamSegmentName, this.context));
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openWrite(String streamSegmentName) {
-        return supplyAsync(new OpenWriteOperation(streamSegmentName, this.context));
+    public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
+        return call(new OpenWriteOperation(streamSegmentName, this.context));
     }
 
     @Override
-    public CompletableFuture<SegmentHandle> openRead(String streamSegmentName) {
-        return supplyAsync(new OpenReadOperation(streamSegmentName, this.context));
+    public SegmentHandle openRead(String streamSegmentName) throws StreamSegmentException {
+        return call(new OpenReadOperation(streamSegmentName, this.context));
     }
 
     @Override
-    public CompletableFuture<Void> write(SegmentHandle handle, long offset, InputStream data, int length, Duration timeout) {
-        return runAsync(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context));
+    public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
+        run(new WriteOperation(asWritableHandle(handle), offset, data, length, this.context));
     }
 
     @Override
-    public CompletableFuture<Void> seal(SegmentHandle handle, Duration timeout) {
-        return runAsync(new SealOperation(asWritableHandle(handle), this.context));
+    public void seal(SegmentHandle handle) throws StreamSegmentException {
+        run(new SealOperation(asWritableHandle(handle), this.context));
     }
 
     @Override
-    public CompletableFuture<Void> concat(SegmentHandle targetHandle, long offset, String sourceSegment, Duration timeout) {
-        return runAsync(new ConcatOperation(asWritableHandle(targetHandle), offset, sourceSegment, this.context));
+    public void concat(SegmentHandle targetHandle, long offset, String sourceSegment) throws StreamSegmentException {
+        run(new ConcatOperation(asWritableHandle(targetHandle), offset, sourceSegment, this.context));
     }
 
     @Override
-    public CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout) {
-        return runAsync(new DeleteOperation(asReadableHandle(handle), this.context));
+    public void delete(SegmentHandle handle) throws StreamSegmentException {
+        run(new DeleteOperation(asReadableHandle(handle), this.context));
+    }
+
+
+    @Override
+    public void truncate(SegmentHandle handle, long offset) {
+        throw new UnsupportedOperationException(getClass().getName() + " does not support Segment truncation.");
     }
 
     @Override
-    public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
-        return supplyAsync(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context));
+    public boolean supportsTruncation() {
+        return false;
+    }
+
+
+    @Override
+    public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
+        return call(new ReadOperation(asReadableHandle(handle), offset, buffer, bufferOffset, length, this.context));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
-        return supplyAsync(new GetInfoOperation(streamSegmentName, this.context));
+    public SegmentProperties getStreamSegmentInfo(String streamSegmentName) throws StreamSegmentException {
+        return call(new GetInfoOperation(streamSegmentName, this.context));
     }
 
     @Override
-    public CompletableFuture<Boolean> exists(String streamSegmentName, Duration timeout) {
-        return supplyAsync(new ExistsOperation(streamSegmentName, this.context));
+    @SneakyThrows(StreamSegmentException.class)
+    public boolean exists(String streamSegmentName) {
+        return call(new ExistsOperation(streamSegmentName, this.context));
     }
 
     //endregion
@@ -205,45 +212,43 @@ class HDFSStorage implements Storage {
     //region Helpers
 
     /**
-     * Executes the given FileSystemOperation asynchronously and returns a Future that will be completed when it finishes.
+     * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
+     * StreamSegmentExceptions.
+     *
+     * @param operation The function to execute.
      */
-    private <T extends FileSystemOperation & RunnableWithException> CompletableFuture<Void> runAsync(T operation) {
+    private <T extends FileSystemOperation & RunnableWithException> void run(T operation) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                operation.run();
-                result.complete(null);
-            } catch (Throwable e) {
-                handleException(e, operation, result);
-            }
-        });
-
-        return result;
+        try {
+            operation.run();
+        } catch (Exception e) {
+            throwException(e, operation);
+        }
     }
 
     /**
-     * Executes the given FileSystemOperation asynchronously and returns a Future that will be completed with the result.
+     * Executes the given Callable and returns its result, while translating any Exceptions bubbling out of it into
+     * StreamSegmentExceptions.
+     *
+     * @param operation The function to execute.
+     * @param <R>       Return type of the operation.
+     * @return Instance of the return type of the operation.
      */
-    private <R, T extends FileSystemOperation & Callable<? extends R>> CompletableFuture<R> supplyAsync(T operation) {
+    private <R, T extends FileSystemOperation & Callable<? extends R>> R call(T operation) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
-        CompletableFuture<R> result = new CompletableFuture<>();
-        this.executor.execute(() -> {
-            try {
-                result.complete(operation.call());
-            } catch (Throwable e) {
-                handleException(e, operation, result);
-            }
-        });
-
-        return result;
+        try {
+            return operation.call();
+        } catch (Exception e) {
+            return throwException(e, operation);
+        }
     }
 
-    private void handleException(Throwable e, FileSystemOperation<?> operation, CompletableFuture<?> result) {
+
+    private <T> T throwException(Throwable e, FileSystemOperation<?> operation) throws StreamSegmentException {
         String segmentName = operation.getTarget() instanceof SegmentHandle
                 ? ((SegmentHandle) operation.getTarget()).getSegmentName()
                 : operation.getTarget().toString();
-        result.completeExceptionally(HDFSExceptionHelpers.translateFromException(segmentName, e));
+        return HDFSExceptionHelpers.throwException(segmentName, e);
     }
 
     /**

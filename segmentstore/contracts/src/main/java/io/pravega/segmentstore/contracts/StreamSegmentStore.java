@@ -170,8 +170,8 @@ public interface StreamSegmentStore {
      *                          offset and no larger than the StreamSegment's length. After the operation is complete,
      *                          no offsets below this one will be accessible anymore.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the new length of the StreamSegment.
-     * If the operation failed, the future will be failed with the causing exception.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception.
      */
-    CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
+    CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
 }

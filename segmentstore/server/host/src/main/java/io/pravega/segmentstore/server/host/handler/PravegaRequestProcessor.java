@@ -499,7 +499,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long offset = truncateSegment.getTruncationOffset();
         log.debug("Truncating segment {} at offset {} ", segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAccept(size -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, "Truncate segment", e));
     }
 

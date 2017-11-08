@@ -17,6 +17,7 @@ import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -65,7 +66,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
         final int offsetIncrement = defaultReadLength / 3;
 
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
@@ -102,7 +103,7 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
     @Test
     public void testInvalidRequests() {
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup

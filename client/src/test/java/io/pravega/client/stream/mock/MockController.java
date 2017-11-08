@@ -408,7 +408,11 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        throw new UnsupportedOperationException();
+        StreamConfiguration configuration = createdStreams.get(from.getStream());
+        if (configuration.getScalingPolicy().getType() != ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+            throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
+        }
+        return CompletableFuture.completedFuture(Collections.emptySet());
     }
 
     @Override

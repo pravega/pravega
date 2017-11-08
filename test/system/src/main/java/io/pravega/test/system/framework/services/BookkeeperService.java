@@ -28,7 +28,7 @@ import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
 import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 
@@ -113,14 +113,14 @@ public class BookkeeperService extends MarathonBasedService {
         app.setRequirePorts(true);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        Map<String, String> map = new HashMap<>();
+        Map<String, Object> map = new HashMap<>();
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
         map.put("bookiePort", String.valueOf(BK_PORT));
         app.setEnv(map);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0));
+        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, BK_PORT));
         app.setHealthChecks(healthCheckList);
 
         return app;

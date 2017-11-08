@@ -100,7 +100,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
             assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
-                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
+                    () -> s.write(createInexistentSegmentHandle(s, false), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             val writeHandle = s.openWrite(segmentName).join();
@@ -125,6 +125,7 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
+
 
     //endregion
 
