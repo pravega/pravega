@@ -45,7 +45,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 @Slf4j
 public abstract class MarathonBasedService implements Service {
 
-    static final boolean FORCE_IMAGE = true;
+    static final boolean FORCE_IMAGE = false;
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String CONTAINER_TYPE = "DOCKER";
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
@@ -74,8 +74,7 @@ public abstract class MarathonBasedService implements Service {
             log.debug("App Details: {}", app);
             //app is not running until the desired instance count is equal to the number of task/docker containers
             // and the state of application is healthy.
-            if ((app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue())
-                    && app.getApp().getTasksRunning().intValue() == app.getApp().getTasksHealthy().intValue()) {
+            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
