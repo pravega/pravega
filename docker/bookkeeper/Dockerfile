@@ -16,15 +16,17 @@ RUN apt-get update \
 &&  mkdir -p /opt \
 &&  cd /opt
 
-RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-4.4.0/bookkeeper-server-4.4.0-bin.tar.gz \
-&& tar xvzf  bookkeeper-server-4.4.0-bin.tar.gz \
-&& mkdir -p /opt/bk_all \
-&& mv bookkeeper-server-4.4.0/ /opt/bk_all/
+ENV BOOKKEEPER_VERSION=4.5.0 \
+    ZOOKEEPER_VERSION=3.5.3-beta
 
-RUN wget http://www.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz \
-&& tar xvzf  zookeeper-3.5.1-alpha.tar.gz \
-&& mkdir -p /opt/zk \
-&& mv zookeeper-3.5.1-alpha/ /opt/zk/
+RUN wget http://www.apache.org/dist/bookkeeper/bookkeeper-$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
+&&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
+&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bk_all
+
+# zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
+RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
+&&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
+&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zk
 
 ENV bookiePort 3181
 
