@@ -63,7 +63,6 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                         AutoRetentionBucketService bucketService = new AutoRetentionBucketService(bucket, streamMetadataStore,
                                 streamMetadataTasks, executor);
                         buckets.add(bucketService);
-                        bucketService.startAsync();
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
                         bucketService.addListener(new Listener() {
                             @Override
@@ -78,6 +77,8 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                                 bucketFuture.completeExceptionally(failure);
                             }
                         }, executor);
+                        bucketService.startAsync();
+
                         return bucketFuture;
                     } else {
                         return CompletableFuture.completedFuture(null);
@@ -88,7 +89,6 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
     @Override
     protected void doStop() {
         Futures.allOf(buckets.stream().map(bucketService -> {
-            bucketService.stopAsync();
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {
                 @Override
@@ -103,6 +103,8 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                     bucketFuture.completeExceptionally(failure);
                 }
             }, executor);
+            bucketService.stopAsync();
+
             return bucketFuture;
         }).collect(Collectors.toList()))
                 .whenComplete((r, e) -> {
