@@ -24,7 +24,6 @@ public interface SegmentStatsRecorder {
      * Method to notify segment sealed events.
      *
      * @param streamSegmentName segment.
-     * @param streamSegmentName
      */
     void sealSegment(String streamSegmentName);
 

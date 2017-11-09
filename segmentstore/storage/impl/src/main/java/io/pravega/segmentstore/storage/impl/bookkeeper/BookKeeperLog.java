@@ -79,7 +79,6 @@ class BookKeeperLog implements DurableDataLog {
     //region Members
 
     private static final long REPORT_INTERVAL = 1000;
-    private final int containerId;
     private final String logNodePath;
     private final CuratorFramework zkClient;
     private final BookKeeper bookKeeper;
@@ -113,19 +112,18 @@ class BookKeeperLog implements DurableDataLog {
      */
     BookKeeperLog(int containerId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
-        this.containerId = containerId;
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.bookKeeper = Preconditions.checkNotNull(bookKeeper, "bookKeeper");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executorService = Preconditions.checkNotNull(executorService, "executorService");
         this.closed = new AtomicBoolean();
-        this.logNodePath = HierarchyUtils.getPath(this.containerId, this.config.getZkHierarchyDepth());
-        this.traceObjectId = String.format("Log[%d]", this.containerId);
+        this.logNodePath = HierarchyUtils.getPath(containerId, this.config.getZkHierarchyDepth());
+        this.traceObjectId = String.format("Log[%d]", containerId);
         this.writes = new WriteQueue();
         val retry = createRetryPolicy(this.config.getMaxWriteAttempts(), this.config.getBkWriteTimeoutMillis());
         this.writeProcessor = new SequentialAsyncProcessor(this::processWritesSync, retry, this::handleWriteProcessorFailures, this.executorService);
         this.rolloverProcessor = new SequentialAsyncProcessor(this::rollover, retry, this::handleRolloverFailure, this.executorService);
-        this.metrics = new BookKeeperMetrics.BookKeeperLog(this.containerId);
+        this.metrics = new BookKeeperMetrics.BookKeeperLog(containerId);
         this.metricReporter = this.executorService.scheduleWithFixedDelay(this::reportMetrics, REPORT_INTERVAL, REPORT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
@@ -660,6 +658,8 @@ class BookKeeperLog implements DurableDataLog {
                 log.warn("{}: Unable to delete newly created ledger {}.", this.traceObjectId, newLedger.getId(), deleteEx);
                 ex.addSuppressed(deleteEx);
             }
+
+            throw ex;
         }
 
         log.info("{} Metadata updated ({}).", this.traceObjectId, currentMetadata);

@@ -239,17 +239,10 @@ public final class ServiceStarter {
 
         try {
             serviceStarter.get().start();
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        log.info("Caught interrupt signal...");
-                        serviceStarter.get().shutdown();
-                    } catch (Exception e) {
-                        // do nothing
-                    }
-                }
-            });
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.info("Caught interrupt signal...");
+                serviceStarter.get().shutdown();
+            }));
 
             Thread.sleep(Long.MAX_VALUE);
         } catch (InterruptedException ex) {
