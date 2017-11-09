@@ -45,6 +45,8 @@ public class RemoteSequential implements TestExecutor {
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
+        Exceptions.handleInterrupted(() -> TimeUnit.MINUTES.sleep(1)); //wait for a minute before starting tests.
+        // This will be removed once issue https://github.com/pravega/pravega/issues/1665 is resolved.
         log.debug("Starting test execution for method: {}", testMethod);
 
         String className = testMethod.getDeclaringClass().getName();
