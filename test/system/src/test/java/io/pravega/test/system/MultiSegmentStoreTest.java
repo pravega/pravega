@@ -21,6 +21,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -37,7 +38,6 @@ import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -152,8 +152,8 @@ public class MultiSegmentStoreTest {
         List<URI> ctlURIs = this.controllerInstance.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
-        String scope = "testscope" + RandomStringUtils.randomAlphanumeric(10);
-        String stream = "teststream" + RandomStringUtils.randomAlphanumeric(10);
+        String scope = "testscope" + TestUtils.randomAlphanumeric(10);
+        String stream = "teststream" + TestUtils.randomAlphanumeric(10);
 
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerUri);
@@ -184,7 +184,7 @@ public class MultiSegmentStoreTest {
         writer.flush();
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
-        final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
+        final String readerGroup = "testreadergroup" + TestUtils.randomAlphanumeric(10);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerUri);
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().startingTime(0).build(),
                                        Collections.singleton(stream));

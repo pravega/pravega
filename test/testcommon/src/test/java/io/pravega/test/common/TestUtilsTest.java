@@ -9,8 +9,6 @@
  */
 package io.pravega.test.common;
 
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -20,14 +18,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Test class to verify correctness of utility methods.
+ * Unit test for the TestUtils class.
  */
-public class UtilityMethodsTest {
+public class TestUtilsTest {
 
     /**
      * Test to verify correctness of getAvailableListenPort() method.
@@ -53,5 +55,28 @@ public class UtilityMethodsTest {
         }
         assertEquals(threadCount, futures.size());
         executorService.shutdown();
+    }
+
+    @Test(timeout = 10000)
+    public void testRandomAlphanumeric() {
+        testGetString(TestUtils::randomAlphanumeric, c -> Character.isDigit(c) || Character.isAlphabetic(c));
+    }
+
+    @Test(timeout = 10000)
+    public void testRandomAlphabetic() {
+        testGetString(TestUtils::randomAlphabetic, Character::isAlphabetic);
+    }
+
+    private void testGetString(Function<Integer, String> generateString, Predicate<Character> verifyChar) {
+        final int maxLength = 200;
+        for (int length = 0; length < maxLength; length++) {
+            String s = generateString.apply(length);
+            Assert.assertEquals("Unexpected length.", length, s.length());
+            for (int i = 0; i < length; i++) {
+                char c = s.charAt(i);
+                Assert.assertTrue(String.format("Unexpected character '%s' at index %d (length = %d).", c, i, length),
+                        verifyChar.test(c));
+            }
+        }
     }
 }

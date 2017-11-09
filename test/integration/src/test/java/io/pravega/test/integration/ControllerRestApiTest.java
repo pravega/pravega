@@ -36,6 +36,7 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.integration.utils.SetupUtils;
 import java.net.URI;
 import java.util.Arrays;
@@ -50,7 +51,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -113,8 +113,8 @@ public class ControllerRestApiTest {
         assertEquals("Ping test", OK.getStatusCode(), response.getStatus());
         log.info("REST Server is running. Ping successful.");
 
-        final String scope1 = RandomStringUtils.randomAlphanumeric(10);
-        final String stream1 = RandomStringUtils.randomAlphanumeric(10);
+        final String scope1 = TestUtils.randomAlphanumeric(10);
+        final String stream1 = TestUtils.randomAlphanumeric(10);
 
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
@@ -232,9 +232,9 @@ public class ControllerRestApiTest {
 
         // Test reader groups APIs.
         // Prepare the streams and readers using the admin client.
-        final String testScope = RandomStringUtils.randomAlphanumeric(10);
-        final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
-        final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
+        final String testScope = TestUtils.randomAlphanumeric(10);
+        final String testStream1 = TestUtils.randomAlphanumeric(10);
+        final String testStream2 = TestUtils.randomAlphanumeric(10);
         URI controllerUri = SETUP_UTILS.getControllerUri();
         @Cleanup("shutdown")
         InlineExecutor inlineExecutor = new InlineExecutor();
@@ -253,10 +253,10 @@ public class ControllerRestApiTest {
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
-        final String readerGroupName1 = RandomStringUtils.randomAlphanumeric(10);
-        final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
-        final String reader1 = RandomStringUtils.randomAlphanumeric(10);
-        final String reader2 = RandomStringUtils.randomAlphanumeric(10);
+        final String readerGroupName1 = TestUtils.randomAlphanumeric(10);
+        final String readerGroupName2 = TestUtils.randomAlphanumeric(10);
+        final String reader1 = TestUtils.randomAlphanumeric(10);
+        final String reader2 = TestUtils.randomAlphanumeric(10);
         try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, controllerUri)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().startingTime(0).build(),

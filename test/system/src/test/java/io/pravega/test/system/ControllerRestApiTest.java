@@ -36,6 +36,7 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.test.common.InlineExecutor;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -58,7 +59,6 @@ import javax.ws.rs.core.Response;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.glassfish.jersey.client.ClientConfig;
 import org.junit.Assert;
 import org.junit.Test;
@@ -155,8 +155,8 @@ public class ControllerRestApiTest {
         assertEquals("Ping test", OK.getStatusCode(), response.getStatus());
         log.info("REST Server is running. Ping successful.");
 
-        final String scope1 = RandomStringUtils.randomAlphanumeric(10);
-        final String stream1 = RandomStringUtils.randomAlphanumeric(10);
+        final String scope1 = TestUtils.randomAlphanumeric(10);
+        final String stream1 = TestUtils.randomAlphanumeric(10);
 
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
@@ -274,9 +274,9 @@ public class ControllerRestApiTest {
 
         // Test reader groups APIs.
         // Prepare the streams and readers using the admin client.
-        final String testScope = RandomStringUtils.randomAlphanumeric(10);
-        final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
-        final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
+        final String testScope = TestUtils.randomAlphanumeric(10);
+        final String testStream1 = TestUtils.randomAlphanumeric(10);
+        final String testStream2 = TestUtils.randomAlphanumeric(10);
         URI controllerUri = ctlURIs.get(0);
         try (StreamManager streamManager = new StreamManagerImpl(controllerUri)) {
             log.info("Creating scope: {}", testScope);
@@ -293,10 +293,10 @@ public class ControllerRestApiTest {
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
-        final String readerGroupName1 = RandomStringUtils.randomAlphanumeric(10);
-        final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
-        final String reader1 = RandomStringUtils.randomAlphanumeric(10);
-        final String reader2 = RandomStringUtils.randomAlphanumeric(10);
+        final String readerGroupName1 = TestUtils.randomAlphanumeric(10);
+        final String readerGroupName2 = TestUtils.randomAlphanumeric(10);
+        final String reader1 = TestUtils.randomAlphanumeric(10);
+        final String reader2 = TestUtils.randomAlphanumeric(10);
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         Controller controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);

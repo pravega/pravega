@@ -45,7 +45,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -125,7 +124,7 @@ public class MultiReadersEndToEndTest {
             log.info("Wrote {} events", NUM_TEST_EVENTS);
         });
 
-        final String readerGroupName = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
+        final String readerGroupName = "testreadergroup" + TestUtils.randomAlphanumeric(10).toLowerCase();
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(),
