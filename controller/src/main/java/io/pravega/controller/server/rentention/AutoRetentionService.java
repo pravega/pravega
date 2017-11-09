@@ -43,31 +43,76 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
 
     @Override
     protected void doStart() {
-        Futures.await(Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
-                .thenAccept(x -> streamMetadataStore.registerBucketOwnershipListener(this)));
-        notifyStarted();
+        Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
+                .thenAccept(x -> streamMetadataStore.registerBucketOwnershipListener(this))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        notifyFailed(e);
+                    } else {
+                        notifyStarted();
+                    }
+                });
     }
 
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.takeBucketOwnership(bucket, processId, executor),
                 e -> log.warn("exception while attempting to take ownership"), executor)
-                .thenAccept(isOwner -> {
+                .thenCompose(isOwner -> {
                     if (isOwner) {
                         log.info("Taken ownership for bucket {}", bucket);
                         AutoRetentionBucketService bucketService = new AutoRetentionBucketService(bucket, streamMetadataStore,
                                 streamMetadataTasks, executor);
                         buckets.add(bucketService);
                         bucketService.startAsync();
-                        bucketService.awaitRunning();
+                        CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+                        bucketService.addListener(new Listener() {
+                            @Override
+                            public void running() {
+                                super.running();
+                                bucketFuture.complete(null);
+                            }
+
+                            @Override
+                            public void failed(State from, Throwable failure) {
+                                super.failed(from, failure);
+                                bucketFuture.completeExceptionally(failure);
+                            }
+                        }, executor);
+                        return bucketFuture;
+                    } else {
+                        return CompletableFuture.completedFuture(null);
                     }
                 });
     }
 
     @Override
     protected void doStop() {
-        buckets.forEach(AutoRetentionBucketService::doStop);
-        streamMetadataStore.unregisterBucketOwnershipListener();
-        notifyStopped();
+        Futures.allOf(buckets.stream().map(bucketService -> {
+            bucketService.stopAsync();
+            CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+            bucketService.addListener(new Listener() {
+                @Override
+                public void terminated(State from) {
+                    super.terminated(from);
+                    bucketFuture.complete(null);
+                }
+
+                @Override
+                public void failed(State from, Throwable failure) {
+                    super.failed(from, failure);
+                    bucketFuture.completeExceptionally(failure);
+                }
+            }, executor);
+            return bucketFuture;
+        }).collect(Collectors.toList()))
+                .whenComplete((r, e) -> {
+                    streamMetadataStore.unregisterBucketOwnershipListener();
+                    if (e != null) {
+                        notifyFailed(e);
+                    } else {
+                        notifyStopped();
+                    }
+                });
     }
 
     @Override

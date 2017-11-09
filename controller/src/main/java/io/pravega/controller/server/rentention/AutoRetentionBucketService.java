@@ -56,7 +56,7 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
 
     @Override
     protected void doStart() {
-        Futures.await(RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.getStreamsForBucket(bucketId, executor)
+        RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.getStreamsForBucket(bucketId, executor)
                 .thenAccept(streams -> retentionFutureMap.putAll(streams.stream()
                         .map(s -> {
                             String[] splits = s.split("/");
@@ -69,8 +69,14 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                     log.info("streams collected for the bucket, registering for change notification and starting loop for processing notifications");
                     streamMetadataStore.registerBucketChangeListener(bucketId, this);
                     Futures.loop(stop::get, this::processNotification, executor);
-                }));
-        notifyStarted();
+                })
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        notifyFailed(e);
+                    } else {
+                        notifyStarted();
+                    }
+                });
     }
 
     private CompletableFuture<Void> processNotification() {
@@ -119,11 +125,18 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
 
     @Override
     protected void doStop() {
-        // cancel all futures
         this.stop.set(true);
-        retentionFutureMap.forEach((key, value) -> value.cancel(true));
-        streamMetadataStore.unregisterBucketListener(bucketId);
-        notifyStopped();
+        CompletableFuture.runAsync(() -> {
+            // cancel all futures
+            retentionFutureMap.forEach((key, value) -> value.cancel(true));
+            streamMetadataStore.unregisterBucketListener(bucketId);
+        }).whenComplete((r, e) -> {
+            if (e != null) {
+                notifyFailed(e);
+            } else {
+                notifyStopped();
+            }
+        });
     }
 
     @Override
