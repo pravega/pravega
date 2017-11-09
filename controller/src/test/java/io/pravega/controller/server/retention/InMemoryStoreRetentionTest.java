@@ -17,7 +17,7 @@ import java.util.concurrent.Executor;
 public class InMemoryStoreRetentionTest extends AutoRetentionTest {
 
     @Override
-    protected StreamMetadataStore createStore(Executor executor) {
-        return StreamStoreFactory.createInMemoryStore(3, executor);
+    protected StreamMetadataStore createStore(int bucketCount, Executor executor) {
+        return StreamStoreFactory.createInMemoryStore(bucketCount, executor);
     }
 }

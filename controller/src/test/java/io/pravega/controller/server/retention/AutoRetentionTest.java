@@ -54,7 +54,7 @@ public abstract class AutoRetentionTest {
         executor = Executors.newScheduledThreadPool(10);
         hostId = UUID.randomUUID().toString();
 
-        streamMetadataStore = createStore(executor);
+        streamMetadataStore = createStore(3, executor);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -77,7 +77,7 @@ public abstract class AutoRetentionTest {
         executor.shutdown();
     }
 
-    protected abstract StreamMetadataStore createStore(Executor executor);
+    protected abstract StreamMetadataStore createStore(int bucketCount, Executor executor);
 
     @Test(timeout = 10000)
     public void testRetentionService() {

@@ -598,6 +598,7 @@ public final class Futures {
                 });
         return result;
     }
+
     //endregion
 
     //region Loop Implementation

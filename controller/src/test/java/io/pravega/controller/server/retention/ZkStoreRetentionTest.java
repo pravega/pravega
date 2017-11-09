@@ -69,8 +69,8 @@ public class ZkStoreRetentionTest extends AutoRetentionTest {
     }
 
     @Override
-    protected StreamMetadataStore createStore(Executor executor) {
-        return StreamStoreFactory.createZKStore(zkClient, 3, executor);
+    protected StreamMetadataStore createStore(int bucketCount, Executor executor) {
+        return StreamStoreFactory.createZKStore(zkClient, bucketCount, executor);
     }
 
     @Test(timeout = 10000)
