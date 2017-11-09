@@ -11,8 +11,8 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.server.rentention.BucketChangeListener;
-import io.pravega.controller.server.rentention.BucketOwnershipListener;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;

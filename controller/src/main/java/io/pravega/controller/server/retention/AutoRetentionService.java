@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rentention;
+package io.pravega.controller.server.retention;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.internal.ConcurrentSet;
 import io.pravega.common.concurrent.Futures;
@@ -17,6 +18,8 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -58,7 +61,7 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
         return RetryHelper.withIndefiniteRetriesAsync(() -> streamMetadataStore.takeBucketOwnership(bucket, processId, executor),
                 e -> log.warn("exception while attempting to take ownership"), executor)
                 .thenCompose(isOwner -> {
-                    if (isOwner) {
+                    if (isOwner && buckets.stream().noneMatch(x -> x.getBucketId() == bucket)) {
                         log.info("Taken ownership for bucket {}", bucket);
                         AutoRetentionBucketService bucketService = new AutoRetentionBucketService(bucket, streamMetadataStore,
                                 streamMetadataTasks, executor);
@@ -127,5 +130,10 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                 log.info("Bucket notification for connectivity error");
                 break;
         }
+    }
+
+    @VisibleForTesting
+    Set<AutoRetentionBucketService> getBuckets() {
+        return Collections.unmodifiableSet(buckets);
     }
 }

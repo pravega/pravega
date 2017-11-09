@@ -12,11 +12,12 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.controller.server.rentention.BucketChangeListener;
-import io.pravega.controller.server.rentention.BucketOwnershipListener;
-import io.pravega.controller.server.rentention.BucketOwnershipListener.BucketNotification;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.tables.Data;
+import io.pravega.controller.util.Config;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -36,8 +37,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.server.rentention.BucketChangeListener.StreamNotification;
-import static io.pravega.controller.server.rentention.BucketChangeListener.StreamNotification.NotificationType;
+import static io.pravega.controller.server.retention.BucketChangeListener.StreamNotification;
+import static io.pravega.controller.server.retention.BucketChangeListener.StreamNotification.NotificationType;
 
 /**
  * ZK stream metadata store.
@@ -49,7 +50,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
-        super(new ZKHostIndex(client, "/hostTxnIndex", executor));
+        this (client, Config.BUCKET_COUNT, executor);
+    }
+
+    ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor) {
+        super(new ZKHostIndex(client, "/hostTxnIndex", executor), bucketCount);
         initialize();
         storeHelper = new ZKStoreHelper(client, executor);
         bucketCacheMap = new ConcurrentHashMap<>();
@@ -180,6 +185,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        Preconditions.checkArgument(bucket < bucketCount);
+
         // try creating an ephemeral node
         String bucketPath = ZKPaths.makePath(ZKStoreHelper.BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
 
@@ -251,9 +258,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     private StreamImpl getStreamFromPath(String path) {
-        ZKPaths.PathAndNode scopedStream = ZKPaths.getPathAndNode(path);
-        String stream = scopedStream.getNode();
-        String scope = ZKPaths.getNodeFromPath(scopedStream.getPath());
-        return new StreamImpl(scope, stream);
+        String scopedStream = decodedScopedStreamName(ZKPaths.getNodeFromPath(path));
+        String[] splits = scopedStream.split("/");
+        return new StreamImpl(splits[0], splits[1]);
     }
 }

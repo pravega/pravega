@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rentention;
+package io.pravega.controller.server.retention;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -22,6 +23,8 @@ import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,9 +44,10 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     private final ConcurrentMap<Stream, CompletableFuture> retentionFutureMap;
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
     private final AtomicBoolean stop;
+    private CompletableFuture<Void> notificationLoop;
 
-    public AutoRetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
-                                      StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
+    AutoRetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
+                               StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
         this.bucketId = bucketId;
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
@@ -66,9 +70,9 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                 )),
                 e -> log.warn("exception thrown getting streams for bucket {}, e = {}", bucketId, e), executor)
                 .thenAccept(x -> {
-                    log.info("streams collected for the bucket, registering for change notification and starting loop for processing notifications");
+                    log.info("streams collected for the bucket {}, registering for change notification and starting loop for processing notifications", bucketId);
                     streamMetadataStore.registerBucketChangeListener(bucketId, this);
-                    Futures.loop(stop::get, this::processNotification, executor);
+                    notificationLoop = Futures.loop(() -> !stop.get(), this::processNotification, executor);
                 })
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -82,7 +86,9 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     private CompletableFuture<Void> processNotification() {
         return CompletableFuture.runAsync(() -> {
             StreamNotification notification = Exceptions.handleInterrupted(notifications::take);
-            StreamImpl stream = new StreamImpl(notification.getScope(), notification.getStream());
+
+            StreamImpl stream = !notification.getType().equals(StreamNotification.NotificationType.ConnectivityError) ?
+                    new StreamImpl(notification.getScope(), notification.getStream()) : null;
 
             switch (notification.getType()) {
                 case StreamAdded:
@@ -97,14 +103,13 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                     // For now we will do nothing.
                     break;
                 case ConnectivityError:
-                    // TODO: refresh retention future map as this means we can miss events
                     break;
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<Void> getStreamRetentionFuture(StreamImpl stream) {
-        return Futures.loopWithDelay(stop::get, () -> performRetention(stream),
+        return Futures.loopWithDelay(() -> !stop.get(), () -> performRetention(stream),
                 Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis(), executor);
     }
 
@@ -126,11 +131,13 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     @Override
     protected void doStop() {
         this.stop.set(true);
+        notificationLoop.cancel(true);
+
         CompletableFuture.runAsync(() -> {
             // cancel all futures
             retentionFutureMap.forEach((key, value) -> value.cancel(true));
             streamMetadataStore.unregisterBucketListener(bucketId);
-        }).whenComplete((r, e) -> {
+        }, executor).whenComplete((r, e) -> {
             if (e != null) {
                 notifyFailed(e);
             } else {
@@ -142,5 +149,15 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     @Override
     public void notify(StreamNotification notification) {
         notifications.add(notification);
+    }
+
+    @VisibleForTesting
+    int getBucketId() {
+        return bucketId;
+    }
+
+    @VisibleForTesting
+    Map<Stream, CompletableFuture> getRetentionFutureMap() {
+        return Collections.unmodifiableMap(retentionFutureMap);
     }
 }

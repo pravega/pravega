@@ -9,11 +9,12 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rentention.BucketChangeListener;
-import io.pravega.controller.server.rentention.BucketOwnershipListener;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -57,8 +58,8 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final Executor executor;
 
-    InMemoryStreamMetadataStore(Executor executor) {
-        super(new InMemoryHostIndex());
+    InMemoryStreamMetadataStore(int bucketCount, Executor executor) {
+        super(new InMemoryHostIndex(), bucketCount);
         this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
         this.ownershipListenerRef = new AtomicReference<>();
@@ -165,6 +166,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        Preconditions.checkArgument(bucket < bucketCount);
         return CompletableFuture.completedFuture(true);
     }
 

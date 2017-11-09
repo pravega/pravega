@@ -1,0 +1,96 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.controller.server.retention;
+
+import com.google.common.collect.Lists;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.test.common.TestingServerStarter;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class ZkStoreRetentionTest extends AutoRetentionTest {
+    private TestingServer zkServer;
+    private CuratorFramework zkClient;
+
+    @Before
+    public void setup() throws Exception {
+        zkServer = new TestingServerStarter().start();
+        zkServer.start();
+
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 1000,
+                (r, e, s) -> false);
+
+        zkClient.start();
+        super.setup();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        zkClient.close();
+        zkServer.close();
+    }
+
+    @Override
+    protected StreamMetadataStore createStore(Executor executor) {
+        return StreamStoreFactory.createZKStore(zkClient, 3, executor);
+    }
+
+    @Test(timeout = 10000)
+    public void testBucketOwnership() throws Exception {
+        // verify that ownership is not taken up by another host
+        assertFalse(streamMetadataStore.takeBucketOwnership(0, "", executor).join());
+
+        // Introduce connection failure error
+        zkClient.getZookeeperClient().close();
+
+        // restart
+        CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 1000,
+                (r, e, s) -> false);
+        zkClient2.start();
+        StreamMetadataStore streamMetadataStore2 = StreamStoreFactory.createZKStore(zkClient2, executor);
+        String scope = "scope1";
+        String streamName = "stream1";
+        streamMetadataStore2.addUpdateStreamForAutoRetention(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
+        zkClient2.close();
+
+        zkClient.getZookeeperClient().start();
+
+        Stream stream = new StreamImpl(scope, streamName);
+
+        // verify that at least one of the buckets got the notification
+        List<AutoRetentionBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
+
+        int bucketId = stream.getScopedName().hashCode() % 3;
+        AutoRetentionBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
+        AtomicBoolean added = new AtomicBoolean(false);
+        Futures.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
+                .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getRetentionFutureMap().containsKey(stream));
+    }
+}

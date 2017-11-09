@@ -11,6 +11,8 @@ package io.pravega.common.concurrent;
 
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
+
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -20,8 +22,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -359,6 +365,7 @@ public class FuturesTests {
     public void testLoop() {
         final int maxLoops = 10;
         final int expectedResult = maxLoops * (maxLoops - 1) / 2;
+
         AtomicInteger loopCounter = new AtomicInteger();
         AtomicInteger accumulator = new AtomicInteger();
 
@@ -402,6 +409,28 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+    }
+
+    @Test
+    public void testLoopWithDelay() {
+        final int maxLoops = 3;
+        AtomicInteger loopCounter = new AtomicInteger();
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+
+        AtomicLong previous = new AtomicLong(System.currentTimeMillis());
+        AtomicBoolean loopDelayHonored = new AtomicBoolean(true);
+
+        long oneSecond = Duration.ofSeconds(1).toMillis();
+        Futures.loopWithDelay(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    loopDelayHonored.compareAndSet(true, System.currentTimeMillis() - previous.get() > oneSecond);
+                    return CompletableFuture.completedFuture(null);
+                },
+                oneSecond,
+                executorService
+                ).join();
+        Assert.assertTrue(loopDelayHonored.get());
     }
 
     @Test
