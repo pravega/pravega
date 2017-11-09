@@ -20,7 +20,6 @@ import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.controller.util.Config;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Assert;
