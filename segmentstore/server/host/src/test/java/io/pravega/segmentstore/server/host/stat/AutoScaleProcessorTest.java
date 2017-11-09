@@ -38,18 +38,15 @@ public class AutoScaleProcessorTest {
     private static final String STREAM2 = "stream2";
     private static final String STREAM3 = "stream3";
     private static final String STREAM4 = "stream4";
-    ExecutorService executor;
     ScheduledExecutorService maintenanceExecutor;
 
     @Before
     public void setup() {
-        executor = Executors.newSingleThreadExecutor();
         maintenanceExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
     @After
     public void teardown() {
-        executor.shutdown();
         maintenanceExecutor.shutdown();
     }
 
@@ -91,7 +88,7 @@ public class AutoScaleProcessorTest {
                         .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                         .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                         .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executor, maintenanceExecutor);
+                maintenanceExecutor);
 
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         String streamSegmentName2 = Segment.getScopedName(SCOPE, STREAM2, 0);
@@ -139,7 +136,7 @@ public class AutoScaleProcessorTest {
                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
                 .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
                 .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executor, maintenanceExecutor);
+                maintenanceExecutor);
         String streamSegmentName1 = Segment.getScopedName(SCOPE, STREAM1, 0);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
