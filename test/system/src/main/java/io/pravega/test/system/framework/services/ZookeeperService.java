@@ -84,9 +84,8 @@ public class ZookeeperService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         app.getContainer().getDocker().setImage(ZK_IMAGE);
-        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        final HealthCheck hc = setHealthCheck(900, "TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
+        final HealthCheck hc = setHealthCheck(900, "MESOS_TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
         healthCheckList.add(hc);
         app.setHealthChecks(healthCheckList);
 

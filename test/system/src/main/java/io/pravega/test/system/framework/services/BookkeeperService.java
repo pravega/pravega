@@ -26,7 +26,6 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.Parameter;
 import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.MarathonException;
 
@@ -95,20 +94,10 @@ public class BookkeeperService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/bookkeeper:" + PRAVEGA_VERSION);
-        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
-        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
         Collection<Volume> volumeCollection = new ArrayList<>();
-        volumeCollection.add(createVolume("/bk/journal", "/mnt/journal", "RW"));
-        volumeCollection.add(createVolume("/bk/index", "/mnt/index", "RW"));
-        volumeCollection.add(createVolume("/bk/ledgers", "/mnt/ledgers", "RW"));
-        volumeCollection.add(createVolume("/opt/dl_all/distributedlog-service/logs/", "/mnt/logs", "RW"));
+        volumeCollection.add(createVolume("/bk", "mnt", "RW"));
         //TODO: add persistent volume  (see issue https://github.com/pravega/pravega/issues/639)
         app.getContainer().setVolumes(volumeCollection);
-        //set docker container parameters
-        List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "DLOG_EXTRA_OPTS=-Xms512m");
-        parameterList.add(element1);
-        app.getContainer().getDocker().setParameters(parameterList);
         app.setPorts(Arrays.asList(BK_PORT));
         app.setRequirePorts(true);
         //set env
@@ -117,10 +106,11 @@ public class BookkeeperService extends MarathonBasedService {
         map.put("ZK_URL", zk);
         map.put("ZK", zk);
         map.put("bookiePort", String.valueOf(BK_PORT));
+        map.put("DLOG_EXTRA_OPTS", "-Xms512m");
         app.setEnv(map);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, BK_PORT));
+        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 20, 0, BK_PORT));
         app.setHealthChecks(healthCheckList);
 
         return app;
