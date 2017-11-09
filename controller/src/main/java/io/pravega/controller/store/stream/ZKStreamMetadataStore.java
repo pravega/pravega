@@ -128,7 +128,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                 bucketOwnershipCacheRef.get().clear();
                 bucketOwnershipCacheRef.get().close();
             } catch (IOException e) {
-                log.warn("unable to close listener for bucket ownership");
+                log.warn("unable to close listener for bucket ownership {}", e);
             }
         }
     }
@@ -157,7 +157,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     listener.notify(new StreamNotification(null, null, NotificationType.ConnectivityError));
                     break;
                 default:
-                    log.warn("Received unknown event {}", event.getType());
+                    log.warn("Received unknown event {} on bucket", event.getType(), bucket);
             }
         };
 
@@ -178,7 +178,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                 cache.clear();
                 cache.close();
             } catch (IOException e) {
-                log.warn("unable to close watch on bucket {}", bucket);
+                log.warn("unable to close watch on bucket {} with exception {}", bucket, e);
             }
         }
     }

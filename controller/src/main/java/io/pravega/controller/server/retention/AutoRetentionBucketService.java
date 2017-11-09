@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,7 +43,6 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     private final ScheduledExecutorService executor;
     private final ConcurrentMap<Stream, CompletableFuture> retentionFutureMap;
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
-    private final AtomicBoolean stop;
     private CompletableFuture<Void> notificationLoop;
 
     AutoRetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
@@ -54,7 +53,6 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
         this.executor = executor;
 
         this.notifications = new LinkedBlockingQueue<>();
-        this.stop = new AtomicBoolean(false);
         this.retentionFutureMap = new ConcurrentHashMap<>();
     }
 
@@ -72,44 +70,46 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                 .thenAccept(x -> {
                     log.info("streams collected for the bucket {}, registering for change notification and starting loop for processing notifications", bucketId);
                     streamMetadataStore.registerBucketChangeListener(bucketId, this);
-                    notificationLoop = Futures.loop(() -> !stop.get(), this::processNotification, executor);
                 })
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         notifyFailed(e);
                     } else {
                         notifyStarted();
+                        notificationLoop = Futures.loop(this::isRunning, this::processNotification, executor);
                     }
                 });
     }
 
     private CompletableFuture<Void> processNotification() {
         return CompletableFuture.runAsync(() -> {
-            StreamNotification notification = Exceptions.handleInterrupted(notifications::take);
-
-            StreamImpl stream = !notification.getType().equals(StreamNotification.NotificationType.ConnectivityError) ?
-                    new StreamImpl(notification.getScope(), notification.getStream()) : null;
-
-            switch (notification.getType()) {
-                case StreamAdded:
-                    retentionFutureMap.putIfAbsent(stream, getStreamRetentionFuture(stream));
-                    break;
-                case StreamRemoved:
-                    retentionFutureMap.remove(stream).cancel(true);
-                    break;
-                case StreamUpdated:
-                    // if retention has been disabled then cancel the future.
-                    // if retention has been enabled then add the future if it does not exist.
-                    // For now we will do nothing.
-                    break;
-                case ConnectivityError:
-                    break;
+            StreamNotification notification = Exceptions.handleInterrupted(() -> notifications.poll(1, TimeUnit.SECONDS));
+            if (notification != null) {
+                final StreamImpl stream;
+                switch (notification.getType()) {
+                    case StreamAdded:
+                        stream = new StreamImpl(notification.getScope(), notification.getStream());
+                        retentionFutureMap.putIfAbsent(stream, getStreamRetentionFuture(stream));
+                        break;
+                    case StreamRemoved:
+                        stream = new StreamImpl(notification.getScope(), notification.getStream());
+                        retentionFutureMap.remove(stream).cancel(true);
+                        break;
+                    case StreamUpdated:
+                        // if retention has been disabled then cancel the future.
+                        // if retention has been enabled then add the future if it does not exist.
+                        // For now we will do nothing.
+                        break;
+                    case ConnectivityError:
+                        log.info("Retention.StreamNotification for connectivity error");
+                        break;
+                }
             }
         }, executor);
     }
 
     private CompletableFuture<Void> getStreamRetentionFuture(StreamImpl stream) {
-        return Futures.loopWithDelay(() -> !stop.get(), () -> performRetention(stream),
+        return RetryHelper.loopWithDelay(this::isRunning, () -> performRetention(stream),
                 Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis(), executor);
     }
 
@@ -119,25 +119,22 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
                 .thenCompose(config -> streamMetadataTasks.autoRetention(stream.getScope(), stream.getStreamName(),
                         config.getRetentionPolicy(), System.currentTimeMillis(), context))
                 .exceptionally(e -> {
-                    log.warn("Exception thrown while performing auto retention for stream {}, {}", stream, e);
+                    log.warn("Exception thrown while performing auto retention for stream {} ", stream, e);
                     throw new CompletionException(e);
                 }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                 .exceptionally(e -> {
-                    log.warn("Unable to perform retention for stream {}, {}. Ignoring, retention will be attempted in next cycle.", stream, e);
+                    log.warn("Unable to perform retention for stream {}. Ignoring, retention will be attempted in next cycle.", stream, e);
                     return null;
                 });
     }
 
     @Override
     protected void doStop() {
-        this.stop.set(true);
-        notificationLoop.cancel(true);
-
-        CompletableFuture.runAsync(() -> {
-            // cancel all futures
+        notificationLoop.thenAccept(x -> {
+            // cancel all retention futures
             retentionFutureMap.forEach((key, value) -> value.cancel(true));
             streamMetadataStore.unregisterBucketListener(bucketId);
-        }, executor).whenComplete((r, e) -> {
+        }).whenComplete((r, e) -> {
             if (e != null) {
                 notifyFailed(e);
             } else {

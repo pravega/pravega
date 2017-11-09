@@ -14,7 +14,6 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -24,6 +23,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
@@ -101,13 +101,13 @@ public abstract class AutoRetentionTest {
         int bucketId = stream.getScopedName().hashCode() % 3;
         AutoRetentionBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
         AtomicBoolean added = new AtomicBoolean(false);
-        Futures.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
+        RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertTrue(bucketService.getRetentionFutureMap().containsKey(stream));
 
         streamMetadataStore.removeStreamFromAutoRetention(scope, streamName, null, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
-        Futures.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
+        RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> removed.set(bucketService.getRetentionFutureMap().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertTrue(bucketService.getRetentionFutureMap().size() == 0);
     }

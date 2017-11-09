@@ -10,12 +10,21 @@
 package io.pravega.controller.server.retention;
 
 import com.google.common.collect.Lists;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.task.TaskMetadataStore;
+import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -26,8 +35,11 @@ import org.junit.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertFalse;
@@ -89,8 +101,52 @@ public class ZkStoreRetentionTest extends AutoRetentionTest {
         int bucketId = stream.getScopedName().hashCode() % 3;
         AutoRetentionBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
         AtomicBoolean added = new AtomicBoolean(false);
-        Futures.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
+        RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertTrue(bucketService.getRetentionFutureMap().containsKey(stream));
+    }
+
+    @Test(timeout = 10000)
+    public void testOwnershipOfExistingBucket() throws Exception {
+        TestingServer zkServer2 = new TestingServerStarter().start();
+        zkServer2.start();
+        CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer2.getConnectString(), 10000, 1000,
+                (r, e, s) -> false);
+        zkClient2.start();
+
+        ScheduledExecutorService executor2 = Executors.newScheduledThreadPool(10);
+        String hostId = UUID.randomUUID().toString();
+
+        StreamMetadataStore streamMetadataStore2 = StreamStoreFactory.createZKStore(zkClient2, 1, executor2);
+
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor2);
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(false);
+
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory);
+
+        String scope = "scope1";
+        String streamName = "stream1";
+        streamMetadataStore2.addUpdateStreamForAutoRetention(scope, streamName, RetentionPolicy.builder().build(), null, executor2).join();
+
+        String scope2 = "scope2";
+        String streamName2 = "stream2";
+        streamMetadataStore2.addUpdateStreamForAutoRetention(scope2, streamName2, RetentionPolicy.builder().build(), null, executor2).join();
+
+        AutoRetentionService service2 = new AutoRetentionService(1, hostId, streamMetadataStore2, streamMetadataTasks2, executor2);
+        service2.startAsync();
+        service2.awaitRunning();
+
+        assertTrue(service2.getBuckets().stream().allMatch(x -> x.getRetentionFutureMap().size() == 2));
+
+        service2.stopAsync();
+        service2.awaitTerminated();
+        zkClient2.close();
+        zkServer2.close();
+        streamMetadataTasks2.close();
+        connectionFactory.close();
+        executor2.shutdown();
     }
 }
