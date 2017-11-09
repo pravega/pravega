@@ -300,7 +300,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             if (autoRetentionService != null) {
-                log.info("Awaiting termination of auto retention");
+                log.info("Stopping auto retention service");
                 autoRetentionService.awaitTerminated();
             }
 
