@@ -40,7 +40,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;
-    private double mem = 1000.0;
+    private double mem = 1280.0;
     private final URI conUri;
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
