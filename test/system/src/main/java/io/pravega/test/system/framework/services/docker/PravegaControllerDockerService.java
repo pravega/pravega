@@ -61,7 +61,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         Map<String, String> stringBuilderMap = new HashMap<>();
         stringBuilderMap.put("ZK_URL", zk);
         stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", serviceName);
-        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", String.valueOf(DOCKER_CONTROLLER_PORT));
+        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(DOCKER_CONTROLLER_PORT));
         stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(DOCKER_CONTROLLER_PORT));
         stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(REST_PORT));
         stringBuilderMap.put("log.level", "DEBUG");
@@ -71,7 +71,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
-            systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue());
+            systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
         }
 
         String controllerSystemProperties = systemPropertyBuilder.toString();
