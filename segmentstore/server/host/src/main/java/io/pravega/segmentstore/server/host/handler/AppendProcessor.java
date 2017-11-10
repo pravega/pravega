@@ -174,7 +174,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
      * that is written.
      */
-    public void performNextWrite() {
+    private void performNextWrite() {
         Append append = getNextAppend();
         if (append == null) {
             return;
@@ -252,8 +252,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
             boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-            long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
+            long previousEventNumber;
             synchronized (lock) {
+                previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
                 Preconditions.checkState(outstandingAppend == append,
                         "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
                 outstandingAppend = null;
