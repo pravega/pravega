@@ -76,7 +76,7 @@ public class SynchronizerTest {
         public RevisionedImpl create(String scopedSteamName, Revision revision) {
             latch.awaitUninterruptibly();
             return new RevisionedImpl(scopedSteamName, new RevisionImpl(revision.asImpl().getSegment(), num, num),
-                                      "" + num);
+                                      String.valueOf(num));
         }
 
         @Override
@@ -246,7 +246,7 @@ public class SynchronizerTest {
         assertEquals(6, callCount.get());
     }
 
-    @Test//(timeout = 20000)
+    @Test(timeout = 20000)
     public void testConsistancy() throws EndOfSegmentException {
         String streamName = "streamName";
         String scope = "scope";
@@ -254,10 +254,12 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        @Cleanup
         StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
                                                                                         new JavaSerializer<>(),
                                                                                         new JavaSerializer<>(),
                                                                                         SynchronizerConfig.builder().build());
+        @Cleanup
         StateSynchronizer<RevisionedImpl> syncB = clientFactory.createStateSynchronizer(streamName,
                                                                                         new JavaSerializer<>(),
                                                                                         new JavaSerializer<>(),
