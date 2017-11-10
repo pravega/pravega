@@ -123,7 +123,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         getCustomEnvVars(map, SEGMENTSTORE_EXTRA_ENV);
 
         //Properties set to override defaults for system tests
-        String hostSystemProperties = "-Xmx900m" +
+        String hostSystemProperties = "-Xmx1024m" +
                 setSystemProperty("autoScale.muteInSeconds", "120") +
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
