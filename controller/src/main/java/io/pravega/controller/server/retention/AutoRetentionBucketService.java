@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -109,8 +110,13 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     }
 
     private CompletableFuture<Void> getStreamRetentionFuture(StreamImpl stream) {
-        return RetryHelper.loopWithDelay(this::isRunning, () -> performRetention(stream),
-                Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis(), executor);
+        // Randomly distribute retention work across RETENTION_FREQUENCY_IN_MINUTES spectrum by introducing a random initial
+        // delay. This will ensure that not all streams become eligible for processing of retention at around similar times.
+        long delay = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
+        long randomInitialDelay = ThreadLocalRandom.current().nextLong(delay);
+        return Futures.delayedFuture(() -> performRetention(stream), randomInitialDelay, executor)
+            .thenCompose(x -> RetryHelper.loopWithDelay(this::isRunning, () -> performRetention(stream),
+                delay, executor));
     }
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {

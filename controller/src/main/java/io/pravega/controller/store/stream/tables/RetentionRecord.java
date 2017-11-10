@@ -40,7 +40,7 @@ public class RetentionRecord implements Serializable {
     public static RetentionRecord removeStreamCutBefore(RetentionRecord record, StreamCutRecord cut) {
         List<StreamCutRecord> list = Lists.newArrayList(record.streamCuts);
 
-        // remove all stream cut with recordingTime before supplied cut
+        // remove all stream cuts with recordingTime before supplied cut
         return new RetentionRecord(list.stream().filter(x -> x.getRecordingTime() > cut.getRecordingTime())
                 .collect(Collectors.toList()));
     }
