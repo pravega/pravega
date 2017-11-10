@@ -39,7 +39,7 @@ public class PravegaControllerService extends MarathonBasedService {
     private static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 0.1;
+    private double cpu = 0.5;
     private double mem = 700;
 
     public PravegaControllerService(final String id, final URI zkUri) {
@@ -117,7 +117,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 30, 0, CONTROLLER_PORT));
+        healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String controllerSystemProperties = "-Xmx512m" +

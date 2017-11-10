@@ -39,7 +39,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 0.1;
+    private double cpu = 0.5;
     private double mem = 1000.0;
     private final URI conUri;
 
@@ -110,7 +110,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setRequirePorts(true);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 30, 0, SEGMENTSTORE_PORT));
+        healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, SEGMENTSTORE_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;

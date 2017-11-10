@@ -110,7 +110,7 @@ public class BookkeeperService extends MarathonBasedService {
         app.setEnv(map);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 20, 0, BK_PORT));
+        healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, BK_PORT));
         app.setHealthChecks(healthCheckList);
 
         return app;
