@@ -117,7 +117,7 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 20, 0, CONTROLLER_PORT));
+        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 30, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String controllerSystemProperties = "-Xmx512m" +

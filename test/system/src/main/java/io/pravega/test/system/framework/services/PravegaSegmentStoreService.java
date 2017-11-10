@@ -110,7 +110,7 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setRequirePorts(true);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 20, 0, SEGMENTSTORE_PORT));
+        healthCheckList.add(setHealthCheck(900, "MESOS_TCP", false, 60, 30, 0, SEGMENTSTORE_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;

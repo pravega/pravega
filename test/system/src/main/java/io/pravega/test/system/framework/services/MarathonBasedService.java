@@ -73,7 +73,8 @@ public abstract class MarathonBasedService implements Service {
             log.debug("App Details: {}", app);
             //app is not running until the desired instance count is equal to the number of task/docker containers
             // and the state of application is healthy.
-            if (app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue()) {
+            if ((app.getApp().getTasksRunning().intValue() == app.getApp().getInstances().intValue())
+                    && app.getApp().getTasksRunning().intValue() == app.getApp().getTasksHealthy().intValue()) {
                 log.info("App {} is running", this.id);
                 return true;
             } else {
