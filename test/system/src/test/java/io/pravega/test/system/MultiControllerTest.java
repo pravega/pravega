@@ -14,6 +14,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.PravegaControllerService;
@@ -29,7 +30,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -141,37 +141,37 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with all 3 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDirect).get());
         log.info("Test pravega:// with all 3 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDiscover).get());
 
         controllerServiceInstance1.stop();
         log.info("Test tcp:// with 2 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDirect).get());
         log.info("Test pravega:// with 2 controller instances running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDiscover).get());
 
         controllerServiceInstance2.stop();
         log.info("Test tcp:// with only 1 controller instance running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDirect).get());
         log.info("Test pravega:// with only 1 controller instance running");
         Assert.assertTrue(createScopeWithSimpleRetry(
-                "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover).get());
+                "scope" + TestUtils.randomAlphanumeric(10), controllerURIDiscover).get());
 
         // All APIs should throw exception and fail.
         controllerServiceInstance3.stop();
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect),
+                createScope("scope" + TestUtils.randomAlphanumeric(10), controllerURIDirect),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         log.info("Test pravega:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover),
+                createScope("scope" + TestUtils.randomAlphanumeric(10), controllerURIDiscover),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         log.info("multiControllerTest execution completed");

@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.services.BookkeeperService;
@@ -35,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -120,8 +120,8 @@ public class ControllerFailoverTest {
 
     @Test(timeout = 180000)
     public void failoverTest() throws URISyntaxException, InterruptedException {
-        String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
-        String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
+        String scope = "testFailoverScope" + TestUtils.randomAlphabetic(5);
+        String stream = "testFailoverStream" + TestUtils.randomAlphabetic(5);
         int initialSegments = 2;
         List<Integer> segmentsToSeal = Collections.singletonList(0);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
