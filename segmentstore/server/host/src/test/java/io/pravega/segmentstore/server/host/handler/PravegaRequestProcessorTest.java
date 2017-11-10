@@ -37,11 +37,13 @@ import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -231,11 +233,11 @@ public class PravegaRequestProcessorTest {
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
-        OpStatsData createSegmentStats = PravegaRequestProcessor.CREATE_STREAM_SEGMENT.toOpStatsData();
+        OpStatsData createSegmentStats = processor.getCreateStreamSegment().toOpStatsData();
         assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
         assertEquals(0, createSegmentStats.getNumFailedEvents());
     }
-    
+
     @Test(timeout = 20000)
     public void testTransaction() throws Exception {
         String streamSegmentName = "testTxn";
@@ -319,25 +321,25 @@ public class PravegaRequestProcessorTest {
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
-        
+
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(2, streamSegmentName, attribute));
         order.verify(connection).send(new WireCommands.SegmentAttribute(2, WireCommands.NULL_ATTRIBUTE_VALUE));
-        
+
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(2, streamSegmentName, attribute, 1, WireCommands.NULL_ATTRIBUTE_VALUE));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(2, true));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(3, streamSegmentName, attribute));
         order.verify(connection).send(new WireCommands.SegmentAttribute(3, 1));
-        
+
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(4, streamSegmentName, attribute, 5, WireCommands.NULL_ATTRIBUTE_VALUE));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(4, false));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(5, streamSegmentName, attribute));
         order.verify(connection).send(new WireCommands.SegmentAttribute(5, 1));
-        
+
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(6, streamSegmentName, attribute, 10, 1));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(6, true));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(7, streamSegmentName, attribute));
         order.verify(connection).send(new WireCommands.SegmentAttribute(7, 10));
-        
+
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(8, streamSegmentName, attribute, WireCommands.NULL_ATTRIBUTE_VALUE, 10));
         order.verify(connection).send(new WireCommands.SegmentAttributeUpdated(8, true));
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(9, streamSegmentName, attribute));
@@ -383,6 +385,23 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentDeleted(4, streamSegmentName));
     }
 
+    @Test(timeout = 20000)
+    public void testUnsupportedOperation() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        String streamSegmentName = "testCreateSegment";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getReadOnlyBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
+        processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0));
+        order.verify(connection).send(new WireCommands.OperationUnsupported(1, "Create segment"));
+    }
+
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return Futures.await(store.append(streamSegmentName,
                 new byte[]{(byte) number},
@@ -394,9 +413,20 @@ public class PravegaRequestProcessorTest {
         return ServiceBuilderConfig
                 .builder()
                 .include(ServiceConfig.builder()
-                                      .with(ServiceConfig.CONTAINER_COUNT, 1)
-                                      .with(ServiceConfig.THREAD_POOL_SIZE, 3)
-                                      .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
+                        .with(ServiceConfig.CONTAINER_COUNT, 1)
+                        .with(ServiceConfig.THREAD_POOL_SIZE, 3)
+                        .with(ServiceConfig.LISTENING_PORT, TestUtils.getAvailableListenPort()))
+                .build();
+    }
+
+    private static ServiceBuilderConfig getReadOnlyBuilderConfig() {
+        val baseConfig = getBuilderConfig();
+        val props = new Properties();
+        baseConfig.forEach(props::put);
+        return ServiceBuilderConfig.builder()
+                .include(props)
+                .include(ServiceConfig.builder()
+                        .with(ServiceConfig.READONLY_SEGMENT_STORE, true))
                 .build();
     }
 

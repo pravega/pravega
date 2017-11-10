@@ -200,8 +200,8 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @param ex The exception to inspect.
      */
     private boolean isRetryable(Throwable ex) {
-        return ex instanceof ObjectClosedException // StorageReader was closed before execution began.
-                || ex instanceof CancellationException // StorageReader was closed during execution (or queueing).
+        return ex instanceof ObjectClosedException // StorageReadManager was closed before execution began.
+                || ex instanceof CancellationException // StorageReadManager was closed during execution (or queueing).
                 || ex instanceof StreamSegmentNotExistsException; // Transaction Segment has already been deleted.
     }
 

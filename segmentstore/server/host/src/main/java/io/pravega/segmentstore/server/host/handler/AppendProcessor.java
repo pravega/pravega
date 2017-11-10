@@ -43,6 +43,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -320,6 +321,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
+        } else if (u instanceof UnsupportedOperationException) {
+            log.warn("Unsupported Operation '{}'.", doingWhat);
+            connection.send(new OperationUnsupported(requestId, doingWhat));
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
