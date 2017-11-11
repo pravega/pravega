@@ -67,7 +67,6 @@ public class BookkeeperDockerService extends DockerBasedService {
         Mount mount2 = Mount.builder().type("volume").source("logs-volume")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
-        //TODO: add journal and ledger mounted volumes
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;

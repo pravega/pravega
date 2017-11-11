@@ -23,7 +23,7 @@ public class TestExecutorFactory {
         LOCAL,
         DOCKER,
         REMOTE_SEQUENTIAL,
-        REMOTE_DISTRIBUTED //TODO: Yet to be implemented.
+        REMOTE_DISTRIBUTED //TODO: https://github.com/pravega/pravega/issues/2074.
     }
 
     public TestExecutor getTestExecutor(TestExecutorType type) {
