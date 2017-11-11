@@ -8,6 +8,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+
 #The script is only for jarvis environments and jarvis client should be installed.
 CLUSTER_NAME=${1:-null}
 echo "Cluster Name is $CLUSTER_NAME"
@@ -31,7 +32,6 @@ if [ $CLUSTER_NAME != null ]; then
       jarvis scp master-1:/home/nautilus/token.sh .
 
       #slaves
-
       for i in `seq 1 $NUM_SLAVES`
       do
       echo "ssh into slave-$i"

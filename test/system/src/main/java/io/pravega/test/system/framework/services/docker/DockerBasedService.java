@@ -134,7 +134,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                             URI uri = URI.create("tcp://" + uriArray[0] + ":" + port);
                             uriList.add(uri);
                         }
-
                     }
                 }
             }
@@ -148,6 +147,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     public CompletableFuture<Void> scaleService(final int instanceCount) {
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
+
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             TaskSpec taskSpec = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
             String serviceId = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).id());
@@ -156,9 +156,10 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
             String updateState = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).updateStatus().state());
             log.info("Update state {}", updateState);
+
             return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
-            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to scale service to given instances.Test Failure", e);
+            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Test failure: Unable to scale service to given instances=" + instanceCount, e);
         }
     }
 

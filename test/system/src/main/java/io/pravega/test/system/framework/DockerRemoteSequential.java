@@ -44,7 +44,8 @@ public class DockerRemoteSequential implements TestExecutor {
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
     private final AtomicReference<String> id = new AtomicReference();
-    private final DockerClient client = DefaultDockerClient.builder().uri("http://" + getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
+    private final DockerClient client = DefaultDockerClient.builder().uri("http://" +
+            getConfig("masterIP", "Invalid Master IP") + ":" + DOCKER_CLIENT_PORT).build();
     private final String expectedDockerApiVersion = "1.22";
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
@@ -53,10 +54,12 @@ public class DockerRemoteSequential implements TestExecutor {
         try {
             final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
             if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
-                throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Docker API doesnt match.Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
+                throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Docker API doesnt match." +
+                        "Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
             }
         } catch (DockerException e) {
-            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to find docker client version.Cannot continue test execution.", e);
+            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed,
+                    "Unable to find docker client version.Cannot continue test execution.", e);
         }
 
         log.debug("Starting test execution for method: {}", testMethod);
@@ -76,7 +79,8 @@ public class DockerRemoteSequential implements TestExecutor {
                         }
                         executorService.shutdown();
                     } catch (DockerException e) {
-                        throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get container exit status and test result.", e);
+                        throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get " +
+                                "container exit status and test result.", e);
                     }
                     return null;
                 }).whenComplete((v, ex) -> {
@@ -120,7 +124,8 @@ public class DockerRemoteSequential implements TestExecutor {
         try {
             Exceptions.handleInterrupted(() -> client.pull(IMAGE));
 
-            ContainerCreation containerCreation = Exceptions.handleInterrupted(() -> client.createContainer(setContainerConfig(methodName, className), containerName));
+            ContainerCreation containerCreation = Exceptions.handleInterrupted(() -> client.
+                    createContainer(setContainerConfig(methodName, className), containerName));
             assertFalse(containerCreation.id().toString().equals(null));
 
             id.set(containerCreation.id());
@@ -130,10 +135,12 @@ public class DockerRemoteSequential implements TestExecutor {
                 //Copy the test.jar with all the dependencies into the container.
                 Exceptions.handleInterrupted(() -> client.copyToContainer(dockerDirectory, id.get(), "/data"));
             } catch (Exception e) {
-                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Unable to copy test jar to the container.Test failure", e);
+                throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Unable to copy test jar " +
+                        "to the container.Test failure", e);
             }
 
-            String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.byNetworkName(DOCKER_NETWORK)).get(0).id());
+            String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.
+                    byNetworkName(DOCKER_NETWORK)).get(0).id());
             //Container should be connect to the user-defined overlay network to communicate with all the services deployed.
             Exceptions.handleInterrupted(() -> client.connectToNetwork(id.get(), networkId));
 
@@ -154,15 +161,17 @@ public class DockerRemoteSequential implements TestExecutor {
         labels.put("testClassName", className);
 
         HostConfig hostConfig = HostConfig.builder()
-                .portBindings(ImmutableMap.of(DOCKER_CLIENT_PORT + "/tcp", Arrays.asList(PortBinding.of(LoginClient.MESOS_MASTER, DOCKER_CLIENT_PORT)))).networkMode("docker_gwbridge").build();
+                .portBindings(ImmutableMap.of(DOCKER_CLIENT_PORT + "/tcp", Arrays.asList(PortBinding.
+                        of(LoginClient.MESOS_MASTER, DOCKER_CLIENT_PORT)))).networkMode("docker_gwbridge").build();
 
         ContainerConfig containerConfig = ContainerConfig.builder()
                 .hostConfig(hostConfig)
                 .image(IMAGE)
                 .user("root")
                 .workingDir("/data")
-                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType", "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system.SingleJUnitTestRunner " +
-                        className + "#" + methodName + " > server.log 2>&1")
+                .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType",
+                        "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
+                        "SingleJUnitTestRunner " + className + "#" + methodName + " > server.log 2>&1")
                 .labels(labels)
                 .build();
 

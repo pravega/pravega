@@ -42,6 +42,5 @@
     <allow pkg="org.jclouds" />
     <allow pkg="org.glassfish.grizzly" />
     <allow pkg="com.spotify" />
-    <allow pkg="org.hamcrest.core" />
 
 </import-control>
