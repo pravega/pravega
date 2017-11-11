@@ -690,7 +690,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     @SneakyThrows(StreamingException.class)
-    private void checkTruncatedSegment(StreamingException ex, RollingSegmentHandle handle, SegmentChunk segmentChunk) throws StreamSegmentTruncatedException {
+    private void checkTruncatedSegment(StreamingException ex, RollingSegmentHandle handle, SegmentChunk segmentChunk) {
         if (ex != null && (Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException) || !segmentChunk.exists()) {
             // We ran into a SegmentChunk that does not exist (either marked as such or due to a failed read).
             segmentChunk.markInexistent();

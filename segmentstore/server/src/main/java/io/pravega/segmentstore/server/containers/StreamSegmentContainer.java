@@ -63,7 +63,6 @@ import lombok.val;
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
     private final String traceObjectId;
-    private final ContainerConfig config;
     private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
@@ -101,7 +100,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
-        this.config = config;
         this.storage = storageFactory.createStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
@@ -111,7 +109,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
-        this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
+        this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
@@ -429,7 +427,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // To reduce locking in the metadata, we first get the list of Segment Ids, then we fetch their metadata
         // one by one. This only locks the metadata on the first call and, individually, on each call to getStreamSegmentMetadata.
-        return new ArrayList<>(this.metadata.getAllStreamSegmentIds())
+        return this.metadata.getAllStreamSegmentIds()
                 .stream()
                 .map(this.metadata::getStreamSegmentMetadata)
                 .filter(Objects::nonNull)
