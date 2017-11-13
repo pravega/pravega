@@ -315,6 +315,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                                                                 .authorizationEnabled(true)
                                                                 .users("temp,temp1")
                                                                 .passwords("pass1,pass2")
+                                                                .guardianIP("http://localhost:9240")
 
                 .build();
 

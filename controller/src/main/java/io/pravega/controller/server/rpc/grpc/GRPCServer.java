@@ -41,6 +41,7 @@ public class GRPCServer extends AbstractIdleService {
                 .addService(new ControllerServiceImpl(controllerService));
         if (serverConfig.isAuthorizationEnabled()) {
             builder.intercept(new PravegaAuthorizer(serverConfig.getUsers(), serverConfig.getPasswords()));
+            builder.intercept(new GuardianAuthorizer(serverConfig.getGuardianIP()));
         }
         this.server = builder.build();
     }

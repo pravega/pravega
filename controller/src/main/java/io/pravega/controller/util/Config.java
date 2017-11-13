@@ -55,6 +55,7 @@ public final class Config {
     private static final boolean AUTHORIZATION_ENABLED = CONFIG.getBoolean("config.controller.server.authorizationEnabled");
     private static final String USERS = CONFIG.getString("config.controller.server.users");
     private static final String PASSWORDS = CONFIG.getString("config.controller.server.passwords");
+    private static final String GUARDIAN_IP = CONFIG.getString("config.controller.server.guardianIP");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -100,6 +101,7 @@ public final class Config {
                 .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
                 .users(Config.USERS)
                 .passwords(Config.PASSWORDS)
+                .guardianIP(Config.GUARDIAN_IP)
                 .build();
     }
 

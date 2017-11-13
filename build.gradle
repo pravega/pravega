@@ -420,6 +420,10 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
+
+        compile "com.emc.nautilus:guardian-client:0.3-10568.b66ccfa"
+        compile "com.emc.nautilus:server-common:0.3-10568.b66ccfa"
+
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion

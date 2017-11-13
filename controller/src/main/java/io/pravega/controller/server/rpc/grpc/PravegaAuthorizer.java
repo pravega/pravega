@@ -15,6 +15,7 @@ import io.grpc.ServerCallHandler;
 import io.grpc.Status;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.apache.curator.shaded.com.google.common.base.Strings;
 
 /**
  * Implements a authorizer for open source Pravega. Currently it checks user id and password against
@@ -34,14 +35,24 @@ class PravegaAuthorizer implements io.grpc.ServerInterceptor {
 
     @Override
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
-        String userName = headers.get(Metadata.Key.of("userName", Metadata.ASCII_STRING_MARSHALLER));
-        String password = headers.get(Metadata.Key.of("password", Metadata.ASCII_STRING_MARSHALLER));
+        String method = headers.get(Metadata.Key.of("method", Metadata.ASCII_STRING_MARSHALLER));
 
-        if (userDb.containsKey(userName) && password.equals(userDb.get(userName))) {
-            return next.startCall(call, headers);
+        if (!Strings.isNullOrEmpty(method) && method.equals("Pravega-Common")) {
+            String userName = headers.get(Metadata.Key.of("userName", Metadata.ASCII_STRING_MARSHALLER));
+            String password = headers.get(Metadata.Key.of("password", Metadata.ASCII_STRING_MARSHALLER));
+
+            if (!Strings.isNullOrEmpty(userName) && !Strings.isNullOrEmpty(password)) {
+                if (userDb.containsKey(userName) && password.equals(userDb.get(userName))) {
+                    return next.startCall(call, headers);
+                } else {
+                    call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+                    return null;
+                }
+            } else {
+                return next.startCall(call, headers);
+            }
         } else {
-            call.close( Status.fromCode( Status.Code.UNAUTHENTICATED), headers);
-            return null;
+            return next.startCall(call, headers);
         }
     }
 }

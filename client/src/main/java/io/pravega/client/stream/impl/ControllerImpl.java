@@ -127,8 +127,7 @@ public class ControllerImpl implements Controller {
                                 .nameResolverFactory(new ControllerResolverFactory())
                                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                                .usePlaintext(true), config, executor);
-        this.creds = creds;
+                                .usePlaintext(true), config, executor, creds);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -138,12 +137,14 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
+     * @param creds          The credentials if any.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+                          final ScheduledExecutorService executor, Credentials creds) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
+        this.creds = creds;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
                 .retryingOn(StatusRuntimeException.class)
@@ -155,6 +156,12 @@ public class ControllerImpl implements Controller {
         if (this.creds != null) {
           this.client = client.withCallCredentials(MoreCallCredentials.from(creds));
         }
+    }
+
+    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
+                          final ScheduledExecutorService executor) {
+        this(channelBuilder, config, executor, null);
+
     }
 
     @Override

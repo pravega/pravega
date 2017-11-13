@@ -54,4 +54,10 @@ public interface GRPCServerConfig {
      * @return Comma separated list of passwords.
      */
     String getPasswords();
+
+    /**
+     * Fetches the URL for guardian server.
+     * @return URL of the guardian server.
+     */
+    String getGuardianIP();
 }
