@@ -131,7 +131,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
+    @Test(timeout = 10 * 60 * 1000) //timeout of 10 mins.
     public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
@@ -174,7 +174,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //4 Wait until the scale operation is triggered (else time out)
         //    validate the data read by the readers ensuring all the events are read and there are no duplicates.
-        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 40, ofSeconds(10).toMillis())
+        CompletableFuture<Void> testResult = Retry.withExpBackoff(10, 10, 60, ofSeconds(10).toMillis())
                 .retryingOn(ScaleOperationNotDoneException.class)
                 .throwingOn(RuntimeException.class)
                 .runAsync(() -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
