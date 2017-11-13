@@ -40,7 +40,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private static final Metronome CLIENT = AuthEnabledMetronomeClient.getClient();
+    private final Metronome client = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     @Override
@@ -54,15 +54,15 @@ public class RemoteSequential implements TestExecutor {
         String jobId = (methodName + ".testJob").toLowerCase(); //All jobIds should have lowercase for metronome.
 
         return CompletableFuture.runAsync(() -> {
-            CLIENT.createJob(newJob(jobId, className, methodName));
-            Response response = CLIENT.triggerJobRun(jobId);
+            client.createJob(newJob(jobId, className, methodName));
+            Response response = client.triggerJobRun(jobId);
             if (response.status() != CREATED.code()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             }
         }).thenCompose(v2 -> waitForJobCompletion(jobId))
                 .<Void>thenApply(v1 -> {
-                    if (CLIENT.getJob(jobId).getHistory().getFailureCount() != 0) {
+                    if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
                         throw new AssertionError("Test failed, detailed logs can be found at " +
                                 "https://MasterIP/mesos, under metronome framework tasks. MethodName: " + methodName);
                     }
@@ -138,7 +138,7 @@ public class RemoteSequential implements TestExecutor {
     }
 
     private boolean isTestRunning(String jobId) {
-        Job jobStatus = CLIENT.getJob(jobId);
+        Job jobStatus = client.getJob(jobId);
         boolean isRunning = false;
         if (jobStatus.getHistory() == null) {
             isRunning = true;
@@ -150,7 +150,7 @@ public class RemoteSequential implements TestExecutor {
 
     private void deleteJob(String jobId) {
         try {
-            CLIENT.deleteJob(jobId);
+            client.deleteJob(jobId);
         } catch (MetronomeException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while deleting the " +
                     "test run job", e);
