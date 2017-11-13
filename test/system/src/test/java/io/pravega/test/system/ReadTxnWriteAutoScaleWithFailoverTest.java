@@ -25,7 +25,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -68,9 +67,8 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI hdfsUri = startHDFSInstances();
         URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri, hdfsUri);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
 
@@ -82,16 +80,6 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
-
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
 
         // Verify controller is running.
         controllerInstance = Utils.createPravegaControllerService(zkUri);
@@ -108,7 +96,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, controllerURIDirect);
+        segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 

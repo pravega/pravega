@@ -17,7 +17,7 @@ public class TestExecutorFactory {
     private final TestExecutor marathonSequentialExecutor = new RemoteSequential();
 
     @Getter(lazy = true)
-    private final TestExecutor dockerExecutor = new DockerRemoteSequential();
+    private final TestExecutor dockerExecutor = new DockerBasedTestExecutor();
 
     public enum TestExecutorType {
         LOCAL,

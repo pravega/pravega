@@ -27,7 +27,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.util.ArrayList;
@@ -579,26 +578,14 @@ abstract class AbstractFailoverTests {
         return controllerURI;
     }
 
-    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI, final URI hdfsUri) throws ExecutionException {
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, controllerURI);
+    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) throws ExecutionException {
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
         Futures.getAndHandleExceptions(segService.scaleService(3), ExecutionException::new);
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
-    }
-
-    static URI startHDFSInstances() {
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-            return hdfsService.getServiceDetails().get(0);
-        }
-      return null;
     }
 
     static class TxnNotCompleteException extends RuntimeException {

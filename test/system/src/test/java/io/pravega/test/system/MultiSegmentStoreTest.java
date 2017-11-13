@@ -75,17 +75,6 @@ public class MultiSegmentStoreTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.info("bookkeeper service details: {}", bkUris);
 
-        //start HDFS
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
-
         // 3. Start controller.
         Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
@@ -96,7 +85,7 @@ public class MultiSegmentStoreTest {
         log.info("Pravega Controller service instance details: {}", conUris);
 
         // 4. Start segment store.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -129,7 +118,7 @@ public class MultiSegmentStoreTest {
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Verify segment stores is running.
-        this.segmentServiceInstance = Utils.createPravegaSegmentStoreService(zkUris.get(0), hdfsUri, conURIs.get(0));
+        this.segmentServiceInstance = Utils.createPravegaSegmentStoreService(zkUris.get(0), conURIs.get(0));
         Assert.assertTrue(this.segmentServiceInstance.isRunning());
         Assert.assertEquals(1, this.segmentServiceInstance.getServiceDetails().size());
         log.info("Pravega segment store instance details: {}", this.segmentServiceInstance.getServiceDetails());

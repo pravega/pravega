@@ -16,7 +16,6 @@ import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -89,17 +88,6 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
-        //start HDFS
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
-
         //3. start controller
         Service conService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!conService.isRunning()) {
@@ -109,7 +97,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }

@@ -12,7 +12,6 @@ package io.pravega.test.system;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -41,22 +40,12 @@ public class PravegaSegmentStoreTest {
         if (!bk.isRunning()) {
             bk.start(true);
         }
-        //start HDFS
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-        log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
 
         Service con = Utils.createPravegaControllerService(zk.getServiceDetails().get(0));
         if (!con.isRunning()) {
             con.start(true);
         }
-        Service seg = Utils.createPravegaSegmentStoreService(zk.getServiceDetails().get(0), hdfsUri, con.getServiceDetails().get(0));
+        Service seg = Utils.createPravegaSegmentStoreService(zk.getServiceDetails().get(0), con.getServiceDetails().get(0));
         if (!seg.isRunning()) {
             seg.start(true);
         }
@@ -70,7 +59,7 @@ public class PravegaSegmentStoreTest {
     @Test(timeout = 5 * 60 * 1000)
     public void segmentStoreTest() {
         log.debug("Start execution of segmentStoreTest");
-        Service seg = Utils.createPravegaSegmentStoreService(null, null, null);
+        Service seg = Utils.createPravegaSegmentStoreService(null, null);
         List<URI> segUri = seg.getServiceDetails();
         log.debug("Pravega SegmentStore Service URI details: {} ", segUri);
         for (int i = 0; i < segUri.size(); i++) {

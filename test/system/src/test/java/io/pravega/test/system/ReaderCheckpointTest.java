@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -101,17 +100,6 @@ public class ReaderCheckpointTest {
         }
         log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
 
-        //start HDFS
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
-
         //3. start controller
         Service conService = Utils.createPravegaControllerService(zkUris.get(0));
         if (!conService.isRunning()) {
@@ -121,7 +109,7 @@ public class ReaderCheckpointTest {
         log.debug("Pravega Controller service details: {}", conUris);
 
         //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }

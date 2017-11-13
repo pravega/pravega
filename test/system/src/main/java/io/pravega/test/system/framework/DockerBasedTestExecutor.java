@@ -39,7 +39,7 @@ import static io.pravega.test.system.framework.Utils.getConfig;
 import static org.junit.Assert.assertFalse;
 
 @Slf4j
-public class DockerRemoteSequential implements TestExecutor {
+public class DockerBasedTestExecutor implements TestExecutor {
 
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";

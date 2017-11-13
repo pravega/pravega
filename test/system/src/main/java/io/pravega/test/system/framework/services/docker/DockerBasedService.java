@@ -24,7 +24,7 @@ import com.spotify.docker.client.messages.swarm.TaskSpec;
 import com.spotify.docker.client.messages.swarm.TaskStatus;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import static io.pravega.test.system.framework.DockerRemoteSequential.DOCKER_CLIENT_PORT;
+import static io.pravega.test.system.framework.DockerBasedTestExecutor.DOCKER_CLIENT_PORT;
 import static org.junit.Assert.assertNotNull;
 import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;

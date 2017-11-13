@@ -11,6 +11,7 @@ package io.pravega.test.system.framework;
 
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
@@ -58,7 +59,15 @@ public class Utils {
                 : new PravegaControllerService("controller", zkUri);
     }
 
-    public static Service createPravegaSegmentStoreService(final URI zkUri, final URI hdfsUri, final URI contUri) {
+    public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
+        URI hdfsUri = null;
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+        }
         return Utils.isDockerLocalExecEnabled() ?
                 new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
                 : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);

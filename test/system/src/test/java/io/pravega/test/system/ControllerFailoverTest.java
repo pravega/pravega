@@ -22,7 +22,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -74,17 +73,6 @@ public class ControllerFailoverTest {
         List<URI> bkUris = bkService.getServiceDetails();
         log.debug("bookkeeper service details: {}", bkUris);
 
-        //start HDFS
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
-
         //3. start controller
         Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
@@ -108,7 +96,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURI);
 
         //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, hdfsUri, conUris.get(0));
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
         if (!segService.isRunning()) {
             segService.start(true);
         }
@@ -119,7 +107,7 @@ public class ControllerFailoverTest {
 
 
     @Before
-    public void setup() {
+    public void getControllerInfo() {
         Service zkService = Utils.createZookeeperService();
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
