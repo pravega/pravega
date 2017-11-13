@@ -463,7 +463,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         cause = e;
                     }
                     if (cause instanceof StreamSegmentMergedException) {
-                        log.warn("Stream segment is already merged '{}'.", transactionName);
+                        log.info("Stream segment is already merged '{}'.", transactionName);
                         connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
                         return null;
                     } else {
