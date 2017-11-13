@@ -78,6 +78,7 @@ public final class Config {
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
     public static final int BUCKET_COUNT = CONFIG.getInt("config.controller.server.retention.bucketCount");
+    public static final int RETENTION_THREAD_POOL_SIZE = CONFIG.getInt("config.controller.server.retention.threadCount");
 
     // Request Stream Configuration
     public static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");

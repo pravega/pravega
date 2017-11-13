@@ -65,6 +65,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final String objectId;
 
     private ScheduledExecutorService controllerExecutor;
+    private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
@@ -115,6 +116,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
 
+            retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
+                                                                               "retentionpool");
+
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
 
@@ -149,7 +153,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory);
 
-            autoRetentionService = new AutoRetentionService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, controllerExecutor);
+            autoRetentionService = new AutoRetentionService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
             log.info("starting auto retention service asynchronously");
             autoRetentionService.startAsync();
             autoRetentionService.awaitRunning();
@@ -308,8 +312,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Stopping controller executor");
             controllerExecutor.shutdownNow();
 
+            retentionExecutor.shutdownNow();
+
             log.info("Awaiting termination of controller executor");
             controllerExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            retentionExecutor.awaitTermination(5, TimeUnit.SECONDS);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
