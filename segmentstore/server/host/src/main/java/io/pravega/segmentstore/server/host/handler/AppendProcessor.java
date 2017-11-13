@@ -43,6 +43,7 @@ import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -173,7 +174,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
      * that is written.
      */
-    public void performNextWrite() {
+    private void performNextWrite() {
         Append append = getNextAppend();
         if (append == null) {
             return;
@@ -251,8 +252,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
             boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
-            long previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
+            long previousEventNumber;
             synchronized (lock) {
+                previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
                 Preconditions.checkState(outstandingAppend == append,
                         "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
                 outstandingAppend = null;
@@ -320,6 +322,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
+        } else if (u instanceof UnsupportedOperationException) {
+            log.warn("Unsupported Operation '{}'.", doingWhat);
+            connection.send(new OperationUnsupported(requestId, doingWhat));
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem

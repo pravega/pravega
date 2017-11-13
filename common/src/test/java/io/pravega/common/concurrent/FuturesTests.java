@@ -75,18 +75,18 @@ public class FuturesTests {
     public void testExceptionallyCompose() {
         // When applied to a CompletableFuture that completes normally.
         val successfulFuture = new CompletableFuture<Integer>();
-        val f1 = Futures.exceptionallyCompose(successfulFuture, ex -> CompletableFuture.completedFuture(2));
+        val f1 = Futures.<Integer>exceptionallyCompose(successfulFuture, ex -> CompletableFuture.completedFuture(2));
         successfulFuture.complete(1);
         Assert.assertEquals("Unexpected completion value for successful future.", 1, (int) f1.join());
 
         // When applied to a CompletableFuture that completes exceptionally.
         val failedFuture = new CompletableFuture<Integer>();
-        val f2 = Futures.exceptionallyCompose(failedFuture, ex -> CompletableFuture.completedFuture(2));
+        val f2 = Futures.<Integer>exceptionallyCompose(failedFuture, ex -> CompletableFuture.completedFuture(2));
         failedFuture.completeExceptionally(new IntentionalException());
         Assert.assertEquals("Unexpected completion value for failed future that handled the exception.", 2, (int) f2.join());
 
         // When applied to a CompletableFuture that completes exceptionally and the handler also throws.
-        val f3 = Futures.exceptionallyCompose(failedFuture, ex -> {
+        val f3 = Futures.<Integer>exceptionallyCompose(failedFuture, ex -> {
             throw new IntentionalException();
         });
         AssertExtensions.assertThrows(

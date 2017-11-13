@@ -63,7 +63,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
-    private final DurableLogConfig config;
     private final LogItemFactory<Operation> operationFactory;
     private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
@@ -97,7 +96,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkNotNull(readIndex, "readIndex");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.config = config;
         this.durableDataLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
         assert this.durableDataLog != null : "dataFrameLogFactory created null durableDataLog.";
 
@@ -107,7 +105,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
-        MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
+        MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
         Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.tailReads = new HashSet<>();

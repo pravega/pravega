@@ -38,7 +38,6 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     //region Members
 
     private final FrameEntryEnumerator frameContentsEnumerator;
-    private final String traceObjectId;
     private final LogItemFactory<T> logItemFactory;
     private long lastReadSequenceNumber;
     private int readEntryCount;
@@ -60,8 +59,7 @@ class DataFrameReader<T extends LogItem> implements CloseableIterator<DataFrameR
     DataFrameReader(DurableDataLog log, LogItemFactory<T> logItemFactory, int containerId) throws DurableDataLogException {
         Preconditions.checkNotNull(log, "log");
         Preconditions.checkNotNull(logItemFactory, "logItemFactory");
-        this.traceObjectId = String.format("DataFrameReader[%d]", containerId);
-        this.frameContentsEnumerator = new FrameEntryEnumerator(log, traceObjectId);
+        this.frameContentsEnumerator = new FrameEntryEnumerator(log, String.format("DataFrameReader[%d]", containerId));
         this.lastReadSequenceNumber = Operation.NO_SEQUENCE_NUMBER;
         this.logItemFactory = logItemFactory;
     }

@@ -9,7 +9,12 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.io.StreamHelpers;
+import java.io.IOException;
+import java.time.Duration;
 import java.util.Iterator;
+import lombok.SneakyThrows;
 
 /**
  * Represents a Read Result from a Stream Segment. This is essentially an Iterator over smaller, continuous ReadResultEntries.
@@ -65,4 +70,33 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Reads the remaining contents of the ReadResult into the given array. This will stop when the given target has been
+     * filled or when the current end of the Segment has been reached.
+     *
+     * @param target       A byte array where the ReadResult will be read into.
+     * @param fetchTimeout A timeout to use when needing to fetch the contents of an entry that is not in the Cache.
+     * @return The number of bytes read.
+     */
+    @VisibleForTesting
+    @SneakyThrows(IOException.class)
+    default int readRemaining(byte[] target, Duration fetchTimeout) {
+        int bytesRead = 0;
+        while (hasNext() && bytesRead < target.length) {
+            ReadResultEntry entry = next();
+            if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() == ReadResultEntryType.Future) {
+                // Reached the end.
+                break;
+            } else if (!entry.getContent().isDone()) {
+                entry.requestContent(fetchTimeout);
+            }
+
+            ReadResultEntryContents contents = entry.getContent().join();
+            StreamHelpers.readAll(contents.getData(), target, bytesRead, Math.min(contents.getLength(), target.length - bytesRead));
+            bytesRead += contents.getLength();
+        }
+
+        return bytesRead;
+    }
 }

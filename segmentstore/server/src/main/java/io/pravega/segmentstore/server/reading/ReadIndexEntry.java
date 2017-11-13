@@ -88,7 +88,7 @@ abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
     abstract boolean isDataEntry();
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return String.format("Offset = %d, Length = %d, Gen = %d", this.streamSegmentOffset, getLength(), this.generation);
     }
 
