@@ -47,8 +47,7 @@ public abstract class MarathonBasedService implements Service {
 
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String CONTAINER_TYPE = "MESOS";
-    //TODO: Revert this change once the jenkins job is reconfigured.
-    static final String IMAGE_PATH = "devops-repo.isus.emc.com:8116";
+    static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     private static final String TCP = "tcp://";
     final String id;
