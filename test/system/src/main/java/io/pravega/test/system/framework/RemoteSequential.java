@@ -40,14 +40,15 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private final Metronome client = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
         Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(60));
         // This will be removed once issue https://github.com/pravega/pravega/issues/1665 is resolved.
+
         log.debug("Starting test execution for method: {}", testMethod);
+        final Metronome client = AuthEnabledMetronomeClient.getClient();
 
         String className = testMethod.getDeclaringClass().getName();
         String methodName = testMethod.getName();
@@ -60,7 +61,7 @@ public class RemoteSequential implements TestExecutor {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             }
-        }).thenCompose(v2 -> waitForJobCompletion(jobId))
+        }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
                     if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
                         throw new AssertionError("Test failed, detailed logs can be found at " +
@@ -68,7 +69,7 @@ public class RemoteSequential implements TestExecutor {
                     }
                     return null;
                 }).whenComplete((v, ex) -> {
-                    deleteJob(jobId); //deletejob once execution is complete.
+                    deleteJob(jobId, client); //deletejob once execution is complete.
                     if (ex != null) {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
@@ -84,8 +85,8 @@ public class RemoteSequential implements TestExecutor {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
-    private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
-        return Futures.loop(() -> isTestRunning(jobId),
+    private CompletableFuture<Void> waitForJobCompletion(final String jobId, final Metronome client) {
+        return Futures.loop(() -> isTestRunning(jobId, client),
                 () -> Futures.delayedFuture(Duration.ofSeconds(10), executorService),
                 executorService);
     }
@@ -137,7 +138,7 @@ public class RemoteSequential implements TestExecutor {
         return job;
     }
 
-    private boolean isTestRunning(String jobId) {
+    private boolean isTestRunning(final String jobId, final Metronome client) {
         Job jobStatus = client.getJob(jobId);
         boolean isRunning = false;
         if (jobStatus.getHistory() == null) {
@@ -148,7 +149,7 @@ public class RemoteSequential implements TestExecutor {
         return isRunning;
     }
 
-    private void deleteJob(String jobId) {
+    private void deleteJob(final String jobId, final Metronome client) {
         try {
             client.deleteJob(jobId);
         } catch (MetronomeException e) {
