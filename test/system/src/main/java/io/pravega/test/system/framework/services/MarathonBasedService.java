@@ -45,12 +45,10 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 @Slf4j
 public abstract class MarathonBasedService implements Service {
 
-    static final boolean FORCE_IMAGE = true;
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String CONTAINER_TYPE = "DOCKER";
+    static final String CONTAINER_TYPE = "MESOS";
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
-    static final String NETWORK_TYPE = "HOST";
     private static final String TCP = "tcp://";
     final String id;
     final Marathon marathonClient;
@@ -133,7 +131,7 @@ public abstract class MarathonBasedService implements Service {
 
     CompletableFuture<Void> waitUntilServiceRunning() {
         return Futures.loop(() -> !isRunning(), //condition
-                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
+                () -> Futures.delayedFuture(Duration.ofSeconds(20), executorService),
                 executorService);
     }
 

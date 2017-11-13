@@ -15,7 +15,6 @@ import io.pravega.test.system.framework.Utils;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +26,6 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
@@ -42,8 +39,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
     private static final java.lang.String KEY_VALUE_SEPARATOR = "::";
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 0.1;
-    private double mem = 1000.0;
+    private double cpu = 0.5;
+    private double mem = 1741.0;
     private final URI conUri;
 
     public PravegaSegmentStoreService(final String id, final URI zkUri, final URI conUri) {
@@ -106,24 +103,14 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         app.setContainer(new Container());
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
-        //set volume
-        Collection<Volume> volumeCollection = new ArrayList<Volume>();
-        volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
-        app.getContainer().setVolumes(volumeCollection);
         //set the image and network
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
-        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
-        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
-        List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx900m");
-        parameterList.add(element1);
-        app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPortDefinitions(Arrays.asList(createPortDefinition(SEGMENTSTORE_PORT)));
         app.setRequirePorts(true);
         //healthchecks
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, SEGMENTSTORE_PORT));
+        healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, SEGMENTSTORE_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
@@ -136,7 +123,8 @@ public class PravegaSegmentStoreService extends MarathonBasedService {
         getCustomEnvVars(map, SEGMENTSTORE_EXTRA_ENV);
 
         //Properties set to override defaults for system tests
-        String hostSystemProperties = setSystemProperty("autoScale.muteInSeconds", "120") +
+        String hostSystemProperties = "-Xmx1024m" +
+                setSystemProperty("autoScale.muteInSeconds", "120") +
                 setSystemProperty("autoScale.cooldownInSeconds", "120") +
                 setSystemProperty("autoScale.cacheExpiryInSeconds", "120") +
                 setSystemProperty("autoScale.cacheCleanUpInSeconds", "120") +
