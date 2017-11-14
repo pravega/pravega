@@ -54,9 +54,9 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_READERS = 5;
     private static final int NUM_WRITERS = 5;
-    //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(22 * 60);
+    public Timeout globalTimeout = Timeout.seconds(25 * 60);
     private final String scope = "testReadTxnWriteScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
