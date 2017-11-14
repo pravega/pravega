@@ -14,11 +14,13 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,6 +43,7 @@ public class DockerBasedMultiControllerTest extends AbstractControllerTests {
 
     @Before
     public void getControllerInfo() {
+        Assume.assumeTrue("Docker swarm based execution is enabled",  Utils.isDockerLocalExecEnabled());
         super.getControllerInfo();
     }
 
@@ -56,7 +59,7 @@ public class DockerBasedMultiControllerTest extends AbstractControllerTests {
      * @throws InterruptedException If test is interrupted.
      */
     @Test(timeout = 300000)
-    public void multiControllerTest() throws ExecutionException, InterruptedException {
+    public void dockerBasedMultiControllerTest() throws ExecutionException, InterruptedException {
 
         log.info("Start execution of multiControllerTest");
 
