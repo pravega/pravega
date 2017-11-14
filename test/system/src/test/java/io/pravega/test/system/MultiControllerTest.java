@@ -89,15 +89,10 @@ public class MultiControllerTest {
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        List<String> uris;
-        if (Utils.isDockerLocalExecEnabled()) {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-            log.info("uris {}", uris);
-        } else {
-            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                    .collect(Collectors.toList());
-        }
+        final List<String> uris = conUris.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                .collect(Collectors.toList());
+
         controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
