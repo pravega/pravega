@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
@@ -84,9 +84,8 @@ public class ZookeeperService extends MarathonBasedService {
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
         app.getContainer().getDocker().setImage(ZK_IMAGE);
-        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
         List<HealthCheck> healthCheckList = new ArrayList<>();
-        final HealthCheck hc = setHealthCheck(900, "TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
+        final HealthCheck hc = setHealthCheck(300, "TCP", false, 60, 20, 0, ZKSERVICE_ZKPORT);
         healthCheckList.add(hc);
         app.setHealthChecks(healthCheckList);
 

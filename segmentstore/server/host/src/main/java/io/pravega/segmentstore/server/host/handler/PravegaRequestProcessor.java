@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -454,7 +455,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(v -> connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid())));
 
         CompletableFuture.allOf(seal, merge)
-                .exceptionally(e -> handleException(requestId, transactionName, "Commit transaction", e));
+                .exceptionally(e -> {
+                    final Throwable cause;
+                    if (e instanceof CompletionException) {
+                        cause = e.getCause();
+                    } else {
+                        cause = e;
+                    }
+                    if (cause instanceof StreamSegmentMergedException) {
+                        log.info("Stream segment is already merged '{}'.", transactionName);
+                        connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
+                        return null;
+                    } else {
+                        return handleException(requestId, transactionName, "Commit transaction", e);
+                    }
+                });
     }
 
     @Override

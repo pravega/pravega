@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
@@ -36,6 +36,7 @@ import mesosphere.marathon.client.MarathonException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import io.pravega.test.system.framework.services.Service;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
@@ -45,12 +46,10 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 @Slf4j
 public abstract class MarathonBasedService implements Service {
 
-    static final boolean FORCE_IMAGE = true;
     static final int ZKSERVICE_ZKPORT = 2181;
-    static final String CONTAINER_TYPE = "DOCKER";
+    static final String CONTAINER_TYPE = "MESOS";
     static final String IMAGE_PATH = System.getProperty("dockerImageRegistry");
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
-    static final String NETWORK_TYPE = "HOST";
     private static final String TCP = "tcp://";
     final String id;
     final Marathon marathonClient;
@@ -104,24 +103,23 @@ public abstract class MarathonBasedService implements Service {
     }
 
     @Override
-    public void scaleService(final int instanceCount, final boolean wait) {
+    public CompletableFuture<Void> scaleService(final int instanceCount) {
         Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
         try {
             App updatedConfig = new App();
             updatedConfig.setInstances(instanceCount);
             marathonClient.updateApp(getID(), updatedConfig, true);
-            if (wait) {
-                waitUntilServiceRunning().get(); // wait until scale operation is complete.
-            }
+
+              return waitUntilServiceRunning(); // wait until scale operation is complete.
+
         } catch (MarathonException ex) {
             if (ex.getStatus() == CONFLICT.code()) {
                 log.error("Scaling operation failed as the application is locked by an ongoing deployment", ex);
                 throw new TestFrameworkException(RequestFailed, "Scaling operation failed", ex);
             }
             handleMarathonException(ex);
-        } catch (InterruptedException | ExecutionException ex) {
-            throw new TestFrameworkException(InternalError, "Exception during scale operation", ex);
         }
+        return null;
     }
 
     void handleMarathonException(MarathonException e) {
@@ -133,7 +131,7 @@ public abstract class MarathonBasedService implements Service {
 
     CompletableFuture<Void> waitUntilServiceRunning() {
         return Futures.loop(() -> !isRunning(), //condition
-                () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
+                () -> Futures.delayedFuture(Duration.ofSeconds(20), executorService),
                 executorService);
     }
 

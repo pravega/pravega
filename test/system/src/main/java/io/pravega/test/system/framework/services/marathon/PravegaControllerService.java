@@ -7,14 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.system.framework.services;
+package io.pravega.test.system.framework.services.marathon;
 
 import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.Utils;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +25,6 @@ import mesosphere.marathon.client.model.v2.App;
 import mesosphere.marathon.client.model.v2.Container;
 import mesosphere.marathon.client.model.v2.Docker;
 import mesosphere.marathon.client.model.v2.HealthCheck;
-import mesosphere.marathon.client.model.v2.Parameter;
-import mesosphere.marathon.client.model.v2.Volume;
 import mesosphere.marathon.client.MarathonException;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.InternalError;
@@ -42,7 +39,7 @@ public class PravegaControllerService extends MarathonBasedService {
     private static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
-    private double cpu = 0.1;
+    private double cpu = 0.5;
     private double mem = 700;
 
     public PravegaControllerService(final String id, final URI zkUri) {
@@ -114,27 +111,17 @@ public class PravegaControllerService extends MarathonBasedService {
         app.setContainer(new Container());
         app.getContainer().setType(CONTAINER_TYPE);
         app.getContainer().setDocker(new Docker());
-        //set volume
-        Collection<Volume> volumeCollection = new ArrayList<Volume>();
-        volumeCollection.add(createVolume("/tmp/logs", "/mnt/logs", "RW"));
-        app.getContainer().setVolumes(volumeCollection);
         app.getContainer().getDocker().setImage(IMAGE_PATH + "/nautilus/pravega:" + PRAVEGA_VERSION);
-        app.getContainer().getDocker().setNetwork(NETWORK_TYPE);
-        app.getContainer().getDocker().setForcePullImage(FORCE_IMAGE);
-        //set docker container parameters
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
-        List<Parameter> parameterList = new ArrayList<>();
-        Parameter element1 = new Parameter("env", "JAVA_OPTS=-Xmx512m");
-        parameterList.add(element1);
-        app.getContainer().getDocker().setParameters(parameterList);
         //set port
         app.setPortDefinitions(Arrays.asList(createPortDefinition(CONTROLLER_PORT), createPortDefinition(REST_PORT)));
         app.setRequirePorts(true);
         List<HealthCheck> healthCheckList = new ArrayList<HealthCheck>();
-        healthCheckList.add(setHealthCheck(900, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
+        healthCheckList.add(setHealthCheck(300, "TCP", false, 60, 20, 0, CONTROLLER_PORT));
         app.setHealthChecks(healthCheckList);
         //set env
-        String controllerSystemProperties = setSystemProperty("ZK_URL", zk) +
+        String controllerSystemProperties = "-Xmx512m" +
+                setSystemProperty("ZK_URL", zk) +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
                 setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
                 setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +

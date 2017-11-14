@@ -26,11 +26,8 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
-import io.pravega.test.system.framework.services.BookkeeperService;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
-
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
@@ -100,7 +96,7 @@ abstract class AbstractFailoverTests {
         final AtomicBoolean txnWrite = new AtomicBoolean(false);
     }
 
-    void performFailoverTest() {
+    void performFailoverTest() throws ExecutionException {
 
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
         long currentWriteCount1 = testState.eventWriteCount.get();
@@ -120,7 +116,7 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
@@ -134,7 +130,7 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount1 > currentReadCount2);
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
@@ -148,8 +144,8 @@ abstract class AbstractFailoverTests {
         assertTrue(currentReadCount2 > currentReadCount1);
 
         //Scale down segment  store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
@@ -160,7 +156,7 @@ abstract class AbstractFailoverTests {
         log.info("Read count: {}, write count: {} with Segment Store  and controller failover after sleep", currentReadCount1, currentWriteCount1);
     }
 
-    void performFailoverForTestsInvolvingTxns() {
+    void performFailoverForTestsInvolvingTxns() throws ExecutionException {
 
         log.info("Test with 3 controller, segment store instances running and without a failover scenario");
         log.info("Read count: {}, write count: {} without any failover",
@@ -173,7 +169,7 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down segment store instances to 2
-        segmentStoreInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down Segment Store instances from 3 to 2");
@@ -181,7 +177,7 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down controller instances to 2
-        controllerInstance.scaleService(2, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(2), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down controller instances from 3 to 2");
@@ -189,8 +185,8 @@ abstract class AbstractFailoverTests {
                 testState.eventReadCount.get(),  testState.eventWriteCount.get());
 
         //Scale down segment store, controller to 1 instance each.
-        segmentStoreInstance.scaleService(1, true);
-        controllerInstance.scaleService(1, true);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         //zookeeper will take about 30 seconds to detect that the node has gone down
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
         log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
@@ -540,7 +536,7 @@ abstract class AbstractFailoverTests {
 
 
     static URI startZookeeperInstance() {
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
             zkService.start(true);
         }
@@ -549,8 +545,8 @@ abstract class AbstractFailoverTests {
         return zkUris.get(0);
     }
 
-    static void startBookkeeperInstances(final URI zkUri) {
-        Service bkService = new BookkeeperService("bookkeeper", zkUri);
+    static void startBookkeeperInstances(final URI zkUri) throws ExecutionException {
+        Service bkService = Utils.createBookkeeperService(zkUri);
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -558,32 +554,40 @@ abstract class AbstractFailoverTests {
         log.debug("Bookkeeper service details: {}", bkUris);
     }
 
-    static URI startPravegaControllerInstances(final URI zkUri) {
-        Service controllerService = new PravegaControllerService("controller", zkUri);
+    static URI startPravegaControllerInstances(final URI zkUri) throws ExecutionException {
+        Service controllerService = Utils.createPravegaControllerService(zkUri);
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
-        controllerService.scaleService(3, true);
+        Futures.getAndHandleExceptions(controllerService.scaleService(3), ExecutionException::new);
         List<URI> conUris = controllerService.getServiceDetails();
+        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        List<String> uris;
+        if (Utils.isDockerLocalExecEnabled()) {
+            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.DOCKER_CONTROLLER_PORT).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+            log.info("uris {}", uris);
+        } else {
+            uris = conUris.stream().filter(uri -> uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+                    .collect(Collectors.toList());
+        }
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
         return controllerURI;
     }
 
-    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) {
-        Service segService = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURI);
+    static void startPravegaSegmentStoreInstances(final URI zkUri, final URI controllerURI) throws ExecutionException {
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
         if (!segService.isRunning()) {
             segService.start(true);
         }
-        segService.scaleService(3, true);
+        Futures.getAndHandleExceptions(segService.scaleService(3), ExecutionException::new);
         List<URI> segUris = segService.getServiceDetails();
         log.debug("Pravega Segmentstore service  details: {}", segUris);
     }
-    
+
     static class TxnNotCompleteException extends RuntimeException {
     }
 
