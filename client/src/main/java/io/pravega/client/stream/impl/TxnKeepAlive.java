@@ -9,15 +9,15 @@
  */
 package io.pravega.client.stream.impl;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import io.pravega.client.stream.EventWriterConfig;
@@ -43,9 +43,8 @@ public class TxnKeepAlive implements AutoCloseable {
     private final Controller controller;
     private final long txnLeaseMillis;
     private final long pingIntervalMillis;
-    private final ScheduledExecutorService executor;
-    private final List<UUID> txnList = new CopyOnWriteArrayList<>();
-    private final AtomicBoolean isStarted = new AtomicBoolean();
+    private final ScheduledExecutorService executor; // it is not owned by this class, hence won't be part of close()
+    private final List<UUID> txnList = Collections.synchronizedList(new ArrayList<>());
     @GuardedBy("$lock")
     private ScheduledFuture<?> pingTxnTask;
 
@@ -78,11 +77,10 @@ public class TxnKeepAlive implements AutoCloseable {
 
     @Synchronized
     private void startPeriodicPingTxn() {
-        if (!isStarted.get()) {
+        if (pingTxnTask == null) {
             log.info("Starting Transaction keep alive at an interval of {}ms ", this.pingIntervalMillis);
             pingTxnTask = executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis,
                     TimeUnit.MILLISECONDS);
-            isStarted.set(true);
         }
     }
 
@@ -91,6 +89,7 @@ public class TxnKeepAlive implements AutoCloseable {
          failure the particular transaction it is removed from the ping list.
      */
     private void pingTransactions() {
+        log.info("Start sending transaction keepAlive.");
         Map<UUID, CompletableFuture<Void>> pingResult =
                 txnList.stream().collect(Collectors.toMap(Function.identity(),
                         uuid -> controller.pingTransaction(stream, uuid, txnLeaseMillis)));
@@ -102,13 +101,15 @@ public class TxnKeepAlive implements AutoCloseable {
                                                               getException(e.getValue()));
                                                       txnList.remove(e.getKey()); //ping txn failed, remove it.
                                                   }));
+        log.trace("Completed sending transaction keepAlive.");
     }
 
     @Override
     public void close() {
         log.info("Closing Transaction keep alive periodic task");
-        if (pingTxnTask != null) {
-            pingTxnTask.cancel(true);
+        ScheduledFuture<?> pingTxnTaskReference = pingTxnTask;
+        if (pingTxnTaskReference != null) {
+            pingTxnTaskReference.cancel(true);
         }
     }
 }
