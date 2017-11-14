@@ -456,13 +456,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         CompletableFuture.allOf(seal, merge)
                 .exceptionally(e -> {
-                    final Throwable cause;
-                    if (e instanceof CompletionException) {
-                        cause = e.getCause();
-                    } else {
-                        cause = e;
-                    }
-                    if (cause instanceof StreamSegmentMergedException) {
+                    if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
                         log.info("Stream segment is already merged '{}'.", transactionName);
                         connection.send(new TransactionCommitted(requestId, commitTx.getSegment(), commitTx.getTxid()));
                         return null;
