@@ -43,7 +43,6 @@ public class DockerBasedMultiControllerTest extends AbstractControllerTests {
 
     @Before
     public void getControllerInfo() {
-        Assume.assumeTrue("Docker swarm based execution is enabled",  Utils.isDockerLocalExecEnabled());
         super.getControllerInfo();
     }
 
@@ -61,6 +60,7 @@ public class DockerBasedMultiControllerTest extends AbstractControllerTests {
     @Test(timeout = 300000)
     public void dockerBasedMultiControllerTest() throws ExecutionException, InterruptedException {
 
+        Assume.assumeTrue("Docker swarm based execution is enabled",  Utils.isDockerLocalExecEnabled());
         log.info("Start execution of multiControllerTest");
 
         log.info("Test tcp:// with all 3 controller instances running");

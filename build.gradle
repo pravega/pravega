@@ -589,7 +589,7 @@ project('test:system') {
     //This is  used to invoke docker based systemTests
     task startSystemTestsWithDocker(type: Test) {
 
-            dependsOn 'testJarForDocker', 'execShellScript'
+        dependsOn 'testJarForDocker', 'execShellScript'
 
         ext.dockerRegistryUrl = project.hasProperty("dockerRegistryUrl") ? project.dockerRegistryUrl : ""
 

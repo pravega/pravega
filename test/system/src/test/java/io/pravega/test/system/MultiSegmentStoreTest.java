@@ -16,7 +16,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
-import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -100,16 +99,6 @@ public class MultiSegmentStoreTest {
         Assert.assertTrue(zkService.isRunning());
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
-
-        URI hdfsUri = null;
-        if (Utils.isDockerLocalExecEnabled()) {
-            Service hdfsService = new HDFSDockerService("hdfs");
-            if (!hdfsService.isRunning()) {
-                hdfsService.start(true);
-            }
-            hdfsUri = hdfsService.getServiceDetails().get(0);
-            log.debug("HDFS service details: {}", hdfsService.getServiceDetails());
-        }
 
         // Verify controller is running.
         this.controllerInstance = Utils.createPravegaControllerService(zkUris.get(0));

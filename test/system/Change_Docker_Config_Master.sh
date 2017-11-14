@@ -11,7 +11,6 @@
 set -e
 MASTER=${1:-null}
 sed -i '1i {"hosts":["tcp://0.0.0.0:2375","unix:///var/run/docker.sock"],"insecure-registries": ["0.0.0.0/0"], "live-restore": false, "log-opts":{"max-size": "25m", "max-file": "2"}, "mtu": 1450 }' /etc/docker/daemon.json
-sed -i 's/"live-restore": true,/"live-restore": false,/' /etc/docker/daemon.json
 cat /etc/docker/daemon.json
 service docker stop
 service docker start
