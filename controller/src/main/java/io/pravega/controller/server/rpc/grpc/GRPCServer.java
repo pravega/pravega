@@ -36,10 +36,14 @@ public class GRPCServer extends AbstractIdleService {
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
-        this.server = ServerBuilder
+        ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
-                .addService(new ControllerServiceImpl(controllerService))
-                .build();
+                .addService(new ControllerServiceImpl(controllerService));
+        if (serverConfig.isAuthorizationEnabled()) {
+            builder.intercept(new PravegaAuthorizer(serverConfig.getUsers(), serverConfig.getPasswords()));
+            builder.intercept(new GuardianAuthorizer(serverConfig.getGuardianIP()));
+        }
+        this.server = builder.build();
     }
 
     /**

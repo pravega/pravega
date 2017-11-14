@@ -23,11 +23,15 @@ import java.util.Optional;
 @Data
 public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final int port;
+    private final boolean authorizationEnabled;
     private final Optional<String> publishedRPCHost;
     private final Optional<Integer> publishedRPCPort;
+    private final String users;
+    private final String passwords;
+    private final String guardianIP;
 
     @Builder
-    public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort) {
+    public GRPCServerConfigImpl(final int port, boolean authorizationEnabled, final String publishedRPCHost, final Integer publishedRPCPort, String users, String passwords, String guardianIP) {
         Preconditions.checkArgument(port > 0, "Invalid port.");
         if (publishedRPCHost != null) {
             Exceptions.checkNotNullOrEmpty(publishedRPCHost, "publishedRPCHost");
@@ -39,5 +43,9 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.port = port;
         this.publishedRPCHost = Optional.ofNullable(publishedRPCHost);
         this.publishedRPCPort = Optional.ofNullable(publishedRPCPort);
+        this.authorizationEnabled = authorizationEnabled;
+        this.users = users;
+        this.passwords = passwords;
+        this.guardianIP = guardianIP;
     }
 }

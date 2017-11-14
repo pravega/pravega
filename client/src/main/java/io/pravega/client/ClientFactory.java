@@ -9,6 +9,7 @@
  */
 package io.pravega.client;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -28,9 +29,8 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
-import java.net.URI;
-
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import java.net.URI;
 import lombok.val;
 
 /**
@@ -60,12 +60,18 @@ public interface ClientFactory extends AutoCloseable {
      *
      * @param scope The scope string.
      * @param controllerUri The URI for controller.
+     * @param creds Optional credentials to connect to controller.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri) {
+    static ClientFactory withScope(String scope, URI controllerUri, Credentials creds) {
         val connectionFactory = new ConnectionFactoryImpl(false);
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
-                connectionFactory.getInternalExecutor()), connectionFactory);
+                connectionFactory.getInternalExecutor(), creds), connectionFactory, creds);
+    }
+
+
+    static ClientFactory withScope(String scope, URI controllerUri) {
+        return withScope(scope, controllerUri, null);
     }
 
     /**

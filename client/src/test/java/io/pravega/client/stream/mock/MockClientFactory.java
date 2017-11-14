@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.auth.Credentials;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;

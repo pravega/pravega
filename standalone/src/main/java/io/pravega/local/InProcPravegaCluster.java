@@ -302,9 +302,14 @@ public class InProcPravegaCluster implements AutoCloseable {
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
         GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
-                .port(this.controllerPorts[controllerId])
-                .publishedRPCHost("localhost")
-                .publishedRPCPort(this.controllerPorts[controllerId])
+                                                                .port(this.controllerPorts[controllerId])
+                                                                .publishedRPCHost("localhost")
+                                                                .publishedRPCPort(this.controllerPorts[controllerId])
+                                                                .authorizationEnabled(true)
+                                                                .users("temp,temp1")
+                                                                .passwords("pass1,pass2")
+                                                                .guardianIP("http://localhost:9240")
+
                 .build();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()

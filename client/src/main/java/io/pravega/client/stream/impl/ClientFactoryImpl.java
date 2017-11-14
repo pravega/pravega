@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
@@ -60,6 +61,7 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentOutputStreamFactory outFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
+    private Credentials credentials;
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -92,9 +94,21 @@ public class ClientFactoryImpl implements ClientFactory {
              new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
     }
 
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory, Credentials credentials) {
+        this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentMetadataClientFactoryImpl(controller, connectionFactory), credentials);
+    }
+
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
+        this(scope, controller, connectionFactory, inFactory, outFactory, metaFactory, null);
+    }
+
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
+                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
+                             SegmentMetadataClientFactory metaFactory, Credentials credentials) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
@@ -106,6 +120,7 @@ public class ClientFactoryImpl implements ClientFactory {
         this.inFactory = inFactory;
         this.outFactory = outFactory;
         this.metaFactory = metaFactory;
+        this.credentials = credentials;
     }
 
     @Override
