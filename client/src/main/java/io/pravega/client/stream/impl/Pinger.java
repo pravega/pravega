@@ -108,7 +108,6 @@ public class Pinger implements AutoCloseable {
                                                   .forEach(e -> {
                                                       log.warn("Ping Transaction for txn ID:{} failed", e.getKey(),
                                                               getException(e.getValue()));
-                                                      txnList.remove(e.getKey()); //ping txn failed, remove it.
                                                   }));
         log.trace("Completed sending transaction pings.");
     }
