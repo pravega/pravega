@@ -16,6 +16,8 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
@@ -52,8 +54,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -304,6 +310,46 @@ public class PravegaRequestProcessorTest {
                         txnid)));
 
         order.verifyNoMoreInteractions();
+    }
+
+    @Test(timeout = 20000)
+    public void testMergedTransaction() throws Exception {
+        String streamSegmentName = "testMergedTxn";
+        UUID txnid = UUID.randomUUID();
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = spy(serviceBuilder.createStreamSegmentService());
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).sealStreamSegment(
+                anyString(), any());
+        doReturn(Futures.failedFuture(new StreamSegmentMergedException(streamSegmentName))).when(store).mergeTransaction(
+                anyString(), any());
+
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
+
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
+                WireCommands.CreateSegment.NO_SCALE, 0));
+        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+
+        processor.createTransaction(new WireCommands.CreateTransaction(1, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCreated(1, streamSegmentName, txnid));
+        processor.commitTransaction(new WireCommands.CommitTransaction(2, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCommitted(2, streamSegmentName, txnid));
+
+        txnid = UUID.randomUUID();
+
+        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).sealStreamSegment(
+                anyString(), any());
+        doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeTransaction(
+                anyString(), any());
+
+        processor.createTransaction(new WireCommands.CreateTransaction(3, streamSegmentName, txnid));
+        order.verify(connection).send(new WireCommands.TransactionCreated(3, streamSegmentName, txnid));
+        processor.commitTransaction(new WireCommands.CommitTransaction(4, streamSegmentName, txnid));
+
+        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid)));
     }
 
     @Test(timeout = 20000)

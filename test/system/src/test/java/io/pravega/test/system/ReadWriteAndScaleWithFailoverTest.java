@@ -54,9 +54,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
 
-    //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(15 * 60);
+    public Timeout globalTimeout = Timeout.seconds(25 * 60);
 
     private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
