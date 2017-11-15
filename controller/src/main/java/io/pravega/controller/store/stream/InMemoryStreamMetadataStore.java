@@ -182,7 +182,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamForAutoRetention(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
         int bucket = getBucket(scope, stream);
         List<String> list;
         if (bucketedStreams.containsKey(bucket)) {
@@ -212,7 +212,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> removeStreamFromAutoRetention(String scope, String stream, OperationContext context, Executor executor) {
+    public CompletableFuture<Void> removeStreamFromAutoStreamCut(String scope, String stream, OperationContext context, Executor executor) {
         int bucket = getBucket(scope, stream);
         String scopedStreamName = getScopedStreamName(scope, stream);
 

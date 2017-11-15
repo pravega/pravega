@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class AutoRetentionBucketService extends AbstractService implements BucketChangeListener {
+public class StreamCutBucketService extends AbstractService implements BucketChangeListener {
 
     private final int bucketId;
     private final StreamMetadataStore streamMetadataStore;
@@ -46,8 +46,8 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
     private CompletableFuture<Void> notificationLoop;
 
-    AutoRetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
-                               StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
+    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
+                           StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
         this.bucketId = bucketId;
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
@@ -122,7 +122,7 @@ public class AutoRetentionBucketService extends AbstractService implements Bucke
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
-                .thenCompose(config -> streamMetadataTasks.autoRetention(stream.getScope(), stream.getStreamName(),
+                .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
                         config.getRetentionPolicy(), System.currentTimeMillis(), context))
                 .exceptionally(e -> {
                     log.warn("Exception thrown while performing auto retention for stream {} ", stream, e);

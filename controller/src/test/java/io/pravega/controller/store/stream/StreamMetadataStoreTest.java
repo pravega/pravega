@@ -644,7 +644,7 @@ public abstract class StreamMetadataStoreTest {
         store.registerBucketChangeListener(0, notificationRef::set);
         store.unregisterBucketListener(0);
 
-        store.addUpdateStreamForAutoRetention(scope, stream, retentionPolicy, null, executor).get();
+        store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();
         List<String> streams = store.getStreamsForBucket(0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 
@@ -679,7 +679,7 @@ public abstract class StreamMetadataStoreTest {
         assertTrue(!list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
 
-        store.removeStreamFromAutoRetention(scope, stream, null, executor).get();
+        store.removeStreamFromAutoStreamCut(scope, stream, null, executor).get();
         streams = store.getStreamsForBucket(0, executor).get();
         assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
     }

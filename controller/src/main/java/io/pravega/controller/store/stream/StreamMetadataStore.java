@@ -769,7 +769,7 @@ public interface StreamMetadataStore {
      * @param executor        executor
      * @return future
      */
-    CompletableFuture<Void> addUpdateStreamForAutoRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
+    CompletableFuture<Void> addUpdateStreamForAutoStreamCut(final String scope, final String stream, final RetentionPolicy retentionPolicy,
                                                             final OperationContext context, final Executor executor);
 
     /**
@@ -781,7 +781,7 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return future
      */
-    CompletableFuture<Void> removeStreamFromAutoRetention(final String scope, final String stream,
+    CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
                                                           final OperationContext context, final Executor executor);
 
     /**

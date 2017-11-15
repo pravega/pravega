@@ -14,7 +14,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 
 import java.util.concurrent.Executor;
 
-public class InMemoryStoreRetentionTest extends AutoRetentionTest {
+public class InMemoryStoreRetentionTest extends StreamCutServiceTest {
 
     @Override
     protected StreamMetadataStore createStore(int bucketCount, Executor executor) {

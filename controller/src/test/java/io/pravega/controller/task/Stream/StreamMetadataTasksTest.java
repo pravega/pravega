@@ -390,7 +390,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.autoRetention(SCOPE, "test", retentionPolicy, recordingTime1, null).get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null).get();
         // verify that one streamCut is generated and added.
 
         List<StreamCutRecord> list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
@@ -405,7 +405,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.autoRetention(SCOPE, "test", retentionPolicy, recordingTime2, null).get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null).get();
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
         StreamProperty<StreamTruncationRecord> truncProp = streamStorePartialMock.getTruncationProperty(SCOPE, "test", true, null, executor).get();
         // verify that only one stream cut is in retention set. streamCut2 is not added
@@ -422,7 +422,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.autoRetention(SCOPE, "test", retentionPolicy, recordingTime3, null).get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null).get();
         // verify two stream cuts are in retention set. Cut 1 and 3.
         // verify that Truncation not not happened.
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();
@@ -441,7 +441,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any());
 
-        streamMetadataTasks.autoRetention(SCOPE, "test", retentionPolicy, recordingTime4, null).get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime4, null).get();
         // verify that only two stream cut are in retention set. streamcut 3 and 4
         // verify that truncation has started. verify that streamCut1 is removed from retention set as that has been used for truncation
         list = streamStorePartialMock.getStreamCutsFromRetentionSet(SCOPE, "test", null, executor).get();

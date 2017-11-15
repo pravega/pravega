@@ -194,8 +194,8 @@ public class StreamMetadataTasks extends TaskBase {
      * @param contextOpt operation context
      * @return future.
      */
-    public CompletableFuture<Void> autoRetention(final String scope, final String stream, final RetentionPolicy policy,
-                                                 final long recordingTime, final OperationContext contextOpt) {
+    public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
+                                             final long recordingTime, final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)

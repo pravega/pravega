@@ -26,16 +26,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
-public class AutoRetentionService extends AbstractService implements BucketOwnershipListener {
+public class StreamCutService extends AbstractService implements BucketOwnershipListener {
     private final int bucketCount;
     private final String processId;
-    private final ConcurrentSet<AutoRetentionBucketService> buckets;
+    private final ConcurrentSet<StreamCutBucketService> buckets;
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
 
-    public AutoRetentionService(final int bucketCount, String processId, final StreamMetadataStore streamMetadataStore,
-                                final StreamMetadataTasks streamMetadataTasks, final ScheduledExecutorService executor) {
+    public StreamCutService(final int bucketCount, String processId, final StreamMetadataStore streamMetadataStore,
+                            final StreamMetadataTasks streamMetadataTasks, final ScheduledExecutorService executor) {
         this.bucketCount = bucketCount;
         this.processId = processId;
         this.streamMetadataStore = streamMetadataStore;
@@ -63,7 +63,7 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
                 .thenCompose(isOwner -> {
                     if (isOwner && buckets.stream().noneMatch(x -> x.getBucketId() == bucket)) {
                         log.info("Taken ownership for bucket {}", bucket);
-                        AutoRetentionBucketService bucketService = new AutoRetentionBucketService(bucket, streamMetadataStore,
+                        StreamCutBucketService bucketService = new StreamCutBucketService(bucket, streamMetadataStore,
                                 streamMetadataTasks, executor);
                         buckets.add(bucketService);
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
@@ -133,7 +133,7 @@ public class AutoRetentionService extends AbstractService implements BucketOwner
     }
 
     @VisibleForTesting
-    Set<AutoRetentionBucketService> getBuckets() {
+    Set<StreamCutBucketService> getBuckets() {
         return Collections.unmodifiableSet(buckets);
     }
 }

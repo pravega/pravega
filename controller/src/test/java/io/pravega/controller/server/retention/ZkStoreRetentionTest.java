@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class ZkStoreRetentionTest extends AutoRetentionTest {
+public class ZkStoreRetentionTest extends StreamCutServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
@@ -88,7 +88,7 @@ public class ZkStoreRetentionTest extends AutoRetentionTest {
         StreamMetadataStore streamMetadataStore2 = StreamStoreFactory.createZKStore(zkClient2, executor);
         String scope = "scope1";
         String streamName = "stream1";
-        streamMetadataStore2.addUpdateStreamForAutoRetention(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
+        streamMetadataStore2.addUpdateStreamForAutoStreamCut(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
         zkClient2.close();
 
         zkClient.getZookeeperClient().start();
@@ -96,10 +96,10 @@ public class ZkStoreRetentionTest extends AutoRetentionTest {
         Stream stream = new StreamImpl(scope, streamName);
 
         // verify that at least one of the buckets got the notification
-        List<AutoRetentionBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
+        List<StreamCutBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
 
         int bucketId = stream.getScopedName().hashCode() % 3;
-        AutoRetentionBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
+        StreamCutBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
@@ -129,13 +129,13 @@ public class ZkStoreRetentionTest extends AutoRetentionTest {
 
         String scope = "scope1";
         String streamName = "stream1";
-        streamMetadataStore2.addUpdateStreamForAutoRetention(scope, streamName, RetentionPolicy.builder().build(), null, executor2).join();
+        streamMetadataStore2.addUpdateStreamForAutoStreamCut(scope, streamName, RetentionPolicy.builder().build(), null, executor2).join();
 
         String scope2 = "scope2";
         String streamName2 = "stream2";
-        streamMetadataStore2.addUpdateStreamForAutoRetention(scope2, streamName2, RetentionPolicy.builder().build(), null, executor2).join();
+        streamMetadataStore2.addUpdateStreamForAutoStreamCut(scope2, streamName2, RetentionPolicy.builder().build(), null, executor2).join();
 
-        AutoRetentionService service2 = new AutoRetentionService(1, hostId, streamMetadataStore2, streamMetadataTasks2, executor2);
+        StreamCutService service2 = new StreamCutService(1, hostId, streamMetadataStore2, streamMetadataTasks2, executor2);
         service2.startAsync();
         service2.awaitRunning();
 

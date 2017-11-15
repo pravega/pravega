@@ -41,9 +41,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public abstract class AutoRetentionTest {
+public abstract class StreamCutServiceTest {
     StreamMetadataStore streamMetadataStore;
-    AutoRetentionService service;
+    StreamCutService service;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
@@ -63,7 +63,7 @@ public abstract class AutoRetentionTest {
         connectionFactory = new ConnectionFactoryImpl(false);
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory);
-        service = new AutoRetentionService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
+        service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
         service.startAsync();
         service.awaitRunning();
     }
@@ -81,7 +81,7 @@ public abstract class AutoRetentionTest {
 
     @Test(timeout = 10000)
     public void testRetentionService() {
-        List<AutoRetentionBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
+        List<StreamCutBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
 
         assertNotNull(bucketServices);
         assertTrue(bucketServices.size() == 3);
@@ -95,17 +95,17 @@ public abstract class AutoRetentionTest {
         String scope = "scope";
         String streamName = "stream";
         Stream stream = new StreamImpl(scope, streamName);
-        streamMetadataStore.addUpdateStreamForAutoRetention(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
+        streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, streamName, RetentionPolicy.builder().build(), null, executor).join();
 
         // verify that at least one of the buckets got the notification
         int bucketId = stream.getScopedName().hashCode() % 3;
-        AutoRetentionBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
+        StreamCutBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
         assertTrue(bucketService.getRetentionFutureMap().containsKey(stream));
 
-        streamMetadataStore.removeStreamFromAutoRetention(scope, streamName, null, executor).join();
+        streamMetadataStore.removeStreamFromAutoStreamCut(scope, streamName, null, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> removed.set(bucketService.getRetentionFutureMap().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
