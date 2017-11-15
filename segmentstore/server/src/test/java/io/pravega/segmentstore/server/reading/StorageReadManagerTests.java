@@ -17,6 +17,7 @@ import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -38,9 +39,9 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 /**
- * Unit tests for the StorageReader class.
+ * Unit tests for the StorageReadManager class.
  */
-public class StorageReaderTests extends ThreadPooledTestSuite {
+public class StorageReadManagerTests extends ThreadPooledTestSuite {
     private static final int MIN_SEGMENT_LENGTH = 101;
     private static final int MAX_SEGMENT_LENGTH = MIN_SEGMENT_LENGTH * 100;
     private static final SegmentMetadata SEGMENT_METADATA = new StreamSegmentMetadata("Segment1", 0, 0);
@@ -65,17 +66,17 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         final int offsetIncrement = defaultReadLength / 3;
 
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
-        HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
+        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
+        HashMap<StorageReadManager.Request, CompletableFuture<StorageReadManager.Result>> requestCompletions = new HashMap<>();
         int readOffset = 0;
         while (readOffset < segmentData.length) {
             int readLength = Math.min(defaultReadLength, segmentData.length - readOffset);
-            CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(readOffset, readLength, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
+            CompletableFuture<StorageReadManager.Result> requestCompletion = new CompletableFuture<>();
+            StorageReadManager.Request r = new StorageReadManager.Request(readOffset, readLength, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
             reader.execute(r);
             requestCompletions.put(r, requestCompletion);
             readOffset += offsetIncrement;
@@ -83,8 +84,8 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         // Check that the read requests returned with the right data.
         for (val entry : requestCompletions.entrySet()) {
-            StorageReader.Result readData = entry.getValue().join();
-            StorageReader.Request request = entry.getKey();
+            StorageReadManager.Result readData = entry.getValue().join();
+            StorageReadManager.Request request = entry.getKey();
             int expectedReadLength = Math.min(request.getLength(), (int) (segmentData.length - request.getOffset()));
 
             Assert.assertNotNull("No data returned for request " + request, readData);
@@ -102,11 +103,11 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     @Test
     public void testInvalidRequests() {
         @Cleanup
-        InMemoryStorage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         byte[] segmentData = populateSegment(storage);
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
+        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
 
         // Segment does not exist.
         AssertExtensions.assertThrows(
@@ -114,7 +115,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
                 () -> {
                     SegmentMetadata sm = new StreamSegmentMetadata("foo", 0, 0);
                     @Cleanup
-                    StorageReader nonExistentReader = new StorageReader(sm, storage, executorService());
+                    StorageReadManager nonExistentReader = new StorageReadManager(sm, storage, executorService());
                     sendRequest(nonExistentReader, 0, 1).join();
                 },
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -132,9 +133,9 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
-    private CompletableFuture<StorageReader.Result> sendRequest(StorageReader reader, long offset, int length) {
-        CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-        reader.execute(new StorageReader.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
+    private CompletableFuture<StorageReadManager.Result> sendRequest(StorageReadManager reader, long offset, int length) {
+        CompletableFuture<StorageReadManager.Result> requestCompletion = new CompletableFuture<>();
+        reader.execute(new StorageReadManager.Request(offset, length, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT));
         return requestCompletion;
     }
 
@@ -156,13 +157,13 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         };
 
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
+        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
 
         // Create some reads.
-        CompletableFuture<StorageReader.Result> c1 = new CompletableFuture<>();
-        CompletableFuture<StorageReader.Result> c2 = new CompletableFuture<>();
-        reader.execute(new StorageReader.Request(0, 100, c1::complete, c1::completeExceptionally, TIMEOUT));
-        reader.execute(new StorageReader.Request(50, 100, c2::complete, c2::completeExceptionally, TIMEOUT));
+        CompletableFuture<StorageReadManager.Result> c1 = new CompletableFuture<>();
+        CompletableFuture<StorageReadManager.Result> c2 = new CompletableFuture<>();
+        reader.execute(new StorageReadManager.Request(0, 100, c1::complete, c1::completeExceptionally, TIMEOUT));
+        reader.execute(new StorageReadManager.Request(50, 100, c2::complete, c2::completeExceptionally, TIMEOUT));
 
         Assert.assertFalse("One or more of the reads has completed prematurely.", c1.isDone() || c2.isDone());
 
@@ -179,7 +180,7 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to auto-cancel the requests when the StorageReader is closed.
+     * Tests the ability to auto-cancel the requests when the StorageReadManager is closed.
      */
     @Test
     public void testAutoCancelRequests() {
@@ -187,14 +188,14 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
         TestStorage storage = new TestStorage();
         storage.readImplementation = CompletableFuture::new; // Just return a Future which we will never complete - simulates a high latency read.
         @Cleanup
-        StorageReader reader = new StorageReader(SEGMENT_METADATA, storage, executorService());
+        StorageReadManager reader = new StorageReadManager(SEGMENT_METADATA, storage, executorService());
 
         // Create some reads.
-        HashMap<StorageReader.Request, CompletableFuture<StorageReader.Result>> requestCompletions = new HashMap<>();
+        HashMap<StorageReadManager.Request, CompletableFuture<StorageReadManager.Result>> requestCompletions = new HashMap<>();
 
         for (int i = 0; i < readCount; i++) {
-            CompletableFuture<StorageReader.Result> requestCompletion = new CompletableFuture<>();
-            StorageReader.Request r = new StorageReader.Request(i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
+            CompletableFuture<StorageReadManager.Result> requestCompletion = new CompletableFuture<>();
+            StorageReadManager.Request r = new StorageReadManager.Request(i * 10, 9, requestCompletion::complete, requestCompletion::completeExceptionally, TIMEOUT);
             reader.execute(r);
             requestCompletions.put(r, requestCompletion);
         }
@@ -231,6 +232,11 @@ public class StorageReaderTests extends ThreadPooledTestSuite {
 
         @Override
         public void initialize(long epoch) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void close() {
             // Nothing to do.
         }
 

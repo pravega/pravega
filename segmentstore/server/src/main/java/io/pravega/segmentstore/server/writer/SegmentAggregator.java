@@ -30,6 +30,7 @@ import io.pravega.segmentstore.server.logs.operations.OperationType;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import java.io.DataInputStream;
@@ -68,6 +69,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private final AtomicReference<SegmentHandle> handle;
     private final WriterDataSource dataSource;
     private final AtomicInteger mergeTransactionCount;
+    private final AtomicInteger truncateCount;
     private final AtomicBoolean hasSealPending;
     private final AtomicLong lastAddedOffset;
     private final AtomicReference<Duration> lastFlush;
@@ -105,6 +107,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.lastFlush = new AtomicReference<>(timer.getElapsed());
         this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
         this.mergeTransactionCount = new AtomicInteger();
+        this.truncateCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
         this.operations = new OperationQueue();
         this.state = new AtomicReference<>(AggregatorState.NotInitialized);
@@ -178,6 +181,7 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         return exceedsThresholds()
                 || this.hasSealPending.get()
                 || this.mergeTransactionCount.get() > 0
+                || this.truncateCount.get() > 0
                 || (this.operations.size() > 0 && isReconciling());
     }
 
@@ -306,7 +310,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         // We can figure this out if we compare the last offset of the op with Metadata.StorageLength or, for seal operations,
         // if it hasn't already been sealed in Storage.
         long lastOffset = operation.getLastStreamSegmentOffset();
+        boolean isTruncate = isTruncateOperation(operation);
         boolean processOp = lastOffset > this.metadata.getStorageLength()
+                || isTruncate
                 || (!this.metadata.isSealedInStorage() && (operation instanceof StreamSegmentSealOperation));
         if (processOp) {
             processNewOperation(operation);
@@ -314,8 +320,10 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
             acknowledgeAlreadyProcessedOperation(operation);
         }
 
-        // Always record the last added offset, to ensure that operations are contiguous and processed in the right order.
-        this.lastAddedOffset.set(lastOffset);
+        if (!isTruncate) {
+            // Always record the last added offset, to ensure that operations are contiguous and processed in the right order.
+            this.lastAddedOffset.set(lastOffset);
+        }
         log.debug("{}: Add {}; OpCount={}, MergeCount={}, Seal={}.", this.traceObjectId, operation, this.operations.size(), this.mergeTransactionCount, this.hasSealPending);
     }
 
@@ -331,6 +339,9 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         } else if (operation instanceof StreamSegmentSealOperation) {
             this.operations.add(operation);
             this.hasSealPending.set(true);
+        } else if (operation instanceof StreamSegmentTruncateOperation) {
+            this.operations.add(operation);
+            this.truncateCount.incrementAndGet();
         } else if (operation instanceof CachedStreamSegmentAppendOperation) {
             // Aggregate the Append Operation.
             final int maxLength = this.config.getMaxFlushSizeBytes();
@@ -513,10 +524,12 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
     private CompletableFuture<FlushResult> flushOnce(TimeoutTimer timer, Executor executor) {
         boolean hasMerge = this.mergeTransactionCount.get() > 0;
         boolean hasSeal = this.hasSealPending.get();
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushOnce", this.operations.size(), this.mergeTransactionCount, hasSeal);
+        boolean hasTruncate = this.truncateCount.get() > 0;
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "flushOnce", this.operations.size(),
+                this.mergeTransactionCount, hasSeal, hasTruncate);
 
         CompletableFuture<FlushResult> result;
-        if (hasSeal || hasMerge) {
+        if (hasSeal || hasMerge || hasTruncate) {
             // If we have a Seal or Merge Pending, flush everything until we reach that operation.
             result = flushFully(timer, executor);
             if (hasMerge) {
@@ -552,14 +565,23 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         FlushResult result = new FlushResult();
         return Futures
                 .loop(
-                        () -> isAppendOperation(this.operations.getFirst()),
-                        () -> flushPendingAppends(timer.getRemaining()),
+                        this::canContinueFlushingFully,
+                        () -> flushPendingAppends(timer.getRemaining())
+                                .thenCompose(flushResult -> flushPendingTruncate(flushResult, timer.getRemaining())),
                         result::withFlushResult,
                         executor)
                 .thenApply(v -> {
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flushFully", traceId, result);
                     return result;
                 });
+    }
+
+    /**
+     * Determines whether flushFully can continue given the current state of this SegmentAggregator.
+     */
+    private boolean canContinueFlushingFully() {
+        StorageOperation next = this.operations.getFirst();
+        return isAppendOperation(next) || isTruncateOperation(next);
     }
 
     /**
@@ -574,14 +596,45 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         FlushResult result = new FlushResult();
         return Futures
                 .loop(
-                        () -> !this.metadata.isDeleted() && exceedsThresholds(),
-                        () -> flushPendingAppends(timer.getRemaining()),
+                        this::canContinueFlushingExcess,
+                        () -> flushPendingAppends(timer.getRemaining())
+                                .thenCompose(flushResult -> flushPendingTruncate(flushResult, timer.getRemaining())),
                         result::withFlushResult,
                         executor)
                 .thenApply(v -> {
                     LoggerHelpers.traceLeave(log, this.traceObjectId, "flushExcess", traceId, result);
                     return result;
                 });
+    }
+
+    /**
+     * Determines whether flushExcess can continue given the current state of this SegmentAggregator.
+     */
+    private boolean canContinueFlushingExcess() {
+        return !this.metadata.isDeleted() && exceedsThresholds() || isTruncateOperation(this.operations.getFirst());
+    }
+
+    /**
+     * Flushes a pending StreamSegmentTruncateOperation, if that is the next pending one.
+     *
+     * @param flushResult The FlushResult of the operation just prior to this.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the result from the flush operation, merged in with
+     * the one passed in as input.
+     */
+    private CompletableFuture<FlushResult> flushPendingTruncate(FlushResult flushResult, Duration timeout) {
+        StorageOperation op = this.operations.getFirst();
+        if (!isTruncateOperation(op) || !this.storage.supportsTruncation()) {
+            // Nothing to do.
+            return CompletableFuture.completedFuture(flushResult);
+        }
+
+        long truncateOffset = Math.min(this.metadata.getStorageLength(), op.getStreamSegmentOffset());
+        return this.storage.truncate(this.handle.get(), truncateOffset, timeout)
+                           .thenApply(v -> {
+                               updateStatePostTruncate();
+                               return flushResult;
+                           });
     }
 
     /**
@@ -912,15 +965,21 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<FlushResult> reconcileOperation(StorageOperation op, SegmentProperties storageInfo, TimeoutTimer timer, Executor executor) {
+        CompletableFuture<FlushResult> result;
         if (isAppendOperation(op)) {
-            return reconcileAppendOperation(op, storageInfo, timer, executor);
+            result = reconcileAppendOperation(op, storageInfo, timer, executor);
         } else if (op instanceof MergeTransactionOperation) {
-            return reconcileMergeOperation((MergeTransactionOperation) op, storageInfo, timer);
+            result = reconcileMergeOperation((MergeTransactionOperation) op, storageInfo, timer);
         } else if (op instanceof StreamSegmentSealOperation) {
-            return reconcileSealOperation(storageInfo);
+            result = reconcileSealOperation(storageInfo);
+        } else if (op instanceof StreamSegmentTruncateOperation) {
+            // Nothing to reconcile here.
+            updateStatePostTruncate();
+            result = CompletableFuture.completedFuture(new FlushResult());
         } else {
-            return Futures.failedFuture(new ReconciliationFailureException(String.format("Operation '%s' is not supported for reconciliation.", op), this.metadata, storageInfo));
+            result = Futures.failedFuture(new ReconciliationFailureException(String.format("Operation '%s' is not supported for reconciliation.", op), this.metadata, storageInfo));
         }
+        return result;
     }
 
     /**
@@ -1086,10 +1145,11 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      *                                  corrupting issues).
      */
     private void checkValidOperation(StorageOperation operation) throws DataCorruptionException {
-        if (this.hasSealPending.get()) {
+        boolean isTruncate = isTruncateOperation(operation);
+        if (this.hasSealPending.get() && !isTruncate) {
             // Even though the DurableLog should take care of this, doesn't hurt to check again that we cannot add anything
             // after a StreamSegmentSealOperation.
-            throw new DataCorruptionException(String.format("No operation is allowed for a sealed segment; received '%s' .", operation));
+            throw new DataCorruptionException(String.format("No operation except Truncation is allowed for a sealed segment; received '%s'.", operation));
         }
 
         // StreamSegmentAppendOperations need to be pre-processed into CachedStreamSegmentAppendOperations.
@@ -1102,9 +1162,20 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         Preconditions.checkArgument(length >= 0, "Operation '%s' has an invalid length (%s).", operation, operation.getLength());
 
         // Check that operations are contiguous (only for the operations after the first one - as we initialize lastAddedOffset on the first op).
-        long lastOffset = this.lastAddedOffset.get();
-        if (lastOffset >= 0 && offset != lastOffset) {
-            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.", operation, this.lastAddedOffset, offset));
+        if (isTruncate) {
+            if (this.metadata.getStartOffset() < operation.getStreamSegmentOffset()) {
+                throw new DataCorruptionException(String.format(
+                        "StreamSegmentTruncateOperation '%s' has a truncation offset beyond the one in the Segment's Metadata. Expected: at most %d, actual: %d.",
+                        operation,
+                        this.metadata.getStartOffset(),
+                        offset));
+            }
+        } else {
+            long lastOffset = this.lastAddedOffset.get();
+            if (lastOffset >= 0 && offset != lastOffset) {
+                throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.",
+                        operation, this.lastAddedOffset, offset));
+            }
         }
 
         // Check that the operation does not exceed the Length of the StreamSegment.
@@ -1173,9 +1244,21 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
         this.operations.removeFirst();
 
         // Validate we have no more unexpected items and then close (as we shouldn't be getting anything else).
-        assert this.operations.size() == 0 : "Processed StreamSegmentSeal operation but more operations are outstanding.";
+        assert this.operations.size() - this.truncateCount.get() == 0 : "there are outstanding non-truncate operations after a Seal";
         this.hasSealPending.set(false);
-        close();
+        if (this.operations.size() == 0) {
+            // No further operations are expected (The only valid operation after a Seal is Truncate, which is why we
+            // can't assume there are no further operations.
+            close();
+        }
+    }
+
+    /**
+     * Updates the internal state after a Truncate was completed.
+     */
+    private void updateStatePostTruncate() {
+        this.operations.removeFirst();
+        this.truncateCount.decrementAndGet();
     }
 
     /**
@@ -1208,6 +1291,13 @@ class SegmentAggregator implements OperationProcessor, AutoCloseable {
      */
     private boolean isAppendOperation(StorageOperation op) {
         return op != null && op instanceof AggregatedAppendOperation;
+    }
+
+    /**
+     * Determines whether the given StorageOperation's Offset must be match the current expected Offset.
+     */
+    private boolean isTruncateOperation(StorageOperation operation) {
+        return operation != null && operation instanceof StreamSegmentTruncateOperation;
     }
 
     private void ensureInitializedAndNotClosed() {

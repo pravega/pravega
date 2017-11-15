@@ -11,7 +11,8 @@ package io.pravega.segmentstore.server.containers;
 
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
@@ -25,11 +26,11 @@ import org.junit.Test;
  * Unit tests for the SegmentStateStore class.
  */
 public class SegmentStateStoreTests extends StateStoreTests {
-    private InMemoryStorage storage;
+    private Storage storage;
 
     @Before
     public void setUp() {
-        this.storage = new InMemoryStorage(executorService());
+        this.storage = InMemoryStorageFactory.newStorage(executorService());
         this.storage.initialize(1);
     }
 

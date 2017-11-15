@@ -49,7 +49,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -64,7 +63,6 @@ import lombok.val;
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
     private final String traceObjectId;
-    private final ContainerConfig config;
     private final StreamSegmentContainerMetadata metadata;
     private final OperationLog durableLog;
     private final ReadIndex readIndex;
@@ -102,7 +100,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("SegmentContainer[%d]", streamSegmentContainerId);
-        this.config = config;
         this.storage = storageFactory.createStorageAdapter();
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
@@ -112,7 +109,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.storage);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
-        this.metadataCleaner = new MetadataCleaner(this.config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
+        this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.stateStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.segmentMapper = new StreamSegmentMapper(this.metadata, this.durableLog, this.stateStore, this.metadataCleaner::runOnce,
@@ -367,24 +364,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<Long> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+    public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         ensureRunning();
 
         logRequest("truncateStreamSegment", streamSegmentName);
         this.metrics.truncate();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        AtomicLong segmentId = new AtomicLong();
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
                         streamSegmentId -> {
-                            segmentId.set(streamSegmentId);
                             StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(streamSegmentId, offset);
                             return this.durableLog.add(op, timer.getRemaining());
-                        })
-                .thenApply(v -> {
-                    SegmentMetadata sm = this.metadata.getStreamSegmentMetadata(segmentId.get());
-                    return sm == null || sm.isDeleted() ? 0 : sm.getLength() - sm.getStartOffset();
-                });
+                        });
     }
 
     @Override
@@ -436,7 +427,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         // To reduce locking in the metadata, we first get the list of Segment Ids, then we fetch their metadata
         // one by one. This only locks the metadata on the first call and, individually, on each call to getStreamSegmentMetadata.
-        return new ArrayList<>(this.metadata.getAllStreamSegmentIds())
+        return this.metadata.getAllStreamSegmentIds()
                 .stream()
                 .map(this.metadata::getStreamSegmentMetadata)
                 .filter(Objects::nonNull)
