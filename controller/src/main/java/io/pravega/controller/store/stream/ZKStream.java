@@ -49,6 +49,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SEGMENT_PATH = STREAM_PATH + "/segment";
     private static final String HISTORY_PATH = STREAM_PATH + "/history";
     private static final String INDEX_PATH = STREAM_PATH + "/index";
+    private static final String RETENTION_PATH = STREAM_PATH + "/retention";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
 
     private final ZKStoreHelper store;
@@ -59,6 +60,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String segmentPath;
     private final String historyPath;
     private final String indexPath;
+    private final String retentionPath;
     private final String activeTxRoot;
     private final String completedTxPath;
     private final String markerPath;
@@ -79,6 +81,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         segmentPath = String.format(SEGMENT_PATH, scopeName, streamName);
         historyPath = String.format(HISTORY_PATH, scopeName, streamName);
         indexPath = String.format(INDEX_PATH, scopeName, streamName);
+        retentionPath = String.format(RETENTION_PATH, scopeName, streamName);
         activeTxRoot = String.format(ZKStoreHelper.STREAM_TX_ROOT, scopeName, streamName);
         completedTxPath = String.format(ZKStoreHelper.COMPLETED_TX_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
@@ -171,6 +174,21 @@ class ZKStream extends PersistentStreamBase<Integer> {
                         throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
                     }
                 });
+    }
+
+    @Override
+    CompletableFuture<Void> createRetentionSet(byte[] retention) {
+        return store.createZNodeIfNotExist(retentionPath, retention);
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getRetentionSet() {
+        return store.getData(retentionPath);
+    }
+
+    @Override
+    CompletableFuture<Void> updateRetentionSet(Data<Integer> retention) {
+        return store.setData(retentionPath, retention);
     }
 
     @Override
