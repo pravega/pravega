@@ -37,8 +37,9 @@ import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 @Slf4j
-public class TxnKeepAliveTest {
+public class PingerTest {
 
+    private static final double PING_INTERVAL_FACTOR = 0.5;
     private EventWriterConfig config;
     private Stream stream;
     @Mock
@@ -72,10 +73,10 @@ public class TxnKeepAliveTest {
     public void startTxnKeepAlive() throws Exception {
         final UUID txnID = UUID.randomUUID();
         @Cleanup
-        TxnKeepAlive txnKeepAlive = new TxnKeepAlive(config, stream, controller, executor);
+        Pinger pinger = new Pinger(config, stream, controller, executor);
 
-        txnKeepAlive.startTxnKeepAlive(txnID);
-        long expectedKeepAliveInterval = (long) (0.7 * config.getTransactionTimeoutTime());
+        pinger.startPing(txnID);
+        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
@@ -88,10 +89,10 @@ public class TxnKeepAliveTest {
                                                                      .transactionTimeoutTime(SECONDS.toMillis(10))
                                                                      .build();
 
-        TxnKeepAlive txnKeepAlive = new TxnKeepAlive(smallTxnLeaseTime, stream, controller, executor);
-        txnKeepAlive.startTxnKeepAlive(txnID);
+        Pinger pinger = new Pinger(smallTxnLeaseTime, stream, controller, executor);
+        pinger.startPing(txnID);
 
-        verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
+            verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(SECONDS.toMillis(10)), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID),
                 eq(smallTxnLeaseTime.getTransactionTimeoutTime()));
@@ -106,10 +107,10 @@ public class TxnKeepAliveTest {
         when(controller.pingTransaction(eq(stream), eq(txnID), anyLong())).thenReturn(failedFuture);
 
         @Cleanup
-        TxnKeepAlive txnKeepAlive = new TxnKeepAlive(config, stream, controller, executor);
-        txnKeepAlive.startTxnKeepAlive(txnID);
+        Pinger pinger = new Pinger(config, stream, controller, executor);
+        pinger.startPing(txnID);
 
-        long expectedKeepAliveInterval = (long) (0.7 * config.getTransactionTimeoutTime());
+        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID), eq(config.getTransactionTimeoutTime()));
@@ -120,11 +121,11 @@ public class TxnKeepAliveTest {
         final UUID txnID1 = UUID.randomUUID();
         final UUID txnID2 = UUID.randomUUID();
         @Cleanup
-        TxnKeepAlive txnKeepAlive = new TxnKeepAlive(config, stream, controller, executor);
+        Pinger pinger = new Pinger(config, stream, controller, executor);
 
-        txnKeepAlive.startTxnKeepAlive(txnID1);
-        txnKeepAlive.startTxnKeepAlive(txnID2);
-        long expectedKeepAliveInterval = (long) (0.7 * config.getTransactionTimeoutTime());
+        pinger.startPing(txnID1);
+        pinger.startPing(txnID2);
+        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
     }

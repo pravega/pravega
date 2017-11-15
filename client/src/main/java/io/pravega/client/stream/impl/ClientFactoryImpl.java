@@ -114,7 +114,7 @@ public class ClientFactoryImpl implements ClientFactory {
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor, connectionFactory);
+        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
     }
 
     @Override
