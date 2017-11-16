@@ -406,8 +406,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
-        return streamMetadataStore.getState(scope, stream, true, null, executor)
-                .handle((state, ex) -> (ex != null && ex instanceof StoreException.DataNotFoundException) || state == null);
+        return streamMetadataStore.checkStreamExists(scope, stream)
+                .thenApply(x -> !x);
     }
 
     /**
