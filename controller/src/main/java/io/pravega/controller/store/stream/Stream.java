@@ -364,6 +364,30 @@ interface Stream {
     CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
 
     /**
+     *Add a new Stream cut to retention set.
+     *
+     * @param streamCut stream cut record to add
+     * @return future of operation
+     */
+    CompletableFuture<Void> addStreamCutToRetentionSet(final StreamCutRecord streamCut);
+
+    /**
+     * Get all stream cuts stored in the retention set.
+     *
+     * @return list of stream cut records
+     */
+    CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts();
+
+    /**
+     * Delete all stream cuts in the retention set that preceed the supplied stream cut.
+     * Before is determined based on "recordingTime" for the stream cut.
+     *
+     * @param streamCut stream cut
+     * @return future of operation
+     */
+    CompletableFuture<Void> deleteStreamCutBefore(final StreamCutRecord streamCut);
+
+    /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
      * This allows us reuse of stream object without having to recreate a new stream object for each new operation
      */

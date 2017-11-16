@@ -24,6 +24,16 @@ public final class StreamSegmentNameUtils {
     private static final String STATE_SUFFIX = "$state";
 
     /**
+     * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
+     */
+    private static final String HEADER_SUFFIX = "$header";
+
+    /**
+     * This is appended to the end of the Segment/Transaction name to indicate it represents a SegmentChunk.
+     */
+    private static final String OFFSET_SUFFIX = "$offset.";
+
+    /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
      */
     private static final String TRANSACTION_DELIMITER = "#transaction.";
@@ -87,5 +97,41 @@ public final class StreamSegmentNameUtils {
     public static String getStateSegmentName(String segmentName) {
         Preconditions.checkArgument(!segmentName.contains(STATE_SUFFIX), "segmentName is already a state segment name");
         return segmentName + STATE_SUFFIX;
+    }
+
+    /**
+     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing its Rollover
+     * information.
+     * Existence of this file should also indicate that a Segment with this file has a rollover policy in place.
+     *
+     * @param segmentName The name of the Segment to get the Header segment name for.
+     * @return The result.
+     */
+    public static String getHeaderSegmentName(String segmentName) {
+        Preconditions.checkArgument(!segmentName.contains(HEADER_SUFFIX), "segmentName is already a segment header name");
+        return segmentName + HEADER_SUFFIX;
+    }
+
+    /**
+     * Gets the name of the Segment name from its Header Segment Name.
+     *
+     * @param headerSegmentName The name of the Header Segment.
+     * @return The Segment Name.
+     */
+    public static String getSegmentNameFromHeader(String headerSegmentName) {
+        Preconditions.checkArgument(headerSegmentName.endsWith(HEADER_SUFFIX));
+        return headerSegmentName.substring(0, headerSegmentName.length() - HEADER_SUFFIX.length());
+    }
+
+    /**
+     * Gets the name of the SegmentChunk for the given Segment and Offset.
+     *
+     * @param segmentName The name of the Segment to get the SegmentChunk name for.
+     * @param offset      The starting offset of the SegmentChunk.
+     * @return The SegmentChunk name.
+     */
+    public static String getSegmentChunkName(String segmentName, long offset) {
+        Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
+        return segmentName + OFFSET_SUFFIX + Long.toString(offset);
     }
 }

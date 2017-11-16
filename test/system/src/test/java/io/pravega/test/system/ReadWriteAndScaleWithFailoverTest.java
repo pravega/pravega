@@ -38,7 +38,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.utils.MarathonException;
+import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,9 +56,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
 
-    //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(15 * 60);
+    public Timeout globalTimeout = Timeout.seconds(25 * 60);
 
     private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);

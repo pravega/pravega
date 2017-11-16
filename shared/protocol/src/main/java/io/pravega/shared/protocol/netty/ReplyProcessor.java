@@ -61,6 +61,8 @@ public interface ReplyProcessor {
 
     void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted);
 
+    void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported);
+
     void keepAlive(WireCommands.KeepAlive keepAlive);
     
     void connectionDropped();

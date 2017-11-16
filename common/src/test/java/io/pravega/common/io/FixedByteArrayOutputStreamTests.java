@@ -23,8 +23,6 @@ import io.pravega.test.common.AssertExtensions;
 public class FixedByteArrayOutputStreamTests {
     /**
      * Tests that FixedByteArrayOutputStream works as advertised.
-     *
-     * @throws IOException
      */
     @Test
     public void testWrite() throws IOException {

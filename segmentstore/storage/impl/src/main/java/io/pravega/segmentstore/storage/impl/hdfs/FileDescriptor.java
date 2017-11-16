@@ -113,7 +113,7 @@ class FileDescriptor {
     }
 
     /**
-     * Gets a value indicating the length of this file. Invocations of
+     * Gets a value indicating the length of this file.
      *
      * @return The length of this file.
      */

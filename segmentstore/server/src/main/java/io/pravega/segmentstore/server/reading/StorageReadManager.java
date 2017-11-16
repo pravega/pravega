@@ -9,13 +9,13 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.SegmentHandle;
-import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Map;
@@ -34,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-class StorageReader implements AutoCloseable {
+public class StorageReadManager implements AutoCloseable {
     //region Members
 
     private final String traceObjectId;
@@ -54,12 +54,13 @@ class StorageReader implements AutoCloseable {
     //region Constructor
 
     /**
-     * Creates a new instance of the StorageReader class.
+     * Creates a new instance of the StorageReadManager class.
      *
-     * @param storage  A ReadOnlyStorage to use for data fetching.
-     * @param executor An Executor to use for running asynchronous tasks.
+     * @param segmentMetadata A SegmentMetadata to create the StorageReadManager for.
+     * @param storage         A ReadOnlyStorage to use for data fetching.
+     * @param executor        An Executor to use for running asynchronous tasks.
      */
-    StorageReader(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
+    StorageReadManager(SegmentMetadata segmentMetadata, ReadOnlyStorage storage, Executor executor) {
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
@@ -241,7 +242,7 @@ class StorageReader implements AutoCloseable {
     //region Request
 
     /**
-     * Represents a Request for a StorageReader operation.
+     * Represents a Request for a StorageReadManager operation.
      */
     static class Request {
         //region Members
@@ -256,7 +257,7 @@ class StorageReader implements AutoCloseable {
         //region Constructor
 
         /**
-         * Creates a new instance of the StorageReader.Request class.
+         * Creates a new instance of the StorageReadManager.Request class.
          *
          * @param offset          The offset to read at.
          * @param length          The length of the read.

@@ -99,8 +99,6 @@ public class ErrorInjector<T extends Throwable> {
 
     /**
      * Generates an exception of type T if the count trigger activates.
-     *
-     * @throws T
      */
     private T generateExceptionIfNecessary() {
         this.lastCycleException = null;

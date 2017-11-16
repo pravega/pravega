@@ -11,10 +11,12 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -29,6 +31,7 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.StreamCutRecord;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.Resource;
@@ -41,18 +44,24 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
@@ -176,6 +185,93 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     /**
+     * Method to check retention policy and generate new periodic cuts and/or truncate stream at an existing stream cut.
+     * 
+     * @param scope scope
+     * @param stream stream
+     * @param policy retention policy
+     * @param recordingTime time of recording
+     * @param contextOpt operation context
+     * @return future.
+     */
+    public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
+                                             final long recordingTime, final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
+        return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)
+                .thenCompose(retentionSet -> {
+                    StreamCutRecord latestCut = retentionSet.stream()
+                            .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
+                    return checkGenerateStreamCut(scope, stream, context, policy, latestCut, recordingTime)
+                            .thenCompose(x -> truncate(scope, stream, policy, context, retentionSet, recordingTime));
+                });
+
+    }
+
+    private CompletableFuture<Void> checkGenerateStreamCut(String scope, String stream, OperationContext context,
+                                                           RetentionPolicy policy, StreamCutRecord latestCut, long recordingTime) {
+        switch (policy.getType()) {
+            case TIME:
+                if (latestCut == null || recordingTime - latestCut.getRecordingTime() > Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis()) {
+                    return generateStreamCut(scope, stream, context)
+                            .thenCompose(newRecord ->
+                                    streamMetadataStore.addStreamCutToRetentionSet(scope, stream, newRecord, context, executor));
+                } else {
+                    return  CompletableFuture.completedFuture(null);
+                }
+            case SIZE:
+            default:
+                throw new NotImplementedException("Size based retention");
+        }
+    }
+
+    private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
+                                             List<StreamCutRecord> retentionSet, long recordingTime) {
+        return findTruncationRecord(policy, retentionSet, recordingTime)
+                .map(record -> startTruncation(scope, stream, record.getStreamCut(), context)
+                        .thenCompose(started -> {
+                            if (started) {
+                                return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
+                            } else {
+                                throw new RuntimeException("Could not start truncation");
+                            }
+                        })
+                ).orElse(CompletableFuture.completedFuture(null));
+    }
+
+    private Optional<StreamCutRecord> findTruncationRecord(RetentionPolicy policy, List<StreamCutRecord> retentionSet, long recordingTime) {
+        switch (policy.getType()) {
+            case TIME:
+                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getValue())
+                        .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
+            case SIZE:
+            default:
+                throw new NotImplementedException("Size based retention");
+        }
+    }
+
+    /**
+     * Generate a new stream cut.
+     *
+     * @param scope      scope.
+     * @param stream     stream name.
+     * @param contextOpt optional context
+     * @return streamCut.
+     */
+    public CompletableFuture<StreamCutRecord> generateStreamCut(final String scope, final String stream,
+                                                                final OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
+        final long generationTime = System.currentTimeMillis();
+        return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
+                .thenCompose(activeSegments -> Futures.allOfWithResults(activeSegments
+                        .stream()
+                        .parallel()
+                        .collect(Collectors.toMap(Segment::getNumber, x -> getSegmentOffset(scope, stream, x.getNumber())))))
+                .thenApply(map -> new StreamCutRecord(generationTime, Long.MIN_VALUE, ImmutableMap.copyOf(map)));
+    }
+
+    /**
      * Truncate a stream.
      *
      * @param scope      scope.
@@ -190,6 +286,26 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         // 1. get stream cut
+        return startTruncation(scope, stream, streamCut, context)
+                // 4. check for truncation to complete
+                .thenCompose(truncationStarted -> {
+                    if (truncationStarted) {
+                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                                .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
+                    } else {
+                        log.warn("Unable to start truncation for {}/{}", scope, stream);
+                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                    }
+                })
+                .exceptionally(ex -> {
+                    log.warn("Exception thrown in trying to update stream configuration {}", ex);
+                    return handleUpdateStreamError(ex);
+                });
+    }
+
+    private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Integer, Long> streamCut, OperationContext contextOpt) {
+        final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+
         return streamMetadataStore.getTruncationProperty(scope, stream, true, context, executor)
                 .thenCompose(property -> {
                     if (!property.isUpdating()) {
@@ -198,17 +314,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 // 3. start truncation by updating the metadata
                                 .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
-                                // 4. check for truncation to complete
-                                .thenCompose(truncation -> checkDone(() -> isTruncated(scope, stream, streamCut, context))
-                                        .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
+                                .thenApply(x -> true);
                     } else {
                         log.warn("Another truncation in progress for {}/{}", scope, stream);
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
+                        return CompletableFuture.completedFuture(false);
                     }
-                })
-                .exceptionally(ex -> {
-                    log.warn("Exception thrown in trying to update stream configuration {}", ex);
-                    return handleUpdateStreamError(ex);
                 });
     }
 
@@ -296,8 +406,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
-        return streamMetadataStore.getState(scope, stream, true, null, executor)
-                .handle((state, ex) -> (ex != null && ex instanceof StoreException.DataNotFoundException) || state == null);
+        return streamMetadataStore.checkStreamExists(scope, stream)
+                .thenApply(x -> !x);
     }
 
     /**
@@ -516,8 +626,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() -> streamMetadataStore.setState(scope,
-                                            stream, State.ACTIVE, context, executor), executor)
+                                    return withRetries(() ->
+                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor)
+                                            .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                    context, executor)), executor)
                                             .thenApply(z -> status);
                                 });
                     } else {
@@ -619,6 +732,17 @@ public class StreamMetadataTasks extends TaskBase {
                 .parallel()
                 .map(segment -> notifyPolicyUpdate(scope, stream, policy, segment.getNumber()))
                 .collect(Collectors.toList())));
+    }
+
+    private CompletableFuture<Long> getSegmentOffset(String scope, String stream, int segmentNumber) {
+
+        return withRetries(() -> segmentHelper.getSegmentInfo(
+                scope,
+                stream,
+                segmentNumber,
+                hostControllerStore,
+                this.connectionFactory), executor)
+                .thenApply(WireCommands.StreamSegmentInfo::getSegmentLength);
     }
 
     private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {

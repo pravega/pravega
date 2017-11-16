@@ -17,9 +17,9 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
@@ -29,13 +29,13 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapping;
 import io.pravega.segmentstore.server.logs.operations.TransactionMapOperation;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -47,7 +47,6 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -56,15 +55,13 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
-public class StreamSegmentMapper {
+public class StreamSegmentMapper extends SegmentStateMapper {
     //region Members
 
     private final String traceObjectId;
     private final ContainerMetadata containerMetadata;
     private final OperationLog durableLog;
-    private final AsyncMap<String, SegmentState> stateStore;
     private final Supplier<CompletableFuture<Void>> metadataCleanup;
-    private final Storage storage;
     private final Executor executor;
     @GuardedBy("assignmentLock")
     private final HashMap<String, PendingRequest> pendingRequests;
@@ -81,27 +78,23 @@ public class StreamSegmentMapper {
      *                          but the Metadata is not touched directly from this component.
      * @param durableLog        The Durable Log to bind to. All assignments are durably stored here.
      * @param stateStore        A AsyncMap that can be used to store Segment State.
-     * @param metadataCleanup   A callback returning a CompletableFuture that will be invoked when a foced metadata cleanup
+     * @param metadataCleanup   A callback returning a CompletableFuture that will be invoked when a forced metadata cleanup
      *                          is requested.
      * @param storage           The Storage to use for all external operations (create segment, get info, etc.)
      * @param executor          The executor to use for async operations.
-     * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentMapper(ContainerMetadata containerMetadata, OperationLog durableLog, AsyncMap<String, SegmentState> stateStore,
                                Supplier<CompletableFuture<Void>> metadataCleanup, Storage storage, Executor executor) {
+        super(stateStore, storage);
         Preconditions.checkNotNull(containerMetadata, "containerMetadata");
         Preconditions.checkNotNull(durableLog, "durableLog");
-        Preconditions.checkNotNull(stateStore, "stateStore");
         Preconditions.checkNotNull(metadataCleanup, "metadataCleanup");
-        Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("StreamSegmentMapper[%d]", containerMetadata.getContainerId());
         this.containerMetadata = containerMetadata;
         this.durableLog = durableLog;
-        this.stateStore = stateStore;
         this.metadataCleanup = metadataCleanup;
-        this.storage = storage;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
     }
@@ -203,19 +196,20 @@ public class StreamSegmentMapper {
      * @return A CompletableFuture that, when completed, will indicate that the Segment has been successfully created.
      */
     private CompletableFuture<Void> createSegmentInStorageWithRecovery(String segmentName, Collection<AttributeUpdate> attributes, TimeoutTimer timer) {
+        SegmentRollingPolicy rollingPolicy = getRollingPolicy(attributes);
+
         return Futures
                 .exceptionallyCompose(
-                        this.storage.create(segmentName, timer.getRemaining()),
+                        this.storage.create(segmentName, rollingPolicy, timer.getRemaining()),
                         ex -> handleStorageCreateException(segmentName, Exceptions.unwrap(ex), timer))
-                .thenComposeAsync(segmentProps ->
-                                // Need to create the state file before we throw any further exceptions in order to recover from
-                                // previous partial executions (where we created a segment but no or empty state file).
-                                this.stateStore.put(segmentName, getState(segmentProps, attributes), timer.getRemaining())
-                                               .thenRun(() -> {
-                                                   if (segmentProps.getLength() > 0) {
-                                                       throw new CompletionException(new StreamSegmentExistsException(segmentName));
-                                                   }
-                                               }),
+                .thenComposeAsync(segmentProps -> saveState(segmentProps, attributes, timer.getRemaining())
+                                .thenRun(() -> {
+                                    // Need to create the state file before we throw any further exceptions in order to recover from
+                                    // previous partial executions (where we created a segment but no or empty state file).
+                                    if (segmentProps.getLength() > 0) {
+                                        throw new CompletionException(new StreamSegmentExistsException(segmentName));
+                                    }
+                                }),
                         this.executor);
     }
 
@@ -239,8 +233,7 @@ public class StreamSegmentMapper {
             return Futures.failedFuture(originalException);
         }
 
-        return this.stateStore
-                .get(segmentName, timer.getRemaining())
+        return getState(segmentName, timer.getRemaining())
                 .exceptionally(ex -> {
                     ex = Exceptions.unwrap(ex);
                     if (ex instanceof StreamSegmentNotExistsException || ex instanceof DataCorruptionException) {
@@ -299,11 +292,7 @@ public class StreamSegmentMapper {
                 result = queuedCallback.result;
             } else {
                 // Not in metadata and no concurrent assignments. Go to Storage and get what's needed.
-                TimeoutTimer timer = new TimeoutTimer(timeout);
-                result = this.storage
-                        .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
-                        .thenComposeAsync(si -> retrieveState(si, timer.getRemaining()), this.executor)
-                        .thenApply(si -> si.properties);
+                result = getSegmentInfoFromStorage(streamSegmentName, timeout);
             }
         }
 
@@ -419,7 +408,7 @@ public class StreamSegmentMapper {
                             parentSegmentId.set(id);
                             return this.storage.getStreamSegmentInfo(transactionSegmentName, timer.getRemaining());
                         })
-                        .thenCompose(transInfo -> retrieveState(transInfo, timer.getRemaining()))
+                        .thenCompose(transInfo -> attachState(transInfo, timer.getRemaining()))
                         .thenCompose(transInfo -> assignTransactionStreamSegmentId(transInfo, parentSegmentId.get(), timer.getRemaining())),
                 transactionSegmentName);
     }
@@ -450,62 +439,9 @@ public class StreamSegmentMapper {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         withFailureHandler(this.storage
                         .getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
-                        .thenComposeAsync(si -> retrieveState(si, timer.getRemaining()), this.executor)
+                        .thenComposeAsync(si -> attachState(si, timer.getRemaining()), this.executor)
                         .thenComposeAsync(si -> submitToOperationLogWithRetry(si, ContainerMetadata.NO_STREAM_SEGMENT_ID, timer.getRemaining()), this.executor),
                 streamSegmentName);
-    }
-
-    /**
-     * Returns a SegmentState for the given SegmentProperties, but with the given attribute updates applied.
-     *
-     * @param source           The base SegmentProperties to use.
-     * @param attributeUpdates A collection of attribute updates to apply.
-     * @return A SegmentState which contains the same information as source, but with applied attribute updates.
-     */
-    private SegmentState getState(SegmentProperties source, Collection<AttributeUpdate> attributeUpdates) {
-        if (attributeUpdates == null) {
-            // Nothing to do.
-            return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
-        }
-
-        // Merge updates into the existing attributes.
-        Map<UUID, Long> attributes = new HashMap<>(source.getAttributes());
-        attributeUpdates.forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
-        return new SegmentState(ContainerMetadata.NO_STREAM_SEGMENT_ID,
-                StreamSegmentInformation.from(source).attributes(attributes).build());
-    }
-
-    /**
-     * Fetches a saved state (if any) for the given source segment and returns a new SegmentInfo containing the same
-     * information as the given source, but containing attributes fetched from the SegmentStateStore, as well as an updated
-     * StartOffset.
-     *
-     * @param source  A SegmentProperties describing the Segment to fetch attributes for.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain a SegmentInfo with the retrieved information.
-     */
-    private CompletableFuture<SegmentInfo> retrieveState(SegmentProperties source, Duration timeout) {
-        return this.stateStore
-                .get(source.getName(), timeout)
-                .thenApply(state -> {
-                    if (state == null) {
-                        // Nothing to change.
-                        return new SegmentInfo(ContainerMetadata.NO_STREAM_SEGMENT_ID, source);
-                    }
-
-                    if (!source.getName().equals(state.getSegmentName())) {
-                        throw new CompletionException(new DataCorruptionException(
-                                String.format("Stored State for segment '%s' is corrupted. It refers to a different segment '%s'.",
-                                        source.getName(),
-                                        state.getSegmentName())));
-                    }
-
-                    SegmentProperties props = StreamSegmentInformation.from(source)
-                                                                      .attributes(state.getAttributes())
-                                                                      .startOffset(state.getStartOffset())
-                                                                      .build();
-                    return new SegmentInfo(state.getSegmentId(), props);
-                });
     }
 
     /**
@@ -667,6 +603,22 @@ public class StreamSegmentMapper {
     }
 
     /**
+     * Extracts the SegmentRollingPolicy from the given AttributeUpdate Collection. If the list is empty or does not have
+     * an Attributes.ROLLOVER_SIZE attribute, then a NO_ROLLING policy is returned.
+     */
+    private SegmentRollingPolicy getRollingPolicy(Collection<AttributeUpdate> attributes) {
+        SegmentRollingPolicy rollingPolicy = SegmentRollingPolicy.NO_ROLLING;
+        if (attributes != null) {
+            AttributeUpdate a = attributes.stream().filter(au -> au.getAttributeId() == Attributes.ROLLOVER_SIZE).findFirst().orElse(null);
+            if (a != null) {
+                rollingPolicy = new SegmentRollingPolicy(a.getValue());
+            }
+        }
+
+        return rollingPolicy;
+    }
+
+    /**
      * Retries Future from the given supplier exactly once if encountering TooManyActiveSegmentsException.
      *
      * @param toTry A Supplier that returns a Future to execute. This will be invoked either once or twice.
@@ -704,12 +656,6 @@ public class StreamSegmentMapper {
     //endregion
 
     //region Helper Classes
-
-    @Data
-    private static class SegmentInfo {
-        private final long segmentId;
-        private final SegmentProperties properties;
-    }
 
     /**
      * A pending request for a Segment Assignment, which keeps track of all queued callbacks.

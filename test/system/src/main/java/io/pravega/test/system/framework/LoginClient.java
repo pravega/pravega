@@ -21,7 +21,7 @@ import java.util.Collection;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import lombok.Data;
-import mesosphere.marathon.client.utils.ModelUtils;
+import mesosphere.client.common.ModelUtils;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.pravega.test.system.framework.Utils.getConfig;

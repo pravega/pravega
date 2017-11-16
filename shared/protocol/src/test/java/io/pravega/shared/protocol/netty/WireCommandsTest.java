@@ -10,16 +10,14 @@
 package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-
 import lombok.Data;
 import org.junit.Test;
 
@@ -284,13 +282,13 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));
         byte[] array = bout.toByteArray();
-        WireCommand read = command.getType().readFrom(new DataInputStream(new ByteArrayInputStream(array)),
+        WireCommand read = command.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(array)),
                                                       array.length);
         assertEquals(command, read);
     }
 
     private void testCommandFromByteArray(byte[] bytes, WireCommand compatibleCommand) throws IOException {
-        WireCommand read = compatibleCommand.getType().readFrom(new DataInputStream(new ByteArrayInputStream(bytes)),
+        WireCommand read = compatibleCommand.getType().readFrom(new ByteBufInputStream(Unpooled.wrappedBuffer(bytes)),
                 bytes.length);
         assertEquals(compatibleCommand, read);
     }

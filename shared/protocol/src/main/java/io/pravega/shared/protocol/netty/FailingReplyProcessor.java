@@ -17,6 +17,7 @@ import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentDeleted;
@@ -48,7 +49,13 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
             log.info("Received hello: {}", hello);
         }
     }
-    
+
+    @Override
+    public void operationUnsupported(OperationUnsupported operationUnsupported) {
+        throw new UnsupportedOperationException("Operation '" + operationUnsupported.getOperationName() +
+                "' is not supported on the target SegmentStore.");
+    }
+
     @Override
     public void wrongHost(WrongHost wrongHost) {
         throw new IllegalStateException("Wrong host. Segment: " + wrongHost.segment + " is on "
