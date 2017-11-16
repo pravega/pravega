@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +59,14 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class StreamTransactionMetadataTasks implements AutoCloseable {
+    /**
+     * We derive the maximum execution timeout from the lease time. We assume
+     * a maximum number of renewals for the txn and compute the maximum execution
+     * time by multiplying the lease timeout by the maximum number of renewals. This
+     * multiplier is currently hardcoded because we do not expect applications to change
+     * it. The maximum execution timeout is only a safety mechanism for application that
+     * should rarely be triggered.
+     */
     private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
 
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
@@ -294,7 +303,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
-        long maxExecutionPeriod = MAX_EXECUTION_TIME_MULTIPLIER * lease;
+        long maxExecutionPeriod = Math.max(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
         UUID txnId = UUID.randomUUID();
         TxnResource resource = new TxnResource(scope, stream, txnId);
