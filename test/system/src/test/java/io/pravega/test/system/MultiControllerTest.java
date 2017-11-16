@@ -122,17 +122,20 @@ public class MultiControllerTest {
 
         log.info("Test tcp:// with all 3 controller instances running");
         withControllerURIDirect();
+        log.info("Test pravega:// with all 3 controller instances running");
         withControllerURIDiscover();
         Futures.getAndHandleExceptions(controllerService1.scaleService(2), ExecutionException::new);
 
         log.info("Test tcp:// with 2 controller instances running");
         withControllerURIDirect();
+        log.info("Test pravega:// with 2 controller instances running");
         withControllerURIDiscover();
 
         Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
 
         log.info("Test tcp:// with only 1 controller instance running");
         withControllerURIDirect();
+        log.info("Test pravega:// with only 1 controller instance running");
         withControllerURIDiscover();
 
         // All APIs should throw exception and fail.
