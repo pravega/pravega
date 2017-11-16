@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Stream Metadata.
@@ -430,7 +431,7 @@ public interface StreamMetadataStore {
      * @return future
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
-                                                final List<Integer> sealedSegments,
+                                                final Map<Integer, Long> sealedSegments,
                                                 final List<Segment> newSegments,
                                                 final int activeEpoch,
                                                 final long scaleTimestamp,
@@ -821,4 +822,17 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String stream, final StreamCutRecord streamCut,
                                                   final OperationContext context, final Executor executor);
+
+    /**
+     * Method to get size till the supplied stream cut map.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param streamCut stream cut
+     * @param context context
+     * @param executor executor
+     * @return size of stream till streamCut
+     */
+    CompletableFuture<Long> getSizeTill(final String scope, final String stream, final Map<Integer, Long> streamCut,
+                                        final OperationContext context, final ScheduledExecutorService executor);
 }

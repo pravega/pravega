@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.IndexRecord;
 import io.pravega.controller.store.stream.tables.RetentionRecord;
+import io.pravega.controller.store.stream.tables.SealedSegmentsRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
@@ -39,9 +40,11 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -118,6 +121,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
                         .thenCompose((Void v) -> createIndexTableIfAbsent(new Data<>(TableHelper.createIndexTable(createStreamResponse.getTimestamp(), 0), null)))
+                        .thenCompose((Void v) -> createSealedSegmentsRecord(
+                                SerializationUtils.serialize(new SealedSegmentsRecord(Collections.emptyMap()))))
                         .thenCompose((Void v) -> createRetentionSet(SerializationUtils.serialize(new RetentionRecord(Collections.emptyList()))))
                         .thenApply((Void v) -> createStreamResponse));
     }
@@ -590,7 +595,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 });
     }
 
-    private CompletableFuture<Void> clearMarkers(final List<Integer> segments) {
+    private CompletableFuture<Void> clearMarkers(final Set<Integer> segments) {
         return Futures.toVoid(Futures.allOfWithResults(segments.stream().parallel()
                 .map(this::removeColdMarker).collect(Collectors.toList())));
     }
@@ -605,11 +610,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of newly created segments
      */
     @Override
-    public CompletableFuture<Void> scaleOldSegmentsSealed(final List<Integer> sealedSegments,
+    public CompletableFuture<Void> scaleOldSegmentsSealed(final Map<Integer, Long> sealedSegments,
                                                           final List<Integer> newSegments,
                                                           final int activeEpoch,
                                                           final long scaleTimestamp) {
-        return verifyState(() -> Futures.toVoid(clearMarkers(sealedSegments)
+        return verifyState(() -> Futures.toVoid(clearMarkers(sealedSegments.keySet())
                 .thenCompose(x -> completeScale(scaleTimestamp, sealedSegments, activeEpoch, newSegments))),
                 Lists.newArrayList(State.SCALING));
     }
@@ -897,6 +902,17 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     @Override
+    public CompletableFuture<Long> getSizeTill(Map<Integer, Long> streamCut) {
+        return getSegmentTable()
+                .thenCompose(segmentTable -> getHistoryTable()
+                        .thenCompose(historyTable -> getIndexTable()
+                                .thenCompose(indexTable -> getSealedSegmentsRecord()
+                                        .thenApply(sealedData -> TableHelper.computeSizeTill(indexTable.getData(),
+                                                historyTable.getData(), segmentTable.getData(), streamCut,
+                                                SerializationUtils.deserialize(sealedData.getData()))))));
+    }
+
+    @Override
     public CompletableFuture<Void> addStreamCutToRetentionSet(StreamCutRecord streamCut) {
         return getRetentionSet()
                 .thenCompose(data -> {
@@ -1020,7 +1036,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
     }
 
     private CompletableFuture<Void> completeScale(final long scaleTimestamp,
-                                                  final List<Integer> sealedSegments,
+                                                  final Map<Integer, Long> sealedSegments,
                                                   final int activeEpoch,
                                                   final List<Integer> newSegments) {
         return getHistoryTable()
@@ -1033,7 +1049,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
                     // idempotent check
                     if (!lastRecord.isPartial()) {
-                        if (lastRecord.getSegments().stream().noneMatch(sealedSegments::contains) &&
+                        if (lastRecord.getSegments().stream().noneMatch(x -> sealedSegments.keySet().contains(x)) &&
                                 newSegments.stream().allMatch(x -> lastRecord.getSegments().contains(x))) {
                             log.debug("{}/{} scale already completed for epoch {}.", scope, name, activeEpoch);
 
@@ -1060,7 +1076,8 @@ public abstract class PersistentStreamBase<T> implements Stream {
                     final Data<T> updated = new Data<>(updatedTable, historyTable.getVersion());
 
                     final HistoryRecord newRecord = HistoryRecord.readLatestRecord(updatedTable, false).get();
-                    return addIndexRecord(newRecord)
+                    return addSealedSegmentsToRecord(sealedSegments)
+                            .thenCompose(x -> addIndexRecord(newRecord))
                             .thenCompose(x -> updateHistoryTable(updated))
                             .thenCompose(x -> Futures.toVoid(updateState(State.ACTIVE)))
                             .whenComplete((r, e) -> {
@@ -1070,6 +1087,18 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                     log.debug("{}/{} scale complete, index and history tables updated for epoch {}.", scope, name, activeEpoch);
                                 }
                             });
+                });
+    }
+
+    private CompletableFuture<Void> addSealedSegmentsToRecord(Map<Integer, Long> sealedSegments) {
+        return getSealedSegmentsRecord()
+                .thenCompose(data -> {
+                    SealedSegmentsRecord sealedSegmentsRecord = SerializationUtils.deserialize(data.getData());
+                    Map<Integer, Long> map = new HashMap<>();
+                    map.putAll(sealedSegments);
+                    map.putAll(sealedSegmentsRecord.getSealedSegmentsSizeMap());
+                    return updateSealedSegmentsRecord(new Data<>(
+                            SerializationUtils.serialize(new SealedSegmentsRecord(map)), data.getVersion()));
                 });
     }
 
@@ -1187,6 +1216,12 @@ public abstract class PersistentStreamBase<T> implements Stream {
     abstract CompletableFuture<Map<String, Data<T>>> getCurrentTxns();
 
     abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
+
+    abstract CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentsRecord);
+
+    abstract CompletableFuture<Data<T>> getSealedSegmentsRecord();
+
+    abstract CompletableFuture<Void> updateSealedSegmentsRecord(Data<T> update);
 
     abstract CompletableFuture<Void> createRetentionSet(byte[] retention);
 

@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -415,7 +416,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final List<Integer> sealedSegments,
+                                                       final Map<Integer, Long> sealedSegments,
                                                        final List<Segment> newSegments,
                                                        final int activeEpoch,
                                                        final long scaleTimestamp,
@@ -482,6 +483,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                          final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
         return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
+    }
+
+    @Override
+    public CompletableFuture<Long> getSizeTill(final String scope, final String name, final Map<Integer, Long> streamCut,
+                                        final OperationContext context, final ScheduledExecutorService executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getSizeTill(streamCut), executor);
     }
 
     @Override

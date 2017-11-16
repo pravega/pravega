@@ -54,6 +54,8 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     private Data<Integer> indexTable;
     @GuardedBy("lock")
     private Data<Integer> retentionSet;
+    @GuardedBy("lock")
+    private Data<Integer> sealedSegments;
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
@@ -697,6 +699,55 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
                         "retentionSet for stream: " + getName()));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentRecord) {
+        Preconditions.checkNotNull(sealedSegmentRecord);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            this.sealedSegments = new Data<>(sealedSegmentRecord, 0);
+            result.complete(null);
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Data<Integer>> getSealedSegmentsRecord() {
+        CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+
+        synchronized (lock) {
+            if (this.sealedSegments == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+            } else {
+                result.complete(copy(sealedSegments));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    CompletableFuture<Void> updateSealedSegmentsRecord(Data<Integer> sealedSegments) {
+        Preconditions.checkNotNull(sealedSegments);
+        Preconditions.checkNotNull(sealedSegments.getData());
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        synchronized (lock) {
+            if (this.sealedSegments == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "sealedSegments for stream: " + getName()));
+            } else if (this.sealedSegments.getVersion().equals(sealedSegments.getVersion())) {
+                this.sealedSegments = new Data<>(Arrays.copyOf(sealedSegments.getData(), sealedSegments.getData().length),
+                        sealedSegments.getVersion() + 1);
+                result.complete(null);
+            } else {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
+                        "sealedSegments for stream: " + getName()));
             }
         }
         return result;
