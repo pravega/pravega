@@ -457,7 +457,7 @@ public class StreamMetadataTasksTest {
         assertTrue(truncProp.getProperty().getStreamCut().get(0) == 1L && truncProp.getProperty().getStreamCut().get(1) == 1L);
     }
 
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void sizeBasedRetentionStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder().type(RetentionPolicy.Type.SIZE).value(100L).build();
