@@ -303,7 +303,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
-        long maxExecutionPeriod = Math.max(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
+        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
         UUID txnId = UUID.randomUUID();
         TxnResource resource = new TxnResource(scope, stream, txnId);
