@@ -626,8 +626,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() -> streamMetadataStore.setState(scope,
-                                            stream, State.ACTIVE, context, executor), executor)
+                                    return withRetries(() ->
+                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor)
+                                            .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                    context, executor)), executor)
                                             .thenApply(z -> status);
                                 });
                     } else {
