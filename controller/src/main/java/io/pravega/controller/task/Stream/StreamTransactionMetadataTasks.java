@@ -13,6 +13,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -57,6 +58,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class StreamTransactionMetadataTasks implements AutoCloseable {
+    private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
 
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
     protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
@@ -182,7 +184,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope              stream scope.
      * @param stream             stream name.
      * @param lease              Time for which transaction shall remain open with sending any heartbeat.
-     * @param maxExecutionPeriod Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
@@ -191,12 +192,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
                                                                                       final String stream,
                                                                                       final long lease,
-                                                                                      final long maxExecutionPeriod,
                                                                                       final long scaleGracePeriod,
                                                                                       final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context);
+            return createTxnBody(scope, stream, lease, scaleGracePeriod, context);
         }, executor);
     }
 
@@ -283,7 +283,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope               scope name.
      * @param stream              stream name.
      * @param lease               txn lease.
-     * @param maxExecutionPeriod  maximum amount of time for which txn may remain open.
      * @param scaleGracePeriod    amount of time for which txn may remain open after scale operation is initiated.
      * @param ctx                 context.
      * @return                    identifier of the created txn.
@@ -291,11 +290,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
-                                                                                   final long maxExecutionPeriod,
                                                                                    final long scaleGracePeriod,
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
-        CompletableFuture<Void> validate = validate(lease, maxExecutionPeriod, scaleGracePeriod);
+        CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
+        long maxExecutionPeriod = MAX_EXECUTION_TIME_MULTIPLIER * lease;
 
         UUID txnId = UUID.randomUUID();
         TxnResource resource = new TxnResource(scope, stream, txnId);
@@ -345,12 +344,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     @SuppressWarnings("ReturnCount")
-    private CompletableFuture<Void> validate(long lease, long maxExecutionPeriod, long scaleGracePeriod) {
-        if (lease <= 0) {
-            return Futures.failedFuture(new IllegalArgumentException("lease should be a positive number"));
-        }
-        if (maxExecutionPeriod <= 0) {
-            return Futures.failedFuture(new IllegalArgumentException("maxExecutionPeriod should be a positive number"));
+    private CompletableFuture<Void> validate(long lease, long scaleGracePeriod) {
+        if (lease < Config.MIN_LEASE_VALUE) {
+            return Futures.failedFuture(new IllegalArgumentException("lease should be greater than minimum lease"));
         }
         if (scaleGracePeriod <= 0) {
             return Futures.failedFuture(
@@ -362,9 +358,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     + timeoutService.getMaxScaleGracePeriod()));
         }
         // If lease value is too large return error
-        if (lease > scaleGracePeriod || lease > maxExecutionPeriod || lease > timeoutService.getMaxLeaseValue()) {
+        if (lease > scaleGracePeriod || lease > timeoutService.getMaxLeaseValue()) {
             return Futures.failedFuture(new IllegalArgumentException("lease value too large, max value is "
-                    + Math.min(scaleGracePeriod, Math.min(maxExecutionPeriod, timeoutService.getMaxLeaseValue()))));
+                    + Math.min(scaleGracePeriod, timeoutService.getMaxLeaseValue())));
         }
         return CompletableFuture.completedFuture(null);
     }

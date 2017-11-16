@@ -146,7 +146,7 @@ public class ControllerFailoverTest {
         long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
         TxnSegments txnSegments = controller1.createTransaction(
-                stream1, lease, maxExecutionTime, scaleGracePeriod).join();
+                stream1, lease, scaleGracePeriod).join();
         log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
