@@ -116,7 +116,9 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri(), null));
+                        clientFactory.compareAndSet(null, ClientFactory
+                                .withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri(), null,
+                                        configuration.isTlsEnabled(), configuration.TlsCertFile()));
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),

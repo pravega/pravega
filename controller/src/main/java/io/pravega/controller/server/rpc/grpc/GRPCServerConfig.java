@@ -60,4 +60,10 @@ public interface GRPCServerConfig {
      * @return URL of the guardian server.
      */
     String getGuardianIP();
+
+    boolean isTlsEnabled();
+
+    String getTlsCertFile();
+
+    String getTlsKeyFile();
 }

@@ -27,6 +27,8 @@ public class AutoScalerConfig {
     public static final Property<Integer> CACHE_CLEANUP_IN_SECONDS = Property.named("cacheCleanUpInSeconds", 5 * 60);
     public static final Property<Integer> CACHE_EXPIRY_IN_SECONDS = Property.named("cacheExpiryInSeconds", 20 * 60);
     public static final Property<String> CONTROLLER_URI = Property.named("controllerUri", "tcp://localhost:9090");
+    public static final Property<Boolean> TLS_ENABLED = Property.named("tlsEnabled", false);
+    public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -68,6 +70,10 @@ public class AutoScalerConfig {
      */
     @Getter
     private final Duration cacheCleanup;
+    @Getter
+    private final boolean tlsEnabled;
+    @Getter
+    private final String tlsCertFile;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
@@ -76,9 +82,15 @@ public class AutoScalerConfig {
         this.cacheCleanup = Duration.ofSeconds(properties.getInt(CACHE_CLEANUP_IN_SECONDS));
         this.cacheExpiry = Duration.ofSeconds(properties.getInt(CACHE_EXPIRY_IN_SECONDS));
         this.controllerUri = URI.create(properties.get(CONTROLLER_URI));
+        this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
+        this.tlsCertFile = properties.get(TLS_CERT_FILE);
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, AutoScalerConfig::new);
+    }
+
+    public String TlsCertFile() {
+        return this.tlsCertFile;
     }
 }

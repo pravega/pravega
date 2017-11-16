@@ -15,6 +15,7 @@ import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import java.io.File;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -42,6 +43,11 @@ public class GRPCServer extends AbstractIdleService {
         if (serverConfig.isAuthorizationEnabled()) {
             builder.intercept(new PravegaAuthorizer(serverConfig.getUsers(), serverConfig.getPasswords()));
             builder.intercept(new GuardianAuthorizer(serverConfig.getGuardianIP()));
+        }
+
+        if (serverConfig.isTlsEnabled()) {
+            builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
+            new File(serverConfig.getTlsKeyFile()));
         }
         this.server = builder.build();
     }

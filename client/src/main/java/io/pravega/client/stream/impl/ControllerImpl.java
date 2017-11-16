@@ -16,9 +16,11 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
@@ -57,6 +59,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.io.File;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -70,10 +73,12 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLException;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -118,16 +123,17 @@ public class ControllerImpl implements Controller {
      */
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(controllerURI, config, executor, null);
+        this(controllerURI, config, executor, null, false, null);
     }
 
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, Credentials creds) {
+                          final ScheduledExecutorService executor, Credentials creds,
+                          boolean enableTls, String tlsCertFile) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                                 .nameResolverFactory(new ControllerResolverFactory())
                                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                                .usePlaintext(true), config, executor, creds);
+                                .usePlaintext(true), config, executor, creds, enableTls, tlsCertFile);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -141,7 +147,8 @@ public class ControllerImpl implements Controller {
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, Credentials creds) {
+                          final ScheduledExecutorService executor, Credentials creds,
+                          boolean enableTls, String tlsCertFile) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
         this.creds = creds;
@@ -150,6 +157,14 @@ public class ControllerImpl implements Controller {
                 .retryingOn(StatusRuntimeException.class)
                 .throwingOn(Exception.class);
 
+        if (enableTls) {
+            SslContextBuilder sslContextBulder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
+            try {
+               channelBuilder =  ( (NettyChannelBuilder) channelBuilder).sslContext(sslContextBulder.build());
+            } catch (SSLException e) {
+                throw new CompletionException(e);
+            }
+        }
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         this.client = ControllerServiceGrpc.newStub(this.channel);
@@ -160,7 +175,7 @@ public class ControllerImpl implements Controller {
 
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(channelBuilder, config, executor, null);
+        this(channelBuilder, config, executor, null, false, null);
 
     }
 

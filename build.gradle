@@ -423,6 +423,7 @@ project('controller') {
 
         compile "com.emc.nautilus:guardian-client:0.3-10568.b66ccfa"
         compile "com.emc.nautilus:server-common:0.3-10568.b66ccfa"
+        compile "io.netty:netty-tcnative-boringssl-static:2.0.6.Final"
 
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion

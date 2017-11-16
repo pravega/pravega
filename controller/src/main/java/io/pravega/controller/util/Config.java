@@ -56,6 +56,9 @@ public final class Config {
     private static final String USERS = CONFIG.getString("config.controller.server.users");
     private static final String PASSWORDS = CONFIG.getString("config.controller.server.passwords");
     private static final String GUARDIAN_IP = CONFIG.getString("config.controller.server.guardianIP");
+    private static final String TLS_KEY_FILE = CONFIG.getString("config.controller.server.tlsKeyFile");
+    private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
+    private static final boolean TLS_ENABLED = CONFIG.getBoolean("config.controller.server.tlsEnabled");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -102,6 +105,9 @@ public final class Config {
                 .users(Config.USERS)
                 .passwords(Config.PASSWORDS)
                 .guardianIP(Config.GUARDIAN_IP)
+                                   .tlsEnabled(Config.TLS_ENABLED)
+                                   .tlsCertFile(Config.TLS_CERT_FILE)
+                                   .tlsKeyFile(Config.TLS_KEY_FILE)
                 .build();
     }
 

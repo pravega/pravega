@@ -62,6 +62,8 @@ public class ClientFactoryImpl implements ClientFactory {
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
     private Credentials credentials;
+    private boolean tlsEnabled;
+    private String tlsCertFile;
 
     /**
      * Creates a new instance of ClientFactory class.

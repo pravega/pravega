@@ -61,17 +61,19 @@ public interface ClientFactory extends AutoCloseable {
      * @param scope The scope string.
      * @param controllerUri The URI for controller.
      * @param creds Optional credentials to connect to controller.
+     * @param enableTls Flag to signal that TLS is enabled.
+     * @param tlsCertFile Pointer to file containing TLS certificate.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri, Credentials creds) {
+    static ClientFactory withScope(String scope, URI controllerUri, Credentials creds, boolean enableTls, String tlsCertFile) {
         val connectionFactory = new ConnectionFactoryImpl(false);
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
-                connectionFactory.getInternalExecutor(), creds), connectionFactory, creds);
+                connectionFactory.getInternalExecutor(), creds, enableTls, tlsCertFile), connectionFactory, creds);
     }
 
 
     static ClientFactory withScope(String scope, URI controllerUri) {
-        return withScope(scope, controllerUri, null);
+        return withScope(scope, controllerUri, null, false, "");
     }
 
     /**
@@ -154,5 +156,4 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Override
     void close();
-
 }

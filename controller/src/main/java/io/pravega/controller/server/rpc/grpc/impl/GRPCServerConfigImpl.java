@@ -29,9 +29,16 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String users;
     private final String passwords;
     private final String guardianIP;
+    private final boolean tlsEnabled;
+    private final String tlsCertFile;
+    private final String tlsKeyFile;
+
 
     @Builder
-    public GRPCServerConfigImpl(final int port, boolean authorizationEnabled, final String publishedRPCHost, final Integer publishedRPCPort, String users, String passwords, String guardianIP) {
+    public GRPCServerConfigImpl(final int port, boolean authorizationEnabled, final String publishedRPCHost, final Integer publishedRPCPort, String users, String passwords, String guardianIP, boolean tlsEnabled, String tlsCertFile, String tlsKeyFile) {
+        this.tlsEnabled = tlsEnabled;
+        this.tlsCertFile = tlsCertFile;
+        this.tlsKeyFile = tlsKeyFile;
         Preconditions.checkArgument(port > 0, "Invalid port.");
         if (publishedRPCHost != null) {
             Exceptions.checkNotNullOrEmpty(publishedRPCHost, "publishedRPCHost");
