@@ -239,27 +239,27 @@ abstract class AbstractFailoverTests {
 
     void waitForTxnsToComplete() {
 
-        int committedTxns1 = 0;
-        int notCommittedTxns1 = 0;
-        int neitheCommittedNorAbortedTxns1 = 0;
-        log.info("total number of transactions {}", testState.txnMap.size());
+        int committedTxnCountBeforeAwait = 0;
+        int abortedTxnCountBeforeAwait = 0;
+        int committingTxnCountBeforeAwait = 0;
+        log.info("Total number of transactions {}", testState.txnMap.size());
         for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
             String keyValue = mapEntry.getKey().toString();
             int value = (Integer) mapEntry.getValue();
             if (value == 0) {
-                notCommittedTxns1++;
-                log.info("txn with id  {} did not get committed", keyValue);
+                committingTxnCountBeforeAwait++;
+                log.info("Txn with id {}, still committing", keyValue);
             } else if (value == 1) {
-                neitheCommittedNorAbortedTxns1++;
-                log.info("txn with id {} , neither committed not aborted", keyValue);
-            } else {
-                committedTxns1++;
+                committedTxnCountBeforeAwait++;
+                log.info("Txn with id {}, committed", keyValue);
+            } else if (value == -1) {
+                abortedTxnCountBeforeAwait++;
+                log.info("Txn with id {}, aborted", keyValue);
             }
         }
-        log.info("txn committed count {}", committedTxns1);
-        log.info("txn not committed count {}", notCommittedTxns1);
-        log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns1);
-
+        log.info("Txn committed count before waiting for txn future list to complete {}", committedTxnCountBeforeAwait);
+        log.info("Txn aborted count before waiting for txn future list to complete {}", abortedTxnCountBeforeAwait);
+        log.info("Txn committing count before waiting for txn future list to complete {}", committingTxnCountBeforeAwait);
         log.info("Wait for txns to complete");
         if (!Futures.await(Futures.allOf(testState.txnStatusFutureList))) {
             log.error("Transaction futures did not complete with exceptions");
@@ -268,7 +268,7 @@ abstract class AbstractFailoverTests {
             int txnFutureCompletedExceptionallyCount = 0;
             int txnFutureNotCompletedCount = 0;
             int size = testState.txnStatusFutureList.size();
-            log.info("total number of transaction futures to wait upon to complete {}", size);
+            log.info("Total number of transaction futures to wait upon to complete {}", size);
             for (int i = 0; i < size; i++) {
                 if (testState.txnStatusFutureList.get(i).isDone()) {
                     txnFutureCompletedCount++;
@@ -282,26 +282,27 @@ abstract class AbstractFailoverTests {
             log.info("Txn futures completed exceptionally count {}", txnFutureCompletedExceptionallyCount);
             log.info("Txn futures not completed count {}", txnFutureNotCompletedCount);
 
-            int committedTxns = 0;
-            int notCommittedTxns = 0;
-            int neitheCommittedNorAbortedTxns = 0;
-            log.info("total number of transactions {}", testState.txnMap.size());
+            int committedTxnCountAfterAwait = 0;
+            int abortedTxnCountAfterAwait = 0;
+            int committingTxnCountAfterAwait = 0;
+            log.info("Total number of transactions {}", testState.txnMap.size());
             for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
                 String keyValue = mapEntry.getKey().toString();
                 int value = (Integer) mapEntry.getValue();
                 if (value == 0) {
-                    notCommittedTxns++;
-                    log.info("txn with id  {} did not get committed", keyValue);
+                    committingTxnCountAfterAwait++;
+                    log.info("Txn with id {}, still committing", keyValue);
                 } else if (value == 1) {
-                    neitheCommittedNorAbortedTxns++;
-                    log.info("txn with id {} , neither committed not aborted", keyValue);
-                } else {
-                    committedTxns++;
+                    committedTxnCountAfterAwait++;
+                    log.info("Txn with id {}, committed", keyValue);
+                } else if (value == -1) {
+                    abortedTxnCountAfterAwait++;
+                    log.info("Txn with id {}, aborted", keyValue);
                 }
             }
-            log.info("txn committed count {}", committedTxns);
-            log.info("txn not committed count {}", notCommittedTxns);
-            log.info("txn neither committed nor aborted count {}", neitheCommittedNorAbortedTxns);
+            log.info("Txn committed count after waiting for txn future list to complete {}", committedTxnCountAfterAwait);
+            log.info("Txn aborted count after waiting for txn future list to complete {}", abortedTxnCountAfterAwait);
+            log.info("Txn committing count after waiting for txn future list to complete {}", committingTxnCountAfterAwait);
 
             // check for exceptions during transaction commits
             if (testState.getTxnWriteException.get() != null) {
