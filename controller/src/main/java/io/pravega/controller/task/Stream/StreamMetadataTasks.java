@@ -406,8 +406,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isDeleted(String scope, String stream) {
-        return streamMetadataStore.getState(scope, stream, true, null, executor)
-                .handle((state, ex) -> (ex != null && ex instanceof StoreException.DataNotFoundException) || state == null);
+        return streamMetadataStore.checkStreamExists(scope, stream)
+                .thenApply(x -> !x);
     }
 
     /**
@@ -626,8 +626,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
-                                    return withRetries(() -> streamMetadataStore.setState(scope,
-                                            stream, State.ACTIVE, context, executor), executor)
+                                    return withRetries(() ->
+                                            streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                                                    config.getRetentionPolicy(), context, executor)
+                                            .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                    context, executor)), executor)
                                             .thenApply(z -> status);
                                 });
                     } else {

@@ -66,6 +66,16 @@ public interface StreamMetadataStore {
                                             final Executor executor);
 
     /**
+     * Api to check if a stream exists in the store or not.
+     * @param scopeName scope name
+     * @param streamName stream name
+     * @return true if stream exists, false otherwise
+     */
+    CompletableFuture<Boolean> checkStreamExists(final String scopeName,
+                                                 final String streamName);
+
+
+    /**
      * Api to Delete the stream related metadata.
      *
      * @param scopeName       scope name

@@ -93,6 +93,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
+                                                        final String streamName) {
+        ZKStream stream = newStream(scopeName, streamName);
+        return storeHelper.checkExists(stream.getStreamPath());
+    }
+
+    @Override
     @SneakyThrows
     public void registerBucketOwnershipListener(BucketOwnershipListener listener) {
         Preconditions.checkNotNull(listener);

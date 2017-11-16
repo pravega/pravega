@@ -511,6 +511,8 @@ public class StreamMetadataTasksTest {
         assertTrue(Futures.await(processEvent(requestEventWriter)));
 
         assertEquals(Controller.DeleteStreamStatus.Status.SUCCESS, future.get());
+
+        assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream1).join());
     }
 
     @Test
