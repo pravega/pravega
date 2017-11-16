@@ -221,6 +221,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId(),
