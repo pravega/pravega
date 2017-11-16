@@ -20,6 +20,8 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
+import lombok.AccessLevel;
+import lombok.Getter;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.utils.ZKPaths;
 
@@ -67,6 +69,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     private final String completedTxPath;
     private final String markerPath;
     private final String scopePath;
+    @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
 
     private final Cache<Integer> cache;

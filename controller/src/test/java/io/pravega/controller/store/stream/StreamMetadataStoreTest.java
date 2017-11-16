@@ -482,6 +482,26 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void deleteTest() throws Exception {
+        final String scope = "ScopeDelete";
+        final String stream = "StreamDelete";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+        assertTrue(store.checkStreamExists(scope, stream).join());
+
+        store.deleteStream(scope, stream, null, executor).get();
+        assertFalse(store.checkStreamExists(scope, stream).join());
+        DeleteScopeStatus status = store.deleteScope(scope).join();
+        assertEquals(status.getStatus(), DeleteScopeStatus.Status.SUCCESS);
+    }
+
+    @Test
     public void scaleWithTxTest() throws Exception {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";

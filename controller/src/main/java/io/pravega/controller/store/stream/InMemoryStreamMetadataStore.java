@@ -108,6 +108,13 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     @Synchronized
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
+                                                        final String streamName) {
+        return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<Void> deleteStream(final String scopeName, final String streamName,
                                                 final OperationContext context,
                                                 final Executor executor) {
