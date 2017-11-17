@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin.impl;
 
+import com.google.auth.Credentials;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.admin.StreamManager;
@@ -36,8 +37,18 @@ public class StreamManagerImpl implements StreamManager {
     private final ScheduledExecutorService executor; 
     
     public StreamManagerImpl(URI controllerUri) {
+        this(controllerUri, null, false, "");
+    }
+
+    public StreamManagerImpl(URI controllerUri, Credentials creds, boolean enableTls, String tlsCertFile) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder()
+                                                                                .credentials(creds)
+                                                                                .enableTls(enableTls)
+                                                                                .tlsCertFile(tlsCertFile)
+                                                                                .build(),
+                executor);
+
     }
 
     @VisibleForTesting

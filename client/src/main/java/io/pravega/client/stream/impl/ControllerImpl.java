@@ -12,11 +12,13 @@ package io.pravega.client.stream.impl;
 import com.google.auth.Credentials;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
@@ -123,7 +125,7 @@ public class ControllerImpl implements Controller {
      */
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(controllerURI, config, executor, null, false, null);
+        this(controllerURI, config, executor, config.getCredentials(), config.isEnableTls(), config.getTlsCertFile());
     }
 
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
@@ -132,8 +134,8 @@ public class ControllerImpl implements Controller {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
                                 .nameResolverFactory(new ControllerResolverFactory())
                                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                                .usePlaintext(true), config, executor, creds, enableTls, tlsCertFile);
+                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
+                config, executor, creds, enableTls, tlsCertFile);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -144,6 +146,8 @@ public class ControllerImpl implements Controller {
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
      * @param creds          The credentials if any.
+     * @param enableTls      The flag to turn on TLS for controller interactions.
+     * @param tlsCertFile    File containing the public certificate for TLS.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
@@ -158,12 +162,20 @@ public class ControllerImpl implements Controller {
                 .throwingOn(Exception.class);
 
         if (enableTls) {
-            SslContextBuilder sslContextBulder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
+            SslContextBuilder sslContextBuilder = null;
+            if (!Strings.isNullOrEmpty(tlsCertFile)) {
+                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
+            } else {
+                sslContextBuilder = GrpcSslContexts.forClient();
+            }
             try {
-               channelBuilder =  ( (NettyChannelBuilder) channelBuilder).sslContext(sslContextBulder.build());
+                channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
+                                                                       .negotiationType(NegotiationType.TLS);
             } catch (SSLException e) {
                 throw new CompletionException(e);
             }
+        } else {
+            channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
         }
         // Create Async RPC client.
         this.channel = channelBuilder.build();

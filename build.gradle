@@ -147,6 +147,7 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile "io.netty:netty-tcnative-boringssl-static:2.0.6.Final"
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')

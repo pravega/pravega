@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc;
 
+import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
@@ -45,7 +46,7 @@ public class GRPCServer extends AbstractIdleService {
             builder.intercept(new GuardianAuthorizer(serverConfig.getGuardianIP()));
         }
 
-        if (serverConfig.isTlsEnabled()) {
+        if (serverConfig.isTlsEnabled() && !Strings.isNullOrEmpty(serverConfig.getTlsCertFile())) {
             builder = builder.useTransportSecurity(new File(serverConfig.getTlsCertFile()),
             new File(serverConfig.getTlsKeyFile()));
         }

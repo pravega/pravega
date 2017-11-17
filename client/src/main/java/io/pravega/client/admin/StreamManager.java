@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin;
 
+import com.google.auth.Credentials;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.StreamCut;
@@ -27,9 +28,13 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return new StreamManagerImpl(controller);
+        return create(controller, null, false, "");
     }
-    
+
+    public static StreamManager create(URI controller, Credentials credentials, boolean isTlsEnabled, String tlsCertFile) {
+        return new StreamManagerImpl(controller, credentials, isTlsEnabled, tlsCertFile);
+    }
+
     /**
      * Creates a new stream
      * <p>
