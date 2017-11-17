@@ -11,9 +11,8 @@ package io.pravega.test.system;
 
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
-import java.net.URI;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
@@ -21,7 +20,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
+import java.net.URI;
 import static org.apache.curator.framework.imps.CuratorFrameworkState.STARTED;
 import static org.junit.Assert.assertEquals;
 
@@ -35,7 +34,7 @@ public class ZookeeperTest {
      */
     @Environment
     public static void setup() throws MarathonException {
-        Service zk = new ZookeeperService("zookeeper");
+        Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
         }
@@ -49,10 +48,10 @@ public class ZookeeperTest {
     @Test(timeout = 5 * 60 * 1000)
     public void zkTest() {
         log.info("Start execution of ZkTest");
-        Service zk = new ZookeeperService("zookeeper", 0, 0.0, 0.0);
+        Service zk = Utils.createZookeeperService();
         URI zkUri = zk.getServiceDetails().get(0);
         CuratorFramework curatorFrameworkClient =
-                CuratorFrameworkFactory.newClient(zkUri.getHost()+":"+2181, new RetryOneTime(5000));
+                CuratorFrameworkFactory.newClient(zkUri.getHost() +":2181", new RetryOneTime(5000));
         curatorFrameworkClient.start();
         log.info("CuratorFramework status {} ", curatorFrameworkClient.getState());
         assertEquals("Connection to zk client ", STARTED, curatorFrameworkClient.getState());

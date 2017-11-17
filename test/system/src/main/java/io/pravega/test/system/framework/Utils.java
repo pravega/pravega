@@ -9,10 +9,28 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
+import io.pravega.test.system.framework.services.docker.HDFSDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
+import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
+import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
+import io.pravega.test.system.framework.services.marathon.BookkeeperService;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
+import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+
+import java.net.URI;
+
 /**
  * Utility methods used inside the TestFramework.
  */
 public class Utils {
+
+    public static final int DOCKER_CONTROLLER_PORT = 9090;
+    public static final int MARATHON_CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 9091;
+    public static final String DOCKER_NETWORK = "docker-network";
 
     /**
      * Get Configuration from environment or system property.
@@ -22,6 +40,37 @@ public class Utils {
      */
     public static String getConfig(final String key, final String defaultValue) {
         return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
+    }
+
+    public static Service createZookeeperService() {
+        return Utils.isDockerLocalExecEnabled() ? new ZookeeperDockerService("zookeeper")
+                : new ZookeeperService("zookeeper");
+    }
+
+    public static Service createBookkeeperService(final URI zkUri) {
+        return Utils.isDockerLocalExecEnabled() ?
+                new BookkeeperDockerService("bookkeeper", zkUri) :
+                new BookkeeperService("bookkeeper", zkUri);
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri) {
+        return Utils.isDockerLocalExecEnabled()
+                ? new PravegaControllerDockerService("controller", zkUri)
+                : new PravegaControllerService("controller", zkUri);
+    }
+
+    public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
+        URI hdfsUri = null;
+        if (Utils.isDockerLocalExecEnabled()) {
+            Service hdfsService = new HDFSDockerService("hdfs");
+            if (!hdfsService.isRunning()) {
+                hdfsService.start(true);
+            }
+            hdfsUri = hdfsService.getServiceDetails().get(0);
+        }
+        return Utils.isDockerLocalExecEnabled() ?
+                new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
+                : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
     }
 
     /**
@@ -37,5 +86,11 @@ public class Utils {
     public static boolean isSkipServiceInstallationEnabled() {
         String config = getConfig("skipServiceInstallation", "true");
         return config.trim().equalsIgnoreCase("true") ? true : false;
+    }
+
+    public static boolean isDockerLocalExecEnabled() {
+        String dockerConfig = getConfig("execType", "LOCAL");
+        return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
+
     }
 }
