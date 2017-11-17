@@ -421,7 +421,9 @@ public class InMemoryStorage implements SyncStorage {
 
         @Override
         public String toString() {
-            return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
+            synchronized (this.lock) {
+                return String.format("%s: Length = %d, Sealed = %s", this.name, this.length, this.sealed);
+            }
         }
 
         @Data

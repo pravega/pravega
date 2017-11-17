@@ -15,8 +15,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.function.Predicate;
-
-import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,7 +30,7 @@ public class TypedPropertiesTests {
             propertyId -> toString(TypedPropertiesTests.getInt32Value(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getInt64Value(propertyId)),
             propertyId -> toString(TypedPropertiesTests.getBooleanValue(propertyId)),
-            propertyId -> toString(TypedPropertiesTests.getRetryWithBackoffValue(propertyId)));
+            propertyId -> toString(TypedPropertiesTests.getEnumValue(propertyId)));
 
     /**
      * Tests the ability to get a property as a String.
@@ -77,13 +75,15 @@ public class TypedPropertiesTests {
     }
 
     /**
-     * Tests the ability to get a property that converts to Retry.RetryWithBackoff.
+     * Tests the ability to get a property as an Enum.
      */
     @Test
-    public void testGetRetryWithBackoffProperty() throws Exception {
+    public void testGetEnum() throws Exception {
         Properties props = new Properties();
         populateData(props);
-        testData(props, TypedProperties::getRetryWithBackoff, TypedPropertiesTests::isRetry);
+        testData(props,
+                (TypedProperties config, Property<TestEnum> property) -> config.getEnum(property, TestEnum.class),
+                TypedPropertiesTests::isEnum);
     }
 
     private <T> void testData(Properties props, ExtractorFunction<T> methodToTest, Predicate<String> valueValidator) throws Exception {
@@ -174,12 +174,20 @@ public class TypedPropertiesTests {
         return propertyId % 2 == 1;
     }
 
-    private static String getStringValue(int propertyId) {
-        return "String_" + Integer.toHexString(propertyId);
+    private static TestEnum getEnumValue(int propertyId) {
+        switch (propertyId % 3) {
+            case 0:
+                return TestEnum.Value1;
+            case 1:
+                return TestEnum.Value2;
+            case 2:
+            default:
+                return TestEnum.Value3;
+        }
     }
 
-    private static Retry.RetryWithBackoff getRetryWithBackoffValue(int propertyId) {
-        return Retry.withExpBackoff(propertyId, propertyId + 1, propertyId + 2, propertyId + 3);
+    private static String getStringValue(int propertyId) {
+        return "String_" + Integer.toHexString(propertyId);
     }
 
     private static boolean isInt32(String propertyValue) {
@@ -195,18 +203,23 @@ public class TypedPropertiesTests {
         return propertyValue.equalsIgnoreCase("true") || propertyValue.equalsIgnoreCase("false");
     }
 
-    private static boolean isRetry(String propertyValue) {
-        return propertyValue.contains(",") && propertyValue.contains("=");
+    private static boolean isEnum(String propertyValue) {
+        try {
+            TestEnum.valueOf(propertyValue);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static String toString(Object o) {
-        if (o instanceof Retry.RetryWithBackoff) {
-            val value = (Retry.RetryWithBackoff) o;
-            return String.format("initialMillis=%s,multiplier=%s,attempts=%s,maxDelay=%s",
-                    +value.getInitialMillis(), value.getMultiplier(), value.getAttempts(), value.getMaxDelay());
-        } else {
-            return o.toString();
-        }
+        return o.toString();
+    }
+
+    private enum TestEnum {
+        Value1,
+        Value2,
+        Value3
     }
 
     private interface ExtractorFunction<R> {

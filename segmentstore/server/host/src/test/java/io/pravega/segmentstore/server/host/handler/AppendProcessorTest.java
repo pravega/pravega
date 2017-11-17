@@ -23,6 +23,7 @@ import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.util.Arrays;
 import java.util.Collection;
@@ -372,6 +373,36 @@ public class AppendProcessorTest {
         verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 300, 200, eventCount),
                              AppendProcessor.TIMEOUT);
         
+        verifyNoMoreInteractions(store);
+    }
+
+
+    @Test
+    public void testUnsupportedOperation() {
+        String streamSegmentName = "testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+
+        setupGetStreamSegmentInfo(streamSegmentName, clientId, store);
+        CompletableFuture<Void> result = Futures.failedFuture(new UnsupportedOperationException());
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
+                .thenReturn(result);
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
+        processor.append(new Append(streamSegmentName, clientId, data.length, Unpooled.wrappedBuffer(data), null));
+        verify(store).getStreamSegmentInfo(anyString(), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).append(streamSegmentName,
+                data,
+                updateEventNumber(clientId, data.length),
+                AppendProcessor.TIMEOUT);
+
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection, atLeast(0)).resumeReading();
+        verify(connection).send(new OperationUnsupported(data.length, "appending data"));
+        verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
 

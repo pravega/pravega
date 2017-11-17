@@ -108,7 +108,6 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
         return new LogReader.ReadItem(this.currentLedger.reader.nextElement(), this.currentLedger.metadata);
     }
 
-    @SneakyThrows
     private void openNextLedger(LedgerAddress address) throws DurableDataLogException {
         if (address == null) {
             // We have reached the end.

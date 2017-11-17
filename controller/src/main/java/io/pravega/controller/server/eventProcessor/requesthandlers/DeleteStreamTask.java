@@ -73,7 +73,9 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
                 .thenComposeAsync(count ->
                         streamMetadataTasks.notifyDeleteSegments(scope, stream, count)
-                                .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
+                            .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
+                                executor), executor)
+                            .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
                                         executor), executor));
     }
 

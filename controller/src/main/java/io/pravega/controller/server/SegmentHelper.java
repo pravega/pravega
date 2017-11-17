@@ -416,6 +416,41 @@ public class SegmentHelper {
         return result;
     }
 
+    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, int segmentNumber,
+                                                                            HostControllerStore hostControllerStore, ConnectionFactory clientCF) {
+        final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentNumber, hostControllerStore);
+
+        final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
+                result.complete(streamInfo);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                result.completeExceptionally(error);
+            }
+        };
+
+        WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
+                Segment.getScopedName(scope, stream, segmentNumber));
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
                                             final CompletableFuture<ResultT> resultFuture,
                                             final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {

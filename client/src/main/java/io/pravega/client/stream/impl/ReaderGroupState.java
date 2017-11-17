@@ -350,7 +350,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segment) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to release a segment that was not assigned to it " + segment);
@@ -374,7 +374,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             Long offset = state.unassignedSegments.remove(segment);
             if (offset == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
@@ -417,7 +417,7 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segmentCompleted) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);

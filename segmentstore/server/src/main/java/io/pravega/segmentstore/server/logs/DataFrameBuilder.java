@@ -111,7 +111,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * written to the DataFrame will be discarded. Note that if a LogItem spans multiple DataFrames, in case of failure,
      * the content serialized to already committed DataFrames will not be discarded. That case will have to be dealt with
      * upon reading DataFrames from the DataFrameLog.
-     * <p/>
+     *
      * Any exceptions that resulted from the Data Frame failing to commit will be routed through the dataFrameCommitFailureCallback
      * callback, as well as being thrown from this exception.
      *

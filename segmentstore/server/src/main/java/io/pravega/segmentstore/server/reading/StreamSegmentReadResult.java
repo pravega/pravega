@@ -130,7 +130,7 @@ class StreamSegmentReadResult implements ReadResult {
     /**
      * Gets the next ReadResultEntry that exists in the ReadResult. This will return null if hasNext() indicates false
      * (as opposed from throwing a NoSuchElementException, like a general iterator).
-     * <p/>
+     *
      * Notes:
      * <ul>
      * <li> Calls to next() will block until the ReadResultEntry.getContent() for the previous call to next() has been completed (normally or exceptionally).
