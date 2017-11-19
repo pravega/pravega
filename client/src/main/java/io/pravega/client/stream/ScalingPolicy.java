@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public enum Type {
+    public enum RetentionType {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
@@ -39,20 +39,76 @@ public class ScalingPolicy implements Serializable {
         BY_RATE_IN_EVENTS_PER_SEC,
     }
 
-    private final Type type;
+    private final RetentionType type;
     private final int targetRate;
     private final int scaleFactor;
     private final int minNumSegments;
-    
+
+    /**
+     * Create a scaling policy to configure a stream to have a fixed number of segments.
+     *
+     * @param numSegments
+     * @return
+     */
     public static ScalingPolicy fixed(int numSegments) {
-        return new ScalingPolicy(Type.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
+        return new ScalingPolicy(RetentionType.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
     }
-    
+
+    /**
+     * Create a scaling policy to configure a stream to scale up and down according
+     * to event rate. Pravega scales a stream segment up in the case that:
+     *   - The two-minute rate is greater than 5x the target rate
+     *   - The five-minute rate is greater than 2x the target rate
+     *   - The ten-minute rate is greater than the target rate
+     *
+     * It scales a segment down (merges with a neighbor segment) in the case that:
+     *   - The two-, five-, ten-minute rate is smaller than the target rate
+     *   - The twenty-minute rate is smaller than half of the target rate
+     *
+     * The scale factor bounds the number of new segments that can be created upon
+     * a scaling event. In the case the controller computes the number of splits
+     * to be greater than the scale factor for a given scale-up event, the number
+     * of splits for the event is going to be equal to the scale factor.
+     *
+     * The policy is configured with a minimum number of segments for the stream,
+     * independent of the number of scale down events.
+     *
+     * @param targetRate Target rate in events per second to enable scaling events.
+     * @param scaleFactor Maximum number of splits of a segment for a scale-up event.
+     * @param minNumSegments Minimum number of segments that a stream can have
+     *                       independent of the number of scale down events.
+     * @return Scaling policy object.
+     */
     public static ScalingPolicy byEventRate(int targetRate, int scaleFactor, int minNumSegments) {
-        return new ScalingPolicy(Type.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
+        return new ScalingPolicy(RetentionType.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
     }
-    
+
+    /**
+     * Create a scaling policy to configure a stream to scale up and down according
+     * to byte rate. Pravega scales a stream segment up in the case that:
+     *   - The two-minute rate is greater than 5x the target rate
+     *   - The five-minute rate is greater than 2x the target rate
+     *   - The ten-minute rate is greater than the target rate
+     *
+     * It scales a segment down (merges with a neighbor segment) in the case that:
+     *   - The two-, five-, ten-minute rate is smaller than the target rate
+     *   - The twenty-minute rate is smaller than half of the target rate
+     *
+     * The scale factor bounds the number of new segments that can be created upon
+     * a scaling event. In the case the controller computes the number of splits
+     * to be greater than the scale factor for a given scale-up event, the number
+     * of splits for the event is going to be equal to the scale factor.
+     *
+     * The policy is configured with a minimum number of segments for a stream,
+     * independent of the number of scale down events.
+     *
+     * @param targetKBps Target rate in kilo bytes per second to enable scaling events.
+     * @param scaleFactor Maximum number of splits of a segment for a scale-up event.
+     * @param minNumSegments Minimum number of segments that a stream can have
+     *                       independent of the number of scale down events.
+     * @return Scaling policy object.
+     */
     public static ScalingPolicy byDataRate(int targetKBps, int scaleFactor, int minNumSegments) {
-        return new ScalingPolicy(Type.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
+        return new ScalingPolicy(RetentionType.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
     }
 }
