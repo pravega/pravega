@@ -15,6 +15,7 @@ import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
@@ -91,9 +92,9 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         // In other cases, esp. because lock attempt fails, we reschedule this task for execution
                         // at a later point of time.
                         if (ex != null) {
-                            Throwable error = getRealCause(ex);
+                            Throwable error = Exceptions.unwrap(ex);
                             if (error instanceof RetriesExhaustedException) {
-                                error = getRealCause(error.getCause());
+                                error = Exceptions.unwrap(error.getCause());
                             }
 
                             if (error instanceof StoreException.WriteConflictException ||
@@ -252,14 +253,6 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     @Override
     public boolean containsTxn(final String scope, final String stream, final UUID txnId) {
         return map.containsKey(getKey(scope, stream, txnId));
-    }
-
-    private Throwable getRealCause(Throwable e) {
-        if ((e instanceof CompletionException || e instanceof ExecutionException) && e.getCause() != null) {
-            return e.getCause();
-        } else {
-            return e;
-        }
     }
 
     private String getKey(final String scope, final String stream, final UUID txid) {
