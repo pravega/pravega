@@ -16,6 +16,7 @@ import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -91,6 +92,10 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                         // at a later point of time.
                         if (ex != null) {
                             Throwable error = getRealCause(ex);
+                            if (error instanceof RetriesExhaustedException) {
+                                error = getRealCause(error.getCause());
+                            }
+
                             if (error instanceof StoreException.WriteConflictException ||
                                     error instanceof StoreException.DataNotFoundException ||
                                     error instanceof StoreException.IllegalStateException) {
