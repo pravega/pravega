@@ -68,7 +68,7 @@ public final class ModelHelper {
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
         return ScalingPolicy.builder()
-                            .type(ScalingPolicy.Type.valueOf(policy.getType().name()))
+                            .scalingType(ScalingPolicy.ScalingType.valueOf(policy.getType().name()))
                             .targetRate(policy.getTargetRate())
                             .scaleFactor(policy.getScaleFactor())
                             .minNumSegments(policy.getMinNumSegments())
@@ -86,8 +86,8 @@ public final class ModelHelper {
         // This is required since proto3 does not have any other way to detect if a field has been set or not.
         if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
-                    .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
-                    .value(policy.getValue())
+                    .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getType().name()))
+                    .retentionParam(policy.getValue())
                     .build();
         } else {
             return null;
@@ -228,7 +228,7 @@ public final class ModelHelper {
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
-                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getType().name()))
+                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScalingType().name()))
                 .setTargetRate(policyModel.getTargetRate())
                 .setScaleFactor(policyModel.getScaleFactor())
                 .setMinNumSegments(policyModel.getMinNumSegments())
@@ -244,8 +244,8 @@ public final class ModelHelper {
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
             return Controller.RetentionPolicy.newBuilder()
-                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
-                    .setValue(policyModel.getValue())
+                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                    .setValue(policyModel.getRetentionParam())
                     .build();
         } else {
             return null;

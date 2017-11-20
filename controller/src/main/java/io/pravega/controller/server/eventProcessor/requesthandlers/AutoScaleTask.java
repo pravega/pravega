@@ -87,7 +87,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScalingType().equals(ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
@@ -107,7 +107,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScalingType().equals(ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
 

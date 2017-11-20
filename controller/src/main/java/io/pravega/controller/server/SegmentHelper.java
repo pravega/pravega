@@ -490,12 +490,12 @@ public class SegmentHelper {
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
         final int desiredRate;
         final byte rateType;
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScalingType().equals(ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS)) {
             desiredRate = 0;
             rateType = WireCommands.CreateSegment.NO_SCALE;
         } else {
             desiredRate = Math.toIntExact(policy.getTargetRate());
-            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC)) {
+            if (policy.getScalingType().equals(ScalingPolicy.ScalingType.BY_RATE_IN_KBYTES_PER_SEC)) {
                 rateType = WireCommands.CreateSegment.IN_KBYTES_PER_SEC;
             } else {
                 rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;

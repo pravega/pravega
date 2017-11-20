@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public enum RetentionType {
+    public enum ScalingType {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
@@ -39,7 +39,7 @@ public class ScalingPolicy implements Serializable {
         BY_RATE_IN_EVENTS_PER_SEC,
     }
 
-    private final RetentionType type;
+    private final ScalingType scalingType;
     private final int targetRate;
     private final int scaleFactor;
     private final int minNumSegments;
@@ -47,11 +47,11 @@ public class ScalingPolicy implements Serializable {
     /**
      * Create a scaling policy to configure a stream to have a fixed number of segments.
      *
-     * @param numSegments
-     * @return
+     * @param numSegments Fixed number of segments for the stream.
+     * @return Scaling policy object.
      */
     public static ScalingPolicy fixed(int numSegments) {
-        return new ScalingPolicy(RetentionType.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
+        return new ScalingPolicy(ScalingType.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
     }
 
     /**
@@ -80,7 +80,7 @@ public class ScalingPolicy implements Serializable {
      * @return Scaling policy object.
      */
     public static ScalingPolicy byEventRate(int targetRate, int scaleFactor, int minNumSegments) {
-        return new ScalingPolicy(RetentionType.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
+        return new ScalingPolicy(ScalingType.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
     }
 
     /**
@@ -109,6 +109,6 @@ public class ScalingPolicy implements Serializable {
      * @return Scaling policy object.
      */
     public static ScalingPolicy byDataRate(int targetKBps, int scaleFactor, int minNumSegments) {
-        return new ScalingPolicy(RetentionType.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
+        return new ScalingPolicy(ScalingType.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
     }
 }

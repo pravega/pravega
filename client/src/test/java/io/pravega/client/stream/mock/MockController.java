@@ -123,7 +123,7 @@ public class MockController implements Controller {
         StreamConfiguration config = createdStreams.get(stream);
         Preconditions.checkArgument(config != null, "Stream must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
-        if (scalingPolicy.getType() != ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+        if (scalingPolicy.getScalingType() != ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
         }
         List<Segment> result = new ArrayList<>(scalingPolicy.getMinNumSegments());
@@ -409,7 +409,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
         StreamConfiguration configuration = createdStreams.get(from.getStream());
-        if (configuration.getScalingPolicy().getType() != ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+        if (configuration.getScalingPolicy().getScalingType() != ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
         }
         return CompletableFuture.completedFuture(Collections.emptySet());

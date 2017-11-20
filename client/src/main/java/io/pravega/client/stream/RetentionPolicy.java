@@ -36,7 +36,7 @@ public class RetentionPolicy implements Serializable {
     }
 
     private final RetentionType retentionType;
-    private final long retentionDurationOrSize;
+    private final long retentionParam;
 
     /**
      * Create a retention policy to configure a stream to periodically truncated

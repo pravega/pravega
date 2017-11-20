@@ -128,13 +128,13 @@ public class ModelHelper {
      */
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
         ScalingConfig scalingPolicy = new ScalingConfig();
-        if (streamConfiguration.getScalingPolicy().getType() == ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+        if (streamConfiguration.getScalingPolicy().getScalingType() == ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS) {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
-                    getType().name()));
+                    getScalingType().name()));
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
         } else {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
-                    getType().name()));
+                    getScalingType().name()));
             scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
             scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
@@ -143,15 +143,15 @@ public class ModelHelper {
         RetentionConfig retentionConfig = null;
         if (streamConfiguration.getRetentionPolicy() != null) {
             retentionConfig = new RetentionConfig();
-            switch (streamConfiguration.getRetentionPolicy().getType()) {
+            switch (streamConfiguration.getRetentionPolicy().getRetentionType()) {
                 case SIZE:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_SIZE_MB);
-                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getValue() / (1024 * 1024));
+                    retentionConfig.setValue(streamConfiguration.getRetentionPolicy().getRetentionParam() / (1024 * 1024));
                     break;
                 case TIME:
                     retentionConfig.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
                     retentionConfig.setValue(
-                            Duration.ofMillis(streamConfiguration.getRetentionPolicy().getValue()).toDays());
+                            Duration.ofMillis(streamConfiguration.getRetentionPolicy().getRetentionParam()).toDays());
                     break;
             }
         }
