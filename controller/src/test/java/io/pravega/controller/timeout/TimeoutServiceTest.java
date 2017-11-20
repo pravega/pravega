@@ -69,6 +69,7 @@ public class TimeoutServiceTest {
     private final static long LEASE = 2000;
     private final static long MAX_EXECUTION_TIME = 5000;
     private final static long SCALE_GRACE_PERIOD = 30000;
+    private final static int RETRY_DELAY = 1000;
 
     private final StreamMetadataStore streamStore;
     private final TimerWheelTimeoutService timeoutService;
@@ -281,7 +282,7 @@ public class TimeoutServiceTest {
         Assert.assertEquals(txnData.getVersion(), 1);
 
         // timeoutService1 should believe that LEASE has expired and should get non empty completion tasks
-        result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE), TimeUnit.MILLISECONDS);
+        result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE + RETRY_DELAY), TimeUnit.MILLISECONDS);
         Assert.assertNotNull(result);
 
         // the txn may have been attempted to be aborted by timeoutService1 but would have failed. So txn to remain open
@@ -292,7 +293,7 @@ public class TimeoutServiceTest {
         result = timeoutService2.getTaskCompletionQueue().poll(0L, TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
 
-        result = timeoutService2.getTaskCompletionQueue().poll(2 * LEASE, TimeUnit.MILLISECONDS);
+        result = timeoutService2.getTaskCompletionQueue().poll(2 * LEASE + RETRY_DELAY, TimeUnit.MILLISECONDS);
         Assert.assertNotNull(result);
 
         // now txn should have moved to aborting because timeoutservice2 has initiated abort
@@ -480,7 +481,7 @@ public class TimeoutServiceTest {
         timeoutService.addTxn(SCOPE, STREAM, txData.getId(), txData.getVersion() + 1, LEASE,
                 txData.getMaxExecutionExpiryTime(), txData.getScaleGracePeriod());
 
-        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.25 * LEASE), TimeUnit.MILLISECONDS);
+        Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.25 * LEASE + RETRY_DELAY), TimeUnit.MILLISECONDS);
         Assert.assertNotNull(result);
         Assert.assertTrue(result.isPresent());
         Assert.assertEquals(StoreException.WriteConflictException.class, result.get().getClass());

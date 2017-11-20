@@ -241,7 +241,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return sealTxnBody(hostId, scope, stream, false, txId, version, context);
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
+                    RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
 
