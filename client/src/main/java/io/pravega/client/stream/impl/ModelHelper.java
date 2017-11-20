@@ -68,7 +68,7 @@ public final class ModelHelper {
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
         return ScalingPolicy.builder()
-                            .scalingType(ScalingPolicy.ScalingType.valueOf(policy.getType().name()))
+                            .scaleType(ScalingPolicy.ScaleType.valueOf(policy.getType().name()))
                             .targetRate(policy.getTargetRate())
                             .scaleFactor(policy.getScaleFactor())
                             .minNumSegments(policy.getMinNumSegments())
@@ -228,7 +228,7 @@ public final class ModelHelper {
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
-                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScalingType().name()))
+                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScaleType().name()))
                 .setTargetRate(policyModel.getTargetRate())
                 .setScaleFactor(policyModel.getScaleFactor())
                 .setMinNumSegments(policyModel.getMinNumSegments())

@@ -100,7 +100,7 @@ public class ModelHelperTest {
     @Test
     public void encodeScalingPolicy() {
         ScalingPolicy policy = ModelHelper.encode(ModelHelper.decode(ScalingPolicy.byEventRate(100, 2, 3)));
-        assertEquals(ScalingPolicy.ScalingType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScalingType());
+        assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());
@@ -173,7 +173,7 @@ public class ModelHelperTest {
           .build()));
         assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
-        assertEquals(ScalingPolicy.ScalingType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScalingType());
+        assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());
         assertEquals(2, policy.getScaleFactor());
         assertEquals(3, policy.getMinNumSegments());

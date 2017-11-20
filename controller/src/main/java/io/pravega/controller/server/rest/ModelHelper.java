@@ -128,13 +128,13 @@ public class ModelHelper {
      */
     public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
         ScalingConfig scalingPolicy = new ScalingConfig();
-        if (streamConfiguration.getScalingPolicy().getScalingType() == ScalingPolicy.ScalingType.FIXED_NUM_SEGMENTS) {
+        if (streamConfiguration.getScalingPolicy().getScaleType() == ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
-                    getScalingType().name()));
+                    getScaleType().name()));
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
         } else {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
-                    getScalingType().name()));
+                    getScaleType().name()));
             scalingPolicy.setTargetRate(streamConfiguration.getScalingPolicy().getTargetRate());
             scalingPolicy.setScaleFactor(streamConfiguration.getScalingPolicy().getScaleFactor());
             scalingPolicy.setMinSegments(streamConfiguration.getScalingPolicy().getMinNumSegments());
