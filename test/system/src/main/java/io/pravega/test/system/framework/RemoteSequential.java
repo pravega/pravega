@@ -75,8 +75,6 @@ public class RemoteSequential implements TestExecutor {
                                 methodName);
 
                     }
-                    //Wait for a minute between tests runs.
-                    Exceptions.handleInterrupted(() -> TimeUnit.MINUTES.sleep(1));
                 });
     }
 
