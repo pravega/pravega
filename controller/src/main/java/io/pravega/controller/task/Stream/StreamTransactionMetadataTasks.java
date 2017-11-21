@@ -455,9 +455,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.pingTransaction(
                             scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
                         if (e != null) {
-                            log.warn("Txn={}, failed updating txn node in store", txnId);
+                            log.debug("Txn={}, failed updating txn node in store", txnId);
                         } else {
-                            log.warn("Txn={}, updated txn node in store", txnId);
+                            log.debug("Txn={}, updated txn node in store", txnId);
                         }
                     });
 
@@ -536,7 +536,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
-                        log.warn("Txn={}, failed sealing txn", txnId);
+                        log.debug("Txn={}, failed sealing txn", txnId);
                     } else {
                         log.debug("Txn={}, sealed successfully, commit={}", txnId, commit);
                     }
@@ -605,7 +605,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return txnStatus;
                 }, executor)
                 .exceptionally(ex -> {
-                    log.warn("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
+                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
                             .getSimpleName(), streamName);
                     throw new WriteFailedException(ex);
                 });
