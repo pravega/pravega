@@ -81,7 +81,7 @@ public class RemoteSequential implements TestExecutor {
     }
 
     @Override
-    public CompletableFuture<Void> stopTestExecution(String testID) {
+    public void stopTestExecution() {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
