@@ -10,7 +10,6 @@
 package io.pravega.client.stream.impl;
 
 import io.grpc.Server;
-import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.common.Exceptions;
