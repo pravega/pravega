@@ -282,14 +282,14 @@ public class SegmentHelper {
 
             @Override
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
-                log.info("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
+                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
 
                 result.complete(txId);
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.info("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
+                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
                 result.complete(txId);
             }
 
@@ -334,7 +334,7 @@ public class SegmentHelper {
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
-                log.info("commitTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
+                log.debug("commitTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
@@ -395,7 +395,7 @@ public class SegmentHelper {
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
-                log.info("abortTransaction {}/{}/{} transactionAborted", scope, stream, segmentNumber);
+                log.debug("abortTransaction {}/{}/{} transactionAborted", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
