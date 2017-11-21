@@ -69,7 +69,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream) {
-        log.debug("{}/{} deleting segments", scope, stream);
+        log.info("{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getSegmentCount(scope, stream, context, executor)
                 .thenComposeAsync(count ->
                         streamMetadataTasks.notifyDeleteSegments(scope, stream, count)

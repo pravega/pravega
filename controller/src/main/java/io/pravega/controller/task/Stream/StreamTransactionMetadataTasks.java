@@ -317,9 +317,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         CompletableFuture<Void> addIndex = validate.thenComposeAsync(ignore ->
                 streamMetadataStore.addTxnToIndex(hostId, resource, 0), executor).whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                        log.info("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
-                        log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                        log.info("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
                     }
                 });
 
@@ -328,9 +328,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                         scaleGracePeriod, ctx, executor), executor).whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug("Txn={}, failed creating txn in store", txnId);
+                        log.info("Txn={}, failed creating txn in store", txnId);
                     } else {
-                        log.debug("Txn={}, created in store", txnId);
+                        log.info("Txn={}, created in store", txnId);
                     }
                 });
 
@@ -342,7 +342,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
                 // Method notifyTxnCreation ensures that notification completes
                 // even in the presence of n/w or segment store failures.
-                log.debug("Txn={}, notified segments stores", txnId));
+                log.info("Txn={}, notified segments stores", txnId));
 
         // Step 5. Start tracking txn in timeout service
         return notify.whenCompleteAsync((result, ex) -> {
@@ -353,7 +353,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
             }
             timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime, scaleGracePeriod);
-            log.debug("Txn={}, added to timeout service on host={}", txnId, hostId);
+            log.info("Txn={}, added to timeout service on host={}", txnId, hostId);
         }, executor).thenApplyAsync(v -> new ImmutablePair<>(txnFuture.join(), segmentsFuture.join()), executor);
     }
 
@@ -413,7 +413,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             return CompletableFuture.completedFuture(createStatus(Status.DISCONNECTED));
         }
 
-        log.debug("Txn={}, updating txn node in store and extending lease", txnId);
+        log.info("Txn={}, updating txn node in store and extending lease", txnId);
         return fenceTxnUpdateLease(scope, stream, txnId, lease, ctx);
     }
 
@@ -444,9 +444,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 // Step 2. Add txn to host-transaction index
                 CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, expVersion).whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                        log.info("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
-                        log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                        log.info("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
                     }
                 });
 
@@ -455,9 +455,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.pingTransaction(
                             scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
                         if (e != null) {
-                            log.debug("Txn={}, failed updating txn node in store", txnId);
+                            log.warn("Txn={}, failed updating txn node in store", txnId);
                         } else {
-                            log.debug("Txn={}, updated txn node in store", txnId);
+                            log.warn("Txn={}, updated txn node in store", txnId);
                         }
                     });
 
@@ -471,7 +471,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         // Hence explicitly add a new timeout task.
                         if (timeoutService.containsTxn(scope, stream, txnId)) {
                             // If timeout service knows about this transaction, attempt to increase its lease.
-                            log.debug("Txn={}, extending lease in timeout service", txnId);
+                            log.info("Txn={}, extending lease in timeout service", txnId);
                             timeoutService.pingTxn(scope, stream, txnId, version, lease);
                         } else {
                             timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime, scaleGracePeriod);
@@ -525,9 +525,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
         addIndex.whenComplete((v, e) -> {
             if (e != null) {
-                log.debug("Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
+                log.info("Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
             } else {
-                log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                log.info("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
             }
         });
 
@@ -536,9 +536,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug("Txn={}, failed sealing txn", txnId);
+                        log.info("Txn={}, failed sealing txn", txnId);
                     } else {
-                        log.debug("Txn={}, sealed successfully, commit={}", txnId, commit);
+                        log.info("Txn={}, sealed successfully, commit={}", txnId, commit);
                     }
                 });
 
@@ -563,12 +563,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor).thenComposeAsync(status -> {
             // Step 4. Remove txn from timeoutService, and from the index.
             timeoutService.removeTxn(scope, stream, txnId);
-            log.debug("Txn={}, removed from timeout service", txnId);
+            log.info("Txn={}, removed from timeout service", txnId);
             return streamMetadataStore.removeTxnFromIndex(host, resource, true).whenComplete((v, e) -> {
                 if (e != null) {
-                    log.debug("Txn={}, failed removing txn from host-txn index of host={}", txnId, hostId);
+                    log.info("Txn={}, failed removing txn from host-txn index of host={}", txnId, hostId);
                 } else {
-                    log.debug("Txn={}, removed txn from host-txn index of host={}", txnId, hostId);
+                    log.info("Txn={}, removed txn from host-txn index of host={}", txnId, hostId);
                 }
             }).thenApply(x -> status);
         }, executor);
@@ -598,10 +598,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final T event,
                                                         final UUID txnId,
                                                         final TxnStatus txnStatus) {
-        log.debug("Txn={}, state={}, sending request to {}", txnId, txnStatus, streamName);
+        log.info("Txn={}, state={}, sending request to {}", txnId, txnStatus, streamName);
         return streamWriter.writeEvent(key, event)
                 .thenApplyAsync(v -> {
-                    log.debug("Transaction {}, sent request to {}", txnId, streamName);
+                    log.info("Transaction {}, sent request to {}", txnId, streamName);
                     return txnStatus;
                 }, executor)
                 .exceptionally(ex -> {
