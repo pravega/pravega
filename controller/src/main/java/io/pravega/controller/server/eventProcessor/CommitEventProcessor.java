@@ -89,7 +89,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
         int epoch = event.getEpoch();
         UUID txnId = event.getTxid();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        log.debug("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
+        log.info("Committing transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         streamMetadataStore.getActiveEpoch(scope, stream, context, false, executor).thenComposeAsync(pair -> {
             // Note, transaction's epoch either equals stream's current epoch or is one more than it,
@@ -108,7 +108,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
             if (error != null) {
                 log.error("Failed committing transaction {} on stream {}/{}", txnId, scope, stream);
             } else {
-                log.debug("Successfully committed transaction {} on stream {}/{}", txnId, scope, stream);
+                log.info("Successfully committed transaction {} on stream {}/{}", txnId, scope, stream);
                 if (processedEvents != null) {
                     processedEvents.offer(event);
                 }
