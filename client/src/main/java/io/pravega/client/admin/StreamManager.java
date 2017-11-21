@@ -11,6 +11,7 @@ package io.pravega.client.admin;
 
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.PravegaCredentials;
 import io.pravega.client.stream.impl.StreamCut;
 
 import java.net.URI;
@@ -27,12 +28,16 @@ public interface StreamManager extends AutoCloseable {
      * @return Instance of Stream Manager implementation.
      */
     public static StreamManager create(URI controller) {
-        return new StreamManagerImpl(controller);
+        return create(controller, null, false, "");
     }
-    
+
+    public static StreamManager create(URI controller, PravegaCredentials credentials, boolean isTlsEnabled, String tlsCertFile) {
+        return new StreamManagerImpl(controller, credentials, isTlsEnabled, tlsCertFile);
+    }
+
     /**
      * Creates a new stream
-     * <p>
+     *
      * Note: This method is idempotent assuming called with the same name and config. This method
      * may block.
      *
