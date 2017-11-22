@@ -68,7 +68,7 @@ public final class ModelHelper {
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
         return ScalingPolicy.builder()
-                            .scaleType(ScalingPolicy.ScaleType.valueOf(policy.getType().name()))
+                            .scaleType(ScalingPolicy.ScaleType.valueOf(policy.getScaleType().name()))
                             .targetRate(policy.getTargetRate())
                             .scaleFactor(policy.getScaleFactor())
                             .minNumSegments(policy.getMinNumSegments())
@@ -84,10 +84,10 @@ public final class ModelHelper {
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         // Using default enum type of UNKNOWN(0) to detect if retention policy has been set or not.
         // This is required since proto3 does not have any other way to detect if a field has been set or not.
-        if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
+        if (policy != null && policy.getRetentionType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
-                    .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getType().name()))
-                    .retentionParam(policy.getValue())
+                    .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
+                    .retentionParam(policy.getRetentionParam())
                     .build();
         } else {
             return null;
@@ -228,7 +228,7 @@ public final class ModelHelper {
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
-                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScaleType().name()))
+                .setScaleType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScaleType().name()))
                 .setTargetRate(policyModel.getTargetRate())
                 .setScaleFactor(policyModel.getScaleFactor())
                 .setMinNumSegments(policyModel.getMinNumSegments())
@@ -244,8 +244,8 @@ public final class ModelHelper {
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
             return Controller.RetentionPolicy.newBuilder()
-                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
-                    .setValue(policyModel.getRetentionParam())
+                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                    .setRetentionParam(policyModel.getRetentionParam())
                     .build();
         } else {
             return null;
