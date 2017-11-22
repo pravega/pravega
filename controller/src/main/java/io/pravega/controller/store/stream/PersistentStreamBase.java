@@ -475,7 +475,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         }
 
                         if (runOnlyIfStarted) {
-                            log.debug("scale not started, retry later.");
+                            log.info("scale not started, retry later.");
                             throw new TaskExceptions.StartException("Scale not started yet.");
                         }
 
