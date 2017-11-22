@@ -114,9 +114,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         controller = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                 controllerExecutorService);
-        testState = new TestState();
+        testState = new TestState(true);
         testState.writersListComplete.add(0, testState.writersComplete);
-        testState.txnWrite.set(true);
         streamManager = new StreamManagerImpl(controllerURIDirect);
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -131,12 +130,12 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        testState.printAnomalies();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);

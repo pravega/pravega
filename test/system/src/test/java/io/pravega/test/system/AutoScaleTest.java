@@ -127,7 +127,7 @@ public class AutoScaleTest extends AbstractScaleTests {
 
         Boolean createScopeStatus = controller.createScope(SCOPE).get();
         log.debug("create scope status {}", createScopeStatus);
-        
+
         //create a stream
         Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
@@ -157,7 +157,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
         Futures.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
-                                                        .whenComplete((r, e) -> {
+                .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
                     recordResult(scaleDown, "ScaleDown");
                     recordResult(scalewithTxn, "ScaleWithTxn");
