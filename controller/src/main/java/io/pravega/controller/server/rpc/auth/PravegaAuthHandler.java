@@ -17,10 +17,25 @@ public interface PravegaAuthHandler {
         READ_UPDATE
     }
 
+    /**
+     * @return The unique name assigned to the handler.
+     */
     String getHandlerName();
 
+    /**
+     * Authenticates a given request.
+     *
+     * @param headers the key-value pairs passed through grpc.
+     * @return Returns true when the user is authenticated.
+     */
     boolean authenticate(Map<String, String> headers);
 
+    /**
+     * Authorizes the access to a given resources.
+     * @param resource the resource that needs to be accessed.
+     * @param headers the context for authorization.
+     * @return The level of authorization. Throws exception if not authorized.
+     */
     PravegaAccessControlEnum authorize(String resource, Map<String, String> headers);
 
 
