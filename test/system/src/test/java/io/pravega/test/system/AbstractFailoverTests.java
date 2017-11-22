@@ -133,26 +133,30 @@ abstract class AbstractFailoverTests {
         }
 
         void printAnomalies() {
-            Map<Long, Integer> anomalies = eventMap.entrySet().stream().filter(x -> x.getValue() != 1)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            if (anomalies.size() > 0) {
-                log.error("anomalies => ");
+            List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
+                    .map(Map.Entry::getKey).collect(Collectors.toList());
+            if (notRead.size() > 0) {
+                log.error("anomalies, unread events => {}", notRead);
+            }
 
-                anomalies.forEach((x, y) -> {
-                    if (y == 0) {
-                        log.error("written but not read: {}", x);
-                    } else {
-                        log.error("duplicate reads: {} count = {}", x, y);
-                    }
-                });
+            Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (duplicates.size() > 0) {
+                log.error("anomalies, duplicate events with count => {}", duplicates);
+            }
+
+            int eventReadCount = getEventReadCount();
+            int eventWrittenCount = getEventWrittenCount();
+            if (eventReadCount != eventWrittenCount) {
+                log.error("read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
             }
 
             if (committingTxn.size() > 0) {
-                committingTxn.forEach(x -> log.error("txn left committing: {}", x));
+                log.error("txn left committing: {}", committingTxn);
             }
 
             if (abortedTxn.size() > 0) {
-                abortedTxn.forEach(x -> log.error("txn aborted: {}", x));
+                log.error("txn aborted: {}", abortedTxn);
             }
         }
 
