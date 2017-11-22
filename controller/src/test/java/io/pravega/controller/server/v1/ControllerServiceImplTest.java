@@ -470,7 +470,6 @@ public abstract class ControllerServiceImplTest {
         CreateTxnRequest request = CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(-1)
-                .setMaxExecutionTime(10000)
                 .setScaleGracePeriod(10000).build();
         ResultObserver<CreateTxnResponse> resultObserver = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver);
@@ -478,23 +477,10 @@ public abstract class ControllerServiceImplTest {
                 resultObserver::get,
                 e -> checkGRPCException(e, IllegalArgumentException.class));
 
-        // Invalid maxExecutionTime
-        request = CreateTxnRequest.newBuilder()
-                .setStreamInfo(streamInfo)
-                .setLease(10000)
-                .setMaxExecutionTime(-1)
-                .setScaleGracePeriod(10000).build();
-        ResultObserver<CreateTxnResponse> resultObserver2 = new ResultObserver<>();
-        this.controllerService.createTransaction(request, resultObserver2);
-        AssertExtensions.assertThrows("Lease lower bound violated ",
-                resultObserver2::get,
-                e -> checkGRPCException(e, IllegalArgumentException.class));
-
         // Invalid ScaleGracePeriod
         request = CreateTxnRequest.newBuilder()
                 .setStreamInfo(streamInfo)
                 .setLease(10000)
-                .setMaxExecutionTime(10000)
                 .setScaleGracePeriod(-1).build();
         ResultObserver<CreateTxnResponse> resultObserver3 = new ResultObserver<>();
         this.controllerService.createTransaction(request, resultObserver3);
