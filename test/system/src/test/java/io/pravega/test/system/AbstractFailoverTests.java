@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 
@@ -129,34 +130,34 @@ abstract class AbstractFailoverTests {
         }
 
         int getEventReadCount() {
-            return eventMap.values().stream().reduce(0, (x, y) -> x + y);
+            return eventMap.values().stream().mapToInt(Integer::intValue).sum();
         }
 
         void printAnomalies() {
             List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
                     .map(Map.Entry::getKey).collect(Collectors.toList());
             if (notRead.size() > 0) {
-                log.error("anomalies, unread events => {}", notRead);
+                log.error("Anomalies, unread events => {}", notRead);
             }
 
             Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (duplicates.size() > 0) {
-                log.error("anomalies, duplicate events with count => {}", duplicates);
+                log.error("Anomalies, duplicate events with count => {}", duplicates);
             }
 
             int eventReadCount = getEventReadCount();
             int eventWrittenCount = getEventWrittenCount();
             if (eventReadCount != eventWrittenCount) {
-                log.error("read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
+                log.error("Read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
             }
 
             if (committingTxn.size() > 0) {
-                log.error("txn left committing: {}", committingTxn);
+                log.error("Txn left committing: {}", committingTxn);
             }
 
             if (abortedTxn.size() > 0) {
-                log.error("txn aborted: {}", abortedTxn);
+                log.error("Txn aborted: {}", abortedTxn);
             }
         }
 
