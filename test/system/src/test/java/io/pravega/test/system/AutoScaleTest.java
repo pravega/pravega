@@ -157,7 +157,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         CompletableFuture<Void> scaleDown = scaleDownTest();
         CompletableFuture<Void> scalewithTxn = scaleUpTxnTest();
         Futures.getAndHandleExceptions(CompletableFuture.allOf(scaleup, scaleDown, scalewithTxn)
-                .whenComplete((r, e) -> {
+                                                        .whenComplete((r, e) -> {
                     recordResult(scaleup, "ScaleUp");
                     recordResult(scaleDown, "ScaleDown");
                     recordResult(scalewithTxn, "ScaleWithTxn");
