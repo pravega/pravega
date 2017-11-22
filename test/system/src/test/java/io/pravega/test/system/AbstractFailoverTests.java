@@ -139,7 +139,7 @@ abstract class AbstractFailoverTests {
                 log.error("anomalies, unread events => {}", notRead);
             }
 
-            Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
+            Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (duplicates.size() > 0) {
                 log.error("anomalies, duplicate events with count => {}", duplicates);
