@@ -101,14 +101,14 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
         //executor service
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + TOTAL_NUM_WRITERS + 1,
-                                                                        "ReadWriteAndAutoScaleWithFailoverTest-main");
+                "ReadWriteAndAutoScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                                                                                  "ReadWriteAndAutoScaleWithFailoverTest-controller");
+                "ReadWriteAndAutoScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
-                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
-                                        controllerExecutorService);
-        testState = new TestState();
+                ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                controllerExecutorService);
+        testState = new TestState(false);
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -126,12 +126,12 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
+        testState.printAnomalies();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
