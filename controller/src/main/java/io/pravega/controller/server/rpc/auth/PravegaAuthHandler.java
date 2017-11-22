@@ -18,6 +18,7 @@ public interface PravegaAuthHandler {
     }
 
     /**
+     * Returns name of the handler.
      * @return The unique name assigned to the handler.
      */
     String getHandlerName();
