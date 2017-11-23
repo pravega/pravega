@@ -11,13 +11,17 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
+import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import io.grpc.auth.MoreCallCredentials;
+import io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
@@ -56,9 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
+import java.io.File;
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -72,10 +74,14 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLException;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -99,10 +105,11 @@ public class ControllerImpl implements Controller {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
-    private final ControllerServiceGrpc.ControllerServiceStub client;
+    private ControllerServiceGrpc.ControllerServiceStub client;
 
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
+    private final PravegaCredentials creds;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -117,11 +124,17 @@ public class ControllerImpl implements Controller {
      */
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
+        this(controllerURI, config, executor, config.getCredentials(), config.isEnableTls(), config.getTlsCertFile());
+    }
+
+    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
+                          final ScheduledExecutorService executor, PravegaCredentials creds,
+                          boolean enableTls, String tlsCertFile) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
-                .nameResolverFactory(new ControllerResolverFactory())
-                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
-                .usePlaintext(true), config, executor);
+                                .nameResolverFactory(new ControllerResolverFactory())
+                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
+                config, executor, creds, enableTls, tlsCertFile);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -131,21 +144,47 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
+     * @param creds          The credentials if any.
+     * @param enableTls      The flag to turn on TLS for controller interactions.
+     * @param tlsCertFile    File containing the public certificate for TLS.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
+                          final ScheduledExecutorService executor, PravegaCredentials creds,
+                          boolean enableTls, String tlsCertFile) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
+        this.creds = creds;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
-                .retryingOn(StatusRuntimeException.class)
-                .throwingOn(Exception.class);
+                                .retryingOn(StatusRuntimeException.class)
+                                .throwingOn(Exception.class);
 
+        if (enableTls) {
+            SslContextBuilder sslContextBuilder = null;
+            if (!Strings.isNullOrEmpty(tlsCertFile)) {
+                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
+            } else {
+                sslContextBuilder = GrpcSslContexts.forClient();
+            }
+            try {
+                channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
+                                                                       .negotiationType(NegotiationType.TLS);
+            } catch (SSLException e) {
+                throw new CompletionException(e);
+            }
+        } else {
+            channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
+        }
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         this.client = ControllerServiceGrpc.newStub(this.channel);
+        if (this.creds != null) {
+            PravegaCredsWrapper wrapperCreds = new PravegaCredsWrapper(creds);
+            this.client = client.withCallCredentials(MoreCallCredentials.from(wrapperCreds));
+        }
     }
+
 
     @Override
     public CompletableFuture<Boolean> createScope(final String scopeName) {
