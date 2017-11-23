@@ -210,7 +210,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     private CompletableFuture<Void> checkGenerateStreamCut(String scope, String stream, OperationContext context,
                                                            RetentionPolicy policy, StreamCutRecord latestCut, long recordingTime) {
-        switch (policy.getType()) {
+        switch (policy.getRetentionType()) {
             case TIME:
                 if (latestCut == null || recordingTime - latestCut.getRecordingTime() > Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis()) {
                     return generateStreamCut(scope, stream, context)
@@ -240,9 +240,9 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private Optional<StreamCutRecord> findTruncationRecord(RetentionPolicy policy, List<StreamCutRecord> retentionSet, long recordingTime) {
-        switch (policy.getType()) {
+        switch (policy.getRetentionType()) {
             case TIME:
-                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getValue())
+                return retentionSet.stream().filter(x -> x.getRecordingTime() < recordingTime - policy.getRetentionParam())
                         .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime));
             case SIZE:
             default:
