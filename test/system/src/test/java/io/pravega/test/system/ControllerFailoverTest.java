@@ -37,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -45,6 +46,7 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
+@Ignore
 public class ControllerFailoverTest {
     private static final String TEST_CONTROLLER_SERVICE_NAME = "testcontroller";
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
