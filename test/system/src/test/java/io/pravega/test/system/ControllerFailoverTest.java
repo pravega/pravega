@@ -38,7 +38,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,7 +45,6 @@ import org.junit.runner.RunWith;
  * Controller fail over system test.
  */
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest {
     private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
