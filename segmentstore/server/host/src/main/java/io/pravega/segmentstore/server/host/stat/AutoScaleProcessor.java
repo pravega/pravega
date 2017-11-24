@@ -111,6 +111,11 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
+                        ClientFactory factory = null;
+                        if (configuration.isAuthEnabled()) {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri(),
+                                    )
+                        }
                         clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
                     }
 

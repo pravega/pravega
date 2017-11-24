@@ -26,10 +26,11 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     private final Map<String, PravegaACls> userMap;
 
     PravegaDefaultAuthHandler(String userPasswdFile) {
-        loadPasswdFile(userPasswdFile);
         userMap = new ConcurrentHashMap<>();
+        loadPasswdFile(userPasswdFile);
     }
 
+    //TODO: Add tests for wrong file
     private void loadPasswdFile(String userPasswdFile) {
         try (FileReader reader = new FileReader(userPasswdFile);
              BufferedReader lineReader = new BufferedReader(reader)
@@ -37,9 +38,11 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
             String line = lineReader.readLine();
             if ( !Strings.isNullOrEmpty(line) && !line.startsWith("#")) {
                 String[] userFields = line.split(":");
-                userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(userFields[2])));
+                if (userFields.length >= 2) {
+                    userMap.put(userFields[0], new PravegaACls(userFields[1], getAcls(userFields[2])));
+                }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new CompletionException(e);
         }
     }

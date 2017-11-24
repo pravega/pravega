@@ -10,6 +10,8 @@
 package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Strings;
+import io.grpc.Context;
+import io.grpc.Contexts;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -19,9 +21,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class PravegaInterceptor implements ServerInterceptor {
-    private final PravegaDefaultAuthHandler handler;
+    private static final String AUTH_CONTEXT = "PravegaContext";
+    private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
+    private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
+    private static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
-    PravegaInterceptor(PravegaDefaultAuthHandler handler) {
+    private final PravegaAuthHandler handler;
+
+    PravegaInterceptor(PravegaAuthHandler handler) {
         this.handler = handler;
     }
 
@@ -32,14 +39,33 @@ public class PravegaInterceptor implements ServerInterceptor {
         headers.keys().stream().map(key -> paramMap.put(key,
                 headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER))));
         String method = paramMap.get("method");
-        if ( !Strings.isNullOrEmpty(method)) {
+        Context context = Context.current();
+        if (!Strings.isNullOrEmpty(method)) {
             if (method.equals(handler.getHandlerName())) {
-               if ( !handler.authenticate(paramMap)) {
-                   call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
-                   return null;
-               }
+
+                if (!handler.authenticate(paramMap)) {
+                    call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
+                    return null;
+                }
+                context = context.withValue(AUTH_CONTEXT_PARAMS, paramMap);
+                context = context.withValue(INTERCEPTOR_OBJECT, this);
             }
         }
-        return next.startCall(call, headers);
+        return Contexts.interceptCall(context, call, headers, next);
+    }
+
+    public static PravegaAuthHandler.PravegaAccessControlEnum Authorize(String resource) {
+        PravegaInterceptor currentInterceptor = INTERCEPTOR_OBJECT.get();
+
+        if (currentInterceptor == null) {
+            //No interceptor, means no authorization enabled
+            return PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+        } else {
+            return currentInterceptor.authorize(resource);
+        }
+    }
+
+    private PravegaAuthHandler.PravegaAccessControlEnum authorize(String resource) {
+        return this.handler.authorize(resource, AUTH_CONTEXT_PARAMS.get());
     }
 }

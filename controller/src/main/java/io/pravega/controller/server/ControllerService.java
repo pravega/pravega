@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.shared.NameUtils;
@@ -346,6 +347,9 @@ public class ControllerService {
             return CompletableFuture.completedFuture(CreateScopeStatus.newBuilder().setStatus(
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
+
+        PravegaInterceptor.Authorize(scope);
+
         return streamStore.createScope(scope);
     }
 
