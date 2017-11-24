@@ -105,9 +105,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         controller = new ControllerImpl(controllerURIDirect,
                                         ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
-
-        testState = new TestState();
-        testState.txnWrite.set(true);
+        testState = new TestState(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -121,6 +119,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
@@ -129,7 +128,6 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
