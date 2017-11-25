@@ -59,7 +59,7 @@ public class PravegaInterceptor implements ServerInterceptor {
         return Contexts.interceptCall(context, call, headers, next);
     }
 
-    public static PravegaAuthHandler.PravegaAccessControlEnum Authorize(String resource) {
+    public static PravegaAuthHandler.PravegaAccessControlEnum authorizeResource(String resource) {
         PravegaInterceptor currentInterceptor = INTERCEPTOR_OBJECT.get();
 
         if (currentInterceptor == null) {

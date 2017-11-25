@@ -377,7 +377,7 @@ public class ControllerService {
     }
 
     private void checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
-        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel = PravegaInterceptor.Authorize(resource);
+        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel = PravegaInterceptor.authorizeResource(resource);
         if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
             throw new CompletionException(new NotAuthorizedException(resource));
         }

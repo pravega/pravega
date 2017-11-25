@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
-public class PravegaAuthenticationException extends Throwable {
+public class PravegaAuthenticationException extends Exception {
     public PravegaAuthenticationException(String message) {
         super(message);
     }
