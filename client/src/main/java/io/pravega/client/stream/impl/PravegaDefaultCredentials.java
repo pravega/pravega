@@ -11,15 +11,13 @@ package io.pravega.client.stream.impl;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.jasypt.util.password.StrongPasswordEncryptor;
 
 public class PravegaDefaultCredentials implements PravegaCredentials {
     private final String password;
     private final String userName;
 
     public PravegaDefaultCredentials(String password, String userName) {
-        StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
-        this.password = passwordEncryptor.encryptPassword(password);
+        this.password = password;
         this.userName = userName;
     }
 

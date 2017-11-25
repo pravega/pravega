@@ -36,8 +36,13 @@ public class PravegaInterceptor implements ServerInterceptor {
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
 
         Map<String, String> paramMap = new HashMap<>();
-        headers.keys().stream().map(key -> paramMap.put(key,
-                headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER))));
+        headers.keys().stream().forEach(key -> {
+            try {
+                paramMap.put(key,
+                        headers.get(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER)));
+            } catch (IllegalArgumentException e) {
+            }
+        });
         String method = paramMap.get("method");
         Context context = Context.current();
         if (!Strings.isNullOrEmpty(method)) {

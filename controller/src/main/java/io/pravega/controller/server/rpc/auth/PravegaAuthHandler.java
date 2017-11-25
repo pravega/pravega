@@ -13,6 +13,7 @@ import java.util.Map;
 
 public interface PravegaAuthHandler {
     enum  PravegaAccessControlEnum {
+        NONE,
         READ,
         READ_UPDATE
     }

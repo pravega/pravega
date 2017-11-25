@@ -9,7 +9,6 @@
  */
 package io.pravega.client;
 
-import com.google.auth.Credentials;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -30,6 +29,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.PravegaCredentials;
 import java.net.URI;
 import lombok.val;
 
@@ -65,10 +65,10 @@ public interface ClientFactory extends AutoCloseable {
      * @param tlsCertFile Pointer to file containing TLS certificate.
      * @return Instance of ClientFactory implementation.
      */
-    static ClientFactory withScope(String scope, URI controllerUri, Credentials creds, boolean enableTls, String tlsCertFile) {
+    static ClientFactory withScope(String scope, URI controllerUri, PravegaCredentials creds, boolean enableTls, String tlsCertFile) {
         val connectionFactory = new ConnectionFactoryImpl(false);
         return new ClientFactoryImpl(scope, new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(),
-                connectionFactory.getInternalExecutor(), creds, enableTls, tlsCertFile), connectionFactory, creds);
+                connectionFactory.getInternalExecutor(), creds, enableTls, tlsCertFile), connectionFactory);
     }
 
 

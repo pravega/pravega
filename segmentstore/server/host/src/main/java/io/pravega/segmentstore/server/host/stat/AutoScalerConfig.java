@@ -92,6 +92,17 @@ public class AutoScalerConfig {
     @Getter
     private final boolean authEnabled;
 
+    /**
+     * Password for connection to Controller.
+     */
+    @Getter
+    private final String authPasswd;
+    /**
+     * Username for connection to Controller.
+     */
+    @Getter
+    private final String authUsername;
+
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
         this.cooldownDuration = Duration.ofSeconds(properties.getInt(COOLDOWN_IN_SECONDS));
@@ -101,6 +112,8 @@ public class AutoScalerConfig {
         this.controllerUri = URI.create(properties.get(CONTROLLER_URI));
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
+        this.authUsername = properties.get(AUTH_USERNAME);
+        this.authPasswd = properties.get(AUTH_PASSWD);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
     }
 
