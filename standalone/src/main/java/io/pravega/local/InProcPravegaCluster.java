@@ -255,7 +255,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 60 * 1000)
                         .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L))
                 .include(AutoScalerConfig.builder()
-                        .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0]))
+                        .with(AutoScalerConfig.CONTROLLER_URI, "tcp://localhost:" + controllerPorts[0])
+                        .with(AutoScalerConfig.TLS_ENABLED, false)
+                        .with(AutoScalerConfig.TLS_CERT_FILE, "config/cert.pem"))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
@@ -301,7 +303,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
         ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl
+                .builder()
                 .port(this.controllerPorts[controllerId])
                 .publishedRPCHost("localhost")
                 .publishedRPCPort(this.controllerPorts[controllerId])

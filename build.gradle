@@ -143,6 +143,10 @@ project('client') {
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile "io.grpc:grpc-netty:" + grpcVersion
+        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-protobuf:" + grpcVersion
+        compile "io.grpc:grpc-stub:" + grpcVersion
         compile project(':common')
         compile project(':shared')
         compile project(':shared:protocol')
@@ -150,6 +154,8 @@ project('client') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        // https://mvnrepository.com/artifact/org.jasypt/jasypt
+        compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
     }
 
     javadoc {
@@ -428,6 +434,8 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        // https://mvnrepository.com/artifact/org.jasypt/jasypt
+        compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {

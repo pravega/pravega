@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.PravegaCredentials;
 import io.pravega.client.stream.impl.StreamCut;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -36,8 +37,18 @@ public class StreamManagerImpl implements StreamManager {
     private final ScheduledExecutorService executor; 
     
     public StreamManagerImpl(URI controllerUri) {
+        this(controllerUri, null, false, "");
+    }
+
+    public StreamManagerImpl(URI controllerUri, PravegaCredentials creds, boolean enableTls, String tlsCertFile) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
-        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder().build(), executor);
+        this.controller = new ControllerImpl(controllerUri, ControllerImplConfig.builder()
+                                                                                .credentials(creds)
+                                                                                .enableTls(enableTls)
+                                                                                .tlsCertFile(tlsCertFile)
+                                                                                .build(),
+                executor);
+
     }
 
     @VisibleForTesting
