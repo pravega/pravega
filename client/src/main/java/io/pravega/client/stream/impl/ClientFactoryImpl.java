@@ -88,13 +88,25 @@ public class ClientFactoryImpl implements ClientFactory {
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
         this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
-             new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
-             new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
+                new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentMetadataClientFactoryImpl(controller, connectionFactory));
+    }
+
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory, PravegaCredentials credentials) {
+        this(scope, controller, connectionFactory, new SegmentInputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentOutputStreamFactoryImpl(controller, connectionFactory),
+                new SegmentMetadataClientFactoryImpl(controller, connectionFactory), credentials);
     }
 
     @VisibleForTesting
     public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
-            SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
+                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory, SegmentMetadataClientFactory metaFactory) {
+        this(scope, controller, connectionFactory, inFactory, outFactory, metaFactory, null);
+    }
+
+    public ClientFactoryImpl(String scope, Controller controller, ConnectionFactory connectionFactory,
+                             SegmentInputStreamFactory inFactory, SegmentOutputStreamFactory outFactory,
+                             SegmentMetadataClientFactory metaFactory, PravegaCredentials credentials) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(controller);
         Preconditions.checkNotNull(inFactory);
@@ -107,6 +119,7 @@ public class ClientFactoryImpl implements ClientFactory {
         this.outFactory = outFactory;
         this.metaFactory = metaFactory;
     }
+
 
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {

@@ -21,6 +21,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.PravegaDefaultCredentials;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -111,7 +112,15 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        clientFactory.compareAndSet(null, ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri()));
+                        ClientFactory factory = null;
+                        if (configuration.isAuthEnabled()) {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri(),
+                                    new PravegaDefaultCredentials(configuration.getAuthPasswd(), configuration.getAuthUsername()),
+                                    configuration.isTlsEnabled(), configuration.getTlsCertFile());
+                        } else {
+                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, configuration.getControllerUri());
+                        }
+                        clientFactory.compareAndSet(null, factory);
                     }
 
                     this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),

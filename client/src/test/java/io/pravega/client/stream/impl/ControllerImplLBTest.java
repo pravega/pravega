@@ -10,7 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.grpc.Server;
-import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -101,9 +101,9 @@ public class ControllerImplLBTest {
             }
         };
 
-        testRPCServer1 = InProcessServerBuilder.forPort(serverPort1).addService(fakeServerImpl1).build().start();
-        testRPCServer2 = InProcessServerBuilder.forPort(serverPort2).addService(fakeServerImpl2).build().start();
-        testRPCServer3 = InProcessServerBuilder.forPort(serverPort3).addService(fakeServerImpl3).build().start();
+        testRPCServer1 = NettyServerBuilder.forPort(serverPort1).addService(fakeServerImpl1).build().start();
+        testRPCServer2 = NettyServerBuilder.forPort(serverPort2).addService(fakeServerImpl2).build().start();
+        testRPCServer3 = NettyServerBuilder.forPort(serverPort3).addService(fakeServerImpl3).build().start();
     }
 
     @After
