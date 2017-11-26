@@ -9,9 +9,11 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Map;
 
 public interface PravegaAuthHandler {
+
     enum  PravegaAccessControlEnum {
         NONE,
         READ,
@@ -40,5 +42,9 @@ public interface PravegaAuthHandler {
      */
     PravegaAccessControlEnum authorize(String resource, Map<String, String> headers);
 
-
+    /**
+     * Sets the configuration. The auth handler can extract its config from this.
+     * @param serverConfig The server configuration.
+     */
+    void setServerConfig(GRPCServerConfig serverConfig);
 }

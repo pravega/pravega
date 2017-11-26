@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Arrays;
@@ -26,9 +27,8 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     private static final String DEFAULT_NAME = "Pravega-Default";
     private final Map<String, PravegaACls> userMap;
 
-    PravegaDefaultAuthHandler(String userPasswdFile) {
+    public PravegaDefaultAuthHandler() {
         userMap = new ConcurrentHashMap<>();
-        loadPasswdFile(userPasswdFile);
     }
 
     //TODO: Add tests for wrong file
@@ -75,6 +75,11 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
         }
         return authorizeForUser(userMap.get(userName), resource);
 
+    }
+
+    @Override
+    public void setServerConfig(GRPCServerConfig serverConfig) {
+        loadPasswdFile(serverConfig.getUserPasswdFile());
     }
 
     private PravegaAccessControlEnum authorizeForUser(PravegaACls pravegaACls, String resource) {

@@ -11,6 +11,7 @@ package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import java.util.ServiceLoader;
 
 public class PravegaAuthManager {
     private final GRPCServerConfig serverConfig;
@@ -20,8 +21,10 @@ public class PravegaAuthManager {
     }
 
     public void registerInterceptors(ServerBuilder<?> builder) {
-        PravegaDefaultAuthHandler handler = new PravegaDefaultAuthHandler(serverConfig.getUserPasswdFile());
-
-        builder.intercept(new PravegaInterceptor(handler));
+        ServiceLoader<PravegaAuthHandler> loader = ServiceLoader.load(PravegaAuthHandler.class);
+        for ( PravegaAuthHandler handler : loader) {
+            handler.setServerConfig(serverConfig);
+            builder.intercept(new PravegaInterceptor(handler));
+        }
     }
 }
