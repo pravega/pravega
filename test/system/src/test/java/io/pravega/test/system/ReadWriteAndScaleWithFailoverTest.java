@@ -24,19 +24,8 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -46,7 +35,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -70,7 +68,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private StreamManager streamManager;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = startPravegaControllerInstances(zkUri);
@@ -80,40 +78,41 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     @Before
     public void setup() {
         // Get zk details to verify if controller, SSS are running
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controller", zkUri);
+        controllerInstance = Utils.createPravegaControllerService(zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conURIs.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
+                :  uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
+        segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
-                                                                        "ReadWriteAndScaleWithFailoverTest-main");
+                "ReadWriteAndScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                                                                                  "ReadWriteAndScaleWithFailoverTest-controller");
+                "ReadWriteAndScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
-                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
-                                        controllerExecutorService);
-        testState = new TestState();
+                ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                controllerExecutorService);
+        testState = new TestState(false);
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
         createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
@@ -123,9 +122,10 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
@@ -134,10 +134,9 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
     @Test
@@ -150,8 +149,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         performFailoverTest();
 
         //bring the instances back to 3 before performing failover during scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //scale manually
@@ -189,8 +188,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 .get().getSegments().size());
 
         //bring the instances back to 3 before performing failover after scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
         Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
         //run the failover test after scaling

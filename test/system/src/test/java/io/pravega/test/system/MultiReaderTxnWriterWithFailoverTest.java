@@ -19,16 +19,16 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
-import io.pravega.test.system.framework.services.PravegaControllerService;
-import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -38,7 +38,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -61,7 +60,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     private StreamManager streamManager;
 
     @Environment
-    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException {
+    public static void initialize() throws InterruptedException, MarathonException, URISyntaxException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
         URI controllerUri = startPravegaControllerInstances(zkUri);
@@ -72,27 +71,27 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public void setup() {
 
         // Get zk details to verify if controller, SSS are running
-        Service zkService = new ZookeeperService("zookeeper");
+        Service zkService = Utils.createZookeeperService();
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
         //get the zk ip details and pass it to  host, controller
         URI zkUri = zkUris.get(0);
 
         // Verify controller is running.
-        controllerInstance = new PravegaControllerService("controller", zkUri);
+        controllerInstance = Utils.createPravegaControllerService(zkUri);
         assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> uri.getPort() == 9092).map(URI::getAuthority)
+        final List<String> uris = conURIs.stream().filter(uri -> Utils.isDockerLocalExecEnabled() ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
-        segmentStoreInstance = new PravegaSegmentStoreService("segmentstore", zkUri, controllerURIDirect);
+        segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
@@ -104,9 +103,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         controller = new ControllerImpl(controllerURIDirect,
                                         ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
-
-        testState = new TestState();
-        testState.txnWrite.set(true);
+        testState = new TestState(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -117,9 +114,10 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
@@ -128,12 +126,11 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
-        controllerInstance.scaleService(1, true);
-        segmentStoreInstance.scaleService(1, true);
-    }
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
+}
 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
