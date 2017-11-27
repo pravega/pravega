@@ -105,14 +105,14 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
-                                                                        "ReadWriteAndScaleWithFailoverTest-main");
+                "ReadWriteAndScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                                                                                  "ReadWriteAndScaleWithFailoverTest-controller");
+                "ReadWriteAndScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
-                                        ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
-                                        controllerExecutorService);
-        testState = new TestState();
+                ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
+                controllerExecutorService);
+        testState = new TestState(false);
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
         createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
@@ -125,6 +125,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
@@ -133,7 +134,6 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
