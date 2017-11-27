@@ -48,6 +48,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
+
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
@@ -238,7 +241,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return sealTxnBody(hostId, scope, stream, false, txId, version, context);
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
+                    RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
 
@@ -255,7 +259,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return sealTxnBody(hostId, scope, stream, true, txId, null, context);
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
+                    RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
 
@@ -595,7 +600,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return txnStatus;
                 }, executor)
                 .exceptionally(ex -> {
-                    log.warn("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
+                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
                             .getSimpleName(), streamName);
                     throw new WriteFailedException(ex);
                 });

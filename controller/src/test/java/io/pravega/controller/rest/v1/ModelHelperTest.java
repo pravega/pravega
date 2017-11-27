@@ -48,7 +48,7 @@ public class ModelHelperTest {
         createStreamRequest.setScalingPolicy(scalingConfig);
 
         StreamConfiguration streamConfig = getCreateStreamConfig(createStreamRequest, "scope");
-        Assert.assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
 
@@ -63,13 +63,13 @@ public class ModelHelperTest {
         createStreamRequest.setRetentionPolicy(retentionConfig);
 
         streamConfig = getCreateStreamConfig(createStreamRequest, "scope");
-        Assert.assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals("scope", streamConfig.getScope());
         Assert.assertEquals("stream", streamConfig.getStreamName());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getScaleFactor());
         Assert.assertEquals(123, streamConfig.getScalingPolicy().getTargetRate());
-        Assert.assertEquals(RetentionPolicy.Type.TIME, streamConfig.getRetentionPolicy().getType());
-        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getValue());
+        Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
 
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC);
         scalingConfig.setTargetRate(1234);
@@ -81,11 +81,11 @@ public class ModelHelperTest {
         createStreamRequest.setRetentionPolicy(retentionConfig);
 
         streamConfig = getCreateStreamConfig(createStreamRequest, "scope");
-        Assert.assertEquals(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(23, streamConfig.getScalingPolicy().getScaleFactor());
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
-        Assert.assertEquals(RetentionPolicy.Type.SIZE, streamConfig.getRetentionPolicy().getType());
-        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getValue());
+        Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
     }
 
     @Test
@@ -97,7 +97,7 @@ public class ModelHelperTest {
         updateStreamRequest.setScalingPolicy(scalingConfig);
 
         StreamConfiguration streamConfig = getUpdateStreamConfig(updateStreamRequest, "scope", "stream");
-        Assert.assertEquals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getMinNumSegments());
         Assert.assertNull(streamConfig.getRetentionPolicy());
 
@@ -113,11 +113,11 @@ public class ModelHelperTest {
         streamConfig = getUpdateStreamConfig(updateStreamRequest, "scope", "stream");
         Assert.assertEquals("scope", streamConfig.getScope());
         Assert.assertEquals("stream", streamConfig.getStreamName());
-        Assert.assertEquals(ScalingPolicy.Type.BY_RATE_IN_EVENTS_PER_SEC, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(2, streamConfig.getScalingPolicy().getScaleFactor());
         Assert.assertEquals(123, streamConfig.getScalingPolicy().getTargetRate());
-        Assert.assertEquals(RetentionPolicy.Type.TIME, streamConfig.getRetentionPolicy().getType());
-        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getValue());
+        Assert.assertEquals(RetentionPolicy.RetentionType.TIME, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(Duration.ofDays(1234L).toMillis(), streamConfig.getRetentionPolicy().getRetentionParam());
 
         scalingConfig.setType(ScalingConfig.TypeEnum.BY_RATE_IN_KBYTES_PER_SEC);
         scalingConfig.setTargetRate(1234);
@@ -128,11 +128,11 @@ public class ModelHelperTest {
         updateStreamRequest.setRetentionPolicy(retentionConfig);
 
         streamConfig = getUpdateStreamConfig(updateStreamRequest, "scope", "stream");
-        Assert.assertEquals(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC, streamConfig.getScalingPolicy().getType());
+        Assert.assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC, streamConfig.getScalingPolicy().getScaleType());
         Assert.assertEquals(23, streamConfig.getScalingPolicy().getScaleFactor());
         Assert.assertEquals(1234, streamConfig.getScalingPolicy().getTargetRate());
-        Assert.assertEquals(RetentionPolicy.Type.SIZE, streamConfig.getRetentionPolicy().getType());
-        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getValue());
+        Assert.assertEquals(RetentionPolicy.RetentionType.SIZE, streamConfig.getRetentionPolicy().getRetentionType());
+        Assert.assertEquals(12345L * 1024 * 1024, streamConfig.getRetentionPolicy().getRetentionParam());
     }
 
     @Test

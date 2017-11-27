@@ -224,12 +224,15 @@ public class ReaderCheckpointTest {
         Supplier<Stream<Integer>> streamSupplier = () -> events.stream().map(i -> i.getEvent()).sorted();
         IntSummaryStatistics stats = streamSupplier.get().collect(Collectors.summarizingInt(value -> value));
 
-        assertTrue("Check for first event", stats.getMin() == startInclusive);
-        assertTrue("Check for last event", stats.getMax() == endExclusive - 1);
+        assertTrue(String.format("Check for first event: %d, %d", stats.getMin(), startInclusive),
+                stats.getMin() == startInclusive);
+        assertTrue(String.format("Check for last event: %d, %d", stats.getMax(), endExclusive),
+                stats.getMax() == endExclusive - 1);
         //Check for missing events
-        assertEquals("Check for number of events", endExclusive - startInclusive, stats.getCount());
-        assertEquals("Check for duplicate events", endExclusive - startInclusive,
-                streamSupplier.get().distinct().count());
+        assertEquals(String.format("Check for number of events: %d, %d, %d", endExclusive, startInclusive, stats.getCount()),
+                endExclusive - startInclusive, stats.getCount());
+        assertEquals(String.format("Check for duplicate events: %d, %d, %d", endExclusive, startInclusive, streamSupplier.get().distinct().count()),
+                endExclusive - startInclusive, streamSupplier.get().distinct().count());
     }
 
     private <T extends Serializable> List<EventRead<T>> readEvents(final String readerId) {
