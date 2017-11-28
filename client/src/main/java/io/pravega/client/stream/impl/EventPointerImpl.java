@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import java.io.ObjectStreamException;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
@@ -63,5 +65,17 @@ public class EventPointerImpl extends EventPointerInternal {
     @Override
     public String toString() {
         return segment.getScopedName() + ":" + eventStartOffset + "-" + eventLength;
+    }
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(toString());
+    }
+    
+    @Data
+    private static class SerializedForm  {
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return EventPointer.fromString(value);
+        }
     }
 }

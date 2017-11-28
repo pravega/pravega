@@ -10,7 +10,6 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.PositionInternal;
-
 import java.io.Serializable;
 
 /**
@@ -26,4 +25,22 @@ public interface Position extends Serializable {
      * @return Implementation of position object interface
      */
     PositionInternal asImpl();
+    
+    /**
+     * Serializes the position to a human readable string.
+     * @return A string representation of the position.
+     */
+    @Override
+    String toString();
+    
+    
+    /**
+     * Deserializes the position from its serialized from obtained from calling {@link #toString()}.
+     * 
+     * @param position A serialized position.
+     * @return The position object.
+     */
+    static Position fromString(String position) {
+        return PositionInternal.fromString(position);
+    }
 }

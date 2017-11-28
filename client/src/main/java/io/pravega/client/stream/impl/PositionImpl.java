@@ -10,16 +10,18 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Position;
+import io.pravega.common.util.ToStringUtils;
+import java.io.ObjectStreamException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
 
 @EqualsAndHashCode(callSuper = false)
-@ToString
 public class PositionImpl extends PositionInternal {
 
     private static final long serialVersionUID = 1L;
@@ -66,5 +68,26 @@ public class PositionImpl extends PositionInternal {
     public PositionImpl asImpl() {
         return this;
     }
-
+    
+    @Override
+    public String toString() {
+        return ToStringUtils.mapToString(ownedSegments);
+    }
+    
+    public static Position fromString(String string) {
+       return new PositionImpl(ToStringUtils.stringToMap(string, Segment::fromScopedName, Long::parseLong));
+    }
+    
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(toString());
+    }
+    
+    @Data
+    private static class SerializedForm  {
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return Position.fromString(value);
+        }
+    }
 }

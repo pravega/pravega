@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
 import io.pravega.client.stream.Position;
 import java.util.Map;
 import java.util.Set;
@@ -49,5 +50,15 @@ public abstract class PositionInternal implements Position {
      * @param segmentId input segment
      */
     abstract Long getOffsetForOwnedSegment(Segment segmentId);
+    
+    /**
+     * Deserializes the position from its serialized from obtained from calling {@link #toString()}.
+     * 
+     * @param position A serialized position.
+     * @return The position object.
+     */
+    public static Position fromString(String position) {
+        return PositionImpl.fromString(position);
+    }
 
 }

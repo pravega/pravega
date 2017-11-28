@@ -1,8 +1,9 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.Stream;
+import java.io.Serializable;
 
-public abstract class StreamInternal implements Stream {
+public abstract class StreamInternal implements Stream, Serializable {
 
     /**
      * Gets the scoped name of this stream.

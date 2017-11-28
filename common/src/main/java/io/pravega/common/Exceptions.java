@@ -10,9 +10,8 @@
 package io.pravega.common;
 
 import com.google.common.base.Preconditions;
-
 import java.util.Collection;
-
+import java.util.Map;
 import lombok.SneakyThrows;
 
 /**
@@ -104,6 +103,23 @@ public final class Exceptions {
     public static <T> Collection<T> checkNotNullOrEmpty(Collection<T> arg, String argName) throws NullPointerException, IllegalArgumentException {
         Preconditions.checkNotNull(arg, argName);
         checkArgument(!arg.isEmpty(), argName, "Cannot be an empty collection.");
+        return arg;
+    }
+    
+    /**
+     * Throws a NullPointerException if the arg argument is null. Throws an IllegalArgumentException if the Map arg
+     * argument has a size of zero.
+     *
+     * @param <T>     The type of elements in the provided map.
+     * @param arg     The argument to check.
+     * @param argName The name of the argument (to be included in the exception message).
+     * @return The arg.
+     * @throws NullPointerException     If arg is null.
+     * @throws IllegalArgumentException If arg is not null, but has a length of zero.
+     */
+    public static <K,V> Map<K,V> checkNotNullOrEmpty(Map<K,V> arg, String argName) throws NullPointerException, IllegalArgumentException {
+        Preconditions.checkNotNull(arg, argName);
+        checkArgument(!arg.isEmpty(), argName, "Cannot be an empty map.");
         return arg;
     }
 

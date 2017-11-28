@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.base.Strings;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 
 import lombok.Data;
@@ -22,7 +23,6 @@ import lombok.NonNull;
  */
 @Data
 public class Segment implements Serializable {
-    private static final long serialVersionUID = 1L;
     private final String scope;
     @NonNull
     private final String streamName;
@@ -71,6 +71,11 @@ public class Segment implements Serializable {
         return new StreamImpl(scope, streamName);
     }
     
+    @Override
+    public String toString() {
+        return getScopedName();
+    }
+    
     /**
      * Parses fully scoped name, and creates the segment.
      *
@@ -85,6 +90,18 @@ public class Segment implements Serializable {
             return new Segment(tokens[0], tokens[1], Integer.parseInt(tokens[2]));
         } else {
             throw new IllegalArgumentException("Not a valid segment name");
+        }
+    }
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(getScopedName());
+    }
+    
+    @Data
+    private static class SerializedForm  {
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return Segment.fromScopedName(value);
         }
     }
 }

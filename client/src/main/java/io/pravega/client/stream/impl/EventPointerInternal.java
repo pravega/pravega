@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
+import java.io.Serializable;
 
 /**
  * Pravega provides to a reader the ability to read an isolated event. This feature
@@ -21,7 +22,7 @@ import io.pravega.client.stream.EventPointer;
  * Event pointers are opaque objects. Internally, they map to a segment, start offset
  * pair. It also includes the length for efficient buffering.
  */
-public abstract class EventPointerInternal implements EventPointer {
+public abstract class EventPointerInternal implements EventPointer, Serializable {
 
     /**
      * Get the segment object to fetch the event from.

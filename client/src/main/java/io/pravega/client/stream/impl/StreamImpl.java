@@ -10,10 +10,12 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 import lombok.Data;
 
 @Data
-public class StreamImpl extends StreamInternal {
+public class StreamImpl extends StreamInternal implements Serializable {
 
     private final String scope;
     private final String streamName;
@@ -29,5 +31,17 @@ public class StreamImpl extends StreamInternal {
         Preconditions.checkNotNull(streamName);
         this.scope = scope;
         this.streamName = streamName;
+    }
+    
+    private Object writeReplace() throws ObjectStreamException {
+        return new SerializedForm(getScopedName());
+    }
+    
+    @Data
+    private static class SerializedForm  {
+        private final String value;
+        Object readResolve() throws ObjectStreamException {
+            return StreamInternal.fromScopedName(value);
+        }
     }
 }
