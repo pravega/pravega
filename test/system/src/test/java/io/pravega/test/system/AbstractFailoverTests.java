@@ -66,7 +66,7 @@ abstract class AbstractFailoverTests {
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
-    static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    static final int NUM_EVENTS_PER_TRANSACTION = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
 
     final String readerName = "reader";
