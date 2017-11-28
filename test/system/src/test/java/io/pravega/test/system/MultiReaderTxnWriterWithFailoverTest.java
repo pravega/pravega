@@ -133,22 +133,25 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         segmentStoreInstance.scaleService(1, true);
     }
 
-    @Test
+    @Test(timeout = 15 * 60 * 1000)
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
+        try {
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+            //run the failover test
+            performFailoverForTestsInvolvingTxns();
 
-        //run the failover test
-        performFailoverForTestsInvolvingTxns();
+            stopWriters();
+            waitForTxnsToComplete();
+            stopReaders();
+            validateResults();
 
-        stopWriters();
-        waitForTxnsToComplete();
-        stopReaders();
-        validateResults();
+            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
-        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-
-        log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
+            log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
+        } finally {
+            testState.printAnomalies();
+        }
     }
 }

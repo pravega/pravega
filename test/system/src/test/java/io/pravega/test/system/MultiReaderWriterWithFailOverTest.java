@@ -134,21 +134,24 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
     }
 
-    @Test
+    @Test(timeout = 15 * 60 * 1000)
     public void multiReaderWriterWithFailOverTest() throws Exception {
+        try {
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+            //run the failover test
+            performFailoverTest();
 
-        //run the failover test
-        performFailoverTest();
+            stopWriters();
+            stopReaders();
+            validateResults();
 
-        stopWriters();
-        stopReaders();
-        validateResults();
+            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
-        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-
-        log.info("Test MultiReaderWriterWithFailOver succeeds");
+            log.info("Test MultiReaderWriterWithFailOver succeeds");
+        } finally {
+            testState.printAnomalies();
+        }
     }
 }

@@ -137,42 +137,45 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         segmentStoreInstance.scaleService(1, true);
     }
 
-    @Test
+    @Test(timeout = 25 * 60 * 1000)
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
+        try {
+            createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
-        createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
+            //run the failover test before scaling
+            performFailoverForTestsInvolvingTxns();
 
-        //run the failover test before scaling
-        performFailoverForTestsInvolvingTxns();
+            //bring the instances back to 3 before performing failover during scaling
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        //bring the instances back to 3 before performing failover during scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, stream);
 
-        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, stream);
+            //run the failover test while scaling
+            performFailoverForTestsInvolvingTxns();
 
-        //run the failover test while scaling
-        performFailoverForTestsInvolvingTxns();
+            waitForScaling(scope, stream);
 
-        waitForScaling(scope, stream);
+            //bring the instances back to 3 before performing failover
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        //bring the instances back to 3 before performing failover
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //run the failover test after scaling
+            performFailoverForTestsInvolvingTxns();
 
-        //run the failover test after scaling
-        performFailoverForTestsInvolvingTxns();
+            stopWriters();
+            waitForTxnsToComplete();
+            stopReaders();
+            validateResults();
 
-        stopWriters();
-        waitForTxnsToComplete();
-        stopReaders();
-        validateResults();
-
-        cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-        log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
+            cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+            log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
+        } finally {
+            testState.printAnomalies();
+        }
     }
 
 }
