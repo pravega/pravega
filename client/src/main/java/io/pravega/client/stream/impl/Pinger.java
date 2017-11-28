@@ -73,11 +73,11 @@ public class Pinger implements AutoCloseable {
 
     private long getPingInterval(long txnLeaseMillis) {
         double pingInterval = txnLeaseMillis * PING_INTERVAL_FACTOR;
-        if (pingInterval < TimeUnit.SECONDS.toMillis(10)) {
+        if (pingInterval < TimeUnit.SECONDS.toMillis(5)) {
             log.warn("Transaction ping interval is less than 10 seconds(lower bound)");
         }
         //Ping interval cannot be less than KeepAlive task interval of 10seconds.
-        return Math.max(TimeUnit.SECONDS.toMillis(10), (long) pingInterval);
+        return Math.max(TimeUnit.SECONDS.toMillis(5), (long) pingInterval);
     }
 
     @Synchronized
