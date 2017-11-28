@@ -605,7 +605,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return txnStatus;
                 }, executor)
                 .exceptionally(ex -> {
-                    log.warn("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
+                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
                             .getSimpleName(), streamName);
                     throw new WriteFailedException(ex);
                 });

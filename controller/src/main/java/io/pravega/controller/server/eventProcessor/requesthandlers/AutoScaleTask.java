@@ -66,7 +66,7 @@ public class AutoScaleTask {
             // we are processing at much slower rate than the message ingestion rate into the stream. We should scale up.
             // Either way, logging this helps us know how often this is happening.
 
-            log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
+            log.info(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
 

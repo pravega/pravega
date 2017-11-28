@@ -255,9 +255,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             long previousEventNumber;
             synchronized (lock) {
                 previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-                Preconditions.checkState(outstandingAppend == append,
-                        "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
-                outstandingAppend = null;
                 if (exception == null) {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                 
                 } else {
@@ -282,6 +279,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 connection.send(new DataAppended(append.getWriterId(), append.getEventNumber(), previousEventNumber));
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+            }
+
+            /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent, clear
+             outstandingAppend to handle the next Append message. */
+            synchronized (lock) {
+                Preconditions.checkState(outstandingAppend == append,
+                        "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
+                outstandingAppend = null;
             }
       
             pauseOrResumeReading();
