@@ -34,8 +34,11 @@ import io.pravega.test.system.framework.services.ZookeeperService;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -98,6 +101,7 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
         final AtomicBoolean txnWrite = new AtomicBoolean(false);
+        final Map<UUID, Integer> txnMap = new HashMap<>();
     }
 
     void performFailoverTest() {
@@ -234,73 +238,147 @@ abstract class AbstractFailoverTests {
     }
 
     void waitForTxnsToComplete() {
+
+        int committedTxnCountBeforeAwait = 0;
+        int abortedTxnCountBeforeAwait = 0;
+        int committingTxnCountBeforeAwait = 0;
+        log.info("Total number of transactions {}", testState.txnMap.size());
+        for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
+            String keyValue = mapEntry.getKey().toString();
+            int value = (Integer) mapEntry.getValue();
+            if (value == 0) {
+                committingTxnCountBeforeAwait++;
+                log.info("Txn with id {}, still committing", keyValue);
+            } else if (value == 1) {
+                committedTxnCountBeforeAwait++;
+                log.info("Txn with id {}, committed", keyValue);
+            } else if (value == -1) {
+                abortedTxnCountBeforeAwait++;
+                log.info("Txn with id {}, aborted", keyValue);
+            }
+        }
+        log.info("Txn committed count before waiting for txn future list to complete {}", committedTxnCountBeforeAwait);
+        log.info("Txn aborted count before waiting for txn future list to complete {}", abortedTxnCountBeforeAwait);
+        log.info("Txn committing count before waiting for txn future list to complete {}", committingTxnCountBeforeAwait);
         log.info("Wait for txns to complete");
         if (!Futures.await(Futures.allOf(testState.txnStatusFutureList))) {
             log.error("Transaction futures did not complete with exceptions");
-        }
-        // check for exceptions during transaction commits
-        if (testState.getTxnWriteException.get() != null) {
-            log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
-            Assert.fail("Unable to commit transaction. Test failure");
-        }
-    }
 
-
-    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
-        return CompletableFuture.runAsync(() -> {
-            while (!testState.stopWriteFlag.get()) {
-                Transaction<Long> transaction = null;
-                AtomicBoolean txnIsDone = new AtomicBoolean(false);
-
-                try {
-                    transaction = writer.beginTxn();
-
-                    for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
-                        long value = testState.eventData.incrementAndGet();
-                        transaction.writeEvent(String.valueOf(value), value);
-                        log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
-                    }
-                    //commit Txn
-                    transaction.commit();
-                    txnIsDone.set(true);
-
-                    //wait for transaction to get committed
-                    testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
-                } catch (Throwable e) {
-                    // Given that we have retry logic both in the interaction with controller and
-                    // segment store, we should fail the test case in the presence of any exception
-                    // caught here.
-                    txnIsDone.set(true);
-                    log.warn("Exception while writing events in the transaction: ", e);
-                    if (transaction != null) {
-                        log.debug("Transaction with id: {}  failed", transaction.getTxnId());
-                    }
-                    testState.getTxnWriteException.set(e);
-                    return;
+            int txnFutureCompletedCount = 0;
+            int txnFutureCompletedExceptionallyCount = 0;
+            int txnFutureNotCompletedCount = 0;
+            int size = testState.txnStatusFutureList.size();
+            log.info("Total number of transaction futures to wait upon to complete {}", size);
+            for (int i = 0; i < size; i++) {
+                if (testState.txnStatusFutureList.get(i).isDone()) {
+                    txnFutureCompletedCount++;
+                } else if (testState.txnStatusFutureList.get(i).isCompletedExceptionally()) {
+                    txnFutureCompletedExceptionallyCount++;
+                } else {
+                    txnFutureNotCompletedCount++;
                 }
             }
-            closeWriter(writer);
-        }, executorService);
-    }
+            log.info("Txn futures completed count {}", txnFutureCompletedCount);
+            log.info("Txn futures completed exceptionally count {}", txnFutureCompletedExceptionallyCount);
+            log.info("Txn futures not completed count {}", txnFutureNotCompletedCount);
 
-    CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn,
-                                                   final AtomicLong eventWriteCount) {
-
-        return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
-            Transaction.Status status = txn.checkStatus();
-            log.debug("Txn id {} status is {}", txn.getTxnId(), status);
-            if (status.equals(Transaction.Status.COMMITTED)) {
-                eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
-                log.info("Event write count: {}", eventWriteCount.get());
-            } else if (status.equals(Transaction.Status.ABORTED)) {
-                log.debug("Transaction with id: {} aborted", txn.getTxnId());
-            } else {
-                throw new TxnNotCompleteException();
+            int committedTxnCountAfterAwait = 0;
+            int abortedTxnCountAfterAwait = 0;
+            int committingTxnCountAfterAwait = 0;
+            log.info("Total number of transactions {}", testState.txnMap.size());
+            for (Map.Entry mapEntry : testState.txnMap.entrySet()) {
+                String keyValue = mapEntry.getKey().toString();
+                int value = (Integer) mapEntry.getValue();
+                if (value == 0) {
+                    committingTxnCountAfterAwait++;
+                    log.info("Txn with id {}, still committing", keyValue);
+                } else if (value == 1) {
+                    committedTxnCountAfterAwait++;
+                    log.info("Txn with id {}, committed", keyValue);
+                } else if (value == -1) {
+                    abortedTxnCountAfterAwait++;
+                    log.info("Txn with id {}, aborted", keyValue);
+                }
             }
+            log.info("Txn committed count after waiting for txn future list to complete {}", committedTxnCountAfterAwait);
+            log.info("Txn aborted count after waiting for txn future list to complete {}", abortedTxnCountAfterAwait);
+            log.info("Txn committing count after waiting for txn future list to complete {}", committingTxnCountAfterAwait);
 
-            return CompletableFuture.completedFuture(null);
-        }, executorService);
+            // check for exceptions during transaction commits
+            if (testState.getTxnWriteException.get() != null) {
+                log.info("Unable to commit transaction:", testState.getTxnWriteException.get());
+                Assert.fail("Unable to commit transaction. Test failure");
+            }
+        }
     }
+
+
+        CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
+            return CompletableFuture.runAsync(() -> {
+                while (!testState.stopWriteFlag.get()) {
+                    Transaction<Long> transaction = null;
+                    AtomicBoolean txnIsDone = new AtomicBoolean(false);
+
+                    try {
+                        transaction = writer.beginTxn();
+                        log.info(" Transaction with id  {} created at time {}", transaction.getTxnId().toString(), System.currentTimeMillis());
+                        testState.txnMap.put(transaction.getTxnId(), 1);
+
+                        for (int j = 0; j < NUM_EVENTS_PER_TRANSACTION; j++) {
+                            long value = testState.eventData.incrementAndGet();
+                            transaction.writeEvent(String.valueOf(value), value);
+                            log.debug("Writing event: {} into transaction: {}", value, transaction.getTxnId());
+                        }
+                        //commit Txn
+                        transaction.commit();
+                        txnIsDone.set(true);
+
+                        //wait for transaction to get committed
+                        testState.txnStatusFutureList.add(checkTxnStatus(transaction, testState.eventWriteCount));
+                    } catch (Throwable e) {
+                        // Given that we have retry logic both in the interaction with controller and
+                        // segment store, we should fail the test case in the presence of any exception
+                        // caught here.
+                        txnIsDone.set(true);
+                        log.warn("Exception while writing events in the transaction: ", e);
+                        if (transaction != null) {
+                            log.debug("Transaction with id: {}  failed", transaction.getTxnId());
+                        }
+                        testState.getTxnWriteException.set(e);
+                        return;
+                    }
+                }
+                closeWriter(writer);
+            }, executorService);
+        }
+
+        CompletableFuture<Void> checkTxnStatus(Transaction<Long> txn, final AtomicLong eventWriteCount) {
+
+            return Retry.indefinitelyWithExpBackoff("Txn did not get committed").runAsync(() -> {
+                Transaction.Status status = txn.checkStatus();
+                log.debug("Txn id {} status is {}", txn.getTxnId(), status);
+                if (status.equals(Transaction.Status.COMMITTED)) {
+                    testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                        y = y + 1;
+                        return y;
+                    });
+                    log.info(" Transaction with id  {} committed at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
+                    eventWriteCount.addAndGet(NUM_EVENTS_PER_TRANSACTION);
+                    log.info("Event write count: {}", eventWriteCount.get());
+                } else if (status.equals(Transaction.Status.ABORTED)) {
+                    testState.txnMap.computeIfPresent(txn.getTxnId(), (x, y) -> {
+                        y = y - 1;
+                        return y;
+                    });
+                    log.info(" Transaction with id  {} aborted at time {}", txn.getTxnId().toString(), System.currentTimeMillis());
+                } else {
+                    throw new TxnNotCompleteException();
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }, executorService);
+        }
+
 
     CompletableFuture<Void> startReading(final EventStreamReader<Long> reader) {
         return CompletableFuture.runAsync(() -> {
@@ -341,6 +419,9 @@ abstract class AbstractFailoverTests {
     }
 
     void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
+        while (readerGroupManager.getReaderGroup(readerGroupName).getOnlineReaders().size() != 0) {
+            Thread.sleep(5);
+        }
         CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
@@ -588,3 +669,4 @@ abstract class AbstractFailoverTests {
     }
 
 }
+
