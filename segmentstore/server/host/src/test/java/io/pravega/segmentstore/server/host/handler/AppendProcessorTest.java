@@ -415,6 +415,8 @@ public class AppendProcessorTest {
                 AppendProcessor.TIMEOUT);
         //Verify two DataAppended acks are sent out.
         verify(connection, times(2)).send(any(DataAppended.class));
+        verify(connection).send(new DataAppended(clientId, 100, Long.MIN_VALUE));
+        verify(connection).send(new DataAppended(clientId, 200, 100));
     }
 
     @Test
