@@ -32,6 +32,9 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,12 +45,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -98,6 +98,24 @@ abstract class AbstractFailoverTests {
         final CompletableFuture<Void> readersComplete = new CompletableFuture<>();
         final List<CompletableFuture<Void>> txnStatusFutureList = synchronizedList(new ArrayList<>());
         final AtomicBoolean txnWrite = new AtomicBoolean(false);
+
+        public void cancelAllPendingWork() {
+            readers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader and writer threads", e);
+                }
+            });
+
+            writers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader and writer threads", e);
+                }
+            });
+        }
     }
 
     void performFailoverTest() {
