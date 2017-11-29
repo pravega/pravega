@@ -50,6 +50,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -349,10 +350,11 @@ public class AppendProcessorTest {
      * Test to ensure newer appends are processed only after successfully sending the DataAppended acknowledgement
      * back to client.
      */
-    @Test
+    @Test(timeout = 15 * 1000)
     public void testDelayedDataAppended() throws Exception {
-        ReusableLatch storeAppendInvoked = new ReusableLatch();
+        ReusableLatch firstStoreAppendInvoked = new ReusableLatch();
         ReusableLatch completeFirstDataAppendedAck = new ReusableLatch();
+        ReusableLatch secondStoreAppendInvoked = new ReusableLatch();
         @Cleanup("shutdownNow")
         ScheduledExecutorService nettyExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "Netty-threadPool");
 
@@ -364,10 +366,13 @@ public class AppendProcessorTest {
 
         //Ensure the first DataAppended is hung/delayed.
         doAnswer(invocation -> {
-            storeAppendInvoked.release();
+            firstStoreAppendInvoked.release();
             completeFirstDataAppendedAck.await(); // wait, simulating a hung/delayed dataAppended acknowledgement.
             return null;
-        }).doNothing().when(connection).send(any(DataAppended.class));
+        }).doAnswer( invocation -> {
+            secondStoreAppendInvoked.release();
+            return null;
+        }).when(connection).send(any(DataAppended.class));
 
         AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
 
@@ -383,21 +388,34 @@ public class AppendProcessorTest {
                 updateEventNumber(clientId, 100, SegmentMetadata.NULL_ATTRIBUTE_VALUE, eventCount),
                 AppendProcessor.TIMEOUT)).thenReturn(result);
 
-        //trigger the first append with delayed dataAppended.
+        //Trigger the first append, here the sending of DataAppended ack will be delayed/hung.
         nettyExecutor.submit(() -> processor.append(new Append(streamSegmentName, clientId, 100, eventCount, Unpooled
                 .wrappedBuffer(data), null)));
-        storeAppendInvoked.await();
+        firstStoreAppendInvoked.await();
         verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 100, SegmentMetadata
                 .NULL_ATTRIBUTE_VALUE, eventCount), AppendProcessor.TIMEOUT);
 
-        //Trigger the next append.
-        //This should be completed immediately and should not cause a store.append to be invoked.
+        /* Trigger the next append. This should be completed immediately and should not cause a store.append to be
+        invoked as the previous DataAppended ack is still not sent. */
         processor.append(new Append(streamSegmentName, clientId, 200, eventCount, Unpooled
                 .wrappedBuffer(data),
                 null));
-        verifyNoMoreInteractions(store);
-    }
 
+        //Since the first Ack was never sent the next append should not be written to the store.
+        verifyNoMoreInteractions(store);
+
+        //Setup mock for check behaviour after the delayed/hung dataAppended completes.
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
+                AppendProcessor.TIMEOUT)).thenReturn(result);
+        completeFirstDataAppendedAck.release(); //Now ensure the dataAppended sent
+        secondStoreAppendInvoked.await(); // wait until the next store append is invoked.
+
+        //Verify that the next store append invoked.
+        verify(store).append(streamSegmentName, data, updateEventNumber(clientId, 200, 100, eventCount),
+                AppendProcessor.TIMEOUT);
+        //Verify two DataAppended acks are sent out.
+        verify(connection, times(2)).send(any(DataAppended.class));
+    }
 
     @Test
     public void testEventNumbersOldClient() {
