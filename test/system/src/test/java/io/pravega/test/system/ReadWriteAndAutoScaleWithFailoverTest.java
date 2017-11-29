@@ -108,7 +108,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         controller = new ControllerImpl(controllerURIDirect,
                                         ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
-        testState = new TestState();
+        testState = new TestState(false);
         testState.writersListComplete.add(0, testState.writersComplete);
         testState.writersListComplete.add(1, testState.newWritersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -123,55 +123,56 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
-        testState.writers.forEach(future -> future.cancel(true));
-        testState.readers.forEach(future -> future.cancel(true));
+        testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
     }
 
 
-    @Test
+    @Test(timeout = 25 * 60 * 1000)
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
+        try {
+            createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
 
-        createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
+            //run the failover test before scaling
+            performFailoverTest();
 
-        //run the failover test before scaling
-        performFailoverTest();
+            //bring the instances back to 3 before performing failover during scaling
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-        //bring the instances back to 3 before performing failover during scaling
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
-        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+            //run the failover test while scaling
+            performFailoverTest();
 
-        //run the failover test while scaling
-        performFailoverTest();
+            waitForScaling(scope, AUTO_SCALE_STREAM, config);
 
-        waitForScaling(scope, AUTO_SCALE_STREAM);
+            //bring the instances back to 3 before performing failover
+            controllerInstance.scaleService(3, true);
+            segmentStoreInstance.scaleService(3, true);
+            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            //run the failover test after scaling
+            performFailoverTest();
 
-        //bring the instances back to 3 before performing failover
-        controllerInstance.scaleService(3, true);
-        segmentStoreInstance.scaleService(3, true);
-        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+            stopWriters();
+            stopReaders();
+            validateResults();
 
-        //run the failover test after scaling
-        performFailoverTest();
-
-        stopWriters();
-        stopReaders();
-        validateResults();
-
-        cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-        log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
+            cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+            log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
+        } finally {
+            testState.printAnomalies();
+        }
     }
 }
