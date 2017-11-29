@@ -44,7 +44,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -105,6 +104,24 @@ abstract class AbstractFailoverTests {
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
+        }
+
+        void cancelAllPendingWork() {
+            readers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader and writer threads", e);
+                }
+            });
+
+            writers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader and writer threads", e);
+                }
+            });
         }
 
         void eventWritten(Long event) {
