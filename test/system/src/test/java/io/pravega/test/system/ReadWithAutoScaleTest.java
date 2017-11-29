@@ -131,7 +131,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create stream status {}", createStreamStatus);
     }
 
-    @Test(timeout = 6 * 60 * 1000) //timeout of 6 mins.
+    @Test(timeout = 10 * 60 * 1000) //timeout of 6 mins.
     public void scaleTestsWithReader() {
 
         URI controllerUri = getControllerURI();
