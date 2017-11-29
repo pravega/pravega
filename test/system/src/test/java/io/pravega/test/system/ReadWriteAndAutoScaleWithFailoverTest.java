@@ -157,13 +157,12 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test while scaling
             performFailoverTest();
 
-            waitForScaling(scope, AUTO_SCALE_STREAM);
+            waitForScaling(scope, AUTO_SCALE_STREAM, config);
 
             //bring the instances back to 3 before performing failover
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
-
             //run the failover test after scaling
             performFailoverTest();
 

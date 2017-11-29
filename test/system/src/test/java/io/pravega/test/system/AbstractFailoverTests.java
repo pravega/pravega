@@ -14,6 +14,7 @@ import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -85,7 +86,6 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
-        final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
         //list of all writer's futures
         final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
         //list of all reader's futures
@@ -407,7 +407,8 @@ abstract class AbstractFailoverTests {
     }
 
     void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
+        CompletableFuture<Boolean> sealStreamStatus = Retry.indefinitelyWithExpBackoff("Failed to seal stream. retrying ...")
+                .runAsync(() -> controller.sealStream(scope, stream), executorService);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
@@ -583,24 +584,18 @@ abstract class AbstractFailoverTests {
         assertEquals(testState.getEventWrittenCount(), testState.getEventReadCount());
     }
 
-    void waitForScaling(String scope, String stream) {
+    void waitForScaling(String scope, String stream, StreamConfiguration initialConfig) {
+        int initialMaxSegmentNumber = initialConfig.getScalingPolicy().getMinNumSegments() - 1;
+        boolean scaled = false;
         for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
             StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
-            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
-            if (testState.currentNumOfSegments.get() == 2) {
-                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
-                //Scaling operation did not happen, wait
-                Exceptions.handleInterrupted(() -> Thread.sleep(10000));
-            }
-            if (testState.currentNumOfSegments.get() > 2) {
-                //scale operation successful.
-                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+            if (streamSegments.getSegments().stream().mapToInt(Segment::getSegmentNumber).max().orElse(-1) > initialMaxSegmentNumber) {
+                scaled = true;
                 break;
             }
         }
-        if (testState.currentNumOfSegments.get() == 2) {
-            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
-        }
+
+        assertTrue("scaling did not happen within desired time", scaled);
     }
 
     static URI startZookeeperInstance() {
