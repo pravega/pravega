@@ -546,9 +546,11 @@ abstract class AbstractFailoverTests {
                 scaled = true;
                 break;
             }
+            //Scaling operation did not happen, wait
+            Exceptions.handleInterrupted(() -> Thread.sleep(10000));
         }
 
-        assertTrue("scaling did not happen within desired time", scaled);
+        assertTrue("Scaling did not happen within desired time", scaled);
     }
 
 
