@@ -104,7 +104,7 @@ abstract class AbstractFailoverTests {
                 try {
                     future.cancel(true);
                 } catch (Exception e) {
-                    log.error("exception thrown while cancelling reader and writer threads", e);
+                    log.error("exception thrown while cancelling reader thread", e);
                 }
             });
 
@@ -112,7 +112,7 @@ abstract class AbstractFailoverTests {
                 try {
                     future.cancel(true);
                 } catch (Exception e) {
-                    log.error("exception thrown while cancelling reader and writer threads", e);
+                    log.error("exception thrown while cancelling writer thread", e);
                 }
             });
         }
