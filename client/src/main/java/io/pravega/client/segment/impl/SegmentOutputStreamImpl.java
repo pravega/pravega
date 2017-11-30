@@ -127,12 +127,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         private void connectionSetupComplete() {
             CompletableFuture<Void> toComplete;
+            ClientConnection c;
             synchronized (lock) {
                 toComplete = connectionSetupCompleted;
+                c = connection;
             }
             if (toComplete != null) {
                 toComplete.complete(null);
-                setupConnection.release(connection);
+                setupConnection.release(c);
             }
         }
 
