@@ -79,7 +79,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final State state = new State();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
-    private final Object connectionEstablishmentLock = new Object();
     private final Object writeOrderLock = new Object();
     
     /**
@@ -125,16 +124,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
 
-        private void connectionSetupComplete() {
+        private void connectionSetupComplete(ClientConnection connection) {
             CompletableFuture<Void> toComplete;
-            ClientConnection c;
             synchronized (lock) {
                 toComplete = connectionSetupCompleted;
-                c = connection;
             }
             if (toComplete != null) {
                 toComplete.complete(null);
-                setupConnection.release(c);
+                setupConnection.release(connection);
             }
         }
 
@@ -350,13 +347,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                                                                                   .getData()),
                                                                       entry.getValue().getExpectedOffset()))
                                              .collect(Collectors.toList());
+            ClientConnection connection = state.getConnection();
+            if (connection == null) {
+                log.warn("Connection setup could not be completed because connection is already failed.", writerId);
+                return;
+            }
             if (toRetransmit == null || toRetransmit.isEmpty()) {
                 log.info("Connection setup complete for writer {}", writerId);
-                state.connectionSetupComplete();
+                state.connectionSetupComplete(connection);
             } else {
-                state.getConnection().sendAsync(toRetransmit, e -> {
+                connection.sendAsync(toRetransmit, e -> {
                     if (e == null) {
-                        state.connectionSetupComplete();
+                        state.connectionSetupComplete(connection);
                     } else {
                         failConnection(e);
                     }
