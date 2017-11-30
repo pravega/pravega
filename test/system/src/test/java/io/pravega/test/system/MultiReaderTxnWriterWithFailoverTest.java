@@ -104,9 +104,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         controller = new ControllerImpl(controllerURIDirect,
                                         ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                                         controllerExecutorService);
-
-        testState = new TestState();
-        testState.txnWrite.set(true);
+        testState = new TestState(true);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
@@ -120,37 +118,39 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
+        testState.printAnomalies();
         //interrupt writers and readers threads if they are still running.
-        testState.writers.forEach(future -> future.cancel(true));
-        testState.readers.forEach(future -> future.cancel(true));
+        testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
-        testState.eventsReadFromPravega.clear();
         testState.txnStatusFutureList.clear();
         //scale the controller and segmentStore back to 1 instance.
         controllerInstance.scaleService(1, true);
         segmentStoreInstance.scaleService(1, true);
     }
 
-    @Test
+    @Test(timeout = 15 * 60 * 1000)
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
+        try {
+            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+            //run the failover test
+            performFailoverForTestsInvolvingTxns();
 
-        //run the failover test
-        performFailoverForTestsInvolvingTxns();
+            stopWriters();
+            waitForTxnsToComplete();
+            stopReaders();
+            validateResults();
 
-        stopWriters();
-        waitForTxnsToComplete();
-        stopReaders();
-        validateResults();
+            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
-        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-
-        log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
+            log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
+        } finally {
+            testState.printAnomalies();
+        }
     }
 }
