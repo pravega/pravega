@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -37,7 +38,7 @@ import lombok.val;
  * This class encapsulates the state machine of a reader group. The class represents the full state, and each
  * of the nested classes are state transitions that can occur.
  */
-class ReaderGroupState implements Revisioned {
+public class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
     private final String scopedSynchronizerStream;
@@ -98,7 +99,7 @@ class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    Set<String> getOnlineReaders() {
+    public Set<String> getOnlineReaders() {
         return new HashSet<>(assignedSegments.keySet());
     }
     
@@ -172,7 +173,7 @@ class ReaderGroupState implements Revisioned {
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
      */
     @Synchronized
-    int getNumberOfSegments() {
+    public int getNumberOfSegments() {
         return assignedSegments.values().stream().mapToInt(Map::size).sum() + unassignedSegments.size();
     }
     
@@ -205,6 +206,22 @@ class ReaderGroupState implements Revisioned {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
     }
     
+    @Synchronized
+    boolean hasOngoingCheckpoint() {
+        return checkpointState.hasOngoingCheckpoint();
+    }
+
+    /**
+     * This functions returns true if the readers part of reader group for sealed streams have completely read the data.
+     *
+     * @return true if end of data. false if there are segments to be read from.
+     */
+    @Synchronized
+    public boolean isEndOfData() {
+        return futureSegments.isEmpty() && unassignedSegments.isEmpty() &&
+                assignedSegments.values().stream().allMatch(Map::isEmpty);
+    }
+
     @Override
     @Synchronized
     public String toString() {
@@ -333,7 +350,7 @@ class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segment) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to release a segment that was not assigned to it " + segment);
@@ -357,7 +374,7 @@ class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             Long offset = state.unassignedSegments.remove(segment);
             if (offset == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
@@ -400,7 +417,7 @@ class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
-            Preconditions.checkState(assigned != null, "{} is not part of the readerGroup", readerId);
+            Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segmentCompleted) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
@@ -445,6 +462,10 @@ class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         private static final long serialVersionUID = 1L;
         private final String checkpointId;
+        
+        CreateCheckpoint() {
+            this(UUID.randomUUID().toString());
+        }
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)

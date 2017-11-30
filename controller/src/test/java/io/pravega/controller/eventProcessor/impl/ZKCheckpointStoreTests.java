@@ -85,42 +85,5 @@ public class ZKCheckpointStoreTests extends CheckpointStoreTests {
         AssertExtensions.assertThrows("failed removeReaderGroup",
                 () -> checkpointStore.removeReaderGroup(process1, readerGroup1), predicate);
     }
-
-    @Test
-    public void connectivityFailureTests() throws IOException {
-        final String process1 = UUID.randomUUID().toString();
-        final String readerGroup1 = UUID.randomUUID().toString();
-        final String reader1 = UUID.randomUUID().toString();
-        zkServer.close();
-
-        Predicate<Throwable> predicate = e -> e instanceof CheckpointStoreException &&
-                ((CheckpointStoreException) e).getType().equals(CheckpointStoreException.Type.Connectivity);
-        AssertExtensions.assertThrows("failed getProcesses", () -> checkpointStore.getProcesses(), predicate);
-
-        AssertExtensions.assertThrows("failed addReaderGroup",
-                () -> checkpointStore.addReaderGroup(process1, readerGroup1), predicate);
-
-        AssertExtensions.assertThrows("failed addReader",
-                () -> checkpointStore.addReader(process1, readerGroup1, reader1), predicate);
-
-        AssertExtensions.assertThrows("failed sealReaderGroup",
-                () -> checkpointStore.sealReaderGroup(process1, readerGroup1), predicate);
-
-        AssertExtensions.assertThrows("failed removeReader",
-                () -> checkpointStore.removeReader(process1, readerGroup1, reader1), predicate);
-
-        AssertExtensions.assertThrows("failed getPositions",
-                () -> checkpointStore.getPositions(process1, readerGroup1), predicate);
-
-        Position position = new PositionImpl(Collections.emptyMap());
-        AssertExtensions.assertThrows("failed setPosition",
-                () -> checkpointStore.setPosition(process1, readerGroup1, reader1, position), predicate);
-
-        AssertExtensions.assertThrows("failed removeReader",
-                () -> checkpointStore.removeReader(process1, readerGroup1, reader1), predicate);
-
-        AssertExtensions.assertThrows("failed removeReaderGroup",
-                () -> checkpointStore.removeReaderGroup(process1, readerGroup1), predicate);
-    }
 }
 

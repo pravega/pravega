@@ -17,7 +17,6 @@ import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.hdfs.protocol.AclException;
@@ -76,7 +75,12 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
                 return;
             }
 
-            IOUtils.copyBytes(this.data, stream, this.length);
+            // We need to be very careful with IOUtils.copyBytes. There are many overloads with very similar signatures.
+            // There is a difference between (InputStream, OutputStream, int, boolean) and (InputStream, OutputStream, long, boolean),
+            // in that the one with "int" uses the third arg as a buffer size, and the one with "long" uses it as the number
+            // of bytes to copy.
+            IOUtils.copyBytes(this.data, stream, (long) this.length, false);
+
             stream.flush();
             lastFile.increaseLength(this.length);
         } catch (FileNotFoundException | AclException ex) {
@@ -84,8 +88,8 @@ public class WriteOperation extends FileSystemOperation<HDFSSegmentHandle> imple
             throw ex; // If we were not fenced out, then this is a legitimate exception - rethrow it.
         }
 
-        Metrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        Metrics.WRITE_BYTES.add(this.length);
+        HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+        HDFSMetrics.WRITE_BYTES.add(this.length);
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 }

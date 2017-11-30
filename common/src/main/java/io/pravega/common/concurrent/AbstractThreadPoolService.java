@@ -11,14 +11,12 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import com.google.common.util.concurrent.Runnables;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +60,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(Services.stopAsync(this, this.executor));
             log.info("{}: Closed.", this.traceObjectId);
             this.closed.set(true);
         }
@@ -81,7 +79,7 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         this.runTask.whenComplete((r, ex) -> {
             // Handle any exception that may have been thrown.
             if (ex != null
-                    && !(ExceptionHelpers.getRealException(ex) instanceof CancellationException && state() != State.RUNNING)) {
+                    && !(Exceptions.unwrap(ex) instanceof CancellationException && state() != State.RUNNING)) {
                 // We ignore CancellationExceptions while shutting down - those are expected.
                 errorHandler(ex);
             }
@@ -98,40 +96,68 @@ public abstract class AbstractThreadPoolService extends AbstractService implemen
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.info("{}: Stopping.", this.traceObjectId);
 
-        ExecutorServiceHelpers.execute(() -> {
-            Throwable cause = this.stopException.get();
-
-            // Cancel the last iteration and wait for it to finish.
-            if (this.runTask != null) {
-                try {
-                    // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
-                    // make sure we stop any long-running tasks.
-                    this.runTask.get(getShutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                    this.runTask = null;
-                } catch (Exception ex) {
-                    Throwable realEx = ExceptionHelpers.getRealException(ex);
-                    if (cause == null) {
-                        // CancellationExceptions are expected if we are shutting down the service; If this was the real
-                        // cause why runTask failed, then the service did not actually fail, so do not report a bogus exception.
-                        if (!(realEx instanceof CancellationException)) {
-                            cause = realEx;
+        if (this.runTask == null) {
+            notifyStoppedOrFailed(null);
+        } else if (this.runTask.isDone()) {
+            // Our runTask is done. See if it completed normally or not.
+            notifyStoppedOrFailed(Futures.getException(this.runTask));
+        } else {
+            // Still running. Wait (async) for the task to complete or a timeout to expire.
+            CompletableFuture
+                    .anyOf(this.runTask, Futures.delayedFuture(getShutdownTimeout(), this.executor))
+                    .whenComplete((r, ex) -> {
+                        if (ex != null) {
+                            ex = Exceptions.unwrap(ex);
                         }
-                    } else if (cause != realEx) {
-                        cause.addSuppressed(realEx);
-                    }
-                }
+
+                        if (ex == null && !this.runTask.isDone()) {
+                            // Still no exception, but our service did not properly shut down.
+                            ex = new TimeoutException("Timeout expired while waiting for the Service to shut down.");
+
+                        }
+
+                        this.runTask = null;
+                        notifyStoppedOrFailed(ex);
+                    });
+        }
+    }
+
+    /**
+     * Notifies the AbstractService to enter the TERMINATED or FAILED state, based on the current state of the Service
+     * and the given Exception.
+     *
+     * @param runException (Optional) A Throwable that indicates the failure cause of runTask.
+     */
+    private void notifyStoppedOrFailed(Throwable runException) {
+        final Throwable stopException = this.stopException.get();
+        if (runException == null) {
+            // If runTask did not fail with an exception, see if we have a general stopException.
+            runException = stopException;
+        }
+
+        if (runException instanceof CancellationException) {
+            // CancellationExceptions are expected if we are shutting down the service; If this was the real
+            // cause why runTask failed, then the service did not actually fail, so do not report a bogus exception.
+            runException = null;
+        }
+
+        if (runException == null) {
+            // Normal shutdown.
+            notifyStopped();
+        } else {
+            if (stopException != null && stopException != runException) {
+                // We have both a stopException and a runTask exception. Since the stopException came first, that is the
+                // one we need to fail with, so add the runTask exception as suppressed.
+                stopException.addSuppressed(runException);
+                runException = stopException;
             }
 
-            if (cause == null) {
-                // Normal shutdown.
-                notifyStopped();
-            } else {
-                // Shutdown caused by some failure.
-                notifyFailed(cause);
-            }
+            // Shutdown caused by some failure.
+            notifyFailed(runException);
 
-            log.info("{}: Stopped.", this.traceObjectId);
-        }, this::notifyFailed, Runnables.doNothing(), this.executor);
+        }
+
+        log.info("{}: Stopped.", this.traceObjectId);
     }
 
     //endregion

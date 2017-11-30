@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.AbstractThreadPoolService;
 import io.pravega.common.concurrent.CancellationToken;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -89,7 +89,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
 
     @Override
     protected CompletableFuture<Void> doRun() {
-        return FutureHelpers.loop(
+        return Futures.loop(
                 () -> !this.stopToken.isCancellationRequested(),
                 () -> delay().thenCompose(v -> runOnce()),
                 this.executor);
@@ -130,7 +130,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
             }
         }
 
-        FutureHelpers.completeAfter(this::runOnceInternal, result);
+        Futures.completeAfter(this::runOnceInternal, result);
         return result;
     }
 
@@ -148,7 +148,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
                 .map(sm -> this.stateStore.put(sm.getName(), new SegmentState(sm.getId(), sm), this.config.getSegmentMetadataExpiration()))
                 .collect(Collectors.toList());
 
-        return FutureHelpers
+        return Futures
                 .allOf(cleanupTasks)
                 .thenRunAsync(() -> {
                     Collection<SegmentMetadata> evictedSegments = this.metadata.cleanup(cleanupCandidates, lastSeqNo);
@@ -158,7 +158,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
     }
 
     private CompletableFuture<Void> delay() {
-        val result = FutureHelpers.delayedFuture(this.config.getSegmentMetadataExpiration(), this.executor);
+        val result = Futures.delayedFuture(this.config.getSegmentMetadataExpiration(), this.executor);
         this.stopToken.register(result);
         return result;
     }

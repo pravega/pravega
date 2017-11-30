@@ -22,7 +22,7 @@ import feign.gson.GsonDecoder;
 import feign.gson.GsonEncoder;
 import io.pravega.test.system.framework.LoginClient;
 import mesosphere.marathon.client.auth.TokenAuthRequestInterceptor;
-
+import mesosphere.client.common.ModelUtils;
 import java.util.Calendar;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
@@ -69,8 +69,8 @@ public class MetronomeClient {
         Feign.Builder b = Feign.builder().client(LoginClient.getClientHostVerificationDisabled())
                 .logger(new Logger.ErrorLogger())
                 .logLevel(Logger.Level.BASIC)
-                .encoder(new GsonEncoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
-                .decoder(new GsonDecoder(mesosphere.marathon.client.utils.ModelUtils.GSON))
+                .encoder(new GsonEncoder(ModelUtils.GSON))
+                .decoder(new GsonDecoder(ModelUtils.GSON))
                 //max wait period = 5 seconds ; max attempts = 5
                 .retryer(new Retryer.Default(SECONDS.toMillis(1), SECONDS.toMillis(5), 5))
                 .errorDecoder(new MetronomeErrorDecoder());

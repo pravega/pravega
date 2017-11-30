@@ -9,12 +9,11 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -66,7 +65,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         for (Iterator<CompletableFuture<Boolean>> iter = outstanding.iterator(); iter.hasNext();) {
             val ack = iter.next();
             if (ack.isDone()) {
-                Throwable exception = FutureHelpers.getException(ack);
+                Throwable exception = Futures.getException(ack);
                 if (exception != null) {
                     txnFailedCause.compareAndSet(null, exception);
                 }
@@ -90,7 +89,6 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
             synchronized (lock) {
                 removeCompleted();
                 checkFailed();
-                Preconditions.checkState(outstanding.isEmpty());
             }
         } catch (SegmentSealedException e) {
             throw new TxnFailedException(e);

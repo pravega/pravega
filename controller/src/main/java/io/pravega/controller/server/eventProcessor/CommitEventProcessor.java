@@ -12,8 +12,8 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Position;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.server.SegmentHelper;
@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.WriteFailedException;
+import io.pravega.shared.controller.event.CommitEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -124,7 +125,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
                         streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
                         .thenApply(x -> null))
-                .thenCompose(x -> FutureHelpers.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
+                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
     }
 
     private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {
@@ -140,7 +141,7 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 log.debug("Transaction {}, sent request to commitStream", txnId);
                 return null;
             } else {
-                Throwable realException = ExceptionHelpers.getRealException(e);
+                Throwable realException = Exceptions.unwrap(e);
                 log.warn("Transaction {}, failed sending event to commitStream. Exception: {} Retrying...", txnId,
                         realException.getClass().getSimpleName());
                 throw new WriteFailedException(realException);
@@ -150,10 +151,10 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
 
     private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream,
                                                        final List<Integer> segments, final UUID txnId) {
-        return FutureHelpers.allOf(segments.stream()
-                .parallel()
-                .map(segment -> notifyCommitToHost(scope, stream, segment, txnId))
-                .collect(Collectors.toList()));
+        return Futures.allOf(segments.stream()
+                                     .parallel()
+                                     .map(segment -> notifyCommitToHost(scope, stream, segment, txnId))
+                                     .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream,

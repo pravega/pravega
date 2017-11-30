@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class RetentionPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public enum Type {
+    public enum RetentionType {
         /**
          * Set retention based on how long data has been in the stream in milliseconds.
          */
@@ -35,14 +35,28 @@ public class RetentionPolicy implements Serializable {
         SIZE
     }
 
-    private final Type type;
-    private final long value;
+    private final RetentionType retentionType;
+    private final long retentionParam;
 
+    /**
+     * Create a retention policy to configure a stream to periodically truncated
+     * according to the specified duration.
+     *
+     * @param duration Period to retain data in a stream.
+     * @return Retention policy object.
+     */
     public static RetentionPolicy byTime(Duration duration) {
-        return new RetentionPolicy(Type.TIME, duration.toMillis());
+        return new RetentionPolicy(RetentionType.TIME, duration.toMillis());
     }
 
+    /**
+     * Create a retention policy to configure a stream to truncate a stream
+     * according to the amount of data currently stored.
+     *
+     * @param size Amount of data to retain in a stream.
+     * @return Retention policy object.
+     */
     public static RetentionPolicy bySizeBytes(long size) {
-        return new RetentionPolicy(Type.SIZE, size);
+        return new RetentionPolicy(RetentionType.SIZE, size);
     }
 }

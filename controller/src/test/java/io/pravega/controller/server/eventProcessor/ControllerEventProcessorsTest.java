@@ -11,7 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -21,6 +21,9 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
@@ -63,6 +66,7 @@ public class ControllerEventProcessorsTest {
         HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks = mock(StreamTransactionMetadataTasks.class);
         executor = Executors.newSingleThreadScheduledExecutor();
         ControllerEventProcessorConfig config = ControllerEventProcessorConfigImpl.withDefault();
         EventProcessorSystem system = mock(EventProcessorSystem.class);
@@ -149,8 +153,8 @@ public class ControllerEventProcessorsTest {
                 hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, system, executor);
         processors.startAsync();
         processors.awaitRunning();
-        assertTrue(FutureHelpers.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
-        assertTrue(FutureHelpers.await(processors.handleFailedProcess("host1")));
+        assertTrue(Futures.await(processors.sweepFailedProcesses(() -> Sets.newHashSet("host1"))));
+        assertTrue(Futures.await(processors.handleFailedProcess("host1")));
         processors.shutDown();
     }
 }

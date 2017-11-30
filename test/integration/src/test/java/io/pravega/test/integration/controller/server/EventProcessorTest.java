@@ -12,8 +12,10 @@ package io.pravega.test.integration.controller.server;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.Position;
+import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
@@ -91,6 +93,11 @@ public class EventProcessorTest {
         @Override
         public String getKey() {
             return null;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return Futures.failedFuture(new RuntimeException("This should not be called"));
         }
     }
 

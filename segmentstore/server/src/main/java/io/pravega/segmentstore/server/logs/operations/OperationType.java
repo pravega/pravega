@@ -29,7 +29,8 @@ public enum OperationType {
     TransactionMap((byte) 5, TransactionMapOperation::new),
     MetadataCheckpoint((byte) 6, MetadataCheckpointOperation::new),
     UpdateAttributes((byte) 7, UpdateAttributesOperation::new),
-    StorageMetadataCheckpoint((byte) 8, StorageMetadataCheckpointOperation::new);
+    StorageMetadataCheckpoint((byte) 8, StorageMetadataCheckpointOperation::new),
+    Truncate((byte) 9, StreamSegmentTruncateOperation::new);
 
     final byte type;
     final DeserializationConstructor deserializationConstructor;

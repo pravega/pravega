@@ -97,11 +97,14 @@ public class EndToEndAutoScaleUpWithTxnTest {
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
-            EventStreamWriter<String> test = clientFactory.createEventWriter(
-                    "test", new JavaSerializer<>(), EventWriterConfig.builder().build());
+            EventWriterConfig writerConfig = EventWriterConfig.builder()
+                                                              .transactionTimeoutTime(30000)
+                                                              .transactionTimeoutScaleGracePeriod(30000)
+                                                              .build();
+            EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(), writerConfig);
 
             // region Successful commit tests
-            Transaction<String> txn1 = test.beginTxn(30000, 30000, 30000);
+            Transaction<String> txn1 = test.beginTxn();
 
             txn1.writeEvent("1");
             txn1.flush();
@@ -114,7 +117,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
             controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
 
-            Transaction<String> txn2 = test.beginTxn(30000, 30000, 30000);
+            Transaction<String> txn2 = test.beginTxn();
 
             txn2.writeEvent("2");
             txn2.flush();
@@ -173,7 +176,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {
-                    Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
+                    Transaction<String> transaction = test.beginTxn();
 
                     for (int i = 0; i < 1000; i++) {
                         transaction.writeEvent("0", "txntest");

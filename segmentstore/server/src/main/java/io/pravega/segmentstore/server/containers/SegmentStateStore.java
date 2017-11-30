@@ -10,13 +10,14 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
@@ -98,7 +99,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
                 .openWrite(stateSegment)
                 .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
                 .exceptionally(this::handleSegmentNotExistsException)
-                .thenComposeAsync(v -> this.storage.create(stateSegment, timer.getRemaining()), this.executor)
+                .thenComposeAsync(v -> this.storage.create(stateSegment, SegmentRollingPolicy.NO_ROLLING, timer.getRemaining()), this.executor)
                 .thenComposeAsync(v -> this.storage.openWrite(stateSegment), this.executor)
                 .thenComposeAsync(
                         handle -> this.storage.write(handle, 0, toWrite.getReader(), toWrite.getLength(), timer.getRemaining()),
@@ -148,7 +149,7 @@ class SegmentStateStore implements AsyncMap<String, SegmentState> {
 
     @SneakyThrows(Throwable.class)
     private <T> T handleSegmentNotExistsException(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (ex instanceof StreamSegmentNotExistsException) {
             // It's ok if the state segment does not exist.
             return null;

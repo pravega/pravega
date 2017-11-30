@@ -10,8 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableSet;
+import io.grpc.Server;
 import io.grpc.Status;
-import io.grpc.internal.ServerImpl;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -101,7 +101,7 @@ public class ControllerImplTest {
 
     // Test implementation for simulating the server responses.
     private ControllerServiceImplBase testServerImpl;
-    private ServerImpl testGRPCServer = null;
+    private Server testGRPCServer = null;
 
     private int serverPort;
 
@@ -177,6 +177,39 @@ public class ControllerImplTest {
 
             @Override
             public void updateStream(StreamConfig request,
+                    StreamObserver<UpdateStreamStatus> responseObserver) {
+                if (request.getStreamInfo().getStream().equals("stream1")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.SUCCESS)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream2")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.FAILURE)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream3")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.SCOPE_NOT_FOUND)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream4")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                                                    .setStatus(UpdateStreamStatus.Status.STREAM_NOT_FOUND)
+                                                    .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStreamInfo().getStream().equals("stream5")) {
+                    responseObserver.onNext(UpdateStreamStatus.newBuilder()
+                            .setStatus(UpdateStreamStatus.Status.UNRECOGNIZED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
+            @Override
+            public void truncateStream(Controller.StreamCut request,
                     StreamObserver<UpdateStreamStatus> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(UpdateStreamStatus.newBuilder()
@@ -609,7 +642,7 @@ public class ControllerImplTest {
 
         // Verify that the same RPC with permissible keepalive time succeeds.
         int serverPort2 = TestUtils.getAvailableListenPort();
-        ServerImpl testServer = NettyServerBuilder.forPort(serverPort2)
+        Server testServer = NettyServerBuilder.forPort(serverPort2)
                 .addService(testServerImpl)
                 .permitKeepAliveTime(5, TimeUnit.SECONDS)
                 .build()
@@ -881,19 +914,19 @@ public class ControllerImplTest {
     @Test
     public void testCreateTransaction() throws Exception {
         CompletableFuture<TxnSegments> transaction;
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0);
         assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
         assertEquals(2, transaction.get().getSteamSegments().getSegments().size());
         assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
         assertEquals(new Segment("scope1", "stream1", 1), transaction.get().getSteamSegments().getSegmentForKey(.8));
         
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0, 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream2"), 0, 0);
         assertEquals(new UUID(33L, 44L), transaction.get().getTxnId());
         assertEquals(1, transaction.get().getSteamSegments().getSegments().size());
         assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));
         assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.8));
         
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0, 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0,  0);
         AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
     }
 
@@ -1082,7 +1115,6 @@ public class ControllerImplTest {
     
     @Test
     public void testCutpointSuccessors() throws Exception {
-        PravegaNodeUri pravegaNodeUri = new PravegaNodeUri("localhost", SERVICE_PORT);
         String scope = "scope1";
         String stream = "stream1";
         Stream s = new StreamImpl(scope, stream);

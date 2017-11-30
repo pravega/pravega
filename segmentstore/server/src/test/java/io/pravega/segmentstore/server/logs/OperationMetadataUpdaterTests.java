@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -306,7 +305,7 @@ public class OperationMetadataUpdaterTests {
         if (referenceMetadata != null) {
             referenceMetadata.getStreamSegmentMetadata(transactionId).markMerged();
             val rsm = referenceMetadata.getStreamSegmentMetadata(parentSegmentId);
-            rsm.setDurableLogLength(rsm.getDurableLogLength() + op.getLength());
+            rsm.setLength(rsm.getLength() + op.getLength());
         }
     }
 
@@ -336,7 +335,7 @@ public class OperationMetadataUpdaterTests {
         process(op, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.getStreamSegmentMetadata(segmentId);
-            rsm.setDurableLogLength(rsm.getDurableLogLength() + length);
+            rsm.setLength(rsm.getLength() + length);
             val attributes = new HashMap<UUID, Long>();
             op.getAttributeUpdates().forEach(au -> attributes.put(au.getAttributeId(), au.getValue()));
             rsm.updateAttributes(attributes);
@@ -346,12 +345,11 @@ public class OperationMetadataUpdaterTests {
     private long mapSegment(OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata) throws Exception {
         String segmentName = "Segment_" + updater.nextOperationSequenceNumber();
 
-        val mapOp = new StreamSegmentMapOperation(
-                new StreamSegmentInformation(segmentName, 0, false, false, null, new ImmutableDate()));
+        val mapOp = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(segmentName).build());
         process(mapOp, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId());
-            rsm.setDurableLogLength(0);
+            rsm.setLength(0);
             rsm.setStorageLength(0);
         }
 
@@ -361,12 +359,11 @@ public class OperationMetadataUpdaterTests {
     private long mapTransaction(long parentSegmentId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata) throws Exception {
         String segmentName = "Transaction_" + updater.nextOperationSequenceNumber();
 
-        val mapOp = new TransactionMapOperation(parentSegmentId,
-                new StreamSegmentInformation(segmentName, 0, false, false, null, new ImmutableDate()));
+        val mapOp = new TransactionMapOperation(parentSegmentId, StreamSegmentInformation.builder().name(segmentName).build());
         process(mapOp, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId(), parentSegmentId);
-            rsm.setDurableLogLength(0);
+            rsm.setLength(0);
             rsm.setStorageLength(0);
         }
 

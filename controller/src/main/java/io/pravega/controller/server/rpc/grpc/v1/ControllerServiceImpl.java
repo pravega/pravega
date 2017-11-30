@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -82,6 +82,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
         processResult(controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
+    }
+
+    @Override
+    public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
+        log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream());
+        processResult(controllerService.truncateStream(request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
@@ -182,7 +190,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
-                                                          request.getMaxExecutionTime(),
                                                           request.getScaleGracePeriod())
                 .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                         .setTxnId(ModelHelper.decode(pair.getKey()))
@@ -213,6 +220,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
+        log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getTxnId());
         processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId(),
@@ -253,7 +262,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     log.debug("result = " + (value == null ? "null" : value.toString()));
 
                     if (ex != null) {
-                        Throwable cause = ExceptionHelpers.getRealException(ex);
+                        Throwable cause = Exceptions.unwrap(ex);
                         log.error("Controller api failed with error: ", ex);
                         streamObserver.onError(Status.INTERNAL
                                 .withCause(cause)

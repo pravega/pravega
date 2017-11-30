@@ -11,11 +11,11 @@ package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractScheduledService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -29,10 +29,10 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Manages the lifecycle of Cache Entries. Decides which entries are to be kept in memory and which are eligible for
  * removal.
- * <p/>
+ *
  * Entry Management is indirect, and doesn't deal with them directly. Also, the management needs to be done across multiple
  * CacheManager Clients, and a common scheme needs to be used to instruct each such client when it's time to evict unused entries.
- * <p/>
+ *
  * The CacheManager holds two reference numbers: the current generation and the oldest generation. Every new Cache Entry
  * (in the clients) that is generated or updated gets assigned the current generation. As the CacheManager determines that
  * there are too many Cache Entries or that the maximum size has been exceeded, it will increment the oldest generation.
@@ -51,6 +51,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private int oldestGeneration;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
+    private final SegmentStoreMetrics.CacheManager metrics;
 
     //endregion
 
@@ -65,12 +66,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public CacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
         Preconditions.checkNotNull(executorService, "executorService");
+
         this.policy = policy;
         this.clients = new HashSet<>();
         this.oldestGeneration = 0;
         this.currentGeneration = 0;
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
+        this.metrics = new SegmentStoreMetrics.CacheManager();
     }
 
     //endregion
@@ -81,13 +84,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public void close() {
         if (!this.closed.getAndSet(true)) {
             if (state() == State.RUNNING) {
-                FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executorService));
+                Futures.await(Services.stopAsync(this, this.executorService));
             }
 
             synchronized (this.clients) {
                 this.clients.clear();
             }
 
+            this.metrics.close();
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }
     }
@@ -111,7 +115,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         try {
             applyCachePolicy();
         } catch (Throwable ex) {
-            if (ExceptionHelpers.mustRethrow(ex)) {
+            if (Exceptions.mustRethrow(ex)) {
                 throw ex;
             }
 
@@ -202,6 +206,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
         } while (sizeReduction > 0 && oldestChanged);
+        this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
     }
 
     private CacheStatus collectStatus() {
@@ -252,7 +257,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
                 unregister(c);
             } catch (Throwable ex) {
-                if (ExceptionHelpers.mustRethrow(ex)) {
+                if (Exceptions.mustRethrow(ex)) {
                     throw ex;
                 }
 

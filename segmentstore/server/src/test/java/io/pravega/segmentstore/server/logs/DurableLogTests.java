@@ -10,11 +10,9 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Service;
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.segmentstore.server.ServiceListeners;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -26,6 +24,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
@@ -49,7 +48,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import java.io.IOException;
@@ -161,7 +160,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Empty log.
         CompletableFuture<Void> emptyLogBarrier = durableLog.operationProcessingBarrier(TIMEOUT);
         emptyLogBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("Barrier for empty log did not complete successfully.", FutureHelpers.isSuccessful(emptyLogBarrier));
+        Assert.assertTrue("Barrier for empty log did not complete successfully.", Futures.isSuccessful(emptyLogBarrier));
 
         // Add a few operations, and verify the "barrier" is always completed after them.
         HashSet<Long> streamSegmentIds = createStreamSegmentsInMetadata(streamSegmentCount, setup.metadata);
@@ -178,8 +177,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Wait for barrier to complete.
         afterBarrier.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertTrue("barrier for non-empty log did not complete successfully.", FutureHelpers.isSuccessful(afterBarrier));
-        Assert.assertTrue("barrier was completed before its previous operations were completed.", FutureHelpers.isSuccessful(allOtherOperations));
+        Assert.assertTrue("barrier for non-empty log did not complete successfully.", Futures.isSuccessful(afterBarrier));
+        Assert.assertTrue("barrier was completed before its previous operations were completed.", Futures.isSuccessful(allOtherOperations));
 
         // Stop the processor.
         durableLog.stopAsync().awaitTerminated();
@@ -409,7 +408,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertEquals("DurableLog is not in a failed state after fence-out detected.",
                 Service.State.FAILED, durableLog.state());
         Assert.assertTrue("DurableLog did not fail with the correct exception.",
-                ExceptionHelpers.getRealException(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
+                Exceptions.unwrap(durableLog.failureCause()) instanceof DataLogWriterNotPrimaryException);
     }
 
     /**
@@ -508,7 +507,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
         segmentMetadata.setStorageLength(0);
 
         // Setup a bunch of read operations, and make sure they are blocked (since there is no data).
@@ -587,15 +586,15 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Create a segment, which will be used for testing later.
         UpdateableSegmentMetadata segmentMetadata = setup.metadata.mapStreamSegmentId(segmentName, segmentId);
-        segmentMetadata.setDurableLogLength(0);
+        segmentMetadata.setLength(0);
 
         Duration shortTimeout = Duration.ofMillis(30);
 
         // Setup a read operation, and make sure it is blocked (since there is no data).
         CompletableFuture<Iterator<Operation>> readFuture = durableLog.read(1, 1, shortTimeout);
-        Assert.assertFalse("read() returned a completed future when there is no data available.", FutureHelpers.isSuccessful(readFuture));
+        Assert.assertFalse("read() returned a completed future when there is no data available.", Futures.isSuccessful(readFuture));
 
-        CompletableFuture<Void> controlFuture = FutureHelpers.delayedFuture(Duration.ofMillis(2000), setup.executorService);
+        CompletableFuture<Void> controlFuture = Futures.delayedFuture(Duration.ofMillis(2000), setup.executorService);
         AssertExtensions.assertThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
@@ -700,7 +699,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;
@@ -768,7 +767,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
         HashSet<Long> streamSegmentIds;
@@ -821,7 +820,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
-                        ex = ExceptionHelpers.getRealException(ex);
+                        ex = Exceptions.unwrap(ex);
                         return ex instanceof DataLogNotAvailableException && ex.getMessage().equals("intentional");
                     });
         }
@@ -860,7 +859,7 @@ public class DurableLogTests extends OperationLogTestBase {
                             ex = ex.getCause();
                         }
 
-                        return ExceptionHelpers.getRealException(ex) instanceof DataCorruptionException;
+                        return Exceptions.unwrap(ex) instanceof DataCorruptionException;
                     });
         }
     }
@@ -879,7 +878,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         long segmentId;
 
@@ -968,7 +967,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1047,8 +1046,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Verify that we can still queue operations to the DurableLog and they can be read.
             // In this case we'll just queue some StreamSegmentMapOperations.
-            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(
-                    new StreamSegmentInformation("foo", 0, false, false, new ImmutableDate()));
+            StreamSegmentMapOperation newOp = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name("foo").build());
             if (!fullTruncationPossible) {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
@@ -1085,7 +1083,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()), dataLog::set);
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1171,7 +1169,7 @@ public class DurableLogTests extends OperationLogTestBase {
         @Cleanup
         TestDurableDataLogFactory dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService()));
         @Cleanup
-        Storage storage = new InMemoryStorage(executorService());
+        Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
@@ -1199,7 +1197,7 @@ public class DurableLogTests extends OperationLogTestBase {
             long storageOffset = 0;
             for (long segmentId : streamSegmentIds) {
                 val sm = metadata1.getStreamSegmentMetadata(segmentId);
-                sm.setStorageLength(Math.min(storageOffset, sm.getDurableLogLength()));
+                sm.setStorageLength(Math.min(storageOffset, sm.getLength()));
                 storageOffset++;
                 if (sm.isSealed() && storageOffset % 2 == 0) {
                     sm.markSealedInStorage();
@@ -1306,7 +1304,7 @@ public class DurableLogTests extends OperationLogTestBase {
             try {
                 completionFuture = durableLog.add(o, TIMEOUT);
             } catch (Exception ex) {
-                completionFuture = FutureHelpers.failedFuture(ex);
+                completionFuture = Futures.failedFuture(ex);
             }
 
             completionFutures.add(new OperationWithCompletion(o, completionFuture));
@@ -1361,7 +1359,7 @@ public class DurableLogTests extends OperationLogTestBase {
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.cacheFactory = new InMemoryCacheFactory();
-            this.storage = new InMemoryStorage(this.executorService);
+            this.storage = InMemoryStorageFactory.newStorage(executorService);
             this.storage.initialize(1);
             this.cacheManager = new CacheManager(DEFAULT_READ_INDEX_CONFIG.getCachePolicy(), this.executorService);
             this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);

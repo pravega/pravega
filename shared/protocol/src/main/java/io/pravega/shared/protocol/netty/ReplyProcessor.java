@@ -23,6 +23,8 @@ public interface ReplyProcessor {
 
     void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed);
 
+    void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated);
+
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
     void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction);
@@ -55,7 +57,11 @@ public interface ReplyProcessor {
 
     void segmentSealed(WireCommands.SegmentSealed segmentSealed);
 
+    void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated);
+
     void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted);
+
+    void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported);
 
     void keepAlive(WireCommands.KeepAlive keepAlive);
     

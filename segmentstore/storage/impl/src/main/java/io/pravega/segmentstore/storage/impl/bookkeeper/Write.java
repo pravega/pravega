@@ -10,10 +10,10 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Timer;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.storage.LogAddress;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,11 +31,12 @@ class Write {
     private final AtomicInteger attemptCount;
     private final AtomicReference<WriteLedger> writeLedger;
     private final AtomicLong entryId;
-    private final AtomicBoolean inProgress;
+    private final AtomicReference<Timer> beginAttemptTimer;
     private final AtomicReference<Throwable> failureCause;
     @Getter
     @Setter
-    private long timestamp;
+    private long queueAddedTimestamp;
+
 
     //endregion
 
@@ -56,7 +57,7 @@ class Write {
         this.attemptCount = new AtomicInteger();
         this.failureCause = new AtomicReference<>();
         this.entryId = new AtomicLong(Long.MIN_VALUE);
-        this.inProgress = new AtomicBoolean();
+        this.beginAttemptTimer = new AtomicReference<>();
     }
 
     //endregion
@@ -106,15 +107,15 @@ class Write {
      * @return The current attempt number.
      */
     int beginAttempt() {
-        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Write already in progress. Cannot restart.");
+        Preconditions.checkState(this.beginAttemptTimer.compareAndSet(null, new Timer()), "Write already in progress. Cannot restart.");
         return this.attemptCount.incrementAndGet();
     }
 
     /**
      * Records the fact that an attempt to execute this write has ended.
      */
-    private void endAttempt() {
-        this.inProgress.set(false);
+    private Timer endAttempt() {
+        return this.beginAttemptTimer.getAndSet(null);
     }
 
     /**
@@ -123,7 +124,7 @@ class Write {
      * @return True or false.
      */
     boolean isInProgress() {
-        return this.inProgress.get();
+        return this.beginAttemptTimer.get() != null;
     }
 
     /**
@@ -147,11 +148,11 @@ class Write {
     /**
      * Indicates that this write completed successfully. This will set the final result on the externalCompletion future.
      */
-    void complete() {
+    Timer complete() {
         Preconditions.checkState(this.entryId.get() >= 0, "entryId not set; cannot complete Write.");
         this.failureCause.set(null);
         this.result.complete(new LedgerAddress(this.writeLedger.get().metadata, this.entryId.get()));
-        endAttempt();
+        return endAttempt();
     }
 
     /**
@@ -172,6 +173,12 @@ class Write {
         }
 
         endAttempt();
+        WriteLedger ledger = this.writeLedger.get();
+        if (ledger != null && ledger.isRolledOver()) {
+            // Rollovers aren't really failures (they're caused by us). In that case, do not count this failure as an attempt.
+            this.attemptCount.updateAndGet(v -> Math.max(0, v - 1));
+        }
+
         if (complete) {
             this.result.completeExceptionally(this.failureCause.get());
         }
@@ -180,7 +187,7 @@ class Write {
     @Override
     public String toString() {
         return String.format("LedgerId = %s, Length = %s, Attempts = %s, InProgress = %s, Done = %s, Failed %s",
-                this.writeLedger.get().metadata.getLedgerId(), this.data.getLength(), this.attemptCount, this.inProgress,
+                this.writeLedger.get().metadata.getLedgerId(), this.data.getLength(), this.attemptCount, isInProgress(),
                 isDone(), this.failureCause.get() != null);
     }
 

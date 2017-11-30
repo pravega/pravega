@@ -55,6 +55,7 @@ public class EventProcessorSystemImpl implements EventProcessorSystem {
         return this.process;
     }
 
+    @Override
     public <T extends ControllerEvent> EventProcessorGroup<T> createEventProcessorGroup(
             final EventProcessorConfig<T> eventProcessorConfig,
             final CheckpointStore checkpointStore) throws CheckpointStoreException {

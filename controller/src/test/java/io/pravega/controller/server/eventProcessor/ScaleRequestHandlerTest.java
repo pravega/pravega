@@ -19,9 +19,12 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -33,8 +36,10 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -138,9 +143,9 @@ public class ScaleRequestHandlerTest {
 
     @Test(timeout = 20000)
     public void testScaleRequest() throws ExecutionException, InterruptedException {
-        AutoScaleRequestHandler requestHandler = new AutoScaleRequestHandler(streamMetadataTasks, streamStore, executor);
-        ScaleOperationRequestHandler scaleRequestHandler = new ScaleOperationRequestHandler(streamMetadataTasks, streamStore, executor);
-        RequestHandlerMultiplexer multiplexer = new RequestHandlerMultiplexer(requestHandler, scaleRequestHandler, executor);
+        AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, executor);
         // Send number of splits = 1
         AutoScaleEvent request = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
         CompletableFuture<ScaleOpEvent> request1 = new CompletableFuture<>();
@@ -165,9 +170,9 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request)));
-        assertTrue(FutureHelpers.await(request1));
-        assertTrue(FutureHelpers.await(multiplexer.process(request1.get())));
+        assertTrue(Futures.await(multiplexer.process(request)));
+        assertTrue(Futures.await(request1));
+        assertTrue(Futures.await(multiplexer.process(request1.get())));
 
         // verify that the event is posted successfully
         List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
@@ -180,7 +185,7 @@ public class ScaleRequestHandlerTest {
 
         request = new AutoScaleEvent(scope, stream, 4, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request)));
+        assertTrue(Futures.await(multiplexer.process(request)));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 4));
@@ -188,9 +193,9 @@ public class ScaleRequestHandlerTest {
 
         request = new AutoScaleEvent(scope, stream, 3, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
 
-        assertTrue(FutureHelpers.await(multiplexer.process(request)));
-        assertTrue(FutureHelpers.await(request2));
-        assertTrue(FutureHelpers.await(multiplexer.process(request2.get())));
+        assertTrue(Futures.await(multiplexer.process(request)));
+        assertTrue(Futures.await(request2));
+        assertTrue(Futures.await(multiplexer.process(request2.get())));
 
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
@@ -203,14 +208,14 @@ public class ScaleRequestHandlerTest {
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
-        assertFalse(FutureHelpers.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
+        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 3));
         assertTrue(activeSegments.stream().noneMatch(z -> z.getNumber() == 4));
         assertTrue(activeSegments.stream().anyMatch(z -> z.getNumber() == 5));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(FutureHelpers.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
+        assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
     private void checkRequest(CompletableFuture<ScaleOpEvent> request, ControllerEvent in, List<Integer> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> expected) {
@@ -244,8 +249,7 @@ public class ScaleRequestHandlerTest {
             }
 
             @Override
-            public Transaction<ControllerEvent> beginTxn(long transactionTimeout, long maxExecutionTime,
-                                                        long scaleGracePeriod) {
+            public Transaction<ControllerEvent> beginTxn() {
                 return null;
             }
 

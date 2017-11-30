@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
@@ -25,7 +27,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -75,7 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -92,11 +94,15 @@ public class ControllerImpl implements Controller {
 
     // The executor supplied by the appication to handle internal retries.
     private final ScheduledExecutorService executor;
+
     // Flag to indicate if the client is closed.
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
     private final ControllerServiceGrpc.ControllerServiceStub client;
+
+    // io.grpc.Channel used by the grpc client for Controller Service.
+    private final ManagedChannel channel;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -137,7 +143,8 @@ public class ControllerImpl implements Controller {
                 .throwingOn(Exception.class);
 
         // Create Async RPC client.
-        this.client = ControllerServiceGrpc.newStub(channelBuilder.build());
+        this.channel = channelBuilder.build();
+        this.client = ControllerServiceGrpc.newStub(this.channel);
     }
 
     @Override
@@ -294,6 +301,49 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
+        return truncateStream(scope, stream, streamCut.getPositions().entrySet()
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
+    }
+
+    private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(streamCut, "streamCut");
+        long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
+
+        final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>();
+            client.truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(x -> {
+            switch (x.getStatus()) {
+                case FAILURE:
+                    log.warn("Failed to truncate stream: {}/{}", scope, stream);
+                    throw new ControllerFailureException("Failed to truncate stream: " + scope + "/" + stream);
+                case SCOPE_NOT_FOUND:
+                    log.warn("Scope not found: {}", scope);
+                    throw new IllegalArgumentException("Scope does not exist: " + scope);
+                case STREAM_NOT_FOUND:
+                    log.warn("Stream does not exist: {}/{}", scope, stream);
+                    throw new IllegalArgumentException("Stream does not exist: " + stream);
+                case SUCCESS:
+                    log.info("Successfully updated stream: {}/{}", scope, stream);
+                    return true;
+                case UNRECOGNIZED:
+                default:
+                    throw new ControllerFailureException("Unknown return status updating stream " + scope + "/" + stream
+                            + " " + x.getStatus());
+            }
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("updateStream failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "updateStream", traceId);
+        });
+    }
+
+    @Override
     public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final ScheduledExecutorService executor) {
@@ -304,7 +354,7 @@ public class ControllerImpl implements Controller {
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
                         log.error("failed to start scale {}", e);
-                        cancellableRequest.start(() -> FutureHelpers.failedFuture(e), any -> true, executor);
+                        cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {
                             final boolean started = handleScaleResponse(stream, startScaleResponse);
@@ -316,7 +366,7 @@ public class ControllerImpl implements Controller {
                                 }
                             }, isDone -> !started || isDone, executor);
                         } catch (Exception ex) {
-                            cancellableRequest.start(() -> FutureHelpers.failedFuture(ex), any -> true, executor);
+                            cancellableRequest.start(() -> Futures.failedFuture(ex), any -> true, executor);
                         }
                     }
                 });
@@ -668,11 +718,10 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
-                                                     final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
+        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, scaleGracePeriod);
 
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>();
@@ -680,7 +729,6 @@ public class ControllerImpl implements Controller {
                     CreateTxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setLease(lease)
-                            .setMaxExecutionTime(maxExecutionTime)
                             .setScaleGracePeriod(scaleGracePeriod)
                             .build(),
                     callback);
@@ -719,10 +767,10 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                                              PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
                                              PingFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("pingTransaction failed: ", e);
                     }
@@ -747,9 +795,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("commitTransaction failed: ", e);
                     }
@@ -774,9 +822,9 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return FutureHelpers.toVoidExpecting(result,
+        return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                .whenComplete((x, e) -> {
+                      .whenComplete((x, e) -> {
                     if (e != null) {
                         log.warn("abortTransaction failed: ", e);
                     }
@@ -808,6 +856,13 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
+    }
+
+    @Override
+    public void close() {
+        if (!closed.getAndSet(true)) {
+            this.channel.shutdownNow(); // Initiates a shutdown of channel.
+        }
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

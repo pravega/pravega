@@ -14,7 +14,9 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Builder;
 import lombok.Cleanup;
@@ -49,7 +51,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
-    private final List<File> tempDirs = new ArrayList<>();
+    private final HashMap<Integer, File> tempDirs = new HashMap<>();
     private final AtomicReference<Thread> cleanup = new AtomicReference<>();
 
     //endregion
@@ -59,10 +61,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            for (BookieServer bs : this.servers) {
-                bs.shutdown();
-            }
-
+            this.servers.stream().filter(Objects::nonNull).forEach(BookieServer::shutdown);
             if (this.zkServer.get() != null) {
                 this.zkServer.get().close();
             }
@@ -86,27 +85,63 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     //region BookKeeper operations
 
     /**
-     * Suspends the BookieService with the given index (does not stop it).
+     * Stops the BookieService with the given index.
      *
      * @param bookieIndex The index of the bookie to stop.
-     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
      */
-    public void suspendBookie(int bookieIndex) {
+    public void stopBookie(int bookieIndex) {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
+        Preconditions.checkState(this.servers.get(0) != null, "Bookie already stopped.");
         val bk = this.servers.get(bookieIndex);
-        bk.suspendProcessing();
+        bk.shutdown();
+        this.servers.set(bookieIndex, null);
+        log.info("Bookie {} stopped.", bookieIndex);
     }
 
     /**
-     * Resumes the BookieService with the given index.
+     * Restarts the BookieService with the given index.
      *
-     * @param bookieIndex The index of the bookie to start.
-     * @throws ArrayIndexOutOfBoundsException If bookieIndex is invalid.
+     * @param bookieIndex The index of the bookie to restart.
+     * @throws Exception If an exception occurred.
      */
-    public void resumeBookie(int bookieIndex) {
+    public void startBookie(int bookieIndex) throws Exception {
         Preconditions.checkState(this.servers.size() > 0, "No Bookies initialized. Call startAll().");
-        val bk = this.servers.get(bookieIndex);
-        bk.resumeProcessing();
+        Preconditions.checkState(this.servers.get(0) == null, "Bookie already running.");
+        this.servers.set(bookieIndex, runBookie(this.bookiePorts.get(bookieIndex)));
+        log.info("Bookie {} stopped.", bookieIndex);
+    }
+
+    /**
+     * Suspends (stops) ZooKeeper, without destroying its underlying data (so a subsequent resume can pick up from the
+     * state where it left off).
+     */
+    public void suspendZooKeeper() {
+        val zk = this.zkServer.get();
+        Preconditions.checkState(zk != null, "ZooKeeper not started.");
+
+        // Stop, but do not close, the ZK runner.
+        zk.stop();
+        log.info("ZooKeeper suspended.");
+    }
+
+    /**
+     * Resumes ZooKeeper (if it had previously been suspended).
+     *
+     * @throws Exception If an exception got thrown.
+     */
+    public void resumeZooKeeper() throws Exception {
+        val zk = new ZooKeeperServiceRunner(this.zkPort);
+        if (this.zkServer.compareAndSet(null, zk)) {
+            // Initialize ZK runner (since nobody else did it for us).
+            zk.initialize();
+            log.info("ZooKeeper initialized.");
+        } else {
+            zk.close();
+        }
+
+        // Start or resume ZK.
+        this.zkServer.get().start();
+        log.info("ZooKeeper resumed.");
     }
 
     /**
@@ -120,14 +155,11 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         Runtime.getRuntime().addShutdownHook(this.cleanup.get());
 
         if (this.startZk) {
-            val zk = new ZooKeeperServiceRunner(this.zkPort);
-            zk.start();
-            this.zkServer.set(zk);
+            resumeZooKeeper();
         }
 
         initializeZookeeper();
-        val baseConf = new ServerConfiguration();
-        runBookies(baseConf);
+        runBookies();
     }
 
     private void initializeZookeeper() throws Exception {
@@ -153,40 +185,49 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
-    private void runBookies(ServerConfiguration baseConf) throws Exception {
+    private void runBookies() throws Exception {
         log.info("Starting Bookie(s) ...");
-        // Create Bookie Servers (B1, B2, B3)
         for (int bkPort : this.bookiePorts) {
-            val tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
+            this.servers.add(runBookie(bkPort));
+        }
+    }
+
+    private BookieServer runBookie(int bkPort) throws Exception {
+        // Attempt to reuse an existing data directory. This is useful in case of stops & restarts, when we want to perserve
+        // already committed data.
+        File tmpDir = this.tempDirs.getOrDefault(bkPort, null);
+        if (tmpDir == null) {
+            tmpDir = IOUtils.createTempDir("bookie_" + bkPort, "test");
             tmpDir.deleteOnExit();
-            this.tempDirs.add(tmpDir);
+            this.tempDirs.put(bkPort, tmpDir);
             log.info("Created " + tmpDir);
             if (!tmpDir.delete() || !tmpDir.mkdir()) {
                 throw new IOException("Couldn't create bookie dir " + tmpDir);
             }
-
-            // override settings
-            val conf = new ServerConfiguration(baseConf);
-            conf.setBookiePort(bkPort);
-            conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
-            conf.setJournalDirName(tmpDir.getPath());
-            conf.setLedgerDirNames(new String[]{ tmpDir.getPath() });
-            conf.setAllowLoopback(true);
-            conf.setJournalAdaptiveGroupWrites(false);
-            conf.setZkLedgersRootPath(ledgersPath);
-
-            log.info("Starting Bookie at port " + bkPort);
-            val bs = new BookieServer(conf);
-            this.servers.add(bs);
-            bs.start();
         }
+
+        val conf = new ServerConfiguration();
+        conf.setBookiePort(bkPort);
+        conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
+        conf.setJournalDirName(tmpDir.getPath());
+        conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
+        conf.setAllowLoopback(true);
+        conf.setJournalAdaptiveGroupWrites(false);
+        conf.setZkLedgersRootPath(ledgersPath);
+
+        log.info("Starting Bookie at port " + bkPort);
+        val bs = new BookieServer(conf);
+        bs.start();
+        return bs;
     }
 
     private void cleanupDirectories() throws IOException {
-        for (File dir : this.tempDirs) {
+        for (File dir : this.tempDirs.values()) {
             log.info("Cleaning up " + dir);
             FileUtils.deleteDirectory(dir);
         }
+
+        this.tempDirs.clear();
     }
 
     //endregion

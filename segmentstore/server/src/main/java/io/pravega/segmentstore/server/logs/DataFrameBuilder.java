@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.SortedIndex;
@@ -112,7 +111,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
      * written to the DataFrame will be discarded. Note that if a LogItem spans multiple DataFrames, in case of failure,
      * the content serialized to already committed DataFrames will not be discarded. That case will have to be dealt with
      * upon reading DataFrames from the DataFrameLog.
-     * <p/>
+     *
      * Any exceptions that resulted from the Data Frame failing to commit will be routed through the dataFrameCommitFailureCallback
      * callback, as well as being thrown from this exception.
      *
@@ -199,7 +198,7 @@ class DataFrameBuilder<T extends LogItem> implements AutoCloseable {
         // This failure is due to us being unable to commit a DataFrame, whether synchronously or via a callback. The
         // DataFrameBuilder cannot recover from this; as such it will close and will leave it to the caller to handle
         // the failure.
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (!isShutdownException(ex)) {
             // This is usually from a subsequent call. We want to store the actual failure cause.
             this.failureCause.compareAndSet(null, ex);

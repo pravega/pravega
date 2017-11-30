@@ -15,7 +15,7 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -27,11 +27,11 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.AbortEvent;
-import io.pravega.controller.server.eventProcessor.AbortRequestHandler;
-import io.pravega.controller.server.eventProcessor.CommitEvent;
 import io.pravega.controller.server.eventProcessor.CommitEventProcessor;
-import io.pravega.controller.server.eventProcessor.ConcurrentEventProcessor;
+import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
+import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -165,7 +165,7 @@ public class StreamTransactionMetadataTasksTest {
             CompletableFuture<Void> spy = Mockito.spy(CompletableFuture.completedFuture(null));
             Mockito.when(spy.get()).thenThrow(InterruptedException.class);
             ackFutures.add(spy);
-            ackFutures.add(FutureHelpers.failedFuture(new WriteFailedException()));
+            ackFutures.add(Futures.failedFuture(new WriteFailedException()));
             ackFutures.add(CompletableFuture.completedFuture(null));
         }
         return ackFutures;
@@ -203,13 +203,10 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
 
         // Commit the first one
         TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), null).join();
@@ -247,9 +244,9 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
 
         // Ping another txn from failedHost.
         UUID txnId = UUID.randomUUID();
@@ -366,12 +363,11 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
                 null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
                 null).join().getKey();
 
         UUID tx1 = txData1.getId();
@@ -449,11 +445,10 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create partial transaction
         final long lease = 10000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
         AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
-                txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod, null),
+                txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null),
                 e -> e instanceof RuntimeException);
 
         // Ensure that exactly one transaction is active on the stream.

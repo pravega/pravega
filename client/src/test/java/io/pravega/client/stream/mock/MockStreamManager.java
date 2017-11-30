@@ -9,10 +9,12 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Position;
@@ -29,7 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
@@ -48,13 +50,13 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public boolean createScope(String scopeName) {
-        return FutureHelpers.getAndHandleExceptions(controller.createScope(scope),
+        return Futures.getAndHandleExceptions(controller.createScope(scope),
                 RuntimeException::new);
     }
 
     @Override
     public boolean deleteScope(String scopeName) {
-        return FutureHelpers.getAndHandleExceptions(controller.deleteScope(scope),
+        return Futures.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
     }
 
@@ -69,11 +71,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                               .scope(scopeName)
-                                                                                               .streamName(streamName)
-                                                                                               .scalingPolicy(config.getScalingPolicy())
-                                                                                               .build()),
+        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+                                                                                         .scope(scopeName)
+                                                                                         .streamName(streamName)
+                                                                                         .scalingPolicy(config.getScalingPolicy())
+                                                                                         .build()),
                 RuntimeException::new);
     }
 
@@ -87,27 +89,35 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return FutureHelpers.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                                                                                              .scope(scopeName)
-                                                                                              .streamName(streamName)
-                                                                                              .scalingPolicy(config.getScalingPolicy())
-                                                                                              .build()),
+        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
+                                                                                         .scope(scopeName)
+                                                                                         .streamName(streamName)
+                                                                                         .scalingPolicy(config.getScalingPolicy())
+                                                                                         .build()),
+                RuntimeException::new);
+    }
+
+    @Override
+    public boolean truncateStream(String scopeName, String streamName, StreamCut streamCut) {
+        Preconditions.checkNotNull(streamCut);
+
+        return Futures.getAndHandleExceptions(controller.truncateStream(scopeName, streamName, streamCut),
                 RuntimeException::new);
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        FutureHelpers.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                        .scope(scope)
-                                                                                        .streamName(streamName)
-                                                                                        .scalingPolicy(config.getScalingPolicy())
-                                                                                        .build()),
+        Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
+                                                                                  .scope(scope)
+                                                                                  .streamName(streamName)
+                                                                                  .scalingPolicy(config.getScalingPolicy())
+                                                                                  .build()),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
 
     @Override
     public boolean sealStream(String scopeName, String streamName) {
-        return FutureHelpers.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
     }
 
     @Override
@@ -139,17 +149,17 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
-        throw new NotImplementedException();
+        throw new NotImplementedException("getReaderGroup");
     }
 
     @Override
     public boolean deleteStream(String scopeName, String toDelete) {
-        throw new NotImplementedException();
+        return Futures.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
     }
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        FutureHelpers.getAndHandleExceptions(controller.deleteStream(scope,
+        Futures.getAndHandleExceptions(controller.deleteStream(scope,
                                                                      NameUtils.getStreamForReaderGroup(groupName)),
                                              RuntimeException::new);
     }

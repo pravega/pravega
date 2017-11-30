@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
@@ -89,7 +89,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 appendFutures.add(log.append(new ByteArraySegment(getWriteData()), TIMEOUT));
             }
 
-            val results = FutureHelpers.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val results = Futures.allOfWithResults(appendFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             for (int i = 0; i < results.size(); i++) {
                 LogAddress address = results.get(i);
                 Assert.assertNotNull("No address returned from append() for index " + i, address);
@@ -122,6 +122,31 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
         }
 
         // Simulate Container recovery: we always read only upon recovery; never while writing.
+        try (DurableDataLog log = createDurableDataLog(context)) {
+            log.initialize(TIMEOUT);
+            verifyReads(log, writeData);
+        }
+    }
+
+    /**
+     * Tests the ability to execute reads after recovery, immediately followed by writes.
+     *
+     * @throws Exception If one got thrown.
+     */
+    @Test
+    public void testReadWriteRecovery() throws Exception {
+        final int iterationCount = 4;
+        Object context = createSharedContext();
+        TreeMap<LogAddress, byte[]> writeData = new TreeMap<>(Comparator.comparingLong(LogAddress::getSequence));
+        for (int i = 0; i < iterationCount; i++) {
+            try (DurableDataLog log = createDurableDataLog(context)) {
+                log.initialize(TIMEOUT);
+                verifyReads(log, writeData);
+                writeData.putAll(populate(log, getWriteCount()));
+            }
+        }
+
+        // One last recovery at the end.
         try (DurableDataLog log = createDurableDataLog(context)) {
             log.initialize(TIMEOUT);
             verifyReads(log, writeData);
@@ -326,7 +351,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
             data.add(writeData);
         }
 
-        val addresses = FutureHelpers.allOfWithResults(futures).join();
+        val addresses = Futures.allOfWithResults(futures).join();
         for (int i = 0; i < data.size(); i++) {
             writtenData.put(addresses.get(i), data.get(i));
         }

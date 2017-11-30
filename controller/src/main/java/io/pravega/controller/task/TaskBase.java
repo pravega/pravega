@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -105,7 +105,7 @@ public abstract class TaskBase implements AutoCloseable {
      */
     public <T> CompletableFuture<T> execute(final Resource resource, final Serializable[] parameters, final FutureOperation<T> operation) {
         if (!ready) {
-            return FutureHelpers.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
+            return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
         }
         final String tag = UUID.randomUUID().toString();
         final TaskData taskData = getTaskData(parameters);

@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -30,7 +31,12 @@ import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpoints;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.client.stream.notifications.EndOfDataNotification;
+import io.pravega.client.stream.notifications.NotificationSystem;
+import io.pravega.client.stream.notifications.NotifierFactory;
+import io.pravega.client.stream.notifications.Observable;
+import io.pravega.client.stream.notifications.SegmentNotification;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -49,8 +55,9 @@ import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.common.concurrent.FutureHelpers.allOfWithResults;
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static io.pravega.common.concurrent.Futures.allOfWithResults;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Slf4j
 @Data
@@ -64,6 +71,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final ClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
+    private final NotificationSystem notificationSystem = new NotificationSystem();
+    private final NotifierFactory notifierFactory = new NotifierFactory(notificationSystem, this::createSynchronizer);
 
     /**
      * Called by the StreamManager to provide the streams the group should start reading from.
@@ -124,8 +133,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
-        return FutureHelpers.loop(checkpointPending::get, () -> {
-            return FutureHelpers.delayedTask(() -> {
+        return Futures.loop(checkpointPending::get, () -> {
+            return Futures.delayedTask(() -> {
                 synchronizer.fetchUpdates();
                 checkpointPending.set(!synchronizer.getState().isCheckpointComplete(checkpointName));
                 if (checkpointPending.get()) {
@@ -134,13 +143,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                            .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
-                            .whenComplete((v, t) -> synchronizer.close());
+                      .thenApply(v -> completeCheckpoint(checkpointName, synchronizer))
+                      .whenComplete((v, t) -> synchronizer.close());
     }
 
     @SneakyThrows(CheckpointFailedException.class)
     private Checkpoint completeCheckpoint(String checkpointName, StateSynchronizer<ReaderGroupState> synchronizer) {
-        Map<Segment, Long> map = synchronizer.getState().getPositionsForCompletedCheckpoint(checkpointName);
+        ReaderGroupState state = synchronizer.getState();
+        Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
         synchronizer.updateStateUnconditionally(new ClearCheckpoints(checkpointName));
         if (map == null) {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
@@ -193,10 +203,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
         CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
-        for (Segment s : FutureHelpers.getAndHandleExceptions(unread, RuntimeException::new)) {
+        for (Segment s : Futures.getAndHandleExceptions(unread, RuntimeException::new)) {
             @Cleanup
             SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s);
-            totalLength += metadataClient.fetchCurrentStreamLength();
+            totalLength += metadataClient.fetchCurrentSegmentLength();
         }
         for (long bytesRead : position.getPositions().values()) {
             totalLength -= bytesRead;
@@ -204,4 +214,32 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return totalLength;
     }
 
+    @Override
+    public Observable<SegmentNotification> getSegmentNotifier(ScheduledExecutorService executor) {
+        checkNotNull(executor, "executor");
+        return this.notifierFactory.getSegmentNotifier(executor);
+    }
+
+    @Override
+    public Observable<EndOfDataNotification> getEndOfDataNotifier(ScheduledExecutorService executor) {
+        checkNotNull(executor, "executor");
+        return this.notifierFactory.getEndOfDataNotifier(executor);
+    }
+
+    @Override
+    public Map<Stream, StreamCut> getStreamCuts() {
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
+        synchronizer.fetchUpdates();
+        ReaderGroupState state = synchronizer.getState();
+        Map<Stream, Map<Segment, Long>> positions = state.getPositions();
+        HashMap<Stream, StreamCut> cuts = new HashMap<>();
+
+        for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
+            StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
+            cuts.put(streamPosition.getKey(), position);
+        }
+
+        return cuts;
+    }
 }

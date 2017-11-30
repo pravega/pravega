@@ -9,21 +9,29 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import com.google.common.base.Preconditions;
+import io.pravega.client.stream.RetentionPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.retention.BucketChangeListener;
+import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.index.InMemoryHostIndex;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.StreamConfiguration;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -38,11 +46,23 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
 
+    @GuardedBy("$lock")
+    private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<String, RetentionPolicy> streamPolicyMap = new HashMap<>();
+
+    private final AtomicReference<BucketOwnershipListener> ownershipListenerRef;
+
+    private final ConcurrentMap<Integer, BucketChangeListener> listeners;
+
     private final Executor executor;
 
-    InMemoryStreamMetadataStore(Executor executor) {
-        super(new InMemoryHostIndex());
+    InMemoryStreamMetadataStore(int bucketCount, Executor executor) {
+        super(new InMemoryHostIndex(), bucketCount);
+        this.listeners = new ConcurrentHashMap<>();
         this.executor = executor;
+        this.ownershipListenerRef = new AtomicReference<>();
     }
 
     @Override
@@ -81,9 +101,16 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                         return x;
                     });
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
+                                                        final String streamName) {
+        return CompletableFuture.completedFuture(streams.containsKey(scopedStreamName(scopeName, streamName)));
     }
 
     @Override
@@ -95,31 +122,119 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
             streams.remove(scopedStreamName);
             scopes.get(scopeName).removeStreamFromScope(streamName);
-            return CompletableFuture.completedFuture(null);
+            return super.deleteStream(scopeName, streamName, context, executor);
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
         }
     }
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> updateConfiguration(final String scopeName,
-                                                          final String streamName,
-                                                          final StreamConfiguration configuration,
-                                                          final OperationContext context,
-                                                          final Executor executor) {
+    public CompletableFuture<Void> startUpdateConfiguration(final String scopeName,
+                                                            final String streamName,
+                                                            final StreamConfiguration configuration,
+                                                            final OperationContext context,
+                                                            final Executor executor) {
         if (scopes.containsKey(scopeName)) {
             String scopeStreamName = scopedStreamName(scopeName, streamName);
             if (!streams.containsKey(scopeStreamName)) {
-                return FutureHelpers.
+                return Futures.
                         failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
             }
-            return streams.get(scopeStreamName).updateConfiguration(configuration);
+            return streams.get(scopeStreamName).startUpdateConfiguration(configuration);
         } else {
-            return FutureHelpers.
+            return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
+    }
+
+    @Synchronized
+    @Override
+    public void registerBucketChangeListener(int bucket, BucketChangeListener listener) {
+        listeners.put(bucket, listener);
+    }
+
+    @Synchronized
+    @Override
+    public void unregisterBucketListener(int bucket) {
+        listeners.remove(bucket);
+    }
+
+    @Override
+    public void registerBucketOwnershipListener(BucketOwnershipListener ownershipListener) {
+        this.ownershipListenerRef.set(ownershipListener);
+    }
+
+    @Override
+    public void unregisterBucketOwnershipListener() {
+        this.ownershipListenerRef.set(null);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        Preconditions.checkArgument(bucket < bucketCount);
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
+        if (bucketedStreams.containsKey(bucket)) {
+            return CompletableFuture.completedFuture(Collections.unmodifiableList(bucketedStreams.get(bucket)));
+        } else {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<Void> addUpdateStreamForAutoStreamCut(String scope, String stream, RetentionPolicy retentionPolicy, OperationContext context, Executor executor) {
+        int bucket = getBucket(scope, stream);
+        List<String> list;
+        if (bucketedStreams.containsKey(bucket)) {
+            list = bucketedStreams.get(bucket);
+        } else {
+            list = new ArrayList<>();
+        }
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        list.add(scopedStreamName);
+        bucketedStreams.put(bucket, list);
+
+        final boolean isUpdate = streamPolicyMap.containsKey(scopedStreamName);
+
+        streamPolicyMap.put(scopedStreamName, retentionPolicy);
+
+        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
+            if (isUpdate) {
+                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                        BucketChangeListener.StreamNotification.NotificationType.StreamUpdated));
+            } else {
+                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                        BucketChangeListener.StreamNotification.NotificationType.StreamAdded));
+            }
+            return listener;
+        }), executor);
+    }
+
+    @Synchronized
+    @Override
+    public CompletableFuture<Void> removeStreamFromAutoStreamCut(String scope, String stream, OperationContext context, Executor executor) {
+        int bucket = getBucket(scope, stream);
+        String scopedStreamName = getScopedStreamName(scope, stream);
+
+        bucketedStreams.computeIfPresent(bucket, (b, list) -> {
+            list.remove(scopedStreamName);
+            return list;
+        });
+
+        streamPolicyMap.remove(scopedStreamName);
+
+        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucket, (b, listener) -> {
+            listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
+                    BucketChangeListener.StreamNotification.NotificationType.StreamRemoved));
+            return listener;
+        }), executor);
     }
 
     @Override
@@ -141,7 +256,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Synchronized
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {
-            return scopes.get(scopeName).listStreamsInScope().thenApply((streams) -> {
+            return scopes.get(scopeName).listStreamsInScope().thenApply(streams -> {
                 if (streams.isEmpty()) {
                     scopes.get(scopeName).deleteScope();
                     scopes.remove(scopeName);
@@ -162,7 +277,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         if (scopes.containsKey(scopeName)) {
             return CompletableFuture.completedFuture(scopeName);
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 
@@ -187,7 +302,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> streams.stream().map(
                             stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
         } else {
-            return FutureHelpers.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
+            return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
 

@@ -10,7 +10,7 @@
 package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -68,9 +68,16 @@ public final class ExecutorServiceHelpers {
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns()); 
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns());
+
+        // Do not execute any periodic tasks after shutdown.
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+
+        // Do not execute any delayed tasks after shutdown.
         result.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+
+        // Remove tasks from the executor once they are done executing. By default, even when canceled, these tasks are
+        // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
         result.setRemoveOnCancelPolicy(true);
         return result;
     }
@@ -121,7 +128,7 @@ public final class ExecutorServiceHelpers {
                 try {
                     task.run();
                 } catch (Throwable ex) {
-                    if (!ExceptionHelpers.mustRethrow(ex)) {
+                    if (!Exceptions.mustRethrow(ex)) {
                         // Invoke the exception handler, but there's no point in rethrowing the exception, as it will simply
                         // be ignored by the executor.
                         exceptionHandler.accept(ex);

@@ -15,7 +15,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines an abstraction for Permanent Storage.
+ * Defines an abstraction for Permanent Storage with async operations.
  */
 public interface Storage extends ReadOnlyStorage, AutoCloseable {
     /**
@@ -40,18 +40,35 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
     CompletableFuture<SegmentHandle> openWrite(String streamSegmentName);
 
     /**
-     * Creates a new StreamSegment in this Storage Layer.
+     * Creates a new StreamSegment in this Storage Layer with an Infinite Rolling Policy (No Rolling).
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param timeout           Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (it will
-     * contain a StreamSegmentInformation for a blank stream). If the operation failed, it will contain the cause of the
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
+     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
      * failure. Notable exceptions:
      * <ul>
      * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
      * </ul>
      */
-    CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout);
+    default CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+        return create(streamSegmentName, SegmentRollingPolicy.NO_ROLLING, timeout);
+    }
+
+    /**
+     * Creates a new StreamSegment in this Storage Layer with the given Rolling Policy.
+     *
+     * @param streamSegmentName The full name of the StreamSegment.
+     * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the StreamSegment has been created (and will
+     * contain a StreamSegmentInformation for an empty Segment). If the operation failed, it will contain the cause of the
+     * failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentExistsException: When the given Segment already exists in Storage.
+     * </ul>
+     */
+    CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout);
 
     /**
      * Writes the given data to the StreamSegment.
@@ -124,6 +141,33 @@ public interface Storage extends ReadOnlyStorage, AutoCloseable {
      * @throws IllegalArgumentException If handle is read-only.
      */
     CompletableFuture<Void> delete(SegmentHandle handle, Duration timeout);
+
+    /**
+     * Truncates all data in the given StreamSegment prior to the given offset. This does not fill the truncated data
+     * in the segment with anything, nor does it "shift" the remaining data to the beginning. After this operation is
+     * complete, any attempt to access the truncated data will result in an exception.
+     * <p>
+     * Notes:
+     * * Depending on implementation, this may not truncate at the exact offset. It may truncate at some point prior to
+     * the given offset, but it will never truncate beyond the offset.
+     *
+     * @param handle  A read-write SegmentHandle that points to a Segment to write to.
+     * @param offset  The offset in the StreamSegment to truncate to.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the operation succeeded. If the operation failed,
+     * it will contain the cause of the failure. Notable exceptions:
+     * <ul>
+     * <li> StreamSegmentNotExistsException: When the given Segment does not exist in Storage.
+     * </ul>
+     */
+    CompletableFuture<Void> truncate(SegmentHandle handle, long offset, Duration timeout);
+
+    /**
+     * Gets a value indicating whether this Storage implementation can truncate Segments.
+     *
+     * @return True or false.
+     */
+    boolean supportsTruncation();
 
     @Override
     void close();

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -50,12 +50,12 @@ public class CancellableRequest<T> {
                 throw new IllegalStateException("Request already started");
             }
 
-            return FutureHelpers.loop(() -> !done.get() && !cancelled.get(),
-                    () -> FutureHelpers.delayedFuture(() -> supplier.get().thenAccept(r -> {
+            return Futures.loop(() -> !done.get() && !cancelled.get(),
+                    () -> Futures.delayedFuture(() -> supplier.get().thenAccept(r -> {
                         result.set(r);
                         done.set(termination.test(r));
                     }), 1000, executor), executor)
-                    .thenApply((Void v) -> {
+                          .thenApply((Void v) -> {
                         if (done.get()) { // completed
                             return result.get();
                         } else { // cancelled

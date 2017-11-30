@@ -44,14 +44,13 @@ public class SegmentStatsFactory implements AutoCloseable {
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
                                                            ClientFactory clientFactory,
                                                            AutoScalerConfig configuration) {
-        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory,
-                executor, maintenanceExecutor);
+        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,
                 executor, maintenanceExecutor);
     }
 
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store, AutoScalerConfig configuration) {
-        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, executor, maintenanceExecutor);
+        AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store, executor, maintenanceExecutor);
     }
 

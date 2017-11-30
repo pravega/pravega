@@ -9,18 +9,22 @@
  */
 package io.pravega.controller.util;
 
-import io.pravega.common.ExceptionHelpers;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.retryable.RetryableException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertTrue;
 
@@ -48,7 +52,7 @@ public class RetryHelperTest {
             }, RetryHelper.RETRYABLE_PREDICATE, 2);
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException);
-            Throwable ex = ExceptionHelpers.getRealException(e.getCause());
+            Throwable ex = Exceptions.unwrap(e.getCause());
             assertTrue(ex instanceof TestException);
         }
 
@@ -77,23 +81,45 @@ public class RetryHelperTest {
             }), RetryHelper.RETRYABLE_PREDICATE, 2, executor);
         } catch (Exception e) {
             assertTrue(e instanceof RetriesExhaustedException);
-            Throwable ex = ExceptionHelpers.getRealException(e.getCause());
+            Throwable ex = Exceptions.unwrap(e.getCause());
             assertTrue(ex instanceof TestException);
         }
 
         AtomicInteger count = new AtomicInteger(0);
-        assertTrue(FutureHelpers.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        assertTrue(Futures.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             if (count.incrementAndGet() < 2) {
                 throw new TestException();
             }
             return count.get();
         }), RetryHelper.RETRYABLE_PREDICATE, 2, executor), RuntimeException::new) == 2);
 
-        assertTrue(FutureHelpers.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
+        assertTrue(Futures.getAndHandleExceptions(RetryHelper.withRetriesAsync(() -> CompletableFuture.supplyAsync(() -> {
             if (count.incrementAndGet() < 4) {
                 throw new RuntimeException();
             }
             return count.get();
         }), RetryHelper.UNCONDITIONAL_PREDICATE, 2, executor), RuntimeException::new) == 4);
+    }
+
+    @Test
+    public void testLoopWithDelay() {
+        final int maxLoops = 3;
+        AtomicInteger loopCounter = new AtomicInteger();
+        ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+
+        AtomicLong previous = new AtomicLong(System.currentTimeMillis());
+        AtomicBoolean loopDelayHonored = new AtomicBoolean(true);
+
+        long oneSecond = Duration.ofSeconds(1).toMillis();
+        RetryHelper.loopWithDelay(
+                () -> loopCounter.incrementAndGet() < maxLoops,
+                () -> {
+                    loopDelayHonored.compareAndSet(true, System.currentTimeMillis() - previous.get() > oneSecond);
+                    return CompletableFuture.completedFuture(null);
+                },
+                oneSecond,
+                executorService
+        ).join();
+        Assert.assertTrue(loopDelayHonored.get());
     }
 }

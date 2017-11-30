@@ -26,7 +26,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -58,9 +58,8 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
-import org.apache.commons.lang.NotImplementedException;
 
-import static io.pravega.common.concurrent.FutureHelpers.getAndHandleExceptions;
+import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @AllArgsConstructor
 public class MockController implements Controller {
@@ -92,7 +91,7 @@ public class MockController implements Controller {
         }
 
         if (!createdScopes.get(scopeName).isEmpty()) {
-            return FutureHelpers.failedFuture(new IllegalStateException("Scope is not empty."));
+            return Futures.failedFuture(new IllegalStateException("Scope is not empty."));
         }
 
         createdScopes.remove(scopeName);
@@ -108,7 +107,7 @@ public class MockController implements Controller {
         }
 
         if (createdScopes.get(streamConfig.getScope()) == null) {
-            return FutureHelpers.failedFuture(new IllegalArgumentException("Scope does not exit."));
+            return Futures.failedFuture(new IllegalArgumentException("Scope does not exit."));
         }
 
         createdStreams.put(stream, streamConfig);
@@ -124,7 +123,7 @@ public class MockController implements Controller {
         StreamConfiguration config = createdStreams.get(stream);
         Preconditions.checkArgument(config != null, "Stream must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
-        if (scalingPolicy.getType() != ScalingPolicy.Type.FIXED_NUM_SEGMENTS) {
+        if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
         }
         List<Segment> result = new ArrayList<>(scalingPolicy.getMinNumSegments());
@@ -136,28 +135,33 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut cut) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> startScale(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CancellableRequest<Boolean> scaleStream(Stream stream, List<Integer> sealedSegments, Map<Double, Double> newKeyRanges,
                                                    ScheduledExecutorService executor) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> checkScaleStatus(Stream stream, int epoch) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Boolean> sealStream(String scope, String streamName) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -186,7 +190,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -220,7 +224,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -264,7 +268,7 @@ public class MockController implements Controller {
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(commitTxSegment(txId, segment));            
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
     
     private CompletableFuture<Void> commitTxSegment(UUID txId, Segment segment) {
@@ -278,7 +282,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -306,7 +310,7 @@ public class MockController implements Controller {
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(abortTxSegment(txId, segment));            
         }
-        return FutureHelpers.allOf(futures);
+        return Futures.allOf(futures);
     }
     
     private CompletableFuture<Void> abortTxSegment(UUID txId, Segment segment) {
@@ -320,7 +324,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -344,19 +348,18 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Transaction.Status> checkTransactionStatus(Stream stream, UUID txId) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease,
-                                                     final long maxExecutionTime, final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod) {
         UUID txId = UUID.randomUUID();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         StreamSegments currentSegments = getCurrentSegments(stream);
         for (Segment segment : currentSegments.getSegments()) {
             futures.add(createSegmentTx(txId, segment));            
         }
-        return FutureHelpers.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
+        return Futures.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
     }
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {
@@ -370,7 +373,7 @@ public class MockController implements Controller {
 
             @Override
             public void wrongHost(WrongHost wrongHost) {
-                result.completeExceptionally(new NotImplementedException());
+                result.completeExceptionally(new UnsupportedOperationException());
             }
 
             @Override
@@ -389,7 +392,7 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        throw new NotImplementedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -404,7 +407,11 @@ public class MockController implements Controller {
 
     @Override
     public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
-        throw new NotImplementedException();
+        StreamConfiguration configuration = createdStreams.get(from.getStream());
+        if (configuration.getScalingPolicy().getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
+            throw new IllegalArgumentException("getSuccessors not supported with dynamic scaling on mock controller");
+        }
+        return CompletableFuture.completedFuture(Collections.emptySet());
     }
 
     @Override
@@ -430,5 +437,8 @@ public class MockController implements Controller {
         return CompletableFuture.completedFuture(true);
     }
 
+    @Override
+    public void close() {
+    }
 }
 

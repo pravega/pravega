@@ -10,7 +10,10 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.impl.StreamCut;
+import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * {@link ClientFactory#createReader(String, String, Serializer, ReaderConfig)} and are removed by
  * calling {@link #readerOffline(String, Position)}
  */
-public interface ReaderGroup {
+public interface ReaderGroup extends ReaderGroupNotificationListener {
 
     /**
      * Returns metrics for this reader group.
@@ -122,4 +125,13 @@ public interface ReaderGroup {
      * @return Set of streams for this group.
      */
     Set<String> getStreamNames();
+
+    /**
+     * Returns a stream cut for each stream that this reader group is reading from.
+     * A stream cut corresponds to a position in the stream, and it can be used by
+     * the application as reference to such a position.
+     *
+     * @return Map of streams that this group is reading from to the corresponding cuts.
+     */
+    Map<Stream, StreamCut> getStreamCuts();
 }

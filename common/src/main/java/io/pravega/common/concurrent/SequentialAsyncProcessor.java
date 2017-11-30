@@ -11,7 +11,10 @@ package io.pravega.common.concurrent;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import java.util.concurrent.Executor;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.Retry;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
@@ -22,7 +25,9 @@ public class SequentialAsyncProcessor implements AutoCloseable {
     //region Members
 
     private final Runnable runnable;
-    private final Executor executor;
+    private final Retry.RetryAndThrowBase<Exception> retry;
+    private final Consumer<Throwable> failureCallback;
+    private final ScheduledExecutorService executor;
     @GuardedBy("this")
     private boolean running;
     @GuardedBy("this")
@@ -37,11 +42,15 @@ public class SequentialAsyncProcessor implements AutoCloseable {
     /**
      * Region Constructor.
      *
-     * @param runnable The task to run.
-     * @param executor An Executor to run the task on.
+     * @param runnable        The task to run.
+     * @param retry           A Retry policy to use when executing the runnable.
+     * @param failureCallback A Consumer to invoke if the runnable was unable to complete after applying the Retry policy.
+     * @param executor        An Executor to run the task on.
      */
-    public SequentialAsyncProcessor(Runnable runnable, Executor executor) {
+    public SequentialAsyncProcessor(Runnable runnable, Retry.RetryAndThrowBase<Exception> retry, Consumer<Throwable> failureCallback, ScheduledExecutorService executor) {
         this.runnable = Preconditions.checkNotNull(runnable, "runnable");
+        this.retry = Preconditions.checkNotNull(retry, "retry");
+        this.failureCallback = Preconditions.checkNotNull(failureCallback, "failureCallback");
         this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
@@ -65,21 +74,27 @@ public class SequentialAsyncProcessor implements AutoCloseable {
         }
 
         // Execute the task.
-        this.executor.execute(() -> {
-            boolean canContinue = true;
-            while (canContinue) {
-                try {
-                    this.runnable.run();
-                } finally {
-                    // Determine if we need to run the task again. Otherwise release our spot.
-                    synchronized (this) {
-                        canContinue = this.runAgain && !this.closed;
-                        this.runAgain = false;
-                        this.running = canContinue;
-                    }
-                }
-            }
-        });
+        runInternal();
+    }
+
+    private void runInternal() {
+        this.retry.runInExecutor(this.runnable, this.executor)
+                  .whenComplete((r, ex) -> {
+                      if (ex != null) {
+                          // If we were unable to execute after all retries, invoke the failure callback.
+                          Callbacks.invokeSafely(this.failureCallback, ex, null);
+                      }
+
+                      boolean loopAgain;
+                      synchronized (this) {
+                          this.running = this.runAgain && !this.closed;
+                          this.runAgain = false;
+                          loopAgain = this.running;
+                      }
+                      if (loopAgain) {
+                          runInternal();
+                      }
+                  });
     }
 
     @Override

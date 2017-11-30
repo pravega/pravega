@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
@@ -25,7 +26,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.client.stream.RetentionPolicy;
 
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -68,7 +68,7 @@ public final class ModelHelper {
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
         Preconditions.checkNotNull(policy, "policy");
         return ScalingPolicy.builder()
-                            .type(ScalingPolicy.Type.valueOf(policy.getType().name()))
+                            .scaleType(ScalingPolicy.ScaleType.valueOf(policy.getScaleType().name()))
                             .targetRate(policy.getTargetRate())
                             .scaleFactor(policy.getScaleFactor())
                             .minNumSegments(policy.getMinNumSegments())
@@ -84,10 +84,10 @@ public final class ModelHelper {
     public static final RetentionPolicy encode(final Controller.RetentionPolicy policy) {
         // Using default enum type of UNKNOWN(0) to detect if retention policy has been set or not.
         // This is required since proto3 does not have any other way to detect if a field has been set or not.
-        if (policy != null && policy.getType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
+        if (policy != null && policy.getRetentionType() != Controller.RetentionPolicy.RetentionPolicyType.UNKNOWN) {
             return RetentionPolicy.builder()
-                    .type(RetentionPolicy.Type.valueOf(policy.getType().name()))
-                    .value(policy.getValue())
+                    .retentionType(RetentionPolicy.RetentionType.valueOf(policy.getRetentionType().name()))
+                    .retentionParam(policy.getRetentionParam())
                     .build();
         } else {
             return null;
@@ -186,6 +186,15 @@ public final class ModelHelper {
     }
 
     /**
+     * Helper method to convery stream cut to map of segment to position.
+     * @param streamCut Stream cut
+     * @return map of segment to position
+     */
+    public static Map<Integer, Long> encode(Controller.StreamCut streamCut) {
+        return streamCut.getCutMap();
+    }
+
+    /**
      * Returns TxnId object instance for a given transaction with UUID.
      *
      * @param txnId UUID
@@ -219,7 +228,7 @@ public final class ModelHelper {
     public static final Controller.ScalingPolicy decode(final ScalingPolicy policyModel) {
         Preconditions.checkNotNull(policyModel, "policyModel");
         return Controller.ScalingPolicy.newBuilder()
-                .setType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getType().name()))
+                .setScaleType(Controller.ScalingPolicy.ScalingPolicyType.valueOf(policyModel.getScaleType().name()))
                 .setTargetRate(policyModel.getTargetRate())
                 .setScaleFactor(policyModel.getScaleFactor())
                 .setMinNumSegments(policyModel.getMinNumSegments())
@@ -235,8 +244,8 @@ public final class ModelHelper {
     public static final Controller.RetentionPolicy decode(final RetentionPolicy policyModel) {
         if (policyModel != null) {
             return Controller.RetentionPolicy.newBuilder()
-                    .setType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getType().name()))
-                    .setValue(policyModel.getValue())
+                    .setRetentionType(Controller.RetentionPolicy.RetentionPolicyType.valueOf(policyModel.getRetentionType().name()))
+                    .setRetentionParam(policyModel.getRetentionParam())
                     .build();
         } else {
             return null;
@@ -270,7 +279,19 @@ public final class ModelHelper {
         Preconditions.checkNotNull(uri, "uri");
         return NodeUri.newBuilder().setEndpoint(uri.getEndpoint()).setPort(uri.getPort()).build();
     }
-    
+
+    /**
+     * Creates a stream cut object.
+     *
+     * @param scope     scope
+     * @param stream    stream
+     * @param streamCut map of segment to position
+     * @return stream cut
+     */
+    public static Controller.StreamCut decode(final String scope, final String stream, Map<Integer, Long> streamCut) {
+        return Controller.StreamCut.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllCut(streamCut).build();
+    }
+
     public static final Set<Integer> getSegmentsFromPositions(final List<PositionInternal> positions) {
         Preconditions.checkNotNull(positions, "positions");
         return positions.stream()

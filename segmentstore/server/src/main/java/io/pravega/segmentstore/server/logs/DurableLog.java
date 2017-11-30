@@ -12,12 +12,12 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.common.ExceptionHelpers;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.concurrent.ServiceHelpers;
+import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -63,7 +63,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
     private static final Duration RECOVERY_TIMEOUT = Duration.ofSeconds(30);
     private final String traceObjectId;
-    private final DurableLogConfig config;
     private final LogItemFactory<Operation> operationFactory;
     private final SequencedItemList<Operation> inMemoryOperationLog;
     private final DurableDataLog durableDataLog;
@@ -97,7 +96,6 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkNotNull(readIndex, "readIndex");
         Preconditions.checkNotNull(executor, "executor");
 
-        this.config = config;
         this.durableDataLog = dataFrameLogFactory.createDurableDataLog(metadata.getContainerId());
         assert this.durableDataLog != null : "dataFrameLogFactory created null durableDataLog.";
 
@@ -107,9 +105,9 @@ public class DurableLog extends AbstractService implements OperationLog {
         this.operationFactory = new OperationFactory();
         this.inMemoryOperationLog = createInMemoryLog();
         this.memoryStateUpdater = new MemoryStateUpdater(this.inMemoryOperationLog, readIndex, this::triggerTailReads);
-        MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(this.config, this::queueMetadataCheckpoint, this.executor);
+        MetadataCheckpointPolicy checkpointPolicy = new MetadataCheckpointPolicy(config, this::queueMetadataCheckpoint, this.executor);
         this.operationProcessor = new OperationProcessor(this.metadata, this.memoryStateUpdater, this.durableDataLog, checkpointPolicy, executor);
-        ServiceHelpers.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
+        Services.onStop(this.operationProcessor, this::queueStoppedHandler, this::queueFailedHandler, this.executor);
         this.tailReads = new HashSet<>();
         this.closed = new AtomicBoolean();
     }
@@ -126,7 +124,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     @Override
     public void close() {
         if (!this.closed.get()) {
-            FutureHelpers.await(ServiceHelpers.stopAsync(this, this.executor));
+            Futures.await(Services.stopAsync(this, this.executor));
 
             this.operationProcessor.close();
             this.durableDataLog.close(); // Call this again just in case we were not able to do it in doStop().
@@ -146,8 +144,8 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Initiate recovery.
         CompletableFuture.supplyAsync(this::performRecovery, this.executor)
-                .thenCompose(anyItemsRecovered -> ServiceHelpers.startAsync(this.operationProcessor, this.executor)
-                        .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
+                .thenCompose(anyItemsRecovered -> Services.startAsync(this.operationProcessor, this.executor)
+                                                          .thenComposeAsync(v -> anyItemsRecovered ? CompletableFuture.completedFuture(null) : queueMetadataCheckpoint(), this.executor))
                 .thenRunAsync(() -> {
                     // If we got here, all is good. We were able to start successfully.
                     log.info("{}: Started.", this.traceObjectId);
@@ -160,7 +158,7 @@ public class DurableLog extends AbstractService implements OperationLog {
                         this.operationProcessor.stopAsync();
                     }
 
-                    notifyFailed(ExceptionHelpers.getRealException(ex));
+                    notifyFailed(Exceptions.unwrap(ex));
                     return null;
                 });
     }
@@ -169,7 +167,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     protected void doStop() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "doStop");
         log.info("{}: Stopping.", this.traceObjectId);
-        ServiceHelpers.stopAsync(this.operationProcessor, this.executor)
+        Services.stopAsync(this.operationProcessor, this.executor)
                 .whenCompleteAsync((r, ex) -> {
                     cancelTailReads();
 
@@ -242,10 +240,11 @@ public class DurableLog extends AbstractService implements OperationLog {
                 .thenComposeAsync(v -> this.durableDataLog.truncate(truncationFrameAddress, timer.getRemaining()), this.executor)
                 .thenRunAsync(() -> {
                     // Truncate InMemory Transaction Log.
-                    this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
+                    int count = this.inMemoryOperationLog.truncate(actualTruncationSequenceNumber);
 
                     // Remove old truncation markers.
                     this.metadata.removeTruncationMarkers(actualTruncationSequenceNumber);
+                    this.operationProcessor.getMetrics().operationLogTruncate(count);
                 }, this.executor);
     }
 
@@ -307,7 +306,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         Preconditions.checkState(state() == State.STARTING, "Cannot perform recovery if the DurableLog is not in a '%s' state.", State.STARTING);
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "performRecovery");
-        TimeoutTimer timer = new TimeoutTimer(RECOVERY_TIMEOUT);
+        Timer timer = new Timer();
         log.info("{} Recovery started.", this.traceObjectId);
 
         // Put metadata (and entire container) into 'Recovery Mode'.
@@ -315,18 +314,20 @@ public class DurableLog extends AbstractService implements OperationLog {
 
         // Reset metadata.
         this.metadata.reset();
+        this.operationProcessor.getMetrics().operationLogInit();
 
         OperationMetadataUpdater metadataUpdater = new OperationMetadataUpdater(this.metadata);
         this.memoryStateUpdater.enterRecoveryMode(metadataUpdater);
 
         boolean successfulRecovery = false;
-        boolean anyItemsRecovered;
+        int recoveredItemCount;
         try {
             try {
-                this.durableDataLog.initialize(timer.getRemaining());
-                anyItemsRecovered = recoverFromDataFrameLog(metadataUpdater);
+                this.durableDataLog.initialize(RECOVERY_TIMEOUT);
+                recoveredItemCount = recoverFromDataFrameLog(metadataUpdater);
                 this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
-                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}.", this.traceObjectId, this.metadata.getContainerEpoch(), anyItemsRecovered);
+                log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
+                        this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
                 successfulRecovery = true;
             } finally {
                 // We must exit recovery mode when done, regardless of outcome.
@@ -339,8 +340,9 @@ public class DurableLog extends AbstractService implements OperationLog {
             throw new CompletionException(ex);
         }
 
+        this.operationProcessor.getMetrics().operationsCompleted(recoveredItemCount, timer.getElapsed());
         LoggerHelpers.traceLeave(log, this.traceObjectId, "performRecovery", traceId);
-        return anyItemsRecovered;
+        return recoveredItemCount > 0;
     }
 
     /**
@@ -351,9 +353,9 @@ public class DurableLog extends AbstractService implements OperationLog {
      * been built up using the Operations up to them).
      *
      * @param metadataUpdater The OperationMetadataUpdater to use for updates.
-     * @return True if any operations were recovered, false otherwise.
+     * @return The number of Operations recovered.
      */
-    private boolean recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
+    private int recoverFromDataFrameLog(OperationMetadataUpdater metadataUpdater) throws Exception {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "recoverFromDataFrameLog");
         int skippedOperationCount = 0;
         int skippedDataFramesCount = 0;
@@ -399,7 +401,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         // This code will only be invoked if we haven't encountered any exceptions during recovery.
         metadataUpdater.commitAll();
         LoggerHelpers.traceLeave(log, this.traceObjectId, "recoverFromDataFrameLog", traceId, recoveredItemCount);
-        return recoveredItemCount > 0;
+        return recoveredItemCount;
     }
 
     private void recoverOperation(Operation operation, OperationMetadataUpdater metadataUpdater) throws DataCorruptionException {
@@ -497,7 +499,7 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             // Trigger all of them (no need to unregister them; the unregister handle is already wired up).
             for (TailRead tr : toTrigger) {
-                tr.future.complete(FutureHelpers.runOrFail(
+                tr.future.complete(Futures.runOrFail(
                         () -> this.inMemoryOperationLog.read(tr.afterSequenceNumber, tr.maxCount),
                         tr.future));
             }
@@ -528,7 +530,7 @@ public class DurableLog extends AbstractService implements OperationLog {
         TailRead(long afterSequenceNumber, int maxCount, Duration timeout, ScheduledExecutorService executor) {
             this.afterSequenceNumber = afterSequenceNumber;
             this.maxCount = maxCount;
-            this.future = FutureHelpers.futureWithTimeout(timeout, executor);
+            this.future = Futures.futureWithTimeout(timeout, executor);
         }
 
         @Override

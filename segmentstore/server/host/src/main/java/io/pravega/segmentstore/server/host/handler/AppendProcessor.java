@@ -9,10 +9,12 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -41,12 +43,13 @@ import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -54,6 +57,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -64,23 +68,22 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 /**
- * Process incoming Append requests and write them to the appropriate store.
+ * Process incoming Append requests and write them to the SegmentStore.
  */
 @Slf4j
 public class AppendProcessor extends DelegatingRequestProcessor {
+    //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
-
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
-
     private final StreamSegmentStore store;
     private final ServerConnection connection;
-    private final RequestProcessor next;
+    @Getter
+    private final RequestProcessor nextRequestProcessor;
     private final Object lock = new Object();
     private final SegmentStatsRecorder statsRecorder;
 
@@ -91,21 +94,50 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @GuardedBy("lock")
     private Append outstandingAppend = null;
 
+    //endregion
+
+    //region Constructor
+
+
+    /**
+     * Creates a new instance of the AppendProcessor class with no Metrics StatsRecorder.
+     *
+     * @param store      The SegmentStore to send append requests to.
+     * @param connection The ServerConnection to send responses to.
+     * @param next       The RequestProcessor to invoke next.
+     */
+    @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next) {
         this(store, connection, next, null);
     }
 
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder) {
-        this.store = store;
-        this.connection = connection;
-        this.next = next;
+    /**
+     * Creates a new instance of the AppendProcessor class.
+     *
+     * @param store         The SegmentStore to send append requests to.
+     * @param connection    The ServerConnection to send responses to.
+     * @param next          The RequestProcessor to invoke next.
+     * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
+     */
+    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder) {
+        this.store = Preconditions.checkNotNull(store, "store");
+        this.connection = Preconditions.checkNotNull(connection, "connection");
+        this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
     }
+
+    //endregion
+
+    //region RequestProcessor Implementation
 
     @Override
     public void hello(Hello hello) {
         log.info("Received hello from connection: {}", connection);
-        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATABLE_VERSION));
+        connection.send(new Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION));
+        if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
+            log.warn("Incompatible wire protocol versions {} from connection {}", hello, connection);
+            connection.close();
+        }
     }
 
     /**
@@ -142,24 +174,24 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * Appends are opportunistically batched here. i.e. If many are waiting they are combined into a single append and
      * that is written.
      */
-    public void performNextWrite() {
+    private void performNextWrite() {
         Append append = getNextAppend();
         if (append == null) {
             return;
         }
         long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
         Timer timer = new Timer();
-        storeAppend(append).whenComplete((v, e) -> {
-            handleAppendResult(append, e);
-            LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
-            if (e == null) {
-                WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-            } else {
-                WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-            }
-        }).whenComplete((v, e) -> {
-            append.getData().release();  
-        });
+        storeAppend(append)
+                .whenComplete((v, e) -> {
+                    handleAppendResult(append, e);
+                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
+                    if (e == null) {
+                        WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+                    } else {
+                        WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
+                    }
+                })
+                .whenComplete((v, e) -> append.getData().release());
     }
 
     private Append getNextAppend() {
@@ -199,13 +231,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private CompletableFuture<Void> storeAppend(Append append) {
-        ArrayList<AttributeUpdate> attributes = new ArrayList<>(2);
+        long lastEventNumber;
         synchronized (lock) {
-            long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
-            attributes.add(new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals,
-                                               append.getEventNumber(), lastEventNumber));
+            lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
         }
-        attributes.add(new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
+
+        List<AttributeUpdate> attributes = Arrays.asList(
+                new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
+                new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -218,26 +251,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
     private void handleAppendResult(final Append append, Throwable exception) {
         try {
-            boolean conditionalFailed = exception != null && (ExceptionHelpers.getRealException(exception) instanceof BadOffsetException);
+            boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
+            long previousEventNumber;
             synchronized (lock) {
-                if (outstandingAppend != append) {
-                    throw new IllegalStateException(
-                            "Synchronization error in: " + AppendProcessor.this.getClass().getName());
-                }
-                outstandingAppend = null;
-                if (exception == null) {
-                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());                 
-                } else {
-                    if (!conditionalFailed) {
-                        waitingAppends.removeAll(append.getWriterId());
-                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
-                    } 
-                }
+                previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
+                Preconditions.checkState(outstandingAppend == append,
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
             }
       
             if (exception != null) {
                 if (conditionalFailed) {
-                    log.debug("Conditional apend failed due to incorrect offset: {}, {}", append, exception.getMessage());
+                    log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber()));
                 } else {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
@@ -246,9 +271,31 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (statsRecorder != null) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
-                connection.send(new DataAppended(append.getWriterId(), append.getEventNumber()));
+                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
+                        previousEventNumber);
+                log.trace("Sending DataAppended : {}", dataAppendedAck);
+                connection.send(dataAppendedAck);
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+            }
+
+            /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,
+             *   - clear outstandingAppend to handle the next Append message.
+             *   - ensure latestEventNumbers and waitingAppends are updated.
+             */
+            synchronized (lock) {
+                Preconditions.checkState(outstandingAppend == append,
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
+                outstandingAppend = null;
+                if (exception == null) {
+                    latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
+                } else {
+                    if (!conditionalFailed) {
+                        waitingAppends.removeAll(append.getWriterId());
+                        latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
+                    }
+                }
             }
       
             pauseOrResumeReading();
@@ -261,7 +308,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Append processor: Error {} onsegment = '{}'", doingWhat, segment, exception);
+            log.error("Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
             throw exception;
         }
 
@@ -276,9 +323,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             connection.send(new NoSuchSegment(requestId, segment));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'", segment, writerId, doingWhat);
-            connection.send(new SegmentIsSealed(requestId, segment));
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'", segment, writerId, doingWhat);
+            connection.send(new SegmentIsSealed(requestId, segment));
         } else if (u instanceof WrongHostException) {
             log.warn("Wrong host. Segment '{}' is not owned and {} cannot perform operation '{}'", segment, writerId, doingWhat);
             WrongHostException wrongHost = (WrongHostException) u;
@@ -290,6 +336,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {} ", writerId, segment);
             connection.send(new InvalidEventNumber(writerId, requestId));
             connection.close();
+        } else if (u instanceof UnsupportedOperationException) {
+            log.warn("Unsupported Operation '{}'.", doingWhat);
+            connection.send(new OperationUnsupported(requestId, doingWhat));
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
@@ -327,23 +376,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @Override
     public void append(Append append) {
         log.trace("Processing append received from client {}", append);
+        UUID id = append.getWriterId();
         synchronized (lock) {
-            UUID id = append.getWriterId();
             Long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), id));
-            if (lastEventNumber == null) {
-                throw new IllegalStateException("Data from unexpected connection: " + id);
-            }
-            if (append.getEventNumber() <= lastEventNumber) {
-                throw new IllegalStateException("Event was already appended.");
-            }
+            Preconditions.checkState(lastEventNumber != null, "Data from unexpected connection: %s.", id);
+            Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
         }
         pauseOrResumeReading();
         performNextWrite();
     }
 
-    @Override
-    public RequestProcessor getNextRequestProcessor() {
-        return next;
-    }
+    //endregion
 }

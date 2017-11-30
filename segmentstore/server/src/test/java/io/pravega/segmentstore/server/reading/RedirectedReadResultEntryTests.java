@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -70,7 +70,7 @@ public class RedirectedReadResultEntryTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected result for getContent.", baseEntry.getContent().join(), redirectedEntry.getContent().join());
 
         redirectedEntry.requestContent(Duration.ZERO);
-        Assert.assertTrue("BaseEntry.getContent() was not completed when requestContent was invoked.", FutureHelpers.isSuccessful(baseEntry.getContent()));
+        Assert.assertTrue("BaseEntry.getContent() was not completed when requestContent was invoked.", Futures.isSuccessful(baseEntry.getContent()));
     }
 
     /**

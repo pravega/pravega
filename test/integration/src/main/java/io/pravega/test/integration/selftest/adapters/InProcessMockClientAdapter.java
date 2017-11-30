@@ -13,8 +13,7 @@ package io.pravega.test.integration.selftest.adapters;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.concurrent.FutureHelpers;
-import io.pravega.common.util.ImmutableDate;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -126,7 +125,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
             if (this.segments.add(streamSegmentName)) {
                 return CompletableFuture.completedFuture(null);
             } else {
-                return FutureHelpers.failedFuture(new StreamSegmentExistsException(streamSegmentName));
+                return Futures.failedFuture(new StreamSegmentExistsException(streamSegmentName));
             }
         }
 
@@ -135,7 +134,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
             if (this.segments.contains(streamSegmentName)) {
                 return CompletableFuture.completedFuture(null);
             } else {
-                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             }
         }
 
@@ -147,9 +146,9 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
             if (this.segments.contains(streamSegmentName)) {
-                return CompletableFuture.completedFuture(new StreamSegmentInformation(streamSegmentName, 0, false, false, new ImmutableDate()));
+                return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).build());
             } else {
-                return FutureHelpers.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
+                return Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName));
             }
         }
 
@@ -181,6 +180,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("updateAttributes");
+        }
+
+        @Override
+        public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+            throw new UnsupportedOperationException("truncateStreamSegment");
         }
     }
 

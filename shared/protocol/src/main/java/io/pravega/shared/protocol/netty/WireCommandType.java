@@ -10,8 +10,7 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.base.Preconditions;
-
-import java.io.DataInput;
+import io.netty.buffer.ByteBufInputStream;
 import java.io.IOException;
 
 /**
@@ -76,12 +75,17 @@ public enum WireCommandType {
     UPDATE_SEGMENT_ATTRIBUTE(36, WireCommands.UpdateSegmentAttribute::readFrom),
     SEGMENT_ATTRIBUTE_UPDATED(37, WireCommands.SegmentAttributeUpdated::readFrom),
 
+    TRUNCATE_SEGMENT(38, WireCommands.TruncateSegment::readFrom),
+    SEGMENT_TRUNCATED(39, WireCommands.SegmentTruncated::readFrom),
+
     WRONG_HOST(50, WireCommands.WrongHost::readFrom),
     SEGMENT_IS_SEALED(51, WireCommands.SegmentIsSealed::readFrom),
     SEGMENT_ALREADY_EXISTS(52, WireCommands.SegmentAlreadyExists::readFrom),
     NO_SUCH_SEGMENT(53, WireCommands.NoSuchSegment::readFrom),
     NO_SUCH_TRANSACTION(54, WireCommands.NoSuchTransaction::readFrom),
     INVALID_EVENT_NUMBER(55, WireCommands.InvalidEventNumber::readFrom),
+    SEGMENT_IS_TRUNCATED(56, WireCommands.SegmentIsTruncated::readFrom),
+    OPERATION_UNSUPPORTED(57, WireCommands.OperationUnsupported::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
@@ -98,7 +102,7 @@ public enum WireCommandType {
         return code;
     }
 
-    public WireCommand readFrom(DataInput in, int length) throws IOException {
+    public WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
         return factory.readFrom(in, length);
     }
 }

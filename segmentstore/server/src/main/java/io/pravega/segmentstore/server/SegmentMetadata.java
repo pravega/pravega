@@ -54,11 +54,6 @@ public interface SegmentMetadata extends SegmentProperties {
     long getStorageLength();
 
     /**
-     * Gets a value indicating the length of this entire StreamSegment (the part in Storage + the part in DurableLog).
-     */
-    long getDurableLogLength();
-
-    /**
      * Gets a value representing the when the Segment was last used. The meaning of this value is implementation specific,
      * however higher values should indicate it was used more recently.
      */
@@ -80,7 +75,7 @@ public interface SegmentMetadata extends SegmentProperties {
      * it was created (changes to the base object will not be reflected in the result).
      */
     default SegmentProperties getSnapshot() {
-        return new StreamSegmentInformation(this, new HashMap<>(getAttributes()));
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
     }
 
     /**
@@ -90,10 +85,5 @@ public interface SegmentMetadata extends SegmentProperties {
      */
     default boolean isTransaction() {
         return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
-    }
-
-    @Override
-    default long getLength() {
-        return getDurableLogLength();
     }
 }

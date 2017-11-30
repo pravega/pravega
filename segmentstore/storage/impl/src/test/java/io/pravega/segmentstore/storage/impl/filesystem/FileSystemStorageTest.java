@@ -12,20 +12,22 @@ package io.pravega.segmentstore.storage.impl.filesystem;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.impl.IdempotentStorageTestBase;
+import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
@@ -33,9 +35,10 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
  * Unit tests for FileSystemStorage.
  */
 public class FileSystemStorageTest extends IdempotentStorageTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
     private File baseDir = null;
     private FileSystemStorageConfig adapterConfig;
-    private FileSystemStorageFactory storageFactory;
 
     @Before
     public void setUp() throws Exception {
@@ -46,7 +49,6 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
                 .build();
-        this.storageFactory = new FileSystemStorageFactory(adapterConfig, this.executorService());
     }
 
     @After
@@ -71,8 +73,8 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, TIMEOUT).join();
 
-            long expectedMetricsSize = Metrics.WRITE_BYTES.get();
-            long expectedMetricsSuccesses = Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
+            long expectedMetricsSize = FileSystemMetrics.WRITE_BYTES.get();
+            long expectedMetricsSuccesses = FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
             // Invalid handle.
             val readOnlyHandle = s.openRead(segmentName).join();
             assertThrows(
@@ -82,14 +84,14 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
             assertThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
-                    () -> s.write(createHandle(segmentName + "_1", false, DEFAULT_EPOCH), 0,
+                    () -> s.write(createInexistentSegmentHandle(s, false), 0,
                             new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
 
             val writeHandle = s.openWrite(segmentName).join();
             long offset = 0;
@@ -100,9 +102,9 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                 expectedMetricsSize += writeData.length;
                 expectedMetricsSuccesses += 1;
                 Assert.assertEquals("WRITE_LATENCY should increase the count of successful events in case of successful writes",
-                        expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                        expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
                 Assert.assertEquals("WRITE_BYTES should increase by the size of successful writes",
-                        expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                        expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
 
                 offset += writeData.length;
             }
@@ -113,18 +115,18 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                     () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             // Check post-delete write.
             s.delete(writeHandle, TIMEOUT).join();
             assertThrows("write() did not throw for a deleted StreamSegment.",
                     () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
-                    expectedMetricsSize, Metrics.WRITE_BYTES.get());
+                    expectedMetricsSize, FileSystemMetrics.WRITE_BYTES.get());
             Assert.assertEquals("WRITE_LATENCY should not increase the count of successful events in case of unsuccessful writes",
-                    expectedMetricsSuccesses, Metrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
+                    expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
         }
     }
 
@@ -132,18 +134,39 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
     @Override
     protected Storage createStorage() {
-        return this.storageFactory.createStorageAdapter();
+        return new AsyncStorageWrapper(new FileSystemStorage(this.adapterConfig), executorService());
     }
 
-    @Override
-    protected SegmentHandle createHandle(String segmentName, boolean readOnly, long epoch) {
-        FileChannel channel = null;
-        if (readOnly) {
-            return FileSystemSegmentHandle.readHandle(segmentName);
-        } else {
-            return FileSystemSegmentHandle.writeHandle(segmentName);
+    //region RollingStorageTests
+
+    /**
+     * Tests the FileSystemStorage adapter with a RollingStorage wrapper.
+     */
+    public static class RollingStorageTests extends RollingStorageTestBase {
+        @Rule
+        public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+        private File baseDir = null;
+        private FileSystemStorageConfig adapterConfig;
+
+        @Before
+        public void setUp() throws Exception {
+            this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
+            this.adapterConfig = FileSystemStorageConfig
+                    .builder()
+                    .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())
+                    .build();
+        }
+
+        @After
+        public void tearDown() {
+            FileHelpers.deleteFileOrDirectory(baseDir);
+        }
+
+        @Override
+        protected Storage createStorage() {
+            return wrap(new FileSystemStorage(this.adapterConfig));
         }
     }
 
-
+    //endregion
 }

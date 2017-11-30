@@ -9,19 +9,19 @@
  */
 package io.pravega.segmentstore.storage.impl.rocksdb;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.function.CallbackHelpers;
+import io.pravega.common.Timer;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.storage.CacheException;
 import io.pravega.segmentstore.storage.Cache;
-import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.CacheException;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
@@ -141,7 +141,7 @@ class RocksDBCache implements Cache {
 
             Consumer<String> callback = this.closeCallback;
             if (callback != null) {
-                CallbackHelpers.invokeSafely(callback, this.id, null);
+                Callbacks.invokeSafely(callback, this.id, null);
             }
         }
     }
@@ -153,11 +153,14 @@ class RocksDBCache implements Cache {
     @Override
     public void insert(Key key, byte[] data) {
         ensureInitializedAndNotClosed();
+        Timer timer = new Timer();
         try {
             this.database.get().put(this.writeOptions, key.serialize(), data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
+
+        RocksDBMetrics.insert(timer.getElapsedMillis());
     }
 
     @Override
@@ -168,18 +171,23 @@ class RocksDBCache implements Cache {
     @Override
     public byte[] get(Key key) {
         ensureInitializedAndNotClosed();
+        Timer timer = new Timer();
+        byte[] result;
         try {
-            return this.database.get().get(key.serialize());
+            result = this.database.get().get(key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
+
+        RocksDBMetrics.get(timer.getElapsedMillis());
+        return result;
     }
 
     @Override
     public void remove(Key key) {
         ensureInitializedAndNotClosed();
         try {
-            this.database.get().remove(this.writeOptions, key.serialize());
+            this.database.get().delete(this.writeOptions, key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }

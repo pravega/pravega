@@ -9,9 +9,9 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -63,7 +63,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         Preconditions.checkArgument(this.adjustedOffset >= 0, "Given offset adjustment would result in a negative offset.");
         this.retryGetEntry = retryGetEntry;
         this.executorService = executorService;
-        if (FutureHelpers.isSuccessful(entry.getContent())) {
+        if (Futures.isSuccessful(entry.getContent())) {
             this.result = entry.getContent();
         } else {
             this.result = new CompletableFuture<>();
@@ -75,8 +75,8 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
         this.firstEntry.getContent()
                        .thenAccept(this.result::complete)
                        .exceptionally(ex -> {
-                           FutureHelpers.delayedFuture(getExceptionDelay(ex), this.executorService)
-                                        .thenAccept(v -> handleGetContentFailure(ex));
+                           Futures.delayedFuture(getExceptionDelay(ex), this.executorService)
+                                  .thenAccept(v -> handleGetContentFailure(ex));
                            return null;
                        });
     }
@@ -132,7 +132,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     //region Helpers
 
     protected Duration getExceptionDelay(Throwable ex) {
-        boolean requiresDelay = this.secondEntry == null && ExceptionHelpers.getRealException(ex) instanceof StreamSegmentNotExistsException;
+        boolean requiresDelay = this.secondEntry == null && Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException;
         return requiresDelay ? EXCEPTION_DELAY : Duration.ZERO;
     }
 
@@ -149,7 +149,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @return True if the exception was handled properly and the base entry swapped, false otherwise.
      */
     private boolean handle(Throwable ex, Duration timeout) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         if (this.secondEntry == null && isRetryable(ex)) {
             // This is the first attempt and we caught a retry-eligible exception; issue the query for the new entry.
             CompletableReadResultEntry newEntry = this.retryGetEntry.apply(getStreamSegmentOffset(), this.firstEntry.getRequestedReadLength());
@@ -176,7 +176,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * the result future will complete one way or another.
      */
     private void handleGetContentFailure(Throwable ex) {
-        ex = ExceptionHelpers.getRealException(ex);
+        ex = Exceptions.unwrap(ex);
         boolean success;
         try {
             success = handle(ex, RETRY_TIMEOUT);
@@ -200,8 +200,8 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
      * @param ex The exception to inspect.
      */
     private boolean isRetryable(Throwable ex) {
-        return ex instanceof ObjectClosedException // StorageReader was closed before execution began.
-                || ex instanceof CancellationException // StorageReader was closed during execution (or queueing).
+        return ex instanceof ObjectClosedException // StorageReadManager was closed before execution began.
+                || ex instanceof CancellationException // StorageReadManager was closed during execution (or queueing).
                 || ex instanceof StreamSegmentNotExistsException; // Transaction Segment has already been deleted.
     }
 
@@ -212,7 +212,7 @@ class RedirectedReadResultEntry implements CompletableReadResultEntry {
     private void setOutcomeAfterSecondEntry() {
         CompletableFuture<ReadResultEntryContents> sourceFuture = this.secondEntry.getContent();
         sourceFuture.thenAccept(this.result::complete);
-        FutureHelpers.exceptionListener(sourceFuture, this.result::completeExceptionally);
+        Futures.exceptionListener(sourceFuture, this.result::completeExceptionally);
     }
 
     @Override

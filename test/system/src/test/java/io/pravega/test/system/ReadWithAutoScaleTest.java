@@ -11,7 +11,7 @@ package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -201,7 +201,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                 })
                 .thenRun(() -> validateResults(eventData.get(), eventsReadFromPravega));
 
-        FutureHelpers.getAndHandleExceptions(testResult
+        Futures.getAndHandleExceptions(testResult
                 .whenComplete((r, e) -> {
                     recordResult(testResult, "ScaleUpWithTxnWithReaderGroup");
                 }), RuntimeException::new);
@@ -227,6 +227,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     readerGroupName,
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
+            long count;
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
                 // exit only if exitFlag is true  and read Count equals write count.
                 try {
@@ -234,7 +235,10 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                     if (longEvent != null) {
                         //update if event read is not null.
                         readResult.add(longEvent);
-                        readCount.incrementAndGet();
+                        count = readCount.incrementAndGet();
+                        log.debug("Reader {}, read count {}", id, count);
+                    } else {
+                        log.debug("Null event, reader {}, read count {}", id, readCount.get());
                     }
                 } catch (ReinitializationRequiredException e) {
                     log.warn("Test Exception while reading from the stream", e);
@@ -250,7 +254,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
             @Cleanup
             EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
-                    EventWriterConfig.builder().build());
+                    EventWriterConfig.builder().transactionTimeoutTime(25000).transactionTimeoutScaleGracePeriod(29000).build());
             while (!exitFlag.get()) {
                 try {
                     //create a transaction with 10 events.
@@ -276,8 +280,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
     private Transaction<Long> createTransaction(EventStreamWriter<Long> writer, final AtomicBoolean exitFlag) {
         Transaction<Long> txn = null;
         try {
-            //Default max scale grace period is 30000
-            txn = writer.beginTxn(5000, 3600000, 29000);
+            txn = writer.beginTxn();
             log.info("Transaction created with id:{} ", txn.getTxnId());
         } catch (RuntimeException ex) {
             log.info("Exception encountered while trying to begin Transaction ", ex.getCause());

@@ -130,7 +130,7 @@ public interface StreamSegmentStore {
     CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout);
 
     /**
-     * Merges a Transaction into its parent StreamSegment.
+     * Merges a Sealed Transaction into its parent StreamSegment.
      *
      * @param transactionName The name of the Transaction StreamSegment to merge.
      * @param timeout         Timeout for the operation.
@@ -161,4 +161,17 @@ public interface StreamSegmentStore {
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
     CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout);
+
+    /**
+     * Truncates a StreamSegment at a given offset.
+     *
+     * @param streamSegmentName The name of the StreamSegment to truncate.
+     * @param offset            The offset at which to truncate. This must be at least equal to the existing truncation
+     *                          offset and no larger than the StreamSegment's length. After the operation is complete,
+     *                          no offsets below this one will be accessible anymore.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
+     * failed, the future will be failed with the causing exception.
+     */
+    CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
 }

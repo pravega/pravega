@@ -25,7 +25,7 @@ import java.util.Set;
 public interface ReaderGroupManager extends AutoCloseable {
     
     /**
-     * Creates a new instance of StreamManager.
+     * Creates a new instance of ReaderGroupManager.
      *
      * @param scope The Scope string.
      * @param controllerUri The Controller URI.

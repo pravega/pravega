@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Controller APIs.
  */
-public interface Controller {
+public interface Controller extends AutoCloseable {
 
     // Controller Apis for administrative action for streams
 
@@ -65,6 +66,18 @@ public interface Controller {
      *         indicate that the stream was updated because the config is now different from before.
      */
     CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
+
+    /**
+     * Api to Truncate stream. This api takes a stream cut point which corresponds to a cut in the stream segments which is
+     * consistent and covers the entire key range space.
+     *
+     * @param scope      Scope
+     * @param streamName Stream
+     * @param streamCut  Stream cut to updated
+     * @return A future which will throw if the operation fails, otherwise returning a boolean to
+     * indicate that the stream was truncated at the supplied cut.
+     */
+    CompletableFuture<Boolean> truncateStream(final String scope, final String streamName, final StreamCut streamCut);
 
     /**
      * Api to seal stream.
@@ -139,13 +152,11 @@ public interface Controller {
      * 
      * @param stream           Stream name
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
-     * @param maxExecutionTime Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod Maximum time for which client may extend txn lease once
      *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
-                                              final long scaleGracePeriod);
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod);
 
     /**
      * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
@@ -253,5 +264,12 @@ public interface Controller {
      * @return Pravega node URI.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
+
+    /**
+     * Closes controller client.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 
 }

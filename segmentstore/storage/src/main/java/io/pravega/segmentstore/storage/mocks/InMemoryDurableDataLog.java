@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.OrderedItemProcessor;
@@ -88,13 +88,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
 
     @Override
     public void initialize(Duration timeout) {
-        long newEpoch;
-        try {
-            newEpoch = this.entries.acquireLock(this.clientId);
-        } catch (DataLogWriterNotPrimaryException ex) {
-            throw new CompletionException(ex);
-        }
-
+        long newEpoch = this.entries.acquireLock(this.clientId);
         synchronized (this.entries) {
             this.epoch = newEpoch;
             Entry last = this.entries.getLast();
@@ -116,7 +110,9 @@ class InMemoryDurableDataLog implements DurableDataLog {
     @Override
     public long getEpoch() {
         ensurePreconditions();
-        return this.epoch;
+        synchronized (this.entries) {
+            return this.epoch;
+        }
     }
 
     @Override
@@ -166,7 +162,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             }
             result = CompletableFuture.completedFuture(new InMemoryLogAddress(entry.sequenceNumber));
         } catch (Throwable ex) {
-            return FutureHelpers.failedFuture(ex);
+            return Futures.failedFuture(ex);
         }
 
         Duration delay = this.appendDelayProvider.get();
@@ -176,8 +172,8 @@ class InMemoryDurableDataLog implements DurableDataLog {
         } else {
             // Schedule the append after the given delay.
             return result.thenComposeAsync(
-                    logAddress -> FutureHelpers.delayedFuture(delay, this.executorService)
-                                               .thenApply(ignored -> logAddress),
+                    logAddress -> Futures.delayedFuture(delay, this.executorService)
+                                         .thenApply(ignored -> logAddress),
                     this.executorService);
         }
     }
@@ -281,7 +277,7 @@ class InMemoryDurableDataLog implements DurableDataLog {
             return this.entries.read(Long.MIN_VALUE, Integer.MAX_VALUE);
         }
 
-        long acquireLock(String clientId) throws DataLogWriterNotPrimaryException {
+        long acquireLock(String clientId) {
             Exceptions.checkNotNullOrEmpty(clientId, "clientId");
             this.writeLock.set(clientId);
             return this.epoch.incrementAndGet();

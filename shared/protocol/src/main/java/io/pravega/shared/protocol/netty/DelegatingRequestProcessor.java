@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
 
@@ -96,6 +97,11 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
     @Override
     public void sealSegment(SealSegment sealSegment) {
         getNextRequestProcessor().sealSegment(sealSegment);
+    }
+
+    @Override
+    public void truncateSegment(TruncateSegment truncateSegment) {
+        getNextRequestProcessor().truncateSegment(truncateSegment);
     }
 
     @Override

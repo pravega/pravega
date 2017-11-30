@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
-import io.pravega.common.ExceptionHelpers;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.function.Callbacks;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -193,7 +193,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows(
                     "No exception or wrong type of exception thrown by getNext() with exception thrown by getReader().",
                     () -> new DataFrameReader<>(dataLog, logItemFactory, CONTAINER_ID),
-                    ex -> ExceptionHelpers.getRealException(ex) == getReaderErrorInjector.getLastCycleException());
+                    ex -> Exceptions.unwrap(ex) == getReaderErrorInjector.getLastCycleException());
 
             // Test 2: Failures during getNext().
             ErrorInjector<Exception> readErrorInjector = new ErrorInjector<>(
@@ -216,7 +216,7 @@ public class DataFrameReaderTests extends ThreadPooledTestSuite {
                     // We are expecting an exception at all times (the catch block will verify the correctness of the exception thrown).
                     Assert.fail("Expected an exception but none got thrown.");
                 } catch (Exception ex) {
-                    Throwable realException = ExceptionHelpers.getRealException(ex);
+                    Throwable realException = Exceptions.unwrap(ex);
 
                     //Verify we were really expecting this exception.
                     if (encounteredException) {

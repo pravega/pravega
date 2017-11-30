@@ -114,8 +114,8 @@ public class EndToEndTxnWithScaleTest {
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        Transaction<String> transaction = test.beginTxn(5000, 3600000, 29000);
+                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
+        Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
         transaction.commit();
 
@@ -129,12 +129,13 @@ public class EndToEndTxnWithScaleTest {
 
         assertTrue(result);
 
-        transaction = test.beginTxn(5000, 3600000, 29000);
+        transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest2");
         transaction.commit();
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().build(), Collections.singleton("test"));
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().build(),
+                Collections.singleton("test"));
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());

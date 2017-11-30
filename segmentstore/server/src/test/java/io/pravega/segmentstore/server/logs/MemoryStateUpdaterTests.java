@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.logs;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.ImmutableDate;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -165,7 +164,7 @@ public class MemoryStateUpdaterTests {
         for (int i = 0; i < segmentCount; i++) {
             for (int j = 0; j < operationCountPerType; j++) {
                 StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(
-                        new StreamSegmentInformation("a", i * j, false, false, new ImmutableDate()));
+                         StreamSegmentInformation.builder().name("a").length( i * j).build());
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
                 StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), null);

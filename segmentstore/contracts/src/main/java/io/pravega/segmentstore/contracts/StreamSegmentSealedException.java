@@ -25,7 +25,7 @@ public class StreamSegmentSealedException extends StreamSegmentException {
      * @param streamSegmentName The name of the StreamSegment that is sealed.
      */
     public StreamSegmentSealedException(String streamSegmentName) {
-        super(streamSegmentName, "The StreamSegment is closed for appends.", null);
+        super(streamSegmentName, "The StreamSegment is sealed and cannot be modified.", null);
     }
 
     /**
@@ -35,6 +35,6 @@ public class StreamSegmentSealedException extends StreamSegmentException {
      * @param cause             Actual cause of the exception.
      */
     public StreamSegmentSealedException(String streamSegmentName, Throwable cause) {
-        super(streamSegmentName, "The StreamSegment is closed for appends.", cause);
+        super(streamSegmentName, "The StreamSegment is sealed and cannot be modified.", cause);
     }
 }

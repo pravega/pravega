@@ -10,7 +10,7 @@
 package io.pravega.test.system.framework;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.metronome.AuthEnabledMetronomeClient;
 import io.pravega.test.system.framework.metronome.Metronome;
 import io.pravega.test.system.framework.metronome.MetronomeException;
@@ -20,7 +20,7 @@ import io.pravega.test.system.framework.metronome.model.v1.Restart;
 import io.pravega.test.system.framework.metronome.model.v1.Run;
 import feign.Response;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
@@ -40,41 +40,41 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
  */
 @Slf4j
 public class RemoteSequential implements TestExecutor {
-    private static final Metronome CLIENT = AuthEnabledMetronomeClient.getClient();
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
+        Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(60));
+        // This will be removed once issue https://github.com/pravega/pravega/issues/1665 is resolved.
 
         log.debug("Starting test execution for method: {}", testMethod);
+        final Metronome client = AuthEnabledMetronomeClient.getClient();
 
         String className = testMethod.getDeclaringClass().getName();
         String methodName = testMethod.getName();
         String jobId = (methodName + ".testJob").toLowerCase(); //All jobIds should have lowercase for metronome.
 
         return CompletableFuture.runAsync(() -> {
-            CLIENT.createJob(newJob(jobId, className, methodName));
-            Response response = CLIENT.triggerJobRun(jobId);
+            client.createJob(newJob(jobId, className, methodName));
+            Response response = client.triggerJobRun(jobId);
             if (response.status() != CREATED.code()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             }
-        }).thenCompose(v2 -> waitForJobCompletion(jobId))
+        }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
-                    if (CLIENT.getJob(jobId).getHistory().getFailureCount() != 0) {
+                    if (client.getJob(jobId).getHistory().getFailureCount() != 0) {
                         throw new AssertionError("Test failed, detailed logs can be found at " +
                                 "https://MasterIP/mesos, under metronome framework tasks. MethodName: " + methodName);
                     }
                     return null;
                 }).whenComplete((v, ex) -> {
-                    deleteJob(jobId); //deletejob once execution is complete.
+                    deleteJob(jobId, client); //deletejob once execution is complete.
                     if (ex != null) {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
 
                     }
-                    //Wait for a minute between tests runs.
-                    Exceptions.handleInterrupted(() -> TimeUnit.MINUTES.sleep(1));
                 });
     }
 
@@ -83,9 +83,9 @@ public class RemoteSequential implements TestExecutor {
         throw new NotImplementedException("Stop Execution is not used for Remote sequential execution");
     }
 
-    private CompletableFuture<Void> waitForJobCompletion(final String jobId) {
-        return FutureHelpers.loop(() -> isTestRunning(jobId),
-                () -> FutureHelpers.delayedFuture(Duration.ofSeconds(3), executorService),
+    private CompletableFuture<Void> waitForJobCompletion(final String jobId, final Metronome client) {
+        return Futures.loop(() -> isTestRunning(jobId, client),
+                () -> Futures.delayedFuture(Duration.ofSeconds(10), executorService),
                 executorService);
     }
 
@@ -119,8 +119,8 @@ public class RemoteSequential implements TestExecutor {
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 
-        run.setCpus(0.5);
-        run.setMem(64.0);
+        run.setCpus(1.5); //CPU shares.
+        run.setMem(512.0); //amount of memory required for running test in MB.
         run.setDisk(50.0);
         run.setEnv(env);
         run.setMaxLaunchDelay(3600);
@@ -136,8 +136,8 @@ public class RemoteSequential implements TestExecutor {
         return job;
     }
 
-    private boolean isTestRunning(String jobId) {
-        Job jobStatus = CLIENT.getJob(jobId);
+    private boolean isTestRunning(final String jobId, final Metronome client) {
+        Job jobStatus = client.getJob(jobId);
         boolean isRunning = false;
         if (jobStatus.getHistory() == null) {
             isRunning = true;
@@ -147,9 +147,9 @@ public class RemoteSequential implements TestExecutor {
         return isRunning;
     }
 
-    private void deleteJob(String jobId) {
+    private void deleteJob(final String jobId, final Metronome client) {
         try {
-            CLIENT.deleteJob(jobId);
+            client.deleteJob(jobId);
         } catch (MetronomeException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while deleting the " +
                     "test run job", e);

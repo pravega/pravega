@@ -9,9 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.State;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
@@ -60,12 +61,19 @@ interface Stream {
     CompletableFuture<Void> delete();
 
     /**
-     * Updates the configuration of an existing stream.
+     * Starts updating the configuration of an existing stream.
      *
      * @param configuration new stream configuration.
-     * @return boolean indicating whether the stream was updated.
+     * @return future of new StreamConfigWithVersion.
      */
-    CompletableFuture<Boolean> updateConfiguration(final StreamConfiguration configuration);
+    CompletableFuture<Void> startUpdateConfiguration(final StreamConfiguration configuration);
+
+    /**
+     * Completes an ongoing updates configuration of an existing stream.
+     *
+     * @return future of new StreamConfigWithVersion.
+     */
+    CompletableFuture<Void> completeUpdateConfiguration();
 
     /**
      * Fetches the current stream configuration.
@@ -73,6 +81,46 @@ interface Stream {
      * @return current stream configuration.
      */
     CompletableFuture<StreamConfiguration> getConfiguration();
+
+    /**
+     * Fetches the current stream configuration.
+     *
+     * @param ignoreCached ignore cached
+     *
+     * @return current stream configuration.
+     */
+    CompletableFuture<StreamProperty<StreamConfiguration>> getConfigurationProperty(boolean ignoreCached);
+
+    /**
+     * Starts truncating an existing stream.
+     *
+     * @param streamCut new stream cut.
+     * @return future of new StreamProperty.
+     */
+    CompletableFuture<Void> startTruncation(final Map<Integer, Long> streamCut);
+
+    /**
+     * Completes an ongoing stream truncation.
+     *
+     * @return future of operation.
+     */
+    CompletableFuture<Void> completeTruncation();
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @return current stream cut.
+     */
+    CompletableFuture<StreamTruncationRecord> getTruncationRecord();
+
+    /**
+     * Fetches the current stream cut.
+     *
+     * @param ignoreCached ignore cached
+     *
+     * @return current stream cut.
+     */
+    CompletableFuture<StreamProperty<StreamTruncationRecord>> getTruncationProperty(boolean ignoreCached);
 
     /**
      * Update the state of the stream.
@@ -85,8 +133,9 @@ interface Stream {
      * Get the state of the stream.
      *
      * @return state othe given stream.
+     * @param ignoreCached ignore cached value and fetch from store
      */
-    CompletableFuture<State> getState();
+    CompletableFuture<State> getState(boolean ignoreCached);
 
     /**
      * Fetches details of specified segment.
@@ -313,6 +362,30 @@ interface Stream {
      * @return currently active stream epoch.
      */
     CompletableFuture<Pair<Integer, List<Integer>>> getActiveEpoch(boolean ignoreCached);
+
+    /**
+     *Add a new Stream cut to retention set.
+     *
+     * @param streamCut stream cut record to add
+     * @return future of operation
+     */
+    CompletableFuture<Void> addStreamCutToRetentionSet(final StreamCutRecord streamCut);
+
+    /**
+     * Get all stream cuts stored in the retention set.
+     *
+     * @return list of stream cut records
+     */
+    CompletableFuture<List<StreamCutRecord>> getRetentionStreamCuts();
+
+    /**
+     * Delete all stream cuts in the retention set that preceed the supplied stream cut.
+     * Before is determined based on "recordingTime" for the stream cut.
+     *
+     * @param streamCut stream cut
+     * @return future of operation
+     */
+    CompletableFuture<Void> deleteStreamCutBefore(final StreamCutRecord streamCut);
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

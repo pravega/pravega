@@ -10,7 +10,7 @@
 package io.pravega.common.util;
 
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.concurrent.FutureHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -88,7 +88,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         }
 
         cleanupSignal.acquire(half); // Wait until the processor finished internal cleanups.
-        FutureHelpers.allOf(resultFutures.subList(0, half)).join();
+        Futures.allOf(resultFutures.subList(0, half)).join();
 
         // Now add even more and make sure we are under capacity.
         for (int i = 0; i < CAPACITY / 2; i++) {
@@ -106,7 +106,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         }
 
         // Verify they have been executed in order.
-        val results = FutureHelpers.allOfWithResults(resultFutures).join();
+        val results = Futures.allOfWithResults(resultFutures).join();
         for (int i = 0; i < results.size(); i++) {
             Assert.assertEquals("Unexpected result at index " + i, TRANSFORMER.apply(i), results.get(i));
         }
@@ -132,7 +132,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
             }
 
             CompletableFuture<Integer> result = new CompletableFuture<>();
-            processFuture.thenComposeAsync(v -> FutureHelpers.delayedFuture(delaySupplier.get(), executorService()), executorService())
+            processFuture.thenComposeAsync(v -> Futures.delayedFuture(delaySupplier.get(), executorService()), executorService())
                          .whenCompleteAsync((r, ex) -> result.complete(TRANSFORMER.apply(i)));
             return result;
         };
@@ -153,7 +153,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         processFuture.complete(null);
 
         // Verify they have been executed in order.
-        val results = FutureHelpers.allOfWithResults(resultFutures).join();
+        val results = Futures.allOfWithResults(resultFutures).join();
         for (int i = 0; i < results.size(); i++) {
             Assert.assertEquals("Unexpected result at index " + i, TRANSFORMER.apply(i), results.get(i));
         }
@@ -248,7 +248,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         processFuture.complete(0);
 
         // This will ensure that all result futures are completed.
-        FutureHelpers.allOf(resultFutures).join();
+        Futures.allOf(resultFutures).join();
 
         // This will ensure that the close() method returns.
         closeFuture.join();
@@ -270,7 +270,7 @@ public class OrderedItemProcessorTests extends ThreadPooledTestSuite {
         }
 
         // Verify they have been executed in order.
-        val results = FutureHelpers.allOfWithResults(resultFutures).join();
+        val results = Futures.allOfWithResults(resultFutures).join();
         for (int i = 0; i < results.size(); i++) {
             Assert.assertEquals("Unexpected result at index " + i, i + 1, (int) results.get(i));
         }
