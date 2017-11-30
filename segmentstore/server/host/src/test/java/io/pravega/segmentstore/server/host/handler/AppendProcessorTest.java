@@ -348,7 +348,10 @@ public class AppendProcessorTest {
 
     /**
      * Test to ensure newer appends are processed only after successfully sending the DataAppended acknowledgement
-     * back to client.
+     * back to client. This test tests the following:
+     * - If sending first DataAppended is blocked, ensure future appends are not written to store.
+     * - Once the first DataAppended is sent ensure the remaining appends are written to store and DataAppended ack'ed
+     * back.
      */
     @Test(timeout = 15 * 1000)
     public void testDelayedDataAppended() throws Exception {

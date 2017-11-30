@@ -255,6 +255,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             long previousEventNumber;
             synchronized (lock) {
                 previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
+                Preconditions.checkState(outstandingAppend == append,
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
             }
       
             if (exception != null) {
@@ -282,7 +285,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
              */
             synchronized (lock) {
                 Preconditions.checkState(outstandingAppend == append,
-                        "Synchronization error in: %s.", AppendProcessor.this.getClass().getName());
+                        "Synchronization error in: %s while processing append: %s.",
+                        AppendProcessor.this.getClass().getName(), append);
                 outstandingAppend = null;
                 if (exception == null) {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
