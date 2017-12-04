@@ -14,6 +14,7 @@ import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -32,6 +33,9 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,13 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -67,7 +67,7 @@ abstract class AbstractFailoverTests {
     static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
     static final int WRITER_MAX_BACKOFF_MILLIS = 5 * 1000;
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
-    static final int NUM_EVENTS_PER_TRANSACTION = 50;
+    static final int NUM_EVENTS_PER_TRANSACTION = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
 
     final String readerName = "reader";
@@ -79,6 +79,7 @@ abstract class AbstractFailoverTests {
     Controller controller;
     TestState testState;
 
+
     static class TestState {
         //read and write count variables
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
@@ -86,7 +87,6 @@ abstract class AbstractFailoverTests {
         final AtomicReference<Throwable> getWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getTxnWriteException = new AtomicReference<>();
         final AtomicReference<Throwable> getReadException =  new AtomicReference<>();
-        final AtomicInteger currentNumOfSegments = new AtomicInteger(0);
         //list of all writer's futures
         final List<CompletableFuture<Void>> writers = synchronizedList(new ArrayList<CompletableFuture<Void>>());
         //list of all reader's futures
@@ -171,6 +171,24 @@ abstract class AbstractFailoverTests {
 
         void eventsWritten(List<Long> eventsWritten) {
             eventsWritten.forEach(event -> eventMap.putIfAbsent(event, 0));
+        }
+
+        public void cancelAllPendingWork() {
+            readers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader thread", e);
+                }
+            });
+
+            writers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling writer thread", e);
+                }
+            });
         }
     }
 
@@ -274,6 +292,8 @@ abstract class AbstractFailoverTests {
                 testState.getEventReadCount(),  testState.getEventWrittenCount());
     }
 
+
+
     CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
             while (!testState.stopWriteFlag.get()) {
@@ -316,6 +336,7 @@ abstract class AbstractFailoverTests {
             Assert.fail("Unable to commit transaction. Test failure");
         }
     }
+
 
     CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
@@ -415,7 +436,8 @@ abstract class AbstractFailoverTests {
     }
 
     void cleanUp(String scope, String stream, ReaderGroupManager readerGroupManager, String readerGroupName ) throws InterruptedException, ExecutionException {
-        CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, stream);
+        CompletableFuture<Boolean> sealStreamStatus = Retry.indefinitelyWithExpBackoff("Failed to seal stream. retrying ...")
+                .runAsync(() -> controller.sealStream(scope, stream), executorService);
         log.info("Sealing stream {}", stream);
         assertTrue(sealStreamStatus.get());
         CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, stream);
@@ -480,7 +502,7 @@ abstract class AbstractFailoverTests {
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
-                       ReaderGroupManager readerGroupManager, String stream, final int readers) {
+                                 ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(stream));
@@ -591,25 +613,22 @@ abstract class AbstractFailoverTests {
         assertEquals(testState.getEventWrittenCount(), testState.getEventReadCount());
     }
 
-    void waitForScaling(String scope, String stream) {
+    void waitForScaling(String scope, String stream, StreamConfiguration initialConfig) {
+        int initialMaxSegmentNumber = initialConfig.getScalingPolicy().getMinNumSegments() - 1;
+        boolean scaled = false;
         for (int waitCounter = 0; waitCounter < SCALE_WAIT_ITERATIONS; waitCounter++) {
             StreamSegments streamSegments = controller.getCurrentSegments(scope, stream).join();
-            testState.currentNumOfSegments.set(streamSegments.getSegments().size());
-            if (testState.currentNumOfSegments.get() == 2) {
-                log.info("The current number of segments is equal to 2, ScaleOperation did not happen");
-                //Scaling operation did not happen, wait
-                Exceptions.handleInterrupted(() -> Thread.sleep(10000));
-            }
-            if (testState.currentNumOfSegments.get() > 2) {
-                //scale operation successful.
-                log.info("Current Number of segments is {}", testState.currentNumOfSegments.get());
+            if (streamSegments.getSegments().stream().mapToInt(Segment::getSegmentNumber).max().orElse(-1) > initialMaxSegmentNumber) {
+                scaled = true;
                 break;
             }
+            //Scaling operation did not happen, wait
+            Exceptions.handleInterrupted(() -> Thread.sleep(10000));
         }
-        if (testState.currentNumOfSegments.get() == 2) {
-            Assert.fail("Current number of Segments reduced to less than 2. Failure of test");
-        }
+
+        assertTrue("Scaling did not happen within desired time", scaled);
     }
+
 
     static URI startZookeeperInstance() {
         Service zkService = new ZookeeperService("zookeeper");

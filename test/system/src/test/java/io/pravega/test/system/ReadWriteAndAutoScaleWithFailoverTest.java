@@ -125,8 +125,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         testState.stopWriteFlag.set(true);
         testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
-        testState.writers.forEach(future -> future.cancel(true));
-        testState.readers.forEach(future -> future.cancel(true));
+        testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
@@ -157,7 +156,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             //run the failover test while scaling
             performFailoverTest();
 
-            waitForScaling(scope, AUTO_SCALE_STREAM);
+            waitForScaling(scope, AUTO_SCALE_STREAM, config);
 
             //bring the instances back to 3 before performing failover
             controllerInstance.scaleService(3, true);

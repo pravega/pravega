@@ -66,7 +66,7 @@ public class AutoScaleTask {
             // we are processing at much slower rate than the message ingestion rate into the stream. We should scale up.
             // Either way, logging this helps us know how often this is happening.
 
-            log.debug(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
+            log.info(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
 
@@ -87,7 +87,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.info("scale up request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
         return streamMetadataStore.getSegment(request.getScope(), request.getStream(), request.getSegmentNumber(), context, executor)
@@ -107,7 +107,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         log.info("scale down request received for stream {} segment {}", request.getStream(), request.getSegmentNumber());
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
 

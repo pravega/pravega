@@ -190,7 +190,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
-                                                          request.getMaxExecutionTime(),
                                                           request.getScaleGracePeriod())
                 .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                         .setTxnId(ModelHelper.decode(pair.getKey()))

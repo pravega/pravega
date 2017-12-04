@@ -200,6 +200,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public void close() {
         log.trace("Closing {}", this);
+        if (outstandingRequest != null) {
+            log.trace("Cancel outstanding read request for segment {}", asyncInput.getSegmentId());
+            outstandingRequest.cancel(true);
+        }
         asyncInput.close();
     }
 

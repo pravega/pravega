@@ -129,8 +129,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         testState.stopWriteFlag.set(true);
         testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
-        testState.writers.forEach(future -> future.cancel(true));
-        testState.readers.forEach(future -> future.cancel(true));
+        testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
