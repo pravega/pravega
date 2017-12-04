@@ -9,16 +9,15 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import java.util.concurrent.atomic.AtomicReference;
-
-import io.pravega.shared.protocol.netty.Request;
-import io.pravega.shared.protocol.netty.RequestProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
-
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.EventLoop;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.RequestProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -56,9 +55,20 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
 
     @Override
     public void send(WireCommand cmd) {
-        getChannel().writeAndFlush(cmd).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+        Channel c = getChannel();
+        // Work around for https://github.com/netty/netty/issues/3246
+        EventLoop eventLoop = c.eventLoop();
+        if (eventLoop.inEventLoop()) {
+            eventLoop.execute(() -> writeAndFlush(c, cmd));
+        } else {
+            writeAndFlush(c, cmd);
+        }
     }
-
+    
+    private static void writeAndFlush(Channel channel, WireCommand data) {
+        channel.writeAndFlush(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+    }  
+    
     @Override
     public void setRequestProcessor(RequestProcessor rp) {
         processor.set(rp);

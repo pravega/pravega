@@ -258,11 +258,15 @@ public class ReaderCheckpointTest {
                         log.info("Read event {}", event.getEvent());
                         events.add(event);
                     }
+                    if (event.isCheckpoint()) {
+                        log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
+                    }
                 } catch (ReinitializationRequiredException e) {
                     log.error("Exception while reading event using readerId: {}", readerId, e);
                     fail("Reinitialization Exception is not expected");
                 }
-            } while (event.getEvent() != null);
+            } while (event.isCheckpoint() || event.getEvent() != null);
+            //stop reading if event read(non-checkpoint) is null.
             log.info("No more events from {}/{} for readerId: {}", SCOPE, STREAM, readerId);
         } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
         return events;

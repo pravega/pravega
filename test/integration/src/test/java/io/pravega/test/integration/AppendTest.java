@@ -168,6 +168,7 @@ public class AppendTest {
         channel.writeInbound(request);
         Object encodedReply = channel.readOutbound();
         for (int i = 0; encodedReply == null && i < 50; i++) {
+            channel.runPendingTasks();
             Thread.sleep(10);
             encodedReply = channel.readOutbound();
         }
