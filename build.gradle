@@ -154,8 +154,6 @@ project('client') {
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
-        // https://mvnrepository.com/artifact/org.jasypt/jasypt
-        compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
     }
 
     javadoc {
@@ -436,6 +434,7 @@ project('controller') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.jasypt/jasypt
         compile group: 'org.jasypt', name: 'jasypt', version: '1.9.2'
+        compile 'com.auth0:java-jwt:3.3.0'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
