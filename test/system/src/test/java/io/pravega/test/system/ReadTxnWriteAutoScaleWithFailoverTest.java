@@ -125,8 +125,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
         //interrupt writers and readers threads if they are still running.
-        testState.writers.forEach(future -> future.cancel(true));
-        testState.readers.forEach(future -> future.cancel(true));
+        testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close();
         readerGroupManager.close();
@@ -157,7 +156,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         //run the failover test while scaling
         performFailoverForTestsInvolvingTxns();
 
-        waitForScaling(scope, stream);
+        waitForScaling(scope, stream, config);
 
         //bring the instances back to 3 before performing failover
         controllerInstance.scaleService(3, true);
