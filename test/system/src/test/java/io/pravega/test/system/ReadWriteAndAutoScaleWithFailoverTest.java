@@ -123,7 +123,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.writers.forEach(future -> future.cancel(true));
         testState.readers.forEach(future -> future.cancel(true));
@@ -174,7 +174,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
             log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 }

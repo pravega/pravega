@@ -54,6 +54,7 @@ import org.junit.Assert;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -133,32 +134,39 @@ abstract class AbstractFailoverTests {
             return eventMap.values().stream().mapToInt(Integer::intValue).sum();
         }
 
-        void printAnomalies() {
+        void checkForAnomalies() {
+            boolean failed = false;
             List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
                     .map(Map.Entry::getKey).collect(Collectors.toList());
             if (notRead.size() > 0) {
+                failed = true;
                 log.error("Anomalies, unread events => {}", notRead);
             }
 
             Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (duplicates.size() > 0) {
+                failed = true;
                 log.error("Anomalies, duplicate events with count => {}", duplicates);
             }
 
             int eventReadCount = getEventReadCount();
             int eventWrittenCount = getEventWrittenCount();
             if (eventReadCount != eventWrittenCount) {
+                failed = true;
                 log.error("Read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
             }
 
             if (committingTxn.size() > 0) {
+                failed = true;
                 log.error("Txn left committing: {}", committingTxn);
             }
 
             if (abortedTxn.size() > 0) {
+                failed = true;
                 log.error("Txn aborted: {}", abortedTxn);
             }
+            assertFalse("Test Failed", failed);
         }
 
         void eventsWritten(List<Long> eventsWritten) {
