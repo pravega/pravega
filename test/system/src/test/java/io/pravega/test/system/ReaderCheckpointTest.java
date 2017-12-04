@@ -258,6 +258,9 @@ public class ReaderCheckpointTest {
                         log.info("Read event {}", event.getEvent());
                         events.add(event);
                     }
+                    if (event.isCheckpoint()) {
+                        log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
+                    }
                 } catch (ReinitializationRequiredException e) {
                     log.error("Exception while reading event using readerId: {}", readerId, e);
                     fail("Reinitialization Exception is not expected");
