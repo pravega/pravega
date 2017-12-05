@@ -254,7 +254,7 @@ public class ReadTest {
 
             for (int i = 0; i < 100; i++) {
                 pointer = reader.readNextEvent(5000).getEventPointer();
-                read = reader.read(pointer);
+                read = reader.fetchEvent(pointer);
                 assertEquals(testString + i, read);
             }
         } catch (NoSuchEventException e) {
