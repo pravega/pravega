@@ -91,7 +91,7 @@ public class ControllerServiceTest {
                 hostStore, segmentHelper, executor, "host", connectionFactory);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(), executor, null);
+                new SegmentHelper(), executor, null, null);
     }
 
     @Before

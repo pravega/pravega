@@ -105,7 +105,7 @@ public class ControllerServiceWithZKStreamTest {
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelperMock, executor, "host", connectionFactory);
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null, null);
     }
 
     @After

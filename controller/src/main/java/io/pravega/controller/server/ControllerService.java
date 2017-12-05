@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.server;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
@@ -77,6 +79,7 @@ public class ControllerService {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
+    private final String tokenSigningKey;
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -376,11 +379,23 @@ public class ControllerService {
         return streamStore.createScope(scope);
     }
 
-    private void checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
-        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel = PravegaInterceptor.authorizeResource(resource);
+    public String checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+        PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
+
+        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel;
+        if (currentInterceptor == null) {
+            //No interceptor, means no authorization enabled
+            allowedLevel =  PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+        } else {
+            allowedLevel =  currentInterceptor.authorize(resource);
+        }
         if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
             throw new CompletionException(new NotAuthorizedException(resource));
         }
+        return Jwts.builder()
+                   .setSubject("Joe")
+                   .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                   .compact();
     }
 
     /**

@@ -59,6 +59,7 @@ public final class Config {
     private static final boolean TLS_ENABLED = CONFIG.getBoolean("config.controller.server.tlsEnabled");
     private static final String TLS_KEY_FILE = CONFIG.getString("config.controller.server.tlsKeyFile");
     private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
+    private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -111,6 +112,7 @@ public final class Config {
                 .tlsEnabled(Config.TLS_ENABLED)
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
+                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                 .build();
     }
 

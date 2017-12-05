@@ -70,4 +70,11 @@ public interface GRPCServerConfig {
      * @return A file which contains the private key for the TLS certificate.
      */
     String getTlsKeyFile();
+
+    /**
+     * Returns the key that is shared between segmentstore and controller and is used for
+     * signing the delegation token.
+     * @return The string to be used for signing the token.
+     */
+    String getTokenSigningKey();
 }

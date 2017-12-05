@@ -95,7 +95,7 @@ public class IntermittentCnxnFailureTest {
                 streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory);
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+                streamTransactionMetadataTasks, segmentHelperMock, executor, null, null);
 
         controllerService.createScope(SCOPE).get();
     }

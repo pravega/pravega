@@ -313,6 +313,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .publishedRPCPort(this.controllerPorts[controllerId])
                 .authorizationEnabled(true)
                 .userPasswdFile("config/passwd")
+                .tokenSigningKey("secret")
                 .build();
 
         RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()

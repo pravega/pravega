@@ -190,7 +190,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create ControllerService.
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
-                segmentHelperMock, executor, null);
+                segmentHelperMock, executor, null, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
@@ -230,7 +230,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
-                segmentHelperMock, executor, null);
+                segmentHelperMock, executor, null, null);
 
         // Create test scope and stream.
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -353,7 +353,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
-                segmentHelperMock, executor, null);
+                segmentHelperMock, executor, null, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
@@ -436,7 +436,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create ControllerService.
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
-                segmentHelperMock, executor, null);
+                segmentHelperMock, executor, null, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
