@@ -222,7 +222,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @Override
-    public Type read(EventPointer pointer) throws NoSuchEventException {
+    public Type fetchEvent(EventPointer pointer) throws NoSuchEventException {
         Preconditions.checkNotNull(pointer);
         // Create SegmentInputBuffer
         SegmentInputStream inputStream = inputStreamFactory.createInputStreamForSegment(pointer.asImpl().getSegment(),

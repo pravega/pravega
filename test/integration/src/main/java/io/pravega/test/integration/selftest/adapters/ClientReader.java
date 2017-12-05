@@ -181,7 +181,7 @@ class ClientReader implements StoreReader, AutoCloseable {
 
         ReadItem readExact(EventPointer a) {
             try {
-                byte[] data = getReader().read(a);
+                byte[] data = getReader().fetchEvent(a);
                 return toReadItem(data, a);
             } catch (NoSuchEventException e) {
                 throw new CompletionException(e);
