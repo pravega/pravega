@@ -61,6 +61,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,6 +71,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@Slf4j
 public class ReadTest {
 
     private Level originalLevel;
@@ -181,6 +183,10 @@ public class ReadTest {
         SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
+
+        // Test large write followed by read
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
+        in.read();
     }
 
     @Test
