@@ -56,14 +56,21 @@ public class ScalingPolicy implements Serializable {
 
     /**
      * Create a scaling policy to configure a stream to scale up and down according
-     * to event rate. Pravega scales a stream segment up in the case that:
+     * to event rate. Pravega scales a stream segment up in the case that one of these
+     * conditions holds:
      *   - The two-minute rate is greater than 5x the target rate
      *   - The five-minute rate is greater than 2x the target rate
      *   - The ten-minute rate is greater than the target rate
      *
-     * It scales a segment down (merges with a neighbor segment) in the case that:
+     * It scales a segment down (merges with a neighbor segment) in the case that both
+     * these conditions hold:
+     *
      *   - The two-, five-, ten-minute rate is smaller than the target rate
      *   - The twenty-minute rate is smaller than half of the target rate
+     *
+     * We additionally consider a cool-down period during which the segment is not
+     * considered for scaling. This period is determined by the configuration
+     * parameter autoScale.cooldownInSeconds; the default value is 10 minutes.
      *
      * The scale factor bounds the number of new segments that can be created upon
      * a scaling event. In the case the controller computes the number of splits
@@ -73,7 +80,8 @@ public class ScalingPolicy implements Serializable {
      * The policy is configured with a minimum number of segments for the stream,
      * independent of the number of scale down events.
      *
-     * @param targetRate Target rate in events per second to enable scaling events.
+     * @param targetRate Target rate in events per second to enable scaling events
+     *                   per segment.
      * @param scaleFactor Maximum number of splits of a segment for a scale-up event.
      * @param minNumSegments Minimum number of segments that a stream can have
      *                       independent of the number of scale down events.
@@ -85,14 +93,20 @@ public class ScalingPolicy implements Serializable {
 
     /**
      * Create a scaling policy to configure a stream to scale up and down according
-     * to byte rate. Pravega scales a stream segment up in the case that:
+     * to byte rate. Pravega scales a stream segment up in the case that one of these
+     * conditions holds:
      *   - The two-minute rate is greater than 5x the target rate
      *   - The five-minute rate is greater than 2x the target rate
      *   - The ten-minute rate is greater than the target rate
      *
-     * It scales a segment down (merges with a neighbor segment) in the case that:
+     * It scales a segment down (merges with a neighbor segment) in the case that
+     * both these conditions hold:
      *   - The two-, five-, ten-minute rate is smaller than the target rate
      *   - The twenty-minute rate is smaller than half of the target rate
+     *
+     * We additionally consider a cool-down period during which the segment is not
+     * considered for scaling. This period is determined by the configuration
+     * parameter autoScale.cooldownInSeconds; the default value is 10 minutes.
      *
      * The scale factor bounds the number of new segments that can be created upon
      * a scaling event. In the case the controller computes the number of splits
@@ -102,7 +116,8 @@ public class ScalingPolicy implements Serializable {
      * The policy is configured with a minimum number of segments for a stream,
      * independent of the number of scale down events.
      *
-     * @param targetKBps Target rate in kilo bytes per second to enable scaling events.
+     * @param targetKBps Target rate in kilo bytes per second to enable scaling events
+     *                   per segment.
      * @param scaleFactor Maximum number of splits of a segment for a scale-up event.
      * @param minNumSegments Minimum number of segments that a stream can have
      *                       independent of the number of scale down events.
