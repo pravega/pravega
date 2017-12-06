@@ -44,7 +44,7 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     }
 
     @Override
-    public T read(EventPointer pointer) throws NoSuchEventException {
+    public T fetchEvent(EventPointer pointer) throws NoSuchEventException {
         return null;
     }
 
