@@ -183,8 +183,12 @@ public class ReadTest {
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
 
         // Test large write followed by read
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
         out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
-        in.read();
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 15);
+        assertEquals(in.read().capacity(), 150000);
     }
 
     @Test
