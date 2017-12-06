@@ -144,6 +144,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         ByteBuffer result = ByteBuffer.allocate(length);
         offset += buffer.read(result);
         while (result.hasRemaining()) {
+            issueRequestIfNeeded();
             handleRequest();
             offset += buffer.read(result);
         }
