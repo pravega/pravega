@@ -9,8 +9,12 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.PravegaAuthHandler;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -46,8 +50,12 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.ws.rs.NotAuthorizedException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,12 +68,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
+    private final String tokenSigningKey;
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
         log.info("getControllerServerList called.");
-        processResult(controllerService.getControllerServerList()
-                        .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
+        authenticateExecuteAndProcessResults((aVoid) -> true,
+                () -> controllerService.getControllerServerList()
+                                                              .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
                 responseObserver);
     }
 
@@ -73,7 +83,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         log.info("createStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                            request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
                       responseObserver);
     }
 
@@ -81,34 +93,44 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("updateStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.truncateStream(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.truncateStream(request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
     }
 
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
         log.info("sealStream called for stream {}/{}.", request.getScope(), request.getStream());
-        processResult(controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope() + "/" +
+                request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
     public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
         log.info("deleteStream called for stream {}/{}.", request.getScope(), request.getStream());
-        processResult(controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope() + "/" +
+                request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
     }
 
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
-        processResult(controllerService.getCurrentSegments(request.getScope(), request.getStream())
-                              .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope() + "/" +
+                        request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
+                                                              .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                       .addAllSegmentRanges(segmentRanges)
                                       .build()),
                       responseObserver);
@@ -118,10 +140,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
         log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
-        processResult(controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getTimestamp())
-                                       .thenApply(segments -> {
+                                                              .thenApply(segments -> {
                                            SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder();
                                            for (Entry<SegmentId, Long> entry : segments.entrySet()) {
                                                builder.addSegments(SegmentLocation.newBuilder()
@@ -138,8 +162,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegmentsImmediatlyFollowing(SegmentId segmentId,
             StreamObserver<SuccessorResponse> responseObserver) {
         log.info("getSegmentsImmediatelyFollowing called for segment {} ", segmentId);
-        processResult(controllerService.getSegmentsImmediatelyFollowing(segmentId)
-                              .thenApply(ModelHelper::createSuccessorResponse),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(segmentId.getStreamInfo().getScope() + "/" +
+                segmentId.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ),
+                () -> controllerService.getSegmentsImmediatelyFollowing(segmentId)
+                                                              .thenApply(ModelHelper::createSuccessorResponse),
                       responseObserver);
     }
 
@@ -147,7 +173,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
         log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.scale(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.scale(request.getStreamInfo().getScope(),
                                               request.getStreamInfo().getStream(),
                                               request.getSealedSegmentsList(),
                                               request.getNewKeyRangesList().stream().collect(Collectors.toMap(
@@ -160,7 +188,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void checkScale(ScaleStatusRequest request, StreamObserver<ScaleStatusResponse> responseObserver) {
         log.debug("check scale status called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                 request.getEpoch()), responseObserver);
     }
 
@@ -168,7 +198,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getURI(SegmentId request, StreamObserver<NodeUri> responseObserver) {
         log.info("getURI called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentNumber());
-        processResult(controllerService.getURI(request), responseObserver);
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.getURI(request), responseObserver);
     }
 
     @Override
@@ -176,10 +208,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             StreamObserver<SegmentValidityResponse> responseObserver) {
         log.info("isSegmentValid called for segment {}/{}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getSegmentNumber());
-        processResult(controllerService.isSegmentValid(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.isSegmentValid(request.getStreamInfo().getScope(),
                                                        request.getStreamInfo().getStream(),
                                                        request.getSegmentNumber())
-                .thenApply(bRes -> SegmentValidityResponse.newBuilder().setResponse(bRes).build()),
+                                                              .thenApply(bRes -> SegmentValidityResponse.newBuilder().setResponse(bRes).build()),
                       responseObserver);
     }
 
@@ -187,12 +221,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
         log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        processResult(controllerService.createTransaction(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
                                                           request.getMaxExecutionTime(),
                                                           request.getScaleGracePeriod())
-                .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
+                                                              .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
                         .setTxnId(ModelHelper.decode(pair.getKey()))
                         .addAllActiveSegments(pair.getValue())
                         .build()),
@@ -203,7 +239,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        processResult(controllerService.commitTransaction(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getTxnId()),
                       responseObserver);
@@ -213,7 +251,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        processResult(controllerService.abortTransaction(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId()),
                       responseObserver);
@@ -223,7 +263,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void pingTransaction(PingTxnRequest request, StreamObserver<PingTxnStatus> responseObserver) {
         log.info("pingTransaction called for stream {}/{}, txnId={}", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        processResult(controllerService.pingTransaction(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ),
+                () -> controllerService.pingTransaction(request.getStreamInfo().getScope(),
                                                         request.getStreamInfo().getStream(),
                                                         request.getTxnId(),
                                                         request.getLease()),
@@ -234,7 +276,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void checkTransactionState(TxnRequest request, StreamObserver<TxnState> responseObserver) {
         log.info("checkTransactionState called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream(), request.getTxnId());
-        processResult(controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                                                                request.getStreamInfo().getStream(),
                                                                request.getTxnId()),
                       responseObserver);
@@ -244,7 +288,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createScope(ScopeInfo request,
             StreamObserver<CreateScopeStatus> responseObserver) {
         log.info("createScope called for scope {}.", request.getScope());
-        processResult(controllerService.createScope(request.getScope()),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.createScope(request.getScope()),
                       responseObserver);
     }
 
@@ -252,27 +297,65 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void deleteScope(ScopeInfo request,
             StreamObserver<DeleteScopeStatus> responseObserver) {
         log.info("deleteScope called for scope {}.", request.getScope());
-        processResult(controllerService.deleteScope(request.getScope()),
+        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> controllerService.deleteScope(request.getScope()),
                       responseObserver);
     }
 
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
-    private static <T> void processResult(final CompletableFuture<T> result, final StreamObserver<T> streamObserver) {
-        result.whenComplete(
-                (value, ex) -> {
-                    log.debug("result = " + (value == null ? "null" : value.toString()));
+    private static <T> void authenticateExecuteAndProcessResults(Predicate<Void> authenticator,
+                                                                 Supplier<CompletableFuture<T>> call, final StreamObserver<T> streamObserver) {
+        if (authenticator.test(null)) {
+            CompletableFuture<T> result = call.get();
+            result.whenComplete(
+                    (value, ex) -> {
+                        log.debug("result = " + (value == null ? "null" : value.toString()));
 
-                    if (ex != null) {
-                        Throwable cause = Exceptions.unwrap(ex);
-                        log.error("Controller api failed with error: ", ex);
-                        streamObserver.onError(Status.INTERNAL
-                                .withCause(cause)
-                                .withDescription(cause.getMessage())
-                                .asRuntimeException());
-                    } else if (value != null) {
-                        streamObserver.onNext(value);
-                        streamObserver.onCompleted();
-                    }
-                });
+                        if (ex != null) {
+                            Throwable cause = Exceptions.unwrap(ex);
+                            log.error("Controller api failed with error: ", ex);
+                            streamObserver.onError(Status.INTERNAL
+                                    .withCause(cause)
+                                    .withDescription(cause.getMessage())
+                                    .asRuntimeException());
+                        } else if (value != null) {
+                            streamObserver.onNext(value);
+                            streamObserver.onCompleted();
+                        }
+                    });
+        } else {
+            log.error("Controller api failed with authenticator error");
+            streamObserver.onError(Status.UNAUTHENTICATED
+                    .withDescription("Authentication failed")
+                    .asRuntimeException());
+        }
     }
+
+    public boolean checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+        PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
+
+        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel;
+        if (currentInterceptor == null) {
+            //No interceptor, means no authorization enabled
+            allowedLevel =  PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+        } else {
+            allowedLevel =  currentInterceptor.authorize(resource);
+        }
+        if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
+          return false;
+        }
+        return true;
+    }
+
+    public String checkAuthorizationWithToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+       if (checkAuthorization(resource, expectedLevel)) {
+           return Jwts.builder()
+                      .setSubject("Joe")
+                      .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                      .compact();
+       } else {
+           throw new CompletionException(new NotAuthorizedException(resource));
+       }
+    }
+
 }

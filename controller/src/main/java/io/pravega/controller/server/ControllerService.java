@@ -9,18 +9,16 @@
  */
 package io.pravega.controller.server;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import com.google.common.base.Preconditions;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.rpc.auth.PravegaAuthHandler;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
+import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.shared.NameUtils;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
@@ -40,29 +38,21 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ModelHelper;
-import com.google.common.base.Preconditions;
+import io.pravega.shared.NameUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
-import javax.ws.rs.NotAuthorizedException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-
-import static io.pravega.controller.server.rpc.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ;
-import static io.pravega.controller.server.rpc.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 
 /**
  * Stream controller RPC server implementation.
@@ -79,7 +69,6 @@ public class ControllerService {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
-    private final String tokenSigningKey;
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -109,7 +98,6 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-        checkAuthorization(streamConfig.getScope() + "/" + streamConfig.getStreamName(), READ_UPDATE);
 
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
@@ -120,7 +108,6 @@ public class ControllerService {
 
     public CompletableFuture<UpdateStreamStatus> updateStream(final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        checkAuthorization(streamConfig.getScope() + "/" + streamConfig.getStreamName(), READ_UPDATE);
         return streamMetadataTasks.updateStream(
                 streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
@@ -131,20 +118,17 @@ public class ControllerService {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(streamCut, "streamCut");
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamMetadataTasks.truncateStream(scope, stream, streamCut, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
-        checkAuthorization(scopeName + "/" + streamName, READ);
         return streamStore.getConfiguration(scopeName, streamName, null, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamMetadataTasks.sealStream(scope, stream, null)
                 .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
@@ -152,7 +136,6 @@ public class ControllerService {
     public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamMetadataTasks.deleteStream(scope, stream, null)
                 .thenApplyAsync(status -> DeleteStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
@@ -161,7 +144,6 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         // Fetch active segments from segment store.
         return streamStore.getActiveSegments(scope, stream, null, executor)
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
@@ -173,7 +155,6 @@ public class ControllerService {
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        checkAuthorization(scope + "/" + stream, READ);
         return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
             return segments.stream()
                            .map(number -> ModelHelper.createSegmentId(scope, stream, number))
@@ -186,7 +167,6 @@ public class ControllerService {
         Preconditions.checkNotNull(segment, "segment");
         OperationContext context = streamStore.createContext(segment.getStreamInfo().getScope(), segment
                 .getStreamInfo().getStream());
-        checkAuthorization( segment.getStreamInfo().getScope()+ "/" + segment.getStreamInfo().getStream(), READ);
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                 segment.getStreamInfo().getStream(),
                 segment.getSegmentNumber(),
@@ -217,7 +197,6 @@ public class ControllerService {
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
 
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamMetadataTasks.manualScale(scope,
                                          stream,
                                          new ArrayList<>(sealedSegments),
@@ -231,7 +210,6 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Exceptions.checkArgument(epoch >= 0, "epoch", "Epoch cannot be less than 0");
 
-        checkAuthorization(scope + "/" + stream, READ);
         return streamMetadataTasks.checkScale(scope, stream, epoch, null);
     }
 
@@ -239,7 +217,6 @@ public class ControllerService {
                                                                   final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        checkAuthorization(scope + "/" + stream, READ);
         return streamStore.getScaleMetadata(scope, stream,
                 null,
                 executor);
@@ -304,7 +281,6 @@ public class ControllerService {
         Preconditions.checkNotNull(txnId, "txnId");
 
         UUID txId = ModelHelper.encode(txnId);
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
@@ -322,7 +298,6 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
-        checkAuthorization(scope + "/" + stream, READ_UPDATE);
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
@@ -344,7 +319,6 @@ public class ControllerService {
         Preconditions.checkNotNull(txnId, "txnId");
         UUID txId = ModelHelper.encode(txnId);
 
-        checkAuthorization(scope + "/" + stream, READ);
         return streamTransactionMetadataTasks.pingTxn(scope, stream, txId, lease, null);
     }
 
@@ -353,7 +327,6 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-        checkAuthorization(scope + "/" + stream, READ);
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
                 .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
     }
@@ -374,29 +347,9 @@ public class ControllerService {
                     CreateScopeStatus.Status.INVALID_SCOPE_NAME).build());
         }
 
-        checkAuthorization(scope, READ_UPDATE);
-
         return streamStore.createScope(scope);
     }
 
-    public String checkAuthorization(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
-        PravegaInterceptor currentInterceptor = PravegaInterceptor.getCurrentInterceptor();
-
-        PravegaAuthHandler.PravegaAccessControlEnum allowedLevel;
-        if (currentInterceptor == null) {
-            //No interceptor, means no authorization enabled
-            allowedLevel =  PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
-        } else {
-            allowedLevel =  currentInterceptor.authorize(resource);
-        }
-        if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
-            throw new CompletionException(new NotAuthorizedException(resource));
-        }
-        return Jwts.builder()
-                   .setSubject("Joe")
-                   .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                   .compact();
-    }
 
     /**
      * Controller Service API to delete scope.
@@ -406,7 +359,6 @@ public class ControllerService {
      */
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        checkAuthorization(scope, READ_UPDATE);
         return streamStore.deleteScope(scope);
     }
 
@@ -418,7 +370,6 @@ public class ControllerService {
      */
     public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        checkAuthorization(scope, READ);
         return streamStore.listStreamsInScope(scope);
     }
 
@@ -439,7 +390,6 @@ public class ControllerService {
      */
     public CompletableFuture<String> getScope(final String scopeName) {
         Preconditions.checkNotNull(scopeName);
-        checkAuthorization(scopeName, READ);
         return streamStore.getScopeConfiguration(scopeName);
     }
 }

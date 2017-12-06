@@ -114,8 +114,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster, null);
-        controllerService = new ControllerServiceImpl(controller);
+                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
+        controllerService = new ControllerServiceImpl(controller,"");
     }
 
     @Override

@@ -175,8 +175,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster,
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
 
             // Setup event processors.
             setController(new LocalController(controllerService));

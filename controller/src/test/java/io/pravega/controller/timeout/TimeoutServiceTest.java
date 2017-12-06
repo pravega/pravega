@@ -114,7 +114,7 @@ public class TimeoutServiceTest {
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executor, null, null);
+                streamTransactionMetadataTasks, new SegmentHelper(), executor, null);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -258,7 +258,7 @@ public class TimeoutServiceTest {
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
         ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null, null);
+                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null);
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 2 * MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
                 .thenApply(x -> ModelHelper.decode(x.getKey()))

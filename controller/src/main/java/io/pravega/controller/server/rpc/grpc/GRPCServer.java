@@ -42,7 +42,7 @@ public class GRPCServer extends AbstractIdleService {
         this.config = serverConfig;
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
-                .addService(new ControllerServiceImpl(controllerService));
+                .addService(new ControllerServiceImpl(controllerService, serverConfig.getTokenSigningKey()));
         if (serverConfig.isAuthorizationEnabled()) {
             this.pravegaAuthManager = new PravegaAuthManager(serverConfig);
             this.pravegaAuthManager.registerInterceptors(builder);
