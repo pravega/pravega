@@ -131,10 +131,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
                 () -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                                               .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                      .addAllSegmentRanges(segmentRanges)
+                                      .addAllSegmentRanges(segmentRanges).setDelegationToken(getCurrentDelegationToken())
                                       .build()),
                       responseObserver);
     }
+
+
 
     @Override
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
@@ -347,15 +349,22 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         return true;
     }
 
-    public String checkAuthorizationWithToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
+    //TODO: set the current delegation token
+    public boolean checkAuthorizationWithToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
        if (checkAuthorization(resource, expectedLevel)) {
-           return Jwts.builder()
-                      .setSubject("Joe")
-                      .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                      .compact();
+           String delegationToken = Jwts.builder()
+                                        .setSubject("Joe")
+                                        .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                                        .compact();
        } else {
-           throw new CompletionException(new NotAuthorizedException(resource));
+           return false;
        }
+       return true;
+    }
+
+    //TODO: retrieve the current delegation token and use it.
+    private String getCurrentDelegationToken() {
+        return null;
     }
 
 }
