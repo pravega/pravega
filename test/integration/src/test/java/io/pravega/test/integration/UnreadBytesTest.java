@@ -67,6 +67,7 @@ public class UnreadBytesTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
+    private ScheduledExecutorService executorChkpoint;
 
     @Before
     public void setUp() throws Exception {
@@ -98,7 +99,7 @@ public class UnreadBytesTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 40000)
+    @Test//(timeout = 40000)
     public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scope("unreadbytes")
@@ -134,6 +135,15 @@ public class UnreadBytesTest {
         assertEquals("fpj was here", firstEvent.getEvent());
         assertNotNull(secondEvent);
         assertEquals("fpj was here", secondEvent.getEvent());
+        executorChkpoint = ExecutorServiceHelpers.newScheduledThreadPool(1, "chkpoint-thread");
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executorChkpoint);
+        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
+        while (!chkpointEvent.isCheckpoint()) {
+            System.out.println(chkpointEvent.getEvent());
+            chkpointEvent = reader.readNextEvent(15000);
+        }
+        assertEquals("test", chkpointEvent.getCheckpointName());
+        System.out.println(chkPointResult.get());
 
         // TODO: This is not actually working. We have read everything, but the
         // assertion is failing essentially because the number of read bytes is

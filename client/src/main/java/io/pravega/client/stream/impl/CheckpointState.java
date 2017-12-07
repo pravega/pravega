@@ -12,13 +12,16 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 
@@ -35,6 +38,9 @@ public class CheckpointState {
      */
     @GuardedBy("$lock")
     private final Map<String, Map<Segment, Long>> checkpointPositions = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private Map<Segment, Long> lastCheckpointPosition;
     
     @Synchronized
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
@@ -99,6 +105,11 @@ public class CheckpointState {
         }
         return checkpointPositions.get(checkpointId);
     }
+
+    @Synchronized
+    Optional<Map<Segment, Long>> getPositionsForLatestCompletedCheckpoint() {
+        return Optional.ofNullable(lastCheckpointPosition);
+    }
     
     @Synchronized
     boolean hasOngoingCheckpoint() {
@@ -111,7 +122,7 @@ public class CheckpointState {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
                 String cp = iterator.next();
                 uncheckpointedHosts.remove(cp);
-                checkpointPositions.remove(cp);
+                lastCheckpointPosition = checkpointPositions.remove(cp);
                 iterator.remove();
                 if (cp.equals(checkpointId)) {
                     break;

@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -204,6 +205,20 @@ public class ReaderGroupState implements Revisioned {
     @Synchronized
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
+    }
+
+    @Synchronized
+    Optional<Map<Stream, Map<Segment, Long>>> getPositionsForLastCompletedCheckpoint() {
+        Optional<Map<Segment, Long>> positions = checkpointState.getPositionsForLatestCompletedCheckpoint();
+        if (positions.isPresent()) {
+            Map<Stream, Map<Segment, Long>> result = new HashMap<>();
+            for (Entry<Segment, Long> entry : positions.get().entrySet()) {
+                result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+            }
+            return Optional.of(result);
+        } else {
+            return Optional.empty();
+        }
     }
     
     @Synchronized

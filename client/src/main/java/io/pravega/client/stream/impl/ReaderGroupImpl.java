@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -190,9 +191,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = createSynchronizer();
         synchronizer.fetchUpdates();
-        Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
+
+        Optional<Map<Stream, Map<Segment, Long>>> checkPointedPositions =
+                synchronizer.getState().getPositionsForLastCompletedCheckpoint();
         SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        
+        if (checkPointedPositions.isPresent()) {
+            return getUnreadBytes(checkPointedPositions.get(), metaFactory);
+        } else {
+            Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
+            return getUnreadBytes(positions, metaFactory);
+        }
+    }
+
+    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, SegmentMetadataClientFactory metaFactory) {
         long totalLength = 0;
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             StreamCut position = new StreamCut(streamPosition.getKey(), streamPosition.getValue());
@@ -200,7 +211,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return totalLength;
     }
-    
+
     private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut position) {
         long totalLength = 0;
         CompletableFuture<Set<Segment>> unread = controller.getSuccessors(position);
