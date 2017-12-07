@@ -14,7 +14,6 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.segment.impl.Segment;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
