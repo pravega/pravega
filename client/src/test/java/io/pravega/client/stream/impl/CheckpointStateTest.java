@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.segment.impl.Segment;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -44,6 +45,9 @@ public class CheckpointStateTest {
         Map<Segment, Long> completedCheckpoint = state.getPositionsForCompletedCheckpoint("foo");
         assertNotNull(completedCheckpoint);
         assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L), completedCheckpoint);
+        state.clearCheckpointsThrough("foo");
+        assertEquals(ImmutableMap.of(getSegment("S1"), 1L, getSegment("S2"), 2L),
+                state.getPositionsForLatestCompletedCheckpoint().get());
     }
 
     @Test
@@ -59,6 +63,7 @@ public class CheckpointStateTest {
         state.clearCheckpointsThrough("foo");
         assertEquals(null, state.getCheckpointForReader("a"));
         assertEquals(null, state.getCheckpointForReader("b"));
+        assertEquals(0, state.getPositionsForLatestCompletedCheckpoint().get().size());
     }
 
     private Segment getSegment(String name) {

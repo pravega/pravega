@@ -9,29 +9,18 @@
  */
 package io.pravega.test.integration;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
-import io.pravega.client.stream.Checkpoint;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.test.common.InlineExecutor;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -41,7 +30,6 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -53,6 +41,10 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class UnreadBytesTest {
@@ -106,9 +98,11 @@ public class UnreadBytesTest {
                 .streamName("unreadbytes")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
+
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
         controller.createStream(config).get();
+
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", controllerUri);
         @Cleanup
@@ -120,43 +114,34 @@ public class UnreadBytesTest {
         ReaderGroup readerGroup = groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().build(), Collections
                 .singleton("unreadbytes"));
+
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
         long unreadBytes = readerGroup.getMetrics().unreadBytes();
         assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
 
-        writer.writeEvent("0", "fpj was here").get();
-        writer.writeEvent("0", "fpj was here").get();
+        writer.writeEvent("0", "data of size 30").get();
+        writer.writeEvent("0", "data of size 30").get();
 
         EventRead<String> firstEvent = reader.readNextEvent(15000);
         EventRead<String> secondEvent = reader.readNextEvent(15000);
         assertNotNull(firstEvent);
-        assertEquals("fpj was here", firstEvent.getEvent());
+        assertEquals("data of size 30", firstEvent.getEvent());
         assertNotNull(secondEvent);
-        assertEquals("fpj was here", secondEvent.getEvent());
-        executorChkpoint = ExecutorServiceHelpers.newScheduledThreadPool(1, "chkpoint-thread");
-        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executorChkpoint);
-        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
-        while (!chkpointEvent.isCheckpoint()) {
-            System.out.println(chkpointEvent.getEvent());
-            chkpointEvent = reader.readNextEvent(15000);
-        }
-        assertEquals("test", chkpointEvent.getCheckpointName());
-        System.out.println(chkPointResult.get());
+        assertEquals("data of size 30", secondEvent.getEvent());
 
-        // TODO: This is not actually working. We have read everything, but the
-        // assertion is failing essentially because the number of read bytes is
-        // internally computed is zero.
+        // trigger a checkpoint.
+        CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
+        EventRead<String> chkpointEvent = reader.readNextEvent(15000);
+        assertEquals("test", chkpointEvent.getCheckpointName());
+        chkPointResult.join();
+
         unreadBytes = readerGroup.getMetrics().unreadBytes();
         assertTrue("Unread bvtes: " + unreadBytes, unreadBytes == 0);
 
-        // TODO: This is also not working because of the way we are computing
-        // bytes read. It sounds like the count does not change unless there
-        // changes to the set of assigned and unassigned segments in the state
-        // of the synchronizer.
-        writer.writeEvent("0", "fpj was here").get();
+        writer.writeEvent("0", "data of size 30").get();
         unreadBytes = readerGroup.getMetrics().unreadBytes();
-        assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 27);
+        assertTrue("Unread bytes: " + unreadBytes, unreadBytes == 30);
     }
 }
