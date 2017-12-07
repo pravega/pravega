@@ -196,10 +196,11 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 synchronizer.getState().getPositionsForLastCompletedCheckpoint();
         SegmentMetadataClientFactory metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         if (checkPointedPositions.isPresent()) {
+            log.info("Computing unread bytes based on the last checkPoint position");
             return getUnreadBytes(checkPointedPositions.get(), metaFactory);
         } else {
-            Map<Stream, Map<Segment, Long>> positions = synchronizer.getState().getPositions();
-            return getUnreadBytes(positions, metaFactory);
+            log.warn("No checkpoints found, using the last known offset to compute unread bytes");
+            return getUnreadBytes(synchronizer.getState().getPositions(), metaFactory);
         }
     }
 

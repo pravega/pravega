@@ -29,6 +29,7 @@ public class CheckpointStateTest {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("foo", ImmutableSet.of(), Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("foo"));
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
     
     @Test
