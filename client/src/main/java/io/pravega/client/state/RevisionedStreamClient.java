@@ -36,11 +36,13 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
     Revision fetchLatestRevision();
     
     /**
-     * Read from a specified revision to the end of the stream.
-     * The iterator returned will stop once it reaches the end of what was in the stream at the time this method was called.
+     * Read from a specified revision to the end of the stream. The iterator returned will stop once
+     * it reaches the end of what was in the stream at the time this method was called.
      * 
      * @param start The location the iterator should start at.
      * @return An iterator over Revision, value pairs.
+     * @throws TruncatedDataException If the data at start no longer exists because it has been
+     *             truncated. IE: It is below {@link #fetchOldestRevision()}
      */
     Iterator<Entry<Revision, T>> readFrom(Revision start);
 
