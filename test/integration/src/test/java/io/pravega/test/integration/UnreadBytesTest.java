@@ -91,7 +91,7 @@ public class UnreadBytesTest {
         zkTestServer.close();
     }
 
-    @Test//(timeout = 40000)
+    @Test(timeout = 50000)
     public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scope("unreadbytes")

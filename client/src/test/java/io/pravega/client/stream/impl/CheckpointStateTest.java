@@ -63,7 +63,7 @@ public class CheckpointStateTest {
         state.clearCheckpointsThrough("foo");
         assertEquals(null, state.getCheckpointForReader("a"));
         assertEquals(null, state.getCheckpointForReader("b"));
-        assertEquals(0, state.getPositionsForLatestCompletedCheckpoint().get().size());
+        assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
     }
 
     private Segment getSegment(String name) {

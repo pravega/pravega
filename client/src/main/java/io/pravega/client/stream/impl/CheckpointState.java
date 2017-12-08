@@ -87,6 +87,8 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
+                //checkpoint operation completed for all readers, update the last checkpoint position.
+                lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
         }
     }
@@ -120,7 +122,7 @@ public class CheckpointState {
             for (Iterator<String> iterator = checkpoints.iterator(); iterator.hasNext();) {
                 String cp = iterator.next();
                 uncheckpointedHosts.remove(cp);
-                lastCheckpointPosition = checkpointPositions.remove(cp);
+                checkpointPositions.remove(cp);
                 iterator.remove();
                 if (cp.equals(checkpointId)) {
                     break;
