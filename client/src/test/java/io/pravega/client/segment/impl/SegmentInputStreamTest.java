@@ -97,7 +97,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testSmallerThanNeededRead() throws EndOfSegmentException {
+    public void testSmallerThanNeededRead() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 5);
@@ -112,7 +112,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testLongerThanRequestedRead() throws EndOfSegmentException {
+    public void testLongerThanRequestedRead() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
@@ -137,7 +137,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testExceptionRecovery() throws EndOfSegmentException {
+    public void testExceptionRecovery() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 6);
@@ -154,7 +154,7 @@ public class SegmentInputStreamTest {
     }
     
     @Test
-    public void testReadWithoutBlocking() throws EndOfSegmentException {
+    public void testReadWithoutBlocking() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;
 
@@ -182,7 +182,7 @@ public class SegmentInputStreamTest {
     }
     
     @Test
-    public void testEndOfSegment() throws EndOfSegmentException {
+    public void testEndOfSegment() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         ByteBuffer wireData = createEventFromData(data);
         
@@ -242,7 +242,7 @@ public class SegmentInputStreamTest {
     }
 
     @Test
-    public void testSetOffset() throws EndOfSegmentException {
+    public void testSetOffset() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data1 = new byte[]{0, 1, 2, 3, 4, 5};
         byte[] data2 = new byte[]{6, 7, 8, 9};
         ByteBuffer wireData1 = createEventFromData(data1);

@@ -158,7 +158,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public SegmentInfo getSegmentInfo() {
-        return new SegmentInfo(segment, writeOffset, false, System.currentTimeMillis());
+        return new SegmentInfo(segment, 0, writeOffset, false, System.currentTimeMillis());
     }
 
 }

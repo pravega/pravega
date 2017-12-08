@@ -742,7 +742,7 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentNumber,
                 hostControllerStore,
                 this.connectionFactory), executor)
-                .thenApply(WireCommands.StreamSegmentInfo::getSegmentLength);
+                .thenApply(WireCommands.StreamSegmentInfo::getWriteOffset);
     }
 
     private CompletableFuture<Void> notifyPolicyUpdate(String scope, String stream, ScalingPolicy policy, int segmentNumber) {

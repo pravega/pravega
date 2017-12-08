@@ -240,7 +240,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
                                    .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
-        return Futures.getThrowingException(future).getSegmentLength();
+        return Futures.getThrowingException(future).getWriteOffset();
     }
 
     @Override
@@ -277,7 +277,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                                    .throwingOn(InvalidStreamException.class)
                                    .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
         StreamSegmentInfo info = future.join();
-        return new SegmentInfo(segmentId, info.getSegmentLength(), info.isSealed(), info.getLastModified());
+        return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(), info.getLastModified());
     }
 
 }

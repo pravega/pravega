@@ -49,6 +49,8 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private boolean receivedEndOfSegment = false;
     @GuardedBy("$lock")
+    private boolean receivedTruncated = false;
+    @GuardedBy("$lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
     SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long offset) {
@@ -86,6 +88,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
+            receivedTruncated = false;
             outstandingRequest = null;        
         }
     }
@@ -101,7 +104,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
      */
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         log.trace("Read called at offset {}", offset);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         long originalOffset = offset;
@@ -119,8 +122,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         }
     }
 
-    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException {
+    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         fillBuffer();
+        if (receivedTruncated) {
+            throw new SegmentTruncatedException();
+        }
         while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
             if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
                 throw new EndOfSegmentException();
