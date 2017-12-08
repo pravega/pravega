@@ -112,7 +112,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            closeConnection(new InvalidStreamException(noSuchSegment.toString()));
+            closeConnection(new NoSuchSegmentException(noSuchSegment.toString()));
         }
 
         @Override
@@ -238,7 +238,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(InvalidStreamException.class)
+                                   .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).getWriteOffset();
     }
@@ -247,7 +247,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(InvalidStreamException.class)
+                                   .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getPropertyAsync(attribute.getValue()),
                                              connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).getValue();
@@ -257,7 +257,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(InvalidStreamException.class)
+                                   .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue),
                                              connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).isSuccess();
@@ -274,7 +274,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public SegmentInfo getSegmentInfo() {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(InvalidStreamException.class)
+                                   .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
         StreamSegmentInfo info = future.join();
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(), info.getLastModified());
