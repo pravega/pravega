@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -48,6 +50,8 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private Revision revision;
     @GuardedBy("$lock")
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final CheckpointState checkpointState = new CheckpointState();
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail = new HashMap<>();
