@@ -208,7 +208,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(error);
             }
         };
-        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), "",name, WireCommands.CreateSegment.NO_SCALE, 0);
+        CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), "", name, WireCommands.CreateSegment.NO_SCALE, 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
@@ -300,7 +300,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(error);
             }
         };
-        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(),"", txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), "", txId), replyProcessor, result);
         return result;
     }
 
@@ -387,7 +387,7 @@ public class MockController implements Controller {
                 result.completeExceptionally(error);
             }
         };
-        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), "",segment.getScopedName(), txId), replyProcessor, result);
+        sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
         return result;
     }
 

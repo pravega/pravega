@@ -186,7 +186,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
-     * @param delegationToken
+     * @param delegationToken    Delegation token to pass on to the segmentstore.
      * @return transaction id.
      */
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,

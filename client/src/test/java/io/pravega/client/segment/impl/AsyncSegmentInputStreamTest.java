@@ -72,9 +72,9 @@ public class AsyncSegmentInputStreamTest {
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "",5678));
-        inOrder.verify(c).close();
         inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "", 5678));
+        inOrder.verify(c).close();
+        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234, "",  5678));
         verifyNoMoreInteractions(c);
     }
     

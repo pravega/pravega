@@ -98,7 +98,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                                         .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
-                                  //TODO: get proper token
+                //TODO: get proper token
                 .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context, PravegaInterceptor.retrieveDelegationToken(""))))
                 .whenComplete((result, error) -> {
                     if (error != null) {
