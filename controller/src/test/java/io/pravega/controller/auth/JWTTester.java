@@ -18,11 +18,10 @@ import java.security.cert.CertificateException;
 public class JWTTester {
     public static void main(String[] args) throws CertificateException, FileNotFoundException, UnsupportedEncodingException {
 
-
-      /*  RSAPublicKey publicKey = certificate.getPublicKey();
+        /*  RSAPublicKey publicKey = certificate.getPublicKey();
                 //Get the key instance
                 RSAPrivateKey privateKey = //Get the key instance
-*/
+        */
         Jwts.builder()
             .setSubject("Joe")
             .signWith(SignatureAlgorithm.HS512, "secret")
