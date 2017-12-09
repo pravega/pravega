@@ -203,9 +203,9 @@ public class EventStreamReaderTest {
         assertEquals(buffer2, ByteBuffer.wrap(event2.getEvent()));
         assertEquals(buffer3, ByteBuffer.wrap(event3.getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
-        assertEquals(buffer1, ByteBuffer.wrap(reader.read(event1.getEventPointer())));
-        assertEquals(buffer3, ByteBuffer.wrap(reader.read(event3.getEventPointer())));
-        assertEquals(buffer2, ByteBuffer.wrap(reader.read(event2.getEventPointer())));
+        assertEquals(buffer1, ByteBuffer.wrap(reader.fetchEvent(event1.getEventPointer())));
+        assertEquals(buffer3, ByteBuffer.wrap(reader.fetchEvent(event3.getEventPointer())));
+        assertEquals(buffer2, ByteBuffer.wrap(reader.fetchEvent(event2.getEventPointer())));
         reader.close();
     }
 
