@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.batch.SegmentInfo;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
@@ -17,6 +18,7 @@ import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
+import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -37,6 +39,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     private int readIndex; 
     @GuardedBy("$lock")
     private int eventsWritten = 0;
+    @GuardedBy("$lock")
+    private long startingOffset = 0;
     @GuardedBy("$lock")
     private long writeOffset = 0;
     @GuardedBy("$lock")
@@ -75,15 +79,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     
     @Override
-    public ByteBuffer read() throws EndOfSegmentException {
+    public ByteBuffer read() throws EndOfSegmentException, SegmentTruncatedException {
         return read(Long.MAX_VALUE);
     }
     
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException {
+    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         if (readIndex >= eventsWritten) {
             throw new EndOfSegmentException();
+        }
+        if (readIndex < startingOffset) {
+            throw new SegmentTruncatedException("Data has been truncated");
         }
         ByteBuffer buffer = dataWritten.get(readIndex);
         readIndex++;
@@ -158,7 +165,14 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public SegmentInfo getSegmentInfo() {
-        return new SegmentInfo(segment, 0, writeOffset, false, System.currentTimeMillis());
+        return new SegmentInfo(segment, startingOffset, writeOffset, false, System.currentTimeMillis());
+    }
+
+    @Override
+    @Synchronized
+    public void truncateSegment(Segment segment, long offset) {
+        Preconditions.checkArgument(offset >= startingOffset);
+        startingOffset = offset;
     }
 
 }
