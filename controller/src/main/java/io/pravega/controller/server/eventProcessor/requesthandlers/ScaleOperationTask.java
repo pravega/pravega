@@ -52,7 +52,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                 request.getSegmentsToSeal(), request.getNewRanges());
 
         //TODO: propogate proper delegation token.
-        streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context, PravegaInterceptor.retrieveDelegationToken(""))
+        streamMetadataTasks.startScale(request, request.isRunOnlyIfStarted(), context, PravegaInterceptor.retrieveDelegationToken("secret"))
                 .whenCompleteAsync((res, e) -> {
                     if (e != null) {
                         Throwable cause = Exceptions.unwrap(e);

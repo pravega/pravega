@@ -26,6 +26,7 @@ import lombok.Getter;
 import static io.pravega.controller.server.rpc.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 
 public class PravegaInterceptor implements ServerInterceptor {
+    private static final boolean AUTH_ENABLED = false;
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
@@ -76,33 +77,39 @@ public class PravegaInterceptor implements ServerInterceptor {
     }
 
     public static String retrieveDelegationToken(String tokenSigningKey) {
-        PravegaInterceptor interceptor;
-        if ((interceptor = getCurrentInterceptor()) != null) {
-            return interceptor.getDelegationToken();
+        if (AUTH_ENABLED) {
+            PravegaInterceptor interceptor;
+            if ((interceptor = getCurrentInterceptor()) != null) {
+                return interceptor.getDelegationToken();
+            } else {
+                Map<String, Object> claims = new HashMap();
+
+                claims.put("*", String.valueOf(READ_UPDATE));
+
+                return Jwts.builder()
+                           .setSubject("segmentstoreresource")
+                           .setAudience("segmentstore")
+                           .setClaims(claims)
+                           .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
+                           .compact();
+            }
         } else {
+            return "";
+        }
+    }
+
+    public void setDelegationToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel, String tokenSigningKey) {
+        if (AUTH_ENABLED) {
             Map<String, Object> claims = new HashMap();
 
-            claims.put("*", String.valueOf(READ_UPDATE));
+            claims.put(resource, String.valueOf(expectedLevel));
 
-            return Jwts.builder()
+            delegationToken = Jwts.builder()
                                   .setSubject("segmentstoreresource")
                                   .setAudience("segmentstore")
                                   .setClaims(claims)
                                   .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
                                   .compact();
         }
-    }
-
-    public void setDelegationToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel, String tokenSigningKey) {
-        Map<String, Object> claims = new HashMap();
-
-        claims.put(resource, String.valueOf(expectedLevel));
-
-        delegationToken = Jwts.builder()
-                                     .setSubject("segmentstoreresource")
-                                     .setAudience("segmentstore")
-                                     .setClaims(claims)
-                                     .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                                     .compact();
     }
 }
