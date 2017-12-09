@@ -78,6 +78,8 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer acquireTimer;
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
+    @Getter
+    private String latestDelegationToken;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -158,6 +160,7 @@ public class ReaderGroupStateManager {
      */
     void handleEndOfSegment(Segment segmentCompleted) throws ReinitializationRequiredException {
         val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+        latestDelegationToken = successors.getDelegationToken();
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState(state -> {
             if (!state.isReaderOnline(readerId)) {

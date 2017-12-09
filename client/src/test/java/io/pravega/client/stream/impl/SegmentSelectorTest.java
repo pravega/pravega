@@ -41,7 +41,7 @@ public class SegmentSelectorTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -68,7 +68,7 @@ public class SegmentSelectorTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
@@ -95,7 +95,7 @@ public class SegmentSelectorTest {
         segments.put(0.5, new Segment(scope, streamName, 1));
         segments.put(0.75, new Segment(scope, streamName, 2));
         segments.put(1.0, new Segment(scope, streamName, 3));
-        StreamSegments streamSegments = new StreamSegments(segments);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
 
         Mockito.when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));

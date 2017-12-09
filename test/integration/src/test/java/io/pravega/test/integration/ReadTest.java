@@ -134,7 +134,7 @@ public class ReadTest {
         @Cleanup
         EmbeddedChannel channel = AppendTest.createChannel(segmentStore);
 
-        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, 10000));
+        SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, 0, "",10000));
 
         assertEquals(result.getSegment(), segmentName);
         assertEquals(result.getOffset(), 0);
@@ -173,12 +173,12 @@ public class ReadTest {
                                  .getSegments().iterator().next();
 
         @Cleanup("close")
-        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build());
+        SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
         out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
         @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
+        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment, "");
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
     }

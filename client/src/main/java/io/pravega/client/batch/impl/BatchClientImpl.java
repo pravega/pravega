@@ -94,7 +94,8 @@ public class BatchClientImpl implements BatchClient {
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset,
                                               long endingOffset) {
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset);
+        //TODO: Store the latest delegation token after interaction with the controller and use it here.
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset, "");
     }
 
 }

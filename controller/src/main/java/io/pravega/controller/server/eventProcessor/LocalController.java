@@ -26,6 +26,7 @@ import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
@@ -45,9 +46,11 @@ import org.apache.commons.lang3.NotImplementedException;
 public class LocalController implements Controller {
 
     private ControllerService controller;
+    private final String tokenSigningKey;
 
-    public LocalController(ControllerService controller) {
+    public LocalController(ControllerService controller, String tokenSigningKey) {
         this.controller = controller;
+        this.tokenSigningKey = tokenSigningKey;
     }
 
     @Override
@@ -90,7 +93,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
+        return this.controller.createStream(streamConfig, System.currentTimeMillis(), PravegaInterceptor.retrieveDelegationToken(tokenSigningKey)).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -277,14 +280,14 @@ public class LocalController implements Controller {
         for (SegmentRange r : ranges) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        return new StreamSegments(rangeMap);
+        return new StreamSegments(rangeMap, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey));
     }
 
     @Override
     public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
                                                             final long scaleGracePeriod) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey))
                 .thenApply(pair -> {
                     return new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey());
                 });
@@ -334,7 +337,7 @@ public class LocalController implements Controller {
                 .thenApply(x -> {
                     Map<SegmentWithRange, List<Integer>> map = new HashMap<>();
                     x.forEach((segmentId, list) -> map.put(ModelHelper.encode(segmentId), list));
-                    return new StreamSegmentsWithPredecessors(map);
+                    return new StreamSegmentsWithPredecessors(map, PravegaInterceptor.retrieveDelegationToken(this.tokenSigningKey));
                 });
     }
 

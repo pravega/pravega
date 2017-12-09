@@ -157,12 +157,14 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
+        //TODO: Propagate and find the best delegationToken here.
+        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, "");
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig());
+        //TODO: Find and send a proper delegationToken
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig(), "");
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
         return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer);
     }

@@ -199,7 +199,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
-                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0).join());
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0, "").join());
 
         // Create 2 transactions
         final long lease = 5000;
@@ -207,9 +207,9 @@ public class StreamTransactionMetadataTasksTest {
         final long scaleGracePeriod = 10000;
 
         VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
+                maxExecutionTime, scaleGracePeriod, null, "").join().getKey();
         VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
+                maxExecutionTime, scaleGracePeriod, null, "").join().getKey();
 
         // Commit the first one
         TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), null).join();
@@ -238,7 +238,7 @@ public class StreamTransactionMetadataTasksTest {
                 .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
-                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), "").join());
 
         // Set up txn task for creating transactions from a failedHost.
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -247,9 +247,9 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null, "").join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null, "").join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null, "").join().getKey();
 
         // Ping another txn from failedHost.
         UUID txnId = UUID.randomUUID();
@@ -362,7 +362,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
-                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), "").join());
 
         // Create 2 transactions
         final long lease = 5000;
@@ -370,9 +370,9 @@ public class StreamTransactionMetadataTasksTest {
         final long scaleGracePeriod = 10000;
 
         VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
-                null).join().getKey();
+                null, "").join().getKey();
         VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
-                null).join().getKey();
+                null, "").join().getKey();
 
         UUID tx1 = txData1.getId();
         UUID tx2 = txData2.getId();
@@ -445,7 +445,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
-                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0).join());
+                streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, 0, "").join());
 
         // Create partial transaction
         final long lease = 10000;
@@ -453,7 +453,7 @@ public class StreamTransactionMetadataTasksTest {
         final long scaleGracePeriod = 10000;
 
         AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
-                txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod, null),
+                txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod, null, ""),
                 e -> e instanceof RuntimeException);
 
         // Ensure that exactly one transaction is active on the stream.

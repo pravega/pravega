@@ -55,7 +55,7 @@ public class SegmentMetadataClientTest {
                                                                   123, 121));
                 return null;
             }
-        }).when(connection).send(new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName()));
+        }).when(connection).send(new WireCommands.GetStreamSegmentInfo(1, "",  segment.getScopedName()));
         long length = client.fetchCurrentSegmentLength();
         assertEquals(123, length);
     }
@@ -78,7 +78,7 @@ public class SegmentMetadataClientTest {
                 processor.segmentAttribute(new WireCommands.SegmentAttribute(1, 123));
                 return null;
             }
-        }).when(connection).send(new WireCommands.GetSegmentAttribute(1, segment.getScopedName(), attributeId));
+        }).when(connection).send(new WireCommands.GetSegmentAttribute(1, segment.getScopedName(), "",  attributeId));
         long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark);
         assertEquals(123, value);
     }
@@ -101,7 +101,7 @@ public class SegmentMetadataClientTest {
                 processor.segmentAttributeUpdated(new SegmentAttributeUpdated(1, true));
                 return null;
             }
-        }).when(connection).send(new WireCommands.UpdateSegmentAttribute(1, segment.getScopedName(), attributeId, 1234,
+        }).when(connection).send(new WireCommands.UpdateSegmentAttribute(1, segment.getScopedName(), "", attributeId, 1234,
                                                                          -1234));
         assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234));
     }
@@ -117,7 +117,7 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf);
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
-        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName());
+        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(1, "", segment.getScopedName());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -125,7 +125,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(getSegmentInfo1);
-        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(2, segment.getScopedName());
+        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(2, "", segment.getScopedName());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -166,9 +166,9 @@ public class SegmentMetadataClientTest {
                        return CompletableFuture.completedFuture(connection2);
                    }
                });
-        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(2, segment.getScopedName());
+        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(2, "", segment.getScopedName());
         Mockito.doThrow(new ConnectionFailedException()).when(connection1).send(getSegmentInfo1);
-        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(3, segment.getScopedName());
+        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(3, "", segment.getScopedName());
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {

@@ -189,7 +189,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.debug("Getting segment info for segment: {}", segmentId);
-            send(c, new WireCommands.GetStreamSegmentInfo(requestId, segmentId.getScopedName()));
+            //TODO: Send proper delegationToken
+            send(c, new WireCommands.GetStreamSegmentInfo(requestId, "", segmentId.getScopedName()));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;
@@ -210,7 +211,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.debug("Getting segment attribute: {}", attributeId);
-            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId));
+            //TODO: Fetch and send a proper delegationToken
+            send(c, new WireCommands.GetSegmentAttribute(requestId, segmentId.getScopedName(), "", attributeId));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;
@@ -226,7 +228,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.trace("Updating segment attribute: {}", attributeId);
-            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, value, expected));
+            //TODO: Fetch and send a proper delegationToken
+            send(c, new WireCommands.UpdateSegmentAttribute(requestId, segmentId.getScopedName(), "", attributeId, value, expected));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;

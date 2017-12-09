@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.tables.State;
@@ -58,33 +59,34 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                     if (!property.isUpdating()) {
                         throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                     } else {
-                        return processTruncate(scope, stream, property.getProperty(), context);
+                        //TODO: Get proper token
+                        return processTruncate(scope, stream, property.getProperty(), context, PravegaInterceptor.retrieveDelegationToken(""));
                     }
                 });
     }
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
-                                                    OperationContext context) {
+                                                    OperationContext context, String delegationToken) {
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
-                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut()))
-                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete()))
+                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken))
+                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
                  .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, context, executor))
                  .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete) {
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Integer> segmentsToDelete, String delegationToken) {
         log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
-                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment))
+                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken))
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut) {
+    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Integer, Long> streamCut, String delegationToken) {
         log.debug("{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()
-                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut))
+                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut, delegationToken))
                 .collect(Collectors.toList()));
     }
 

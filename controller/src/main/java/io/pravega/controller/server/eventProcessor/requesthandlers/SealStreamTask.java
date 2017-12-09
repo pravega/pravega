@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -77,7 +78,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         List<Integer> segmentsToBeSealed = activeSegments.stream().map(Segment::getNumber).
                 collect(Collectors.toList());
         log.debug("Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
-        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed)
+        //TODO: generate proper token
+        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed, PravegaInterceptor.retrieveDelegationToken(""))
                 .thenCompose(v -> setSealed(scope, stream, context));
     }
 

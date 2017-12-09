@@ -127,7 +127,7 @@ public class ScaleRequestHandlerTest {
         // mock pravega
         // create a stream
         streamStore.createScope(scope).get();
-        streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
+        streamMetadataTasks.createStream(scope, stream, config, createTimestamp, "").get();
     }
 
     @After

@@ -154,11 +154,11 @@ public class TaskTest {
 
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
-        CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
+        CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis(), "").join();
         assertTrue(status.equals(CreateStreamStatus.Status.STREAM_EXISTS));
         streamStore.createScope(SCOPE);
         CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
-                System.currentTimeMillis()).join();
+                System.currentTimeMillis(), "").join();
         assertEquals(result, CreateStreamStatus.Status.SUCCESS);
     }
 
@@ -220,7 +220,7 @@ public class TaskTest {
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
         // Create stream test.
-        completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis()),
+        completePartialTask(mockStreamTasks.createStream(SCOPE, stream, configuration1, System.currentTimeMillis(), ""),
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 

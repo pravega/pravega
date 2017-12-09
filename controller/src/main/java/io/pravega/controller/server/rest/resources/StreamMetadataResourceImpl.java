@@ -127,7 +127,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
         StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
-        controllerService.createStream(streamConfiguration, System.currentTimeMillis())
+        //TODO: Retrieve token from headers and create an auth object.
+        controllerService.createStream(streamConfiguration, System.currentTimeMillis(), "")
                 .thenApply(streamStatus -> {
                     Response resp = null;
                     if (streamStatus.getStatus() == CreateStreamStatus.Status.SUCCESS) {
@@ -228,7 +229,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getReaderGroup");
 
-        LocalController controller = new LocalController(controllerService);
+        //TODO: Use a single local controller object.
+        LocalController controller = new LocalController(controllerService, "");
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scopeName, controller,
                 new ClientFactoryImpl(scopeName, controller), new ConnectionFactoryImpl(false));
         ReaderGroupProperty readerGroupProperty = new ReaderGroupProperty();

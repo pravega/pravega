@@ -634,7 +634,7 @@ public class ControllerImpl implements Controller {
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                 result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
-            return new StreamSegmentsWithPredecessors(result);
+            return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
         }).whenComplete((x, e) -> {
             if (e != null) {
                 log.warn("getSuccessors failed: ", e);
@@ -705,9 +705,8 @@ public class ControllerImpl implements Controller {
             for (SegmentRange r : ranges.getSegmentRangesList()) {
                 rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
             }
-            return rangeMap;
-        }).thenApply(StreamSegments::new)
-                     .whenComplete((x, e) -> {
+            return new StreamSegments(rangeMap, ranges.getDelegationToken());
+        }).whenComplete((x, e) -> {
                          if (e != null) {
                              log.warn("getCurrentSegments failed: ", e);
                          }
@@ -795,7 +794,7 @@ public class ControllerImpl implements Controller {
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap);
+        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 

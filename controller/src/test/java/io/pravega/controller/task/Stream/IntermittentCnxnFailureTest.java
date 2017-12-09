@@ -116,7 +116,7 @@ public class IntermittentCnxnFailureTest {
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(configuration1, System.currentTimeMillis());
+        controllerService.createStream(configuration1, System.currentTimeMillis(), "");
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException
@@ -136,7 +136,7 @@ public class IntermittentCnxnFailureTest {
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any());
+                anyString(), anyString(), anyInt(), any(), any(), any(), "");
 
         AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)

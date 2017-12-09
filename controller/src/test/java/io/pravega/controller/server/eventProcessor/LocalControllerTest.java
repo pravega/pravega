@@ -55,7 +55,7 @@ public class LocalControllerTest {
     @Before
     public void setup() {
         this.mockControllerService = mock(ControllerService.class);
-        this.testController = new LocalController(this.mockControllerService);
+        this.testController = new LocalController(this.mockControllerService, "");
         this.executor = Executors.newSingleThreadScheduledExecutor();
     }
 
@@ -134,38 +134,38 @@ public class LocalControllerTest {
 
     @Test
     public void testCreateStream() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SUCCESS).build()));
         Assert.assertTrue(this.testController.createStream(StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.STREAM_EXISTS).build()));
         Assert.assertFalse(this.testController.createStream(StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
                 () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
                 () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), anyLong(), "")).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",

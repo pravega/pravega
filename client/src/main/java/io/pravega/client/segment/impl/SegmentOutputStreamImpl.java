@@ -80,7 +80,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object connectionEstablishmentLock = new Object();
     private final Object writeOrderLock = new Object();
-    
+    private final String delegationToken;
+
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -522,7 +523,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName);
+                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, delegationToken, segmentName);
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {

@@ -129,7 +129,7 @@ public class ControllerServiceWithZKStreamTest {
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start, "").get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM).get();

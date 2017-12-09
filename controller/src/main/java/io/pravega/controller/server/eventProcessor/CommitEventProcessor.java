@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -99,7 +100,8 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                 return CompletableFuture.completedFuture(null);
             } else if (epoch == pair.getKey()) {
                 // If the transaction's epoch is same as the stream's current epoch, commit it.
-                return completeCommit(scope, stream, epoch, txnId, context);
+                //TODO: Generate and get proper token
+                return completeCommit(scope, stream, epoch, txnId, context, PravegaInterceptor.retrieveDelegationToken(""));
             } else {
                 // Otherwise, postpone commit operation until the stream transitions to next epoch.
                 return postponeCommitEvent(event);
@@ -120,12 +122,12 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
                                                    final String stream,
                                                    final int epoch,
                                                    final UUID txnId,
-                                                   final OperationContext context) {
+                                                   final OperationContext context, String delegationToken) {
         return streamMetadataStore.getActiveSegmentIds(scope, stream, epoch, context, executor)
-                .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId).thenComposeAsync(x ->
+                .thenComposeAsync(segments -> notifyCommitToHost(scope, stream, segments, txnId, delegationToken).thenComposeAsync(x ->
                         streamMetadataStore.commitTransaction(scope, stream, epoch, txnId, context, executor), executor)
-                        .thenApply(x -> null))
-                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)));
+                                                                                                                 .thenApply(x -> null))
+                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context, delegationToken)));
     }
 
     private CompletableFuture<Void> postponeCommitEvent(CommitEvent event) {
@@ -150,18 +152,18 @@ public class CommitEventProcessor extends EventProcessor<CommitEvent> {
     }
 
     private CompletableFuture<Void> notifyCommitToHost(final String scope, final String stream,
-                                                       final List<Integer> segments, final UUID txnId) {
+                                                       final List<Integer> segments, final UUID txnId, String delegationToken) {
         return Futures.allOf(segments.stream()
                                      .parallel()
-                                     .map(segment -> notifyCommitToHost(scope, stream, segment, txnId))
+                                     .map(segment -> notifyCommitToHost(scope, stream, segment, txnId, delegationToken))
                                      .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyCommitToHost(final String scope, final String stream,
-                                                                       final int segment, final UUID txId) {
+                                                                       final int segment, final UUID txId, String delegationToken) {
         String failureMessage = String.format("Transaction = %s, error sending commit notification for segment %d",
                 txId, segment);
         return Retry.indefinitelyWithExpBackoff(failureMessage).runAsync(() -> segmentHelper.commitTransaction(scope,
-                stream, segment, txId, this.hostControllerStore, this.connectionFactory), executor);
+                stream, segment, txId, this.hostControllerStore, this.connectionFactory, delegationToken), executor);
     }
 }

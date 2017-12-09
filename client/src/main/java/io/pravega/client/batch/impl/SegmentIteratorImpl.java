@@ -30,11 +30,11 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     private final SegmentInputStream input;
 
     public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
-            Serializer<T> deserializer, long startingOffset, long endingOffset) {
+                               Serializer<T> deserializer, long startingOffset, long endingOffset, String delegationToken) {
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
-        input = factory.createInputStreamForSegment(segment);
+        input = factory.createInputStreamForSegment(segment, delegationToken);
         input.setOffset(startingOffset);        
     }
 

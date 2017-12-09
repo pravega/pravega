@@ -163,7 +163,7 @@ public class TimeoutServiceTest {
     @Test(timeout = 10000)
     public void testControllerTimeout() throws InterruptedException {
         long begin = System.currentTimeMillis();
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
@@ -211,7 +211,7 @@ public class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testControllerPingSuccess() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
@@ -260,7 +260,7 @@ public class TimeoutServiceTest {
         ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
                 streamTransactionMetadataTasks2, new SegmentHelper(), executor, null);
 
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 2 * MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, 2 * MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
@@ -325,7 +325,7 @@ public class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testControllerPingLeaseTooLarge() {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
@@ -362,19 +362,19 @@ public class TimeoutServiceTest {
     @Test(timeout = 10000)
     public void testControllerCreateTxnLeaseTooLarge() {
         checkError(controllerService.createTransaction(SCOPE, STREAM, SCALE_GRACE_PERIOD + 1, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD), IllegalArgumentException.class);
+                SCALE_GRACE_PERIOD, ""), IllegalArgumentException.class);
 
         checkError(controllerService.createTransaction(SCOPE, STREAM, MAX_EXECUTION_TIME + 1, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD), IllegalArgumentException.class);
+                SCALE_GRACE_PERIOD, ""), IllegalArgumentException.class);
 
         checkError(controllerService.createTransaction(SCOPE, STREAM, Config.MAX_LEASE_VALUE + 1, MAX_EXECUTION_TIME,
-                SCALE_GRACE_PERIOD), IllegalArgumentException.class);
+                SCALE_GRACE_PERIOD, ""), IllegalArgumentException.class);
 
         checkError(controllerService.createTransaction(SCOPE, STREAM, Config.MAX_SCALE_GRACE_PERIOD + 1,
-                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD), IllegalArgumentException.class);
+                MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, ""), IllegalArgumentException.class);
 
         checkError(controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME,
-                Config.MAX_SCALE_GRACE_PERIOD + 1), IllegalArgumentException.class);
+                Config.MAX_SCALE_GRACE_PERIOD + 1, ""), IllegalArgumentException.class);
     }
 
     @Test(timeout = 10000)
@@ -399,7 +399,7 @@ public class TimeoutServiceTest {
 
     @Test(timeout = 10000)
     public void testControllerPingFailureMaxExecutionTimeExceeded() throws InterruptedException {
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 
@@ -446,7 +446,7 @@ public class TimeoutServiceTest {
     @Test(timeout = 10000)
     public void testControllerPingFailureDisconnected() throws InterruptedException {
 
-        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD)
+        TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE, MAX_EXECUTION_TIME, SCALE_GRACE_PERIOD, "")
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
                 .join();
 

@@ -24,9 +24,10 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
+     * @param delegationToken
      * @return New instance of SegmentInputStream for reading.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment);
+    SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the
@@ -41,7 +42,8 @@ public interface SegmentInputStreamFactory {
      *
      * @param segment  The segment to create an input for.
      * @param bufferSize Size of the input stream read buffer.
+     * @param delegationToken
      * @return A segment input stream.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize);
+    SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize, String delegationToken);
 }

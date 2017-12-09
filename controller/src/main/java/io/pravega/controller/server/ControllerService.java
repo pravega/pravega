@@ -88,7 +88,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
-            final long createTimestamp) {
+                                                              final long createTimestamp, String controllerToken) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         try {
@@ -102,7 +102,7 @@ public class ControllerService {
         return streamMetadataTasks.createStream(streamConfig.getScope(),
                                                 streamConfig.getStreamName(),
                                                 streamConfig,
-                                                createTimestamp)
+                                                createTimestamp, controllerToken)
                 .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
@@ -253,11 +253,11 @@ public class ControllerService {
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease,
                                                                                final long maxExecutionPeriod,
-                                                                               final long scaleGracePeriod) {
+                                                                               final long scaleGracePeriod, String delegationToken) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null)
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, null, delegationToken)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<Segment> segments = pair.getValue();

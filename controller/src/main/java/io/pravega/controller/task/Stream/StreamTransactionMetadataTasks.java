@@ -186,6 +186,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
+     * @param delegationToken
      * @return transaction id.
      */
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
@@ -193,10 +194,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                       final long lease,
                                                                                       final long maxExecutionPeriod,
                                                                                       final long scaleGracePeriod,
-                                                                                      final OperationContext contextOpt) {
+                                                                                      final OperationContext contextOpt, String delegationToken) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context);
+            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context, delegationToken);
         }, executor);
     }
 
@@ -286,6 +287,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param maxExecutionPeriod  maximum amount of time for which txn may remain open.
      * @param scaleGracePeriod    amount of time for which txn may remain open after scale operation is initiated.
      * @param ctx                 context.
+     * @param delegationToken
      * @return                    identifier of the created txn.
      */
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
@@ -293,7 +295,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                                    final long lease,
                                                                                    final long maxExecutionPeriod,
                                                                                    final long scaleGracePeriod,
-                                                                                   final OperationContext ctx) {
+                                                                                   final OperationContext ctx, String delegationToken) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease, maxExecutionPeriod, scaleGracePeriod);
 
@@ -326,7 +328,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
         CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+                notifyTxnCreation(scope, stream, activeSegments, txnId, delegationToken), executor).whenComplete((v, e) ->
                 // Method notifyTxnCreation ensures that notification completes
                 // even in the presence of n/w or segment store failures.
                 log.debug("Txn={}, notified segments stores", txnId));
@@ -602,21 +604,21 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId) {
+                                                      final List<Segment> segments, final UUID txnId, String delegationToken) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId))
+                .map(segment -> notifyTxnCreation(scope, stream, segment.getNumber(), txnId, delegationToken))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<UUID> notifyTxnCreation(final String scope, final String stream,
-                                                      final int segmentNumber, final UUID txnId) {
+                                                      final int segmentNumber, final UUID txnId, String delegationToken) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory), executor);
+                this.connectionFactory, delegationToken), executor);
     }
 
     private CompletableFuture<Void> checkReady() {

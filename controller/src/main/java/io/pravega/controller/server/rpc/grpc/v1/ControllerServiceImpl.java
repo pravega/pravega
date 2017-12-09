@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaAuthHandler;
@@ -50,12 +48,10 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import javax.ws.rs.NotAuthorizedException;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -83,9 +79,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
         log.info("createStream called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults((v) -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                             request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
-                () -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
+                () -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis(), getCurrentDelegationToken()),
                       responseObserver);
     }
 
@@ -127,11 +123,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void getCurrentSegments(StreamInfo request, StreamObserver<SegmentRanges> responseObserver) {
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
-        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getScope() + "/" +
+        authenticateExecuteAndProcessResults((v) -> checkAuthorizationWithToken(request.getScope() + "/" +
                         request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
                 () -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                                               .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                      .addAllSegmentRanges(segmentRanges).setDelegationToken(getCurrentDelegationToken())
+                                      .addAllSegmentRanges(segmentRanges)
+                                      .setDelegationToken(getCurrentDelegationToken())
                                       .build()),
                       responseObserver);
     }
@@ -142,13 +139,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void getSegments(GetSegmentsRequest request, StreamObserver<SegmentsAtTime> responseObserver) {
         log.debug("getSegments called for stream " + request.getStreamInfo().getScope() + "/" +
                           request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults((v) -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
                 () -> controllerService.getSegmentsAtTime(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getTimestamp())
                                                               .thenApply(segments -> {
-                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder();
+                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
+                                                                            .setDelegationToken(getCurrentDelegationToken());
                                            for (Entry<SegmentId, Long> entry : segments.entrySet()) {
                                                builder.addSegments(SegmentLocation.newBuilder()
                                                                                   .setSegmentId(entry.getKey())
@@ -167,7 +165,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults((v) -> checkAuthorization(segmentId.getStreamInfo().getScope() + "/" +
                 segmentId.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ),
                 () -> controllerService.getSegmentsImmediatelyFollowing(segmentId)
-                                                              .thenApply(ModelHelper::createSuccessorResponse),
+                                                              .thenApply(ModelHelper::createSuccessorResponse)
+                                                              .thenApply((response) -> {
+                                                                response.setDelegationToken(getCurrentDelegationToken());
+                                                                return response.build();
+                                                              }),
                       responseObserver);
     }
 
@@ -223,14 +225,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
         log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults((v) -> checkAuthorization(request.getStreamInfo().getScope() + "/" +
+        authenticateExecuteAndProcessResults((v) -> checkAuthorizationWithToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
                 () -> controllerService.createTransaction(request.getStreamInfo().getScope(),
                                                           request.getStreamInfo().getStream(),
                                                           request.getLease(),
                                                           request.getMaxExecutionTime(),
-                                                          request.getScaleGracePeriod())
+                                                          request.getScaleGracePeriod(), getCurrentDelegationToken())
                                                               .thenApply(pair -> Controller.CreateTxnResponse.newBuilder()
+                        .setDelegationToken(getCurrentDelegationToken())
                         .setTxnId(ModelHelper.decode(pair.getKey()))
                         .addAllActiveSegments(pair.getValue())
                         .build()),
@@ -349,22 +352,18 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         return true;
     }
 
-    //TODO: set the current delegation token
     public boolean checkAuthorizationWithToken(String resource, PravegaAuthHandler.PravegaAccessControlEnum expectedLevel) {
-       if (checkAuthorization(resource, expectedLevel)) {
-           String delegationToken = Jwts.builder()
-                                        .setSubject("Joe")
-                                        .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                                        .compact();
-       } else {
-           return false;
-       }
-       return true;
+        boolean retVal = checkAuthorization(resource, expectedLevel);
+        if (retVal) {
+
+            PravegaInterceptor interceptor = PravegaInterceptor.getCurrentInterceptor();
+            interceptor.setDelegationToken(resource, expectedLevel, tokenSigningKey);
+        }
+        return retVal;
     }
 
-    //TODO: retrieve the current delegation token and use it.
     private String getCurrentDelegationToken() {
-        return null;
+        return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
     }
 
 }

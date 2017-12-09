@@ -15,6 +15,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -97,7 +98,8 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                                         .map(segment -> notifyAbortToHost(scope, stream, segment, txId))
                                         .collect(Collectors.toList())))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, epoch, txId, context, executor))
-                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context)))
+                                  //TODO: get proper token
+                .thenCompose(x -> Futures.toVoid(streamMetadataTasks.tryCompleteScale(scope, stream, epoch, context, PravegaInterceptor.retrieveDelegationToken(""))))
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
@@ -126,6 +128,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
                         segmentNumber,
                         txId,
                         this.hostControllerStore,
-                        this.connectionFactory), executor);
+                        //TODO: Present proper token
+                        this.connectionFactory, PravegaInterceptor.retrieveDelegationToken("")), executor);
     }
 }
