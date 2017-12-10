@@ -11,7 +11,7 @@ package io.pravega.controller.server.rpc.grpc.v1;
 
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.PravegaAuthHandler;
+import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;

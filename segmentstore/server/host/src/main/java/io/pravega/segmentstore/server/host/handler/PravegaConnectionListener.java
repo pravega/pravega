@@ -32,6 +32,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
@@ -52,6 +53,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final String host;
     private final int port;
     private final StreamSegmentStore store;
+    private final DelegationTokenVerifier tokenVerifier;
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -70,26 +72,27 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "localhost", port, streamSegmentStore, null);
+        this(ssl, "localhost", port, streamSegmentStore, null, null);
     }
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
-     *
-     * @param ssl                Whether to use SSL.
+     *  @param ssl                Whether to use SSL.
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
      * @param statsRecorder      (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier       The object to verify delegation token.
      */
     public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
-                                     SegmentStatsRecorder statsRecorder) {
+                                     SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.ssl = ssl;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.statsRecorder = statsRecorder;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
+        this.tokenVerifier = tokenVerifier;
     }
 
     //endregion
@@ -139,8 +142,9 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsRecorder),
-                         statsRecorder));
+                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier),
+                         statsRecorder,
+                         tokenVerifier));
              }
          });
 

@@ -19,11 +19,12 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.pravega.client.auth.PravegaAuthHandler;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
 
-import static io.pravega.controller.server.rpc.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
+import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 
 public class PravegaInterceptor implements ServerInterceptor {
     private static final boolean AUTH_ENABLED = false;
