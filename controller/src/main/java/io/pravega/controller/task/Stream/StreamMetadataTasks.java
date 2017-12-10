@@ -132,7 +132,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<CreateStreamStatus.Status> createStream(String scope, String stream, StreamConfiguration config, long createTimestamp, String controllerToken) {
         return execute(
                 new Resource(scope, stream),
-                new Serializable[]{scope, stream, config, createTimestamp},
+                new Serializable[]{scope, stream, config, createTimestamp, controllerToken},
                 () -> createStreamBody(scope, stream, config, createTimestamp, controllerToken));
     }
 
