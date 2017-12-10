@@ -402,7 +402,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
         }
 
@@ -633,7 +633,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(offset);
             out.writeInt(suggestedLength);
         }
@@ -703,7 +703,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segmentName);
             out.writeLong(attributeId.getMostSignificantBits());
             out.writeLong(attributeId.getLeastSignificantBits());
@@ -761,7 +761,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segmentName);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(attributeId.getMostSignificantBits());
             out.writeLong(attributeId.getLeastSignificantBits());
             out.writeLong(newValue);
@@ -818,7 +818,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segmentName);
         }
 
@@ -893,7 +893,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
@@ -972,7 +972,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
             out.writeInt(targetRate);
             out.writeByte(scaleType);
@@ -1032,7 +1032,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(targetRate);
             out.writeByte(scaleType);
         }
@@ -1088,7 +1088,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
@@ -1148,7 +1148,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
         }
@@ -1206,7 +1206,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
             out.writeLong(txid.getMostSignificantBits());
             out.writeLong(txid.getLeastSignificantBits());
@@ -1265,7 +1265,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
         }
 
@@ -1317,7 +1317,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
             out.writeLong(truncationOffset);
         }
@@ -1370,7 +1370,7 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeUTF(segment);
         }
 
