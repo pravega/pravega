@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -30,6 +32,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.WrongHostException;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -126,6 +129,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final StreamSegmentStore segmentStore;
     private final ServerConnection connection;
     private final SegmentStatsRecorder statsRecorder;
+    private final DelegationTokenVerifier tokenVerifier;
 
     //endregion
 
@@ -139,20 +143,21 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
-        this(segmentStore, connection, null);
+        this(segmentStore, connection, null, null);
     }
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class.
-     *
-     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
+     *  @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
      * @param statsRecorder (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier  Verifier class that verifies delegation token.
      */
-    PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder) {
+    PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.statsRecorder = statsRecorder;
+        this.tokenVerifier = tokenVerifier;
     }
 
     //endregion
@@ -355,10 +360,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     @Override
     public void createSegment(CreateSegment createStreamsSegment) {
         Timer timer = new Timer();
+
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue())
         );
+
+        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(createStreamsSegment.getSegment(),
+                createStreamsSegment.getDelegationToken(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE)) {
+            log.warn("Delegation token verification failed");
+            handleException(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment(),
+                    "Create Segment", new PravegaAuthenticationException("Token verification failed"));
+        }
 
         segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {

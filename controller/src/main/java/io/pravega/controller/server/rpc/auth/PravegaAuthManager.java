@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
+import io.pravega.client.auth.PravegaAuthHandler;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.ServiceLoader;
 

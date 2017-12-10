@@ -32,6 +32,7 @@ public class AutoScalerConfig {
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
     public static final Property<String> AUTH_USERNAME = Property.named("authUsername", "");
     public static final Property<String> AUTH_PASSWD = Property.named("authPasswd", "");
+    public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -102,6 +103,11 @@ public class AutoScalerConfig {
      */
     @Getter
     private final String authUsername;
+    /**
+     *
+     */
+    @Getter
+    private final String tokenSigningKey;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
@@ -115,6 +121,7 @@ public class AutoScalerConfig {
         this.authUsername = properties.get(AUTH_USERNAME);
         this.authPasswd = properties.get(AUTH_PASSWD);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
+        this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {

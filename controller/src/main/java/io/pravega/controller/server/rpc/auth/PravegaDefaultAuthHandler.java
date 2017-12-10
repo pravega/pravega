@@ -11,6 +11,8 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.client.auth.PravegaAuthHandler;
+import io.pravega.client.auth.PravegaAuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -78,8 +80,8 @@ public class PravegaDefaultAuthHandler implements PravegaAuthHandler {
     }
 
     @Override
-    public void setServerConfig(GRPCServerConfig serverConfig) {
-        loadPasswdFile(serverConfig.getUserPasswdFile());
+    public void setServerConfig(Object serverConfig) {
+        loadPasswdFile(((GRPCServerConfig) serverConfig).getUserPasswdFile());
     }
 
     private PravegaAccessControlEnum authorizeForUser(PravegaACls pravegaACls, String resource) {

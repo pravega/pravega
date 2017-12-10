@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.client.auth;
 
 public class PravegaAuthenticationException extends Exception {
     public PravegaAuthenticationException(String message) {

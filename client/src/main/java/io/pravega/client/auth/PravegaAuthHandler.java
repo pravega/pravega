@@ -7,9 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.rpc.auth;
+package io.pravega.client.auth;
 
-import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Map;
 
 public interface PravegaAuthHandler {
@@ -46,5 +45,5 @@ public interface PravegaAuthHandler {
      * Sets the configuration. The auth handler can extract its config from this.
      * @param serverConfig The server configuration.
      */
-    void setServerConfig(GRPCServerConfig serverConfig);
+    void setServerConfig(Object serverConfig);
 }
