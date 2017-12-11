@@ -442,5 +442,10 @@ public class MockController implements Controller {
     @Override
     public void close() {
     }
+
+    @Override
+    public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
+        return CompletableFuture.completedFuture("");
+    }
 }
 

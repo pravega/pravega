@@ -156,16 +156,16 @@ public class ClientFactoryImpl implements ClientFactory {
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        StreamSegments segments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), RuntimeException::new);
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefeshDelegationTokenFor(scope, streamName), RuntimeException::new);
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, segments.getDelegationToken());
+        SegmentInputStream in = inFactory.createInputStreamForSegment(segment, delegationToken);
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig(), segments.getDelegationToken());
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack, config.getEventWriterConfig(), delegationToken);
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment);
-        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer, controller, segments.getDelegationToken());
+        return new RevisionedStreamClientImpl<>(segment, in, out, meta, serializer, controller, delegationToken);
     }
 
     @Override
