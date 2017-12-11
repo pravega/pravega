@@ -36,6 +36,7 @@ service ControllerService {
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
+    rpc getDelegationToken(StreamInfo) returns (DelegationToken);
 }
 
 message ServerRequest {
@@ -286,3 +287,7 @@ message GetSegmentsRequest {
 message SegmentValidityResponse {
     bool response = 1;
 }
+
+message DelegationToken {
+    string delegationToken = 1;
+ }

@@ -307,6 +307,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
+    @Override
+    public void getDelegationToken(io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo request,
+                                   io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver)  {
+        log.info("createStream called for stream {}/{}.", request.getScope(),
+                request.getStream());
+        authenticateExecuteAndProcessResults(v -> checkAuthorizationWithToken(request.getScope() + "/" +
+                        request.getStream(), PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE),
+                () -> CompletableFuture.completedFuture(Controller.DelegationToken
+                        .newBuilder()
+                        .setDelegationToken(getCurrentDelegationToken())
+                        .build()),
+                responseObserver);
+    }
+
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private static <T> void authenticateExecuteAndProcessResults(Predicate<Void> authenticator,
                                                                  Supplier<CompletableFuture<T>> call, final StreamObserver<T> streamObserver) {

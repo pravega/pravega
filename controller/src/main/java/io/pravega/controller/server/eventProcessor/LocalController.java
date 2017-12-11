@@ -362,4 +362,9 @@ public class LocalController implements Controller {
     @Override
     public void close() {
     }
+
+    @Override
+    public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
+        return CompletableFuture.completedFuture(PravegaInterceptor.retrieveDelegationToken(tokenSigningKey));
+    }
 }
