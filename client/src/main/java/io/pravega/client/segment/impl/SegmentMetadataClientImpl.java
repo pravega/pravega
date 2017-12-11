@@ -181,7 +181,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         });
     }
     
-    private CompletableFuture<WireCommands.StreamSegmentInfo> getStreamSegmentInfo() {
+    private CompletableFuture<WireCommands.StreamSegmentInfo> getStreamSegmentInfo(String delegationToken) {
         CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         long requestId = requestIdGenerator.get();
         synchronized (lock) {
@@ -189,8 +189,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
         getConnection().thenAccept(c -> {
             log.debug("Getting segment info for segment: {}", segmentId);
-            //TODO: Send proper delegationToken
-            send(c, new WireCommands.GetStreamSegmentInfo(requestId, "", segmentId.getScopedName()));
+            send(c, new WireCommands.GetStreamSegmentInfo(requestId, delegationToken, segmentId.getScopedName()));
         }).exceptionally(e -> {
             closeConnection(e);
             return null;
@@ -238,11 +237,11 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
     
     @Override
-    public long fetchCurrentSegmentLength() {
+    public long fetchCurrentSegmentLength(String delegationToken) {
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
         return Futures.getThrowingException(future).getSegmentLength();
     }
 
@@ -275,10 +274,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public SegmentInfo getSegmentInfo() {
+    public SegmentInfo getSegmentInfo(String delegationToken) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(InvalidStreamException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(), connectionFactory.getInternalExecutor());
+                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
         StreamSegmentInfo info = future.join();
         return new SegmentInfo(segmentId, info.getSegmentLength(), info.isSealed(), info.getLastModified());
     }

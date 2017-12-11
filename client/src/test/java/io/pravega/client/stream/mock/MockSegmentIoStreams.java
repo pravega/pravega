@@ -69,7 +69,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public long fetchCurrentSegmentLength() {
+    public long fetchCurrentSegmentLength(String delegationToken) {
         return writeOffset;
     }
 
@@ -157,7 +157,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     @Synchronized
-    public SegmentInfo getSegmentInfo() {
+    public SegmentInfo getSegmentInfo(String delegationToken) {
         return new SegmentInfo(segment, writeOffset, false, System.currentTimeMillis());
     }
 

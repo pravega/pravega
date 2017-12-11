@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.commons.lang3.tuple.Pair;
 
 public class LocalController implements Controller {
 
@@ -342,7 +343,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
+    public CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from) {
         throw new NotImplementedException("getSuccessors");
     }
 
