@@ -356,7 +356,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         if (isAuthEnabled) {
             boolean retVal = checkAuthorization(resource, expectedLevel);
             if (retVal) {
-
                 PravegaInterceptor interceptor = PravegaInterceptor.getCurrentInterceptor();
                 interceptor.setDelegationToken(resource, expectedLevel, tokenSigningKey);
             }

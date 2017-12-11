@@ -27,7 +27,7 @@ import lombok.Getter;
 import static io.pravega.client.auth.PravegaAuthHandler.PravegaAccessControlEnum.READ_UPDATE;
 
 public class PravegaInterceptor implements ServerInterceptor {
-    private static final boolean AUTH_ENABLED = false;
+    private static final boolean AUTH_ENABLED = true;
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<Map<String, String>> AUTH_CONTEXT_PARAMS = Context.key(AUTH_CONTEXT);
