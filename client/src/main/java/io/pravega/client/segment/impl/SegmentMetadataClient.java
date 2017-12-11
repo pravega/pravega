@@ -18,17 +18,19 @@ public interface SegmentMetadataClient extends AutoCloseable {
     
     /**
      * Returns info for the current segment.
-     * 
+     *
+     * @param delegationToken token to be passed on to segmentstore for validation.
      * @return Metadata about the segment.
      */
-    abstract SegmentInfo getSegmentInfo();
+    abstract SegmentInfo getSegmentInfo(String delegationToken);
     
     /**
      * Returns the length of the current segment. i.e. the total length of all data written to the segment.
      *
+     * @param delegationToken token to be passed on to segmentstore for validation.
      * @return The length of the current segment.
      */
-    abstract long fetchCurrentSegmentLength();
+    abstract long fetchCurrentSegmentLength(String delegationToken);
 
     /**
      * Gets the current value of the provided attribute.

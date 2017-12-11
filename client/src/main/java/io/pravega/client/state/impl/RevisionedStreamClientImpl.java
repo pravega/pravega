@@ -18,6 +18,7 @@ import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -47,6 +48,9 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @GuardedBy("lock")
     private final SegmentMetadataClient meta;
     private final Serializer<T> serializer;
+    private final Controller controller;
+    private final String currentDelegationToken;
+
     private final Object lock = new Object();
 
     @Override
@@ -99,7 +103,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
-            long endOffset = meta.fetchCurrentSegmentLength();
+            long endOffset = meta.fetchCurrentSegmentLength(currentDelegationToken);
             log.trace("Creating iterator from {} until {}", startOffset, endOffset);
             return new StreamIterator(startOffset, endOffset);
         }
@@ -108,7 +112,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     @Override
     public Revision fetchLatestRevision() {
         synchronized (lock) {
-            long streamLength = meta.fetchCurrentSegmentLength();
+            long streamLength = meta.fetchCurrentSegmentLength(currentDelegationToken);
             return new RevisionImpl(segment, streamLength, 0);
         }
     }

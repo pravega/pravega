@@ -30,10 +30,12 @@ import io.pravega.client.stream.impl.StreamImpl;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import lombok.Cleanup;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -43,6 +45,8 @@ public class BatchClientImpl implements BatchClient {
     private final Controller controller;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
+
+    private String latestDelegationToken;
 
     public BatchClientImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
@@ -72,22 +76,25 @@ public class BatchClientImpl implements BatchClient {
                                                              RuntimeException::new);
         SortedSet<Segment> result = new TreeSet<>();
         result.addAll(segments.keySet());
-        result.addAll(getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
-                                             RuntimeException::new));
-        return Iterators.transform(result.iterator(), s -> segmentToInfo(s));
+        Pair<Set<Segment>, String> successors = getAndHandleExceptions(controller.getSuccessors(new StreamCut(stream, segments)),
+                RuntimeException::new);
+
+        result.addAll(successors.getLeft());
+        latestDelegationToken = successors.getRight();
+        return Iterators.transform(result.iterator(), s -> segmentToInfo(s, successors.getRight()));
     }
 
-    private SegmentInfo segmentToInfo(Segment s) {
+    private SegmentInfo segmentToInfo(Segment s, String delegationToken) {
         @Cleanup
         SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s);
-        return client.getSegmentInfo();
+        return client.getSegmentInfo(delegationToken);
     }
 
     @Override
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer) {
         @Cleanup
         SegmentMetadataClient metadataClient = segmentMetadataClientFactory.createSegmentMetadataClient(segment);
-        long segmentLength = metadataClient.fetchCurrentSegmentLength();
+        long segmentLength = metadataClient.fetchCurrentSegmentLength(latestDelegationToken);
         return readSegment(segment, deserializer, 0, segmentLength);
     }
 
@@ -95,7 +102,7 @@ public class BatchClientImpl implements BatchClient {
     public <T> SegmentIterator<T> readSegment(Segment segment, Serializer<T> deserializer, long startingOffset,
                                               long endingOffset) {
         //TODO: Store the latest delegation token after interaction with the controller and use it here.
-        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset, "");
+        return new SegmentIteratorImpl<>(inputStreamFactory, segment, deserializer, startingOffset, endingOffset, latestDelegationToken);
     }
 
 }
