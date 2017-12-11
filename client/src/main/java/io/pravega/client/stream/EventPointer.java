@@ -14,7 +14,7 @@ import io.pravega.client.stream.impl.EventPointerInternal;
 import java.io.Serializable;
 
 /**
- * A pointer to an event. This can be used to retrieve a previously read event by calling {@link EventStreamReader#read(EventPointer)}
+ * A pointer to an event. This can be used to retrieve a previously read event by calling {@link EventStreamReader#fetchEvent(EventPointer)}
  */
 public interface EventPointer extends Serializable {
 
