@@ -918,7 +918,7 @@ public class ControllerImplTest {
     @Test
     public void testCreateTransaction() throws Exception {
         CompletableFuture<TxnSegments> transaction;
-        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0, 0);
+        transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream1"), 0, 0);
         assertEquals(new UUID(11L, 22L), transaction.get().getTxnId());
         assertEquals(2, transaction.get().getSteamSegments().getSegments().size());
         assertEquals(new Segment("scope1", "stream1", 0), transaction.get().getSteamSegments().getSegmentForKey(.2));

@@ -795,7 +795,7 @@ public class ControllerImpl implements Controller {
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap);
+        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
