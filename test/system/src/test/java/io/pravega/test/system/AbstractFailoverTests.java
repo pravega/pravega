@@ -30,7 +30,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import io.pravega.test.system.framework.services.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
 import java.net.URI;
