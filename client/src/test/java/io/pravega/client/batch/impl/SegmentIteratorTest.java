@@ -13,9 +13,11 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.test.common.AssertExtensions;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
@@ -81,6 +83,30 @@ public class SegmentIteratorTest {
         assertEquals(length, iter.getOffset());
     }
     
+    @Test(timeout = 5000)
+    public void testTruncate() {
+        MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
+        Segment segment = new Segment("Scope", "Stream", 1);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config);
+        sendData("1", outputStream);
+        sendData("2", outputStream);
+        sendData("3", outputStream);
+        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment);
+        long length = metadataClient.getSegmentInfo().getWriteOffset();
+        @Cleanup
+        SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
+        assertEquals("1", iter.next());
+        long segmentLength = metadataClient.fetchCurrentSegmentLength();
+        assertEquals(0, segmentLength % 3);
+        metadataClient.truncateSegment(segment, segmentLength*2/3);
+        AssertExtensions.assertThrows(TruncatedDataException.class, () -> iter.next());
+        @Cleanup
+        SegmentIteratorImpl<String> iter2 = new SegmentIteratorImpl<>(factory, segment, stringSerializer, segmentLength*2/3, length);
+        assertTrue(iter2.hasNext());
+        assertEquals("3", iter2.next());
+        assertFalse(iter.hasNext());
+    }
     
     private void sendData(String data, SegmentOutputStream outputStream) {
         outputStream.write(new PendingEvent("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
