@@ -83,6 +83,16 @@ public class SegmentHelper {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
@@ -125,6 +135,16 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
 
@@ -170,6 +190,16 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
 
@@ -227,6 +257,16 @@ public class SegmentHelper {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
 
         WireCommands.SealSegment request = new WireCommands.SealSegment(idGenerator.get(), delegationToken,
@@ -270,6 +310,16 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
 
@@ -323,6 +373,16 @@ public class SegmentHelper {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
 
         WireCommands.CommitTransaction request = new WireCommands.CommitTransaction(idGenerator.get(),
@@ -371,6 +431,16 @@ public class SegmentHelper {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
 
         WireCommands.AbortTransaction request = new WireCommands.AbortTransaction(idGenerator.get(), delegationToken,
@@ -406,6 +476,16 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
 
@@ -443,6 +523,16 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
 

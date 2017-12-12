@@ -208,6 +208,16 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
         CreateSegment command = new WireCommands.CreateSegment(idGenerator.get(), "", name, WireCommands.CreateSegment.NO_SCALE, 0);
         sendRequestOverNewConnection(command, replyProcessor, result);
@@ -241,6 +251,16 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
         DeleteSegment command = new WireCommands.DeleteSegment(idGenerator.get(), "", name);
@@ -300,6 +320,16 @@ public class MockController implements Controller {
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
             }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
+            }
         };
         sendRequestOverNewConnection(new CommitTransaction(idGenerator.get(), segment.getScopedName(), "", txId), replyProcessor, result);
         return result;
@@ -341,6 +371,16 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
         sendRequestOverNewConnection(new AbortTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
@@ -386,6 +426,16 @@ public class MockController implements Controller {
             @Override
             public void processingFailure(Exception error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenExpired(WireCommands.AuthTokenExpired authTokenExpired) {
+                //TODO: Fail the connection with auth failed.
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                //TODO: Propagate the error.
             }
         };
         sendRequestOverNewConnection(new CreateTransaction(idGenerator.get(), "", segment.getScopedName(), txId), replyProcessor, result);
