@@ -13,7 +13,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +50,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
+import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
+
 /**
  * Collection of metadata update tasks on stream.
  * Task methods are annotated with @Task annotation.
@@ -58,6 +62,15 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class StreamTransactionMetadataTasks implements AutoCloseable {
+    /**
+     * We derive the maximum execution timeout from the lease time. We assume
+     * a maximum number of renewals for the txn and compute the maximum execution
+     * time by multiplying the lease timeout by the maximum number of renewals. This
+     * multiplier is currently hardcoded because we do not expect applications to change
+     * it. The maximum execution timeout is only a safety mechanism for application that
+     * should rarely be triggered.
+     */
+    private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
 
     protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
     protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
@@ -70,8 +83,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
     private final ConnectionFactory connectionFactory;
-    private final boolean authorizationEnabled;
-    private final String tokenSigningKey;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -87,17 +98,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory,
-                                          boolean authorizationEnabled,
-                                          String tokenSigningKey) {
+                                          final ConnectionFactory connectionFactory) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
-        this.authorizationEnabled = authorizationEnabled;
-        this.tokenSigningKey = tokenSigningKey;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -108,7 +115,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory, boolean authorizationEnabled, String tokenSigningKey) {
+                                          final ConnectionFactory connectionFactory) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -116,8 +123,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
-        this.authorizationEnabled = authorizationEnabled;
-        this.tokenSigningKey = tokenSigningKey;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -126,11 +131,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory,
-                                          boolean authorizationEnabled,
-                                          String tokenSigningKey) {
+                                          final ConnectionFactory connectionFactory) {
         this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory, authorizationEnabled, tokenSigningKey);
+                TimeoutServiceConfig.defaultConfig(), connectionFactory);
     }
 
     protected void setReady() {
@@ -193,7 +196,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope              stream scope.
      * @param stream             stream name.
      * @param lease              Time for which transaction shall remain open with sending any heartbeat.
-     * @param maxExecutionPeriod Maximum time for which client may extend txn lease.
      * @param scaleGracePeriod   Maximum time for which client may extend txn lease once
      *                           the scaling operation is initiated on the txn stream.
      * @param contextOpt         operational context
@@ -202,12 +204,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
                                                                                       final String stream,
                                                                                       final long lease,
-                                                                                      final long maxExecutionPeriod,
                                                                                       final long scaleGracePeriod,
                                                                                       final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, maxExecutionPeriod, scaleGracePeriod, context);
+            return createTxnBody(scope, stream, lease, scaleGracePeriod, context);
         }, executor);
     }
 
@@ -249,7 +250,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return sealTxnBody(hostId, scope, stream, false, txId, version, context);
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
+                    RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
 
@@ -266,7 +268,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                   final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return sealTxnBody(hostId, scope, stream, true, txId, null, context);
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
+                    RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
 
@@ -294,7 +297,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope               scope name.
      * @param stream              stream name.
      * @param lease               txn lease.
-     * @param maxExecutionPeriod  maximum amount of time for which txn may remain open.
      * @param scaleGracePeriod    amount of time for which txn may remain open after scale operation is initiated.
      * @param ctx                 context.
      * @return                    identifier of the created txn.
@@ -302,11 +304,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
-                                                                                   final long maxExecutionPeriod,
                                                                                    final long scaleGracePeriod,
                                                                                    final OperationContext ctx) {
         // Step 1. Validate parameters.
-        CompletableFuture<Void> validate = validate(lease, maxExecutionPeriod, scaleGracePeriod);
+        CompletableFuture<Void> validate = validate(lease, scaleGracePeriod);
+        long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
 
         UUID txnId = UUID.randomUUID();
         TxnResource resource = new TxnResource(scope, stream, txnId);
@@ -356,12 +358,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     @SuppressWarnings("ReturnCount")
-    private CompletableFuture<Void> validate(long lease, long maxExecutionPeriod, long scaleGracePeriod) {
-        if (lease <= 0) {
-            return Futures.failedFuture(new IllegalArgumentException("lease should be a positive number"));
-        }
-        if (maxExecutionPeriod <= 0) {
-            return Futures.failedFuture(new IllegalArgumentException("maxExecutionPeriod should be a positive number"));
+    private CompletableFuture<Void> validate(long lease, long scaleGracePeriod) {
+        if (lease < Config.MIN_LEASE_VALUE) {
+            return Futures.failedFuture(new IllegalArgumentException("lease should be greater than minimum lease"));
         }
         if (scaleGracePeriod <= 0) {
             return Futures.failedFuture(
@@ -373,9 +372,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     + timeoutService.getMaxScaleGracePeriod()));
         }
         // If lease value is too large return error
-        if (lease > scaleGracePeriod || lease > maxExecutionPeriod || lease > timeoutService.getMaxLeaseValue()) {
+        if (lease > scaleGracePeriod || lease > timeoutService.getMaxLeaseValue()) {
             return Futures.failedFuture(new IllegalArgumentException("lease value too large, max value is "
-                    + Math.min(scaleGracePeriod, Math.min(maxExecutionPeriod, timeoutService.getMaxLeaseValue()))));
+                    + Math.min(scaleGracePeriod, timeoutService.getMaxLeaseValue())));
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -606,7 +605,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return txnStatus;
                 }, executor)
                 .exceptionally(ex -> {
-                    log.warn("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
+                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
                             .getSimpleName(), streamName);
                     throw new WriteFailedException(ex);
                 });
@@ -627,7 +626,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                this.connectionFactory), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -642,14 +641,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final String stream,
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-    }
-
-    public String retrieveDelegationToken() {
-        if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
-        } else {
-            return "";
-        }
     }
 
     @Override

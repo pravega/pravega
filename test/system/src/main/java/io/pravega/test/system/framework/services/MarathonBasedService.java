@@ -131,7 +131,7 @@ public abstract class MarathonBasedService implements Service {
 
     CompletableFuture<Void> waitUntilServiceRunning() {
         return Futures.loop(() -> !isRunning(), //condition
-                () -> Futures.delayedFuture(Duration.ofSeconds(20), executorService),
+                () -> Futures.delayedFuture(Duration.ofSeconds(10), executorService),
                 executorService);
     }
 

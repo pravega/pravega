@@ -203,13 +203,10 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease,
-                maxExecutionTime, scaleGracePeriod, null).join().getKey();
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null).join().getKey();
 
         // Commit the first one
         TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), null).join();
@@ -247,9 +244,9 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, 10000, null).join().getKey();
 
         // Ping another txn from failedHost.
         UUID txnId = UUID.randomUUID();
@@ -366,12 +363,11 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create 2 transactions
         final long lease = 5000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
-        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
+        VersionedTransactionData txData1 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
                 null).join().getKey();
-        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod,
+        VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod,
                 null).join().getKey();
 
         UUID tx1 = txData1.getId();
@@ -449,11 +445,10 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create partial transaction
         final long lease = 10000;
-        final long maxExecutionTime = 10000;
         final long scaleGracePeriod = 10000;
 
         AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
-                txnTasks.createTxn(SCOPE, STREAM, lease, maxExecutionTime, scaleGracePeriod, null),
+                txnTasks.createTxn(SCOPE, STREAM, lease, scaleGracePeriod, null),
                 e -> e instanceof RuntimeException);
 
         // Ensure that exactly one transaction is active on the stream.

@@ -31,9 +31,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+@Slf4j
 public class SegmentHelper {
     
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
@@ -61,27 +64,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("CreateSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("CreateSegment {}/{}/{} wrong host", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                log.info("CreateSegment {}/{}/{} segmentAlreadyExists", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
+                log.info("CreateSegment {}/{}/{} SegmentCreated", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("CreateSegment {}/{}/{} threw exception", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -114,22 +122,26 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("truncateSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("truncateSegment {}/{}/{} Wrong host", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
+                log.info("truncateSegment {}/{}/{} SegmentTruncated", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("truncateSegment {}/{}/{} error", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -159,27 +171,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("deleteSegment {}/{}/{} Connection dropped", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("deleteSegment {}/{}/{} wrong host", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.info("deleteSegment {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+                log.info("deleteSegment {}/{}/{} SegmentDeleted", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("deleteSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -219,28 +236,33 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("sealSegment {}/{}/{} connectionDropped", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("sealSegment {}/{}/{} wrongHost", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
+                log.info("sealSegment {}/{}/{} segmentSealed", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
+                log.info("sealSegment {}/{}/{} SegmentIsSealed", scope, stream, segmentNumber);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("sealSegment {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -270,26 +292,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("createTransaction {}/{}/{} connectionDropped", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("createTransaction {}/{}/{} wrong host", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCreated(WireCommands.TransactionCreated transactionCreated) {
+                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
+
                 result.complete(txId);
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                log.debug("createTransaction {}/{}/{} TransactionCreated", scope, stream, segmentNumber);
                 result.complete(txId);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("createTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -319,34 +347,40 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("commitTransaction {}/{}/{} connection dropped", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("commitTransaction {}/{}/{} wrongHost", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
+                log.debug("commitTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionAborted) {
+                log.warn("commitTransaction {}/{}/{} Transaction aborted", scope, stream, segmentNumber);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.info("commitTransaction {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("commitTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -375,31 +409,37 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("abortTransaction {}/{}/{} connectionDropped", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("abortTransaction {}/{}/{} wrongHost", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted) {
+                log.warn("abortTransaction {}/{}/{} TransactionCommitted", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.PreconditionFailed));
             }
 
             @Override
             public void transactionAborted(WireCommands.TransactionAborted transactionDropped) {
+                log.debug("abortTransaction {}/{}/{} transactionAborted", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.info("abortTransaction {}/{}/{} NoSuchSegment", scope, stream, segmentNumber);
                 result.complete(TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build());
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.info("abortTransaction {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -426,21 +466,25 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("updatePolicy {}/{}/{} connectionDropped", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("updatePolicy {}/{}/{} wrongHost", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
+                log.info("updatePolicy {}/{}/{} SegmentPolicyUpdated", scope, stream, segmentNumber);
                 result.complete(null);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.info("updatePolicy {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -468,21 +512,25 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
+                log.warn("getSegmentInfo {}/{}/{} connectionDropped", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn("getSegmentInfo {}/{}/{} WrongHost", scope, stream, segmentNumber);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
+                log.info("getSegmentInfo {}/{}/{} got response", scope, stream, segmentNumber);
                 result.complete(streamInfo);
             }
 
             @Override
             public void processingFailure(Exception error) {
+                log.error("getSegmentInfo {}/{}/{} failed", scope, stream, segmentNumber, error);
                 result.completeExceptionally(error);
             }
 
@@ -530,19 +578,19 @@ public class SegmentHelper {
             return null;
         });
         resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(c -> c.close());
+            connectionFuture.thenAccept(ClientConnection::close);
         });
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
         final int desiredRate;
         final byte rateType;
-        if (policy.getType().equals(ScalingPolicy.Type.FIXED_NUM_SEGMENTS)) {
+        if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             desiredRate = 0;
             rateType = WireCommands.CreateSegment.NO_SCALE;
         } else {
             desiredRate = Math.toIntExact(policy.getTargetRate());
-            if (policy.getType().equals(ScalingPolicy.Type.BY_RATE_IN_KBYTES_PER_SEC)) {
+            if (policy.getScaleType().equals(ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC)) {
                 rateType = WireCommands.CreateSegment.IN_KBYTES_PER_SEC;
             } else {
                 rateType = WireCommands.CreateSegment.IN_EVENTS_PER_SEC;

@@ -11,17 +11,13 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
-import io.grpc.auth.MoreCallCredentials;
-import io.grpc.netty.GrpcSslContexts;
-import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
@@ -60,7 +56,9 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.io.File;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
 import java.net.URI;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -74,15 +72,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import javax.net.ssl.SSLException;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -106,11 +99,10 @@ public class ControllerImpl implements Controller {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     // The gRPC client for the Controller Service.
-    private ControllerServiceGrpc.ControllerServiceStub client;
+    private final ControllerServiceGrpc.ControllerServiceStub client;
 
     // io.grpc.Channel used by the grpc client for Controller Service.
     private final ManagedChannel channel;
-    private PravegaCredentials creds;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -125,17 +117,11 @@ public class ControllerImpl implements Controller {
      */
     public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
-        this(controllerURI, config, executor, config.getCredentials(), config.isEnableTls(), config.getTlsCertFile());
-    }
-
-    public ControllerImpl(final URI controllerURI, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, PravegaCredentials creds,
-                          boolean enableTls, String tlsCertFile) {
         this(NettyChannelBuilder.forTarget(controllerURI.toString())
-                                .nameResolverFactory(new ControllerResolverFactory())
-                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
-                config, executor, creds, enableTls, tlsCertFile);
+                .nameResolverFactory(new ControllerResolverFactory())
+                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES)
+                .usePlaintext(true), config, executor);
         log.info("Controller client connecting to server at {}", controllerURI.getAuthority());
     }
 
@@ -145,51 +131,20 @@ public class ControllerImpl implements Controller {
      * @param channelBuilder The channel builder to connect to the service instance.
      * @param config         The configuration for this client implementation.
      * @param executor       The executor service to be used internally.
-     * @param creds          The credentials if any.
-     * @param enableTls      The flag to turn on TLS for controller interactions.
-     * @param tlsCertFile    File containing the public certificate for TLS.
      */
     @VisibleForTesting
     public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor, PravegaCredentials creds,
-                          boolean enableTls, String tlsCertFile) {
+                          final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
-        this.creds = creds;
         this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                 config.getRetryAttempts(), config.getMaxBackoffMillis())
-                                .retryingOn(StatusRuntimeException.class)
-                                .throwingOn(Exception.class);
+                .retryingOn(StatusRuntimeException.class)
+                .throwingOn(Exception.class);
 
-        if (enableTls) {
-            SslContextBuilder sslContextBuilder = null;
-            if (!Strings.isNullOrEmpty(tlsCertFile)) {
-                sslContextBuilder = GrpcSslContexts.forClient().trustManager(new File(tlsCertFile));
-            } else {
-                sslContextBuilder = GrpcSslContexts.forClient();
-            }
-            try {
-                channelBuilder = ((NettyChannelBuilder) channelBuilder).sslContext(sslContextBuilder.build())
-                                                                       .negotiationType(NegotiationType.TLS);
-            } catch (SSLException e) {
-                throw new CompletionException(e);
-            }
-        } else {
-            channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
-        }
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         this.client = ControllerServiceGrpc.newStub(this.channel);
-        if (creds != null) {
-            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(creds);
-            this.client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
-        }
-    }
-
-    public ControllerImpl(ManagedChannelBuilder<?> channelBuilder, final ControllerImplConfig config,
-                          final ScheduledExecutorService executor) {
-        this(channelBuilder, config, executor, null, false, null);
-
     }
 
     @Override
@@ -198,12 +153,12 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createScope", scopeName);
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
-            client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
-            return callback.getFuture();
+                RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>();
+                client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+                return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
-            switch (x.getStatus()) {
+                switch (x.getStatus()) {
                 case FAILURE:
                     log.warn("Failed to create scope: {}", scopeName);
                     throw new ControllerFailureException("Failed to create scope: " + scopeName);
@@ -219,14 +174,14 @@ public class ControllerImpl implements Controller {
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status creating scope " + scopeName
-                            + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("createScope failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "createScope", traceId);
-        });
+                                                         + " " + x.getStatus());
+                }
+            }).whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn("createScope failed: ", e);
+                }
+                LoggerHelpers.traceLeave(log, "createScope", traceId);
+            });
     }
 
     @Override
@@ -256,14 +211,14 @@ public class ControllerImpl implements Controller {
                 case UNRECOGNIZED:
                 default:
                     throw new ControllerFailureException("Unknown return status deleting scope " + scopeName
-                            + " " + x.getStatus());
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("deleteScope failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "deleteScope", traceId);
-        });
+                                                         + " " + x.getStatus());
+                }
+            }).whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn("deleteScope failed: ", e);
+                }
+                LoggerHelpers.traceLeave(log, "deleteScope", traceId);
+            });
     }
 
     @Override
@@ -279,25 +234,25 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn("Failed to create stream: {}", streamConfig.getStreamName());
-                    throw new ControllerFailureException("Failed to create stream: " + streamConfig);
-                case INVALID_STREAM_NAME:
-                    log.warn("Illegal stream name: {}", streamConfig.getStreamName());
-                    throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
-                case SCOPE_NOT_FOUND:
-                    log.warn("Scope not found: {}", streamConfig.getScope());
-                    throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
-                case STREAM_EXISTS:
-                    log.warn("Stream already exists: {}", streamConfig.getStreamName());
-                    return false;
-                case SUCCESS:
-                    log.info("Stream created successfully: {}", streamConfig.getStreamName());
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
-                            + " " + x.getStatus());
+            case FAILURE:
+                log.warn("Failed to create stream: {}", streamConfig.getStreamName());
+                throw new ControllerFailureException("Failed to create stream: " + streamConfig);
+            case INVALID_STREAM_NAME:
+                log.warn("Illegal stream name: {}", streamConfig.getStreamName());
+                throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", streamConfig.getScope());
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_EXISTS:
+                log.warn("Stream already exists: {}", streamConfig.getStreamName());
+                return false;
+            case SUCCESS:
+                log.info("Stream created successfully: {}", streamConfig.getStreamName());
+                return true;
+            case UNRECOGNIZED:
+            default:
+                throw new ControllerFailureException("Unknown return status creating stream " + streamConfig
+                                                     + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
@@ -320,22 +275,22 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn("Failed to update stream: {}", streamConfig.getStreamName());
-                    throw new ControllerFailureException("Failed to update stream: " + streamConfig);
-                case SCOPE_NOT_FOUND:
-                    log.warn("Scope not found: {}", streamConfig.getScope());
-                    throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
-                case STREAM_NOT_FOUND:
-                    log.warn("Stream does not exist: {}", streamConfig.getStreamName());
-                    throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
-                case SUCCESS:
-                    log.info("Successfully updated stream: {}", streamConfig.getStreamName());
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status updating stream " + streamConfig
-                            + " " + x.getStatus());
+            case FAILURE:
+                log.warn("Failed to update stream: {}", streamConfig.getStreamName());
+                throw new ControllerFailureException("Failed to update stream: " + streamConfig);
+            case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", streamConfig.getScope());
+                throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
+            case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamConfig.getStreamName());
+                throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
+            case SUCCESS:
+                log.info("Successfully updated stream: {}", streamConfig.getStreamName());
+                return true;
+            case UNRECOGNIZED:
+            default:
+                throw new ControllerFailureException("Unknown return status updating stream " + streamConfig
+                                                     + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
@@ -348,7 +303,7 @@ public class ControllerImpl implements Controller {
     @Override
     public CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final StreamCut streamCut) {
         return truncateStream(scope, stream, streamCut.getPositions().entrySet()
-                                                      .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
+                .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentNumber(), Map.Entry::getValue)));
     }
 
     private CompletableFuture<Boolean> truncateStream(final String scope, final String stream, final Map<Integer, Long> streamCut) {
@@ -390,8 +345,8 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
-                                                   final Map<Double, Double> newKeyRanges,
-                                                   final ScheduledExecutorService executor) {
+                                                  final Map<Double, Double> newKeyRanges,
+                                                  final ScheduledExecutorService executor) {
         Exceptions.checkNotClosed(closed.get(), this);
         CancellableRequest<Boolean> cancellableRequest = new CancellableRequest<>();
 
@@ -421,7 +376,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
-                                                 final Map<Double, Double> newKeyRanges) {
+                                                  final Map<Double, Double> newKeyRanges) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
         return startScaleInternal(stream, sealedSegments, newKeyRanges)
@@ -436,19 +391,19 @@ public class ControllerImpl implements Controller {
 
     private Boolean handleScaleResponse(Stream stream, ScaleResponse response) {
         switch (response.getStatus()) {
-            case FAILURE:
-                log.warn("Failed to scale stream: {}", stream.getStreamName());
-                throw new ControllerFailureException("Failed to scale stream: " + stream);
-            case PRECONDITION_FAILED:
-                log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
-                return false;
-            case STARTED:
-                log.info("Successfully started scale stream: {}", stream.getStreamName());
-                return true;
-            case UNRECOGNIZED:
-            default:
-                throw new ControllerFailureException("Unknown return status scaling stream " + stream
-                        + " " + response.getStatus());
+        case FAILURE:
+            log.warn("Failed to scale stream: {}", stream.getStreamName());
+            throw new ControllerFailureException("Failed to scale stream: " + stream);
+        case PRECONDITION_FAILED:
+            log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
+            return false;
+        case STARTED:
+            log.info("Successfully started scale stream: {}", stream.getStreamName());
+            return true;
+        case UNRECOGNIZED:
+        default:
+            throw new ControllerFailureException("Unknown return status scaling stream " + stream
+                                                 + " " + response.getStatus());
         }
     }
 
@@ -462,9 +417,9 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<ScaleStatusResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleStatusResponse> callback = new RPCAsyncCallback<>();
             client.checkScale(ScaleStatusRequest.newBuilder()
-                                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                                .setEpoch(scaleEpoch)
-                                                .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                            .setEpoch(scaleEpoch)
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
@@ -497,14 +452,14 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<ScaleResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>();
             client.scale(ScaleRequest.newBuilder()
-                                     .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                     .addAllSealedSegments(sealedSegments)
-                                     .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
-                                                                     .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
-                                                                                                         .setStart(x.getKey()).setEnd(x.getValue()).build())
-                                                                     .collect(Collectors.toList()))
-                                     .setScaleTimestamp(System.currentTimeMillis())
-                                     .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                            .addAllSealedSegments(sealedSegments)
+                            .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
+                                    .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
+                                            .setStart(x.getKey()).setEnd(x.getValue()).build())
+                                    .collect(Collectors.toList()))
+                            .setScaleTimestamp(System.currentTimeMillis())
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
@@ -525,22 +480,22 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn("Failed to seal stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to seal stream: " + streamName);
-                case SCOPE_NOT_FOUND:
-                    log.warn("Scope not found: {}", scope);
-                    throw new InvalidStreamException("Scope does not exist: " + scope);
-                case STREAM_NOT_FOUND:
-                    log.warn("Stream does not exist: {}", streamName);
-                    throw new InvalidStreamException("Stream does not exist: " + streamName);
-                case SUCCESS:
-                    log.info("Successfully sealed stream: {}", streamName);
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status scealing stream " + streamName
-                            + " " + x.getStatus());
+            case FAILURE:
+                log.warn("Failed to seal stream: {}", streamName);
+                throw new ControllerFailureException("Failed to seal stream: " + streamName);
+            case SCOPE_NOT_FOUND:
+                log.warn("Scope not found: {}", scope);
+                throw new InvalidStreamException("Scope does not exist: " + scope);
+            case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamName);
+                throw new InvalidStreamException("Stream does not exist: " + streamName);
+            case SUCCESS:
+                log.info("Successfully sealed stream: {}", streamName);
+                return true;
+            case UNRECOGNIZED:
+            default:
+                throw new ControllerFailureException("Unknown return status scealing stream " + streamName
+                                                     + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
@@ -564,22 +519,22 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
-                case FAILURE:
-                    log.warn("Failed to delete stream: {}", streamName);
-                    throw new ControllerFailureException("Failed to delete stream: " + streamName);
-                case STREAM_NOT_FOUND:
-                    log.warn("Stream does not exist: {}", streamName);
-                    return false;
-                case STREAM_NOT_SEALED:
-                    log.warn("Stream is not sealed: {}", streamName);
-                    throw new IllegalArgumentException("Stream is not sealed: " + streamName);
-                case SUCCESS:
-                    log.info("Successfully deleted stream: {}", streamName);
-                    return true;
-                case UNRECOGNIZED:
-                default:
-                    throw new ControllerFailureException("Unknown return status deleting stream " + streamName
-                            + " " + x.getStatus());
+            case FAILURE:
+                log.warn("Failed to delete stream: {}", streamName);
+                throw new ControllerFailureException("Failed to delete stream: " + streamName);
+            case STREAM_NOT_FOUND:
+                log.warn("Stream does not exist: {}", streamName);
+                return false;
+            case STREAM_NOT_SEALED:
+                log.warn("Stream is not sealed: {}", streamName);
+                throw new IllegalArgumentException("Stream is not sealed: " + streamName);
+            case SUCCESS:
+                log.info("Successfully deleted stream: {}", streamName);
+                return true;
+            case UNRECOGNIZED:
+            default:
+                throw new ControllerFailureException("Unknown return status deleting stream " + streamName
+                                                     + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
@@ -599,9 +554,9 @@ public class ControllerImpl implements Controller {
             RPCAsyncCallback<SegmentsAtTime> callback = new RPCAsyncCallback<>();
             StreamInfo streamInfo = ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName());
             GetSegmentsRequest request = GetSegmentsRequest.newBuilder()
-                                                           .setStreamInfo(streamInfo)
-                                                           .setTimestamp(timestamp)
-                                                           .build();
+                    .setStreamInfo(streamInfo)
+                    .setTimestamp(timestamp)
+                    .build();
             client.getSegments(request, callback);
             return callback.getFuture();
         }, this.executor);
@@ -610,7 +565,7 @@ public class ControllerImpl implements Controller {
             return segments.getSegmentsList()
                            .stream()
                            .collect(Collectors.toMap(location -> ModelHelper.encode(location.getSegmentId()),
-                                   location -> location.getOffset()));
+                                                     location -> location.getOffset()));
         }).whenComplete((x, e) -> {
             if (e != null) {
                 log.warn("getSegmentsAtTime failed: ", e);
@@ -635,7 +590,7 @@ public class ControllerImpl implements Controller {
             for (SuccessorResponse.SegmentEntry entry : successors.getSegmentsList()) {
                 result.put(ModelHelper.encode(entry.getSegment()), entry.getValueList());
             }
-            return new StreamSegmentsWithPredecessors(result, successors.getDelegationToken());
+            return new StreamSegmentsWithPredecessors(result);
         }).whenComplete((x, e) -> {
             if (e != null) {
                 log.warn("getSuccessors failed: ", e);
@@ -643,18 +598,16 @@ public class ControllerImpl implements Controller {
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
     }
-
+    
     @Override
-    public CompletableFuture<Pair<Set<Segment>, String>> getSuccessors(StreamCut from) {
+    public CompletableFuture<Set<Segment>> getSuccessors(StreamCut from) {
         Exceptions.checkNotClosed(closed.get(), this);
         Stream stream = from.getStream();
         long traceId = LoggerHelpers.traceEnter(log, "getSuccessorsFromCut", stream);
         HashSet<Segment> unread = new HashSet<>(from.getPositions().keySet());
         val currentSegments = getAndHandleExceptions(getCurrentSegments(stream.getScope(), stream.getStreamName()),
-                RuntimeException::new);
-
-        String delegationToken = currentSegments.getDelegationToken();
-        unread.addAll(computeKnownUnreadSegments(currentSegments, from));
+                                                     RuntimeException::new);
+        unread.addAll(computeKnownUnreadSegments(currentSegments, from));   
         ArrayDeque<Segment> toFetchSuccessors = new ArrayDeque<>();
         for (Segment toFetch : from.getPositions().keySet()) {
             if (!unread.contains(toFetch)) {
@@ -674,9 +627,9 @@ public class ControllerImpl implements Controller {
             }
         }
         LoggerHelpers.traceLeave(log, "getSuccessorsFromCut", traceId);
-        return CompletableFuture.completedFuture(Pair.of(unread, delegationToken));
+        return CompletableFuture.completedFuture(unread);
     }
-
+    
     private List<Segment> computeKnownUnreadSegments(StreamSegments currentSegments, StreamCut from) {
         int highestCut = from.getPositions().keySet().stream().mapToInt(s -> s.getSegmentNumber()).max().getAsInt();
         int lowestCurrent = currentSegments.getSegments().stream().mapToInt(s -> s.getSegmentNumber()).min().getAsInt();
@@ -703,18 +656,19 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ranges -> {
-            log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-            NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
-            for (SegmentRange r : ranges.getSegmentRangesList()) {
-                rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
-            }
-            return new StreamSegments(rangeMap, ranges.getDelegationToken());
-        }).whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("getCurrentSegments failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-                     });
+                    log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
+                    NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+                    for (SegmentRange r : ranges.getSegmentRangesList()) {
+                        rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                    }
+                    return rangeMap;
+                }).thenApply(StreamSegments::new)
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("getCurrentSegments failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+                });
     }
 
     @Override
@@ -733,12 +687,12 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ModelHelper::encode)
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("getEndpointForSegment failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId);
-                     });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("getEndpointForSegment failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "getEndpointForSegment", traceId);
+                });
     }
 
     @Override
@@ -755,40 +709,38 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(SegmentValidityResponse::getResponse)
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("isSegmentOpen failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "isSegmentOpen", traceId);
-                     });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("isSegmentOpen failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "isSegmentOpen", traceId);
+                });
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long maxExecutionTime,
-                                                            final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, maxExecutionTime, scaleGracePeriod);
+        long traceId = LoggerHelpers.traceEnter(log, "createTransaction", stream, lease, scaleGracePeriod);
 
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>();
             client.createTransaction(
                     CreateTxnRequest.newBuilder()
-                                    .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                    .setLease(lease)
-                                    .setMaxExecutionTime(maxExecutionTime)
-                                    .setScaleGracePeriod(scaleGracePeriod)
-                                    .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                            .setLease(lease)
+                            .setScaleGracePeriod(scaleGracePeriod)
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::convert)
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("createTransaction failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "createTransaction", traceId);
-                     });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("createTransaction failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "createTransaction", traceId);
+                });
     }
 
     private TxnSegments convert(CreateTxnResponse response) {
@@ -797,7 +749,7 @@ public class ControllerImpl implements Controller {
         for (SegmentRange r : response.getActiveSegmentsList()) {
             rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
         }
-        StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
+        StreamSegments segments = new StreamSegments(rangeMap);
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
     }
 
@@ -810,20 +762,20 @@ public class ControllerImpl implements Controller {
             RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>();
             client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
                     ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                                                 .setTxnId(ModelHelper.decode(txId))
-                                                 .setLease(lease).build(),
+                            .setTxnId(ModelHelper.decode(txId))
+                            .setLease(lease).build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
-                PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
-                PingFailedException::new)
+                                             PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
+                                             PingFailedException::new)
                       .whenComplete((x, e) -> {
-                          if (e != null) {
-                              log.warn("pingTransaction failed: ", e);
-                          }
-                          LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
-                      });
+                    if (e != null) {
+                        log.warn("pingTransaction failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
+                });
     }
 
     @Override
@@ -836,21 +788,21 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
             client.commitTransaction(TxnRequest.newBuilder()
-                                               .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                       stream.getStreamName()))
-                                               .setTxnId(ModelHelper.decode(txId))
-                                               .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                    stream.getStreamName()))
+                            .setTxnId(ModelHelper.decode(txId))
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
                       .whenComplete((x, e) -> {
-                          if (e != null) {
-                              log.warn("commitTransaction failed: ", e);
-                          }
-                          LoggerHelpers.traceLeave(log, "commitTransaction", traceId);
-                      });
+                    if (e != null) {
+                        log.warn("commitTransaction failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "commitTransaction", traceId);
+                });
     }
 
     @Override
@@ -863,21 +815,21 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>();
             client.abortTransaction(TxnRequest.newBuilder()
-                                              .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                      stream.getStreamName()))
-                                              .setTxnId(ModelHelper.decode(txId))
-                                              .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                    stream.getStreamName()))
+                            .setTxnId(ModelHelper.decode(txId))
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
                       .whenComplete((x, e) -> {
-                          if (e != null) {
-                              log.warn("abortTransaction failed: ", e);
-                          }
-                          LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
-                      });
+                    if (e != null) {
+                        log.warn("abortTransaction failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
+                });
     }
 
     @Override
@@ -890,20 +842,20 @@ public class ControllerImpl implements Controller {
         final CompletableFuture<TxnState> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnState> callback = new RPCAsyncCallback<>();
             client.checkTransactionState(TxnRequest.newBuilder()
-                                                   .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                                           stream.getStreamName()))
-                                                   .setTxnId(ModelHelper.decode(txId))
-                                                   .build(),
+                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                    stream.getStreamName()))
+                            .setTxnId(ModelHelper.decode(txId))
+                            .build(),
                     callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(status -> ModelHelper.encode(status.getState(), stream + " " + txId))
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("checkTransactionStatus failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
-                     });
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("checkTransactionStatus failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
+                });
     }
 
     @Override
@@ -911,28 +863,6 @@ public class ControllerImpl implements Controller {
         if (!closed.getAndSet(true)) {
             this.channel.shutdownNow(); // Initiates a shutdown of channel.
         }
-    }
-
-    @Override
-    public CompletableFuture<String> getOrRefeshDelegationTokenFor(String scope, String streamName) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(streamName, "stream");
-        long traceId = LoggerHelpers.traceEnter(log, "getOrRefeshDelegationTokenFor", scope, streamName);
-
-        final CompletableFuture<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> callback = new RPCAsyncCallback<>();
-            client.getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
-            return callback.getFuture();
-        }, this.executor);
-
-        return result.thenApply( token -> token.getDelegationToken())
-        .whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("getCurrentSegments failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-        });
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

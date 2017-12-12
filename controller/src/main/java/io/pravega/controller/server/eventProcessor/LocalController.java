@@ -285,13 +285,10 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long maxExecutionTime,
-                                                            final long scaleGracePeriod) {
+    public CompletableFuture<TxnSegments> createTransaction(Stream stream, long lease, final long scaleGracePeriod) {
         return controller
-                .createTransaction(stream.getScope(), stream.getStreamName(), lease, maxExecutionTime, scaleGracePeriod)
-                .thenApply(pair -> {
-                    return new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey());
-                });
+                .createTransaction(stream.getScope(), stream.getStreamName(), lease, scaleGracePeriod)
+                .thenApply(pair -> new TxnSegments(getStreamSegments(pair.getRight()), pair.getKey()));
     }
 
     @Override
