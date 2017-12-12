@@ -24,6 +24,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import java.util.ArrayList;
@@ -111,6 +112,20 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             }
             if (future != null) {
                 future.complete(segmentTruncated);
+            }
+        }
+        
+        @Override
+        public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
+            log.debug("Received segment is truncated {}", segmentIsTruncated);
+            CompletableFuture<SegmentTruncated> future;
+            synchronized (lock) {
+                future = truncateSegmentRequests.remove(segmentIsTruncated.getRequestId());
+            }
+            if (future == null) {
+                closeConnection(new SegmentTruncatedException(segmentIsTruncated.getSegment()));
+            } else {
+                future.complete(new SegmentTruncated(segmentIsTruncated.getRequestId(), segmentIsTruncated.getSegment()));
             }
         }
         

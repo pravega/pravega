@@ -9,14 +9,17 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import lombok.Getter;
+
 /**
  * Exception that is thrown whenever a Write failed due to a bad offset.
  */
 public class BadOffsetException extends StreamSegmentException {
-    /**
-     *
-     */
     private static final long serialVersionUID = 1L;
+    @Getter
+    private final long expectedOffset;
+    @Getter
+    private final long givenOffset;
 
     /**
      * Creates a new instance of the BadOffsetException class.
@@ -27,6 +30,8 @@ public class BadOffsetException extends StreamSegmentException {
      */
     public BadOffsetException(String streamSegmentName, long expectedOffset, long givenOffset) {
         super(streamSegmentName, getMessage(expectedOffset, givenOffset));
+        this.expectedOffset = expectedOffset;
+        this.givenOffset = givenOffset;
     }
 
     /**
@@ -35,8 +40,10 @@ public class BadOffsetException extends StreamSegmentException {
      * @param streamSegmentName The name of the StreamSegment.
      * @param message           The message of the exception.
      */
-    public BadOffsetException(String streamSegmentName, String message) {
+    public BadOffsetException(String streamSegmentName, long expectedOffset, long givenOffset, String message) {
         super(streamSegmentName, message);
+        this.expectedOffset = expectedOffset;
+        this.givenOffset = givenOffset;
     }
 
     private static String getMessage(long expectedOffset, long givenOffset) {

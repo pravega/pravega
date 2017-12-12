@@ -22,7 +22,7 @@ import java.util.Map.Entry;
 public interface RevisionedStreamClient<T> extends AutoCloseable {
     
     /**
-     * Returns the oldest revision than can be read.
+     * Returns the oldest revision that reads can start from. 
      *
      * @return The oldest readable revision.
      */
@@ -36,8 +36,9 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
     Revision fetchLatestRevision();
     
     /**
-     * Read from a specified revision to the end of the stream. The iterator returned will stop once
-     * it reaches the end of what was in the stream at the time this method was called.
+     * Read all data after a specified revision to the end of the stream. The iterator returned will
+     * stop once it reaches the end of the data that was in the stream at the time this method was
+     * called.
      * 
      * @param start The location the iterator should start at.
      * @return An iterator over Revision, value pairs.
@@ -76,6 +77,15 @@ public interface RevisionedStreamClient<T> extends AutoCloseable {
      * @return true if it was successful. False if the mark was not the expected value.
      */
     boolean compareAndSetMark(Revision expected, Revision newLocation);
+    
+    /**
+     * Removes all data through the revision provided (inclusive). This will update
+     * {@link #fetchOldestRevision()} to the provided revision. After this call returns if
+     * {@link #readFrom(Revision)} is called with an older revision it will throw.
+     * 
+     * @param The revision that should be the new oldest Revision.
+     */
+    void truncateToRevision(Revision revision);
     
     /**
      * Closes the client and frees any resources associated with it. (It may no longer be used)

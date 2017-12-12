@@ -38,6 +38,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private int readIndex; 
     @GuardedBy("$lock")
+    private long readOffset = 0; 
+    @GuardedBy("$lock")
     private int eventsWritten = 0;
     @GuardedBy("$lock")
     private long startingOffset = 0;
@@ -58,17 +60,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
             throw new IllegalArgumentException("There is not an entry at offset: " + offset);
         }
         readIndex = index;
+        readOffset = offset;
     }
 
     @Override
     @Synchronized
     public long getOffset() {
-        if (readIndex <= 0) {
-            return 0;
-        } else if (readIndex >= eventsWritten) {
-            return writeOffset;
-        }
-        return offsetList.get(readIndex);
+        return readOffset;
     }
 
     @Override
@@ -89,11 +87,12 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         if (readIndex >= eventsWritten) {
             throw new EndOfSegmentException();
         }
-        if (readIndex < startingOffset) {
-            throw new SegmentTruncatedException("Data has been truncated");
+        if (readOffset < startingOffset) {
+            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
         }
         ByteBuffer buffer = dataWritten.get(readIndex);
         readIndex++;
+        readOffset += buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         return buffer.slice();
     }
 
@@ -171,8 +170,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public void truncateSegment(Segment segment, long offset) {
-        Preconditions.checkArgument(offset >= startingOffset);
-        startingOffset = offset;
+        Preconditions.checkArgument(offset <= writeOffset);
+        if (offset >= startingOffset) {
+            startingOffset = offset;
+        }
     }
 
 }

@@ -181,6 +181,11 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         long startingOffset = meta.getSegmentInfo().getStartingOffset();
         return new RevisionImpl(segment, startingOffset, 0);
     }
+    
+    @Override
+    public void truncateToRevision(Revision newStart) {
+        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
+    }
 
     @Override
     public void close() {
