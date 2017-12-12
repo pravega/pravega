@@ -377,12 +377,12 @@ public class AppendProcessorTest {
             return null;
         }).when(connection).send(any(DataAppended.class));
 
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor());
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
 
         CompletableFuture<SegmentProperties> propsFuture = CompletableFuture.completedFuture(
                 StreamSegmentInformation.builder().name(streamSegmentName).build());
         when(store.getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT)).thenReturn(propsFuture);
-        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName));
+        processor.setupAppend(new SetupAppend(1, clientId, "", streamSegmentName));
         verify(store).getStreamSegmentInfo(streamSegmentName, true, AppendProcessor.TIMEOUT);
 
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
